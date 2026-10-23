@@ -211,7 +211,7 @@ export function placements(scenes:Scene[],words:W[],fps:number,total:number){
   rows.forEach((r,li)=>{
    const ws=words.slice(r.line.from,r.line.to+1),start=ws[0].startFrame;
    const stop=card&&li+1<scene.lines.length?words[scene.lines[li+1].from].startFrame:end;
-   captions.push({start,end:Math.max(start+1,stop),parameters:{text:r.text,serif:r.serif,fontFamily:'',
+   captions.push({start,end:Math.max(start+1,stop),parameters:{text:r.text,serif:r.serif,fontFamily:r.serif?'Jude Serif':'Jude Sans',
     ...(card?{fontSize:r.size,x:50,y:50}:boxParams(boxes[li],r.serif,align,r.boxWidth)),
     color:card?(li<2?STYLE.red:'#ffffff'):(r.hero?'#ffffff':r.serif?STYLE.accent:'#ffffff'),
     boxWidth:r.boxWidth,align,tracking:r.tracking,tilt,risePx:card?0:STYLE.rise,riseLead:+((start-first.startFrame)/fps).toFixed(3),behind:false,
@@ -338,6 +338,12 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
   env.status('Placing side captions behind the speaker…');
   await placeBehind(env,src,draftId,items,jobDir).then(w=>report.warnings.push(...w),(e:any)=>report.warnings.push('Side captions stay in front of the speaker: '+String(e?.message||e).slice(0,200)));
  }
+ let captionFaces:any={};
+ try{captionFaces=await judeSharedCaptionFaces(env,projectId,src,segments,jobDir);}catch(error:any){if(env.signal?.aborted)throw error;report.warnings.push('Caption face observations could not be verified; original wording was preserved for review.');}
+ report.faceSafety=await judeProtectObservedFaces(env,src,draftId,items,segments,captionFaces);
+ if(report.faceSafety.movedGroups)report.warnings.push(`${report.faceSafety.movedGroups} caption stack(s) moved outside observed faces. Review the saved result for face-detector errors and composition.`);
+ if(report.faceSafety.splitGroups)report.warnings.push(`${report.faceSafety.splitGroups} tall caption stack(s) use two ordered groups above and below observed faces; review their composition.`);
+ if(report.faceSafety.unresolvedGroups)report.warnings.push(`${report.faceSafety.unresolvedGroups} caption stack(s) need face-clearance review: observed geometry could not provide a readable placement.`);
  // A caption that carries a mask sprite travels alone, so every host call stays small.
  const add=async(rows:any[],code:string,params:any[],kind:string)=>{
   const batches:any[][]=[];
@@ -361,6 +367,147 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
 }
 // Gives left-hand captions a person mask so they pass behind the speaker, as the reference's "absence" does.
 // Masks are made from the source picture through each Main clip's own framing. Returns warnings; changes only `items`.
+// Caption protection observes every decoded source frame, rather than only the
+// midpoint used to choose camera framing. Source PTS are mapped through each
+// Main clip's source offset and playback rate before applying its output transform.
+export function judeCaptionFaceSamples(data:any,metrics:any,segments:any[],fps:number,resourceId:string){
+ const result:any={};
+ const w=Number(data?.frameSize?.width),h=Number(data?.frameSize?.height),samples=data?.samples,range=data?.parameters?.sourceRange;
+ const valid=data?.task==='faces.detect'&&data.coordinateSpace==='display-pixels'&&data.boxFormat==='xyxy'&&w>0&&h>0&&Array.isArray(samples)&&samples.length>0&&metrics?.decodedFrames===samples.length&&range&&Number.isFinite(range.startSeconds)&&Number.isFinite(range.endSeconds);
+ if(!valid)return result;
+ let previous=-Infinity;
+ for(let i=0;i<samples.length;i++){
+  const sample=samples[i];
+  if(sample.index!==i||!Number.isFinite(sample.sourceTimeSeconds)||sample.sourceTimeSeconds<=previous||sample.sourceTimeSeconds<range.startSeconds||sample.sourceTimeSeconds>=range.endSeconds||!Array.isArray(sample.faces))return {};
+  previous=sample.sourceTimeSeconds;
+  for(const face of sample.faces){const b=face.box;if(!b||![face.score,b.xmin,b.ymin,b.xmax,b.ymax].every(Number.isFinite)||b.xmin<0||b.ymin<0||b.xmax>w||b.ymax>h||b.xmax<=b.xmin||b.ymax<=b.ymin)return {};}
+ }
+ segments.forEach((segment,i)=>{
+  if(segment.aiResourceId!==resourceId||!Number.isFinite(segment.sourceStartSeconds))return;
+  const from=segment.sourceStartSeconds,to=from+(segment.endFrame-segment.startFrame)/fps*(segment.playbackRate||1);
+  if(!(to>from)||from<samples[0].sourceTimeSeconds||to>range.endSeconds+.00001)return;
+  // A displayed VFR frame lasts until its next PTS. Include both boundary
+  // neighbours conservatively, including repeated frames in a CFR timeline.
+  const selected=samples.filter((sample,j)=>sample.sourceTimeSeconds<=to&&(samples[j+1]?.sourceTimeSeconds??range.endSeconds)>from);
+  const faces=selected.flatMap(sample=>sample.faces.filter(f=>f.score>=.8).map(f=>[f.box.xmin/w,f.box.ymin/h,(f.box.xmax-f.box.xmin)/w,(f.box.ymax-f.box.ymin)/h]));
+  if(!selected.length||selected.some(sample=>!sample.faces.some(f=>f.score>=.8)))return;
+  result[String(i)]={w,h,faces,coverage:{scope:'all-decoded-source-frames',sourceFrames:metrics.decodedFrames,selectedFrames:selected.length,sourceFrom:from,sourceTo:to,complete:true}};
+ });
+ return result;
+}
+async function judeSharedCaptionFaces(env:Env,projectId:string,src:any,segments:any[],jobDir:string){
+ const resources=[...new Set(segments.map(s=>s.aiResourceId).filter(Boolean))],detected:any={};
+ const client=videoAiClient(env.sdk,projectId,'jude-kinetic-style:caption-faces:'+projectId);
+ for(const resourceId of resources){
+  const mains=segments.filter(s=>s.aiResourceId===resourceId&&Number.isFinite(s.sourceStartSeconds));
+  if(!mains.length)continue;
+  const sourceRange={startSeconds:Math.min(...mains.map(s=>s.sourceStartSeconds)),endSeconds:Math.max(...mains.map(s=>s.sourceStartSeconds+(s.endFrame-s.startFrame)/src.fps*(s.playbackRate||1)))};
+  const sourceFps=Math.max(src.fps,...mains.map(s=>Number(s.sourceFps)||0));
+  const result=await client.run({task:'faces.detect',resourceId,sourceRange,options:{sampleEverySeconds:.5/sourceFps,scoreThreshold:.8,provider:'cpu'}},{identity:'caption-face-frames:'+resourceId+':'+JSON.stringify(sourceRange),signal:env.signal,onProgress:()=>env.status('Checking caption clearance on every source frame…')});
+  const data=await env.runScript(`const data:any=await selects.ai.readJSON(${JSON.stringify(result.result.files.detections)},${JSON.stringify(projectId)});return data;`,'Read caption face observations');
+  Object.assign(detected,judeCaptionFaceSamples(data,result.result.metrics,segments,src.fps,resourceId));
+ }
+ await env.writeText(hostJoin(jobDir,'caption-face-results.json'),JSON.stringify({detected}));return detected;
+}
+export function judeProjectObservedFace(box:number[],source:{width:number;height:number},t:any){
+ if(!box||box.length!==4||!box.every(Number.isFinite)||box[0]<0||box[1]<0||box[2]<=0||box[3]<=0||box[0]+box[2]>1.000001||box[1]+box[3]>1.000001||!(source.width>0&&source.height>0)||!t||t.rotation||t.anchor?.x||t.anchor?.y)return null;
+ const sx=t.enabled?t.scale?.x:1,sy=t.enabled?t.scale?.y:1;
+ if(!(sx>0&&sy>0)||Math.abs(sx-sy)>.001)return null;
+ const fit=Math.min(1080/source.width,1920/source.height),w=source.width*fit*sx,h=source.height*fit*sy;
+ const dx=t.enabled?Number(t.position?.x||0)/100*1920:0,dy=t.enabled?Number(t.position?.y||0)/100*1920:0;
+ if(!Number.isFinite(dx)||!Number.isFinite(dy))return null;
+ const x=540+dx+(box[0]-.5)*w,y=960-dy+(box[1]-.5)*h;
+ const mx=box[2]*w*.1+16,my=box[3]*h*.1+16;
+ return {x:x-mx,y:y-my,w:box[2]*w+mx*2,h:box[3]*h+my*2};
+}
+export function judeCaptionInk(p:any){
+ const size=Math.min(Number(p.fontSize),Number(p.boxWidth)/Math.max(.01,textEm(p.text,!!p.serif,Number(p.tracking)||0)));
+ const ink=inkOf(p.text,!!p.serif,Number(p.tracking)||0,size),centre=Number(p.x)*10.8;
+ const left=p.align==='left'?centre-p.boxWidth/2:p.align==='right'?centre+p.boxWidth/2-ink.width:centre-ink.width/2;
+ const box={size,left,width:ink.width,baseline:Number(p.y)*19.2+fontOf(!!p.serif).k*size};
+ const [x,y,w,h]=inkRect({text:p.text,serif:!!p.serif,tracking:Number(p.tracking)||0},box,Number(p.tilt)||0);
+ // Entrance rise is downward, decaying over the lifetime of each line. Include
+// its maximum from the first displayed frame rather than only resting ink.
+ const rise=Math.max(0,Number(p.risePx)||0)*Math.exp(-Math.max(0,Number(p.riseLead)||0)/.24);
+ // Unbundled glyphs (including Korean) use the system fallback font. Its
+ // true ink can extend beyond our Latin-only metrics; reserve a conservative
+ // edge without changing known embedded glyph placement.
+ const fallback=[...String(p.text)].some(c=>!fontOf(!!p.serif).glyphs[c]),edge=fallback?size*.04:0;
+ return {x:x-edge,y:y-edge,w:w+edge*2,h:h+rise+edge*2,fontSize:size};
+}
+export function judeAvoidObservedFaces(items:any,segments:any[],faces:any,clips:any[],files:any){
+ const projected=segments.flatMap((segment,i)=>{
+  const observed=faces[String(i)],source=files[segment.resourceId]?.frameSize;
+  return clips.filter(c=>c.startFrame<segment.endFrame&&c.endFrame>segment.startFrame).map(c=>({start:Math.max(c.startFrame,segment.startFrame),end:Math.min(c.endFrame,segment.endFrame),boxes:source&&observed?.w===source.width&&observed?.h===source.height?(observed?.faces||[]).map(box=>judeProjectObservedFace(box,source,c.t)).filter(Boolean):[]}));
+ });
+ const hits=(a:any,b:any)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+ let moved=0,unresolved=0,splitGroups=0,independentGroups=0;
+ for(const scene of items.shots){
+  if(scene.layout==='card')continue;
+  const rows=items.captions.filter(c=>c.start>=scene.start&&c.start<scene.end&&!c.parameters.behind);
+  const observations=projected.filter(p=>p.start<scene.end&&p.end>scene.start),boxes=observations.flatMap(p=>p.boxes);
+  if(!rows.length)continue;
+  if(!boxes.length||observations.some(p=>!p.boxes.length)){unresolved++;continue;}
+  if(!rows.some(row=>boxes.some(face=>hits(judeCaptionInk(row.parameters),face))))continue;
+  const top=Math.min(...boxes.map(b=>b.y)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
+  // Only a few boundary-aligned translations are needed. Measure each final
+  // candidate again, including perspective and the maximum entrance rise.
+  const place=(parameters:any[],side?:'above'|'below')=>{
+   const ink=parameters.map(judeCaptionInk),hi=Math.min(...ink.map(b=>b.y)),lo=Math.max(...ink.map(b=>b.y+b.h));
+   const offsets=side==='above'?[top-lo-2]:side==='below'?[bottom-hi+2]:[0,bottom-hi+2,top-lo-2].sort((a,b)=>Math.abs(a)-Math.abs(b));
+   for(const dy of offsets){
+    const trial=parameters.map(p=>({...p,y:p.y+dy/19.2})),bounds=trial.map(judeCaptionInk);
+    if(bounds.every(b=>b.x>=0&&b.x+b.w<=1080&&b.y>=1920*.02&&b.y+b.h<=1920*.98&&!boxes.some(face=>hits(b,face))))return trial;
+   }
+   return null;
+  };
+  const actualSize=(p:any)=>Number(judeCaptionInk(p).fontSize??p.fontSize);
+  const floors=new Map(rows.map(row=>[row,Math.min(actualSize(row.parameters),1080*.04)]));
+  const readable=(parameters:any[],group:any[])=>parameters.every((p,i)=>actualSize(p)+.001>=floors.get(group[i]));
+  const scaledGroup=(group:any[],scale:number)=>{const origin=Math.min(...group.map(row=>Number(row.parameters.y)));return group.map(row=>({...row.parameters,fontSize:row.parameters.fontSize*scale,...(Number.isFinite(row.parameters.boxWidth)?{boxWidth:row.parameters.boxWidth*scale}:{}),...(Number.isFinite(row.parameters.risePx)?{risePx:row.parameters.risePx*scale}:{}),x:50+(row.parameters.x-50)*scale,y:origin+(row.parameters.y-origin)*scale}));};
+  const scaled=(scale:number)=>scaledGroup(rows,scale);
+  let chosen:any[]=null;
+  // Preserve the interlocked block if it fits at a readable size.
+  for(let step=0;step<=8&&!chosen;step++){const parameters=scaled(1-step*.05);if(readable(parameters,rows))chosen=place(parameters);}
+  // A tall stack may fit as two ordered groups on opposite sides of a close-up
+  // face. Keep every original line, font, reveal and timing; never hide text.
+  if(!chosen&&scene.layout==='stack')for(let step=0;step<=8&&!chosen;step++){
+   const parameters=scaled(1-step*.05);if(!readable(parameters,rows))continue;
+   for(let cut=1;cut<rows.length&&!chosen;cut++){
+    const upper=place(parameters.slice(0,cut),'above'),lower=place(parameters.slice(cut),'below');
+    if(upper&&lower){chosen=[...upper,...lower];splitGroups++;}
+   }
+  }
+  // Last resort: the two bands may need different scales. Limit actual font
+  // sizes directly, so a large hero cannot force a reading line below 43.2px.
+  const fitBand=(group:any[],side:'above'|'below')=>{for(let step=0;step<=28;step++){const parameters=scaledGroup(group,1-step*.025);if(!readable(parameters,group))break;const trial=place(parameters,side);if(trial)return trial;}return null;};
+  if(!chosen&&scene.layout==='stack')for(let cut=1;cut<rows.length&&!chosen;cut++){const upper=fitBand(rows.slice(0,cut),'above'),lower=fitBand(rows.slice(cut),'below');if(upper&&lower){chosen=[...upper,...lower];splitGroups++;independentGroups++;}}
+  // If the original interlocked gaps cannot fit, retain each whole line and
+  // compact only those gaps in each readable band before reducing its type.
+  const fitPackedBand=(group:any[],side:'above'|'below')=>{
+   const parameters=scaledGroup(group,1);
+   for(let attempt=0;attempt<120;attempt++){
+    let bottom=-Infinity;const packed=parameters.map(p=>{const box=judeCaptionInk(p),dy=Number.isFinite(bottom)?bottom+10-box.y:0,next={...p,y:p.y+dy/19.2};const ink=judeCaptionInk(next);bottom=ink.y+ink.h;return next;});
+    const trial=place(packed,side);if(trial)return trial;
+    // A giant emphasis word must not force the smaller reading line below
+    // the same absolute type-size floor. Reduce only the largest eligible line.
+    const eligible=parameters.map((p,i)=>({p,i,size:actualSize(p)})).filter(v=>v.size>floors.get(group[v.i])+.01).sort((a,b)=>b.size-a.size);
+    if(!eligible.length)break;const {p,i,size}=eligible[0],scale=Math.max(.9,floors.get(group[i])/size);parameters[i]={...p,fontSize:p.fontSize*scale,boxWidth:p.boxWidth*scale,risePx:p.risePx*scale};
+   }
+   return null;
+  };
+  if(!chosen&&scene.layout==='stack')for(let cut=1;cut<rows.length&&!chosen;cut++){const upper=fitPackedBand(rows.slice(0,cut),'above'),lower=fitPackedBand(rows.slice(cut),'below');if(upper&&lower){chosen=[...upper,...lower];splitGroups++;independentGroups++;}}
+  if(!chosen){unresolved++;continue;}
+  rows.forEach((row,i)=>{row.parameters=chosen[i];});
+  moved++;
+ }
+ const complete=Object.values(faces).length>0&&Object.values(faces).every((f:any)=>f.coverage?.complete);
+ return {scope:complete?'all-decoded-source-frames':'observed-framing-samples',movedGroups:moved,splitGroups,independentGroups,unresolvedGroups:unresolved,motionBetweenSamples:complete?'source-frame-observed':'unverified'};
+}
+async function judeProtectObservedFaces(env:Env,src:any,draftId:string,items:any,segments:any[],faces:any){
+ const clips=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const out=[];for(const c of await d.clips({trackScope:'main'})){if(c.resourceId)out.push({startFrame:c.startFrame,endFrame:c.endFrame,t:await d.clipTransform(c)});}return out;`,'Check caption clearance against observed faces');
+ return judeAvoidObservedFaces(items,segments,faces,clips,src.files);
+}
 export async function placeBehind(env:Env,src:any,draftId:string,items:any,jobDir:string):Promise<string[]>{
  const warnings:string[]=[],fps=src.fps;
  const clips:any[]=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const out:any[]=[];for(const c of (await d.clips({trackScope:'main'})).filter((c:any)=>c.resourceId))out.push({startFrame:c.startFrame,endFrame:c.endFrame,t:await d.clipTransform(c)});return out;`,'Read the speaker framing');
