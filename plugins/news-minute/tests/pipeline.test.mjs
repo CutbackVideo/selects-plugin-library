@@ -170,3 +170,11 @@ test("settlePlan turns number callouts without a number into text cards and chec
   // still failing after demotion -> fall back
   assert.equal(settlePlan(json, ["x"], sents, () => ({ errors: ["scene 1: text required"] })).scenes, null);
 });
+
+test("every fidelity issue kind has a localized label", async () => {
+  const { MESSAGES } = await import("../src/messages.ts");
+  const types = fs.readFileSync(new URL("../src/prompts/types.ts", import.meta.url), "utf8");
+  const kinds = [.../FidelityIssue = \{ kind: ([^;]+);/.exec(types)[1].matchAll(/"(\w+)"/g)].map((m) => m[1]);
+  assert.ok(kinds.length >= 5);
+  for (const k of kinds) assert.ok(/[\uac00-\ud7a3]/.test(MESSAGES["issue_" + k]?.[1] ?? ""), k);
+});
