@@ -2010,19 +2010,19 @@ function templateSpeaker(template: any): any {
 
 const RESULT_NOTICE_UI:Record<string,{title:string;message:string;done:string;close:string}>= {
  en:{title:'Saved draft needs review',message:'The draft was saved. Review these issues before using the result:',done:'Done',close:'Close'},
- ko:{title:'저장된 결과를 확인해주세요',message:'타임라인이 저장되었습니다. 결과를 사용하기 전에 다음 문제를 확인해주세요:',done:'확인',close:'닫기'},
+ ko:{title:'\uc800\uc7a5\ub41c \uacb0\uacfc\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694',message:'\ud0c0\uc784\ub77c\uc778\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uacb0\uacfc\ub97c \uc0ac\uc6a9\ud558\uae30 \uc804\uc5d0 \ub2e4\uc74c \ubb38\uc81c\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694:',done:'\ud655\uc778',close:'\ub2eb\uae30'},
 };
 export function templateIssueNotice(result:any,language:string){
  const ko=language==='ko',warnings=(Array.isArray(result?.warnings)?result.warnings:[]).filter((text:any)=>typeof text==='string'&&text.trim()&&!/measured approximation.*exact reference font is unconfirmed/i.test(text));
  const lines:string[]=[];
- if(warnings.some((w:string)=>/B-roll crop rejected.*black/i.test(w)))lines.push(ko?'• B-roll의 검은 시작 부분을 잘라낸 뒤 확인해주세요.':'• B-roll: trim the black lead-in, then review it.');
- else if(warnings.some((w:string)=>/B-roll.*(?:rejected|failed)/i.test(w)))lines.push(ko?'• B-roll 검토에 실패했습니다. 해당 영상을 확인해주세요.':'• B-roll review failed. Inspect the affected clip.');
- if(warnings.some((w:string)=>/contrast|can't be read|hard to read|glyphs disappear|inverted fill|marginal/i.test(w)))lines.push(ko?'• 자막과 배경의 대비를 확인해주세요.':'• Captions: review text contrast against the footage.');
- if(warnings.some((w:string)=>/speaker.*out of frame|framing|weak frame/i.test(w)))lines.push(ko?'• 화자가 화면 밖으로 벗어나는 구간을 확인해주세요.':'• Framing: review the speaker leaving the picture.');
- if(!lines.length)lines.push(ko?'• 실행 중 보고된 문제를 전체 보고서에서 확인해주세요.':'• Review the reported execution issues in the full report.');
+ if(warnings.some((w:string)=>/B-roll crop rejected.*black/i.test(w)))lines.push(ko?'• B-roll\uc758 \uac80\uc740 \uc2dc\uc791 \ubd80\ubd84\uc744 \uc798\ub77c\ub0b8 \ub4a4 \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• B-roll: trim the black lead-in, then review it.');
+ else if(warnings.some((w:string)=>/B-roll.*(?:rejected|failed)/i.test(w)))lines.push(ko?'• B-roll \uac80\ud1a0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4. \ud574\ub2f9 \uc601\uc0c1\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• B-roll review failed. Inspect the affected clip.');
+ if(warnings.some((w:string)=>/contrast|can't be read|hard to read|glyphs disappear|inverted fill|marginal/i.test(w)))lines.push(ko?'• \uc790\ub9c9\uacfc \ubc30\uacbd\uc758 \ub300\ube44\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• Captions: review text contrast against the footage.');
+ if(warnings.some((w:string)=>/speaker.*out of frame|framing|weak frame/i.test(w)))lines.push(ko?'• \ud654\uc790\uac00 \ud654\uba74 \ubc16\uc73c\ub85c \ubc97\uc5b4\ub098\ub294 \uad6c\uac04\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• Framing: review the speaker leaving the picture.');
+ if(!lines.length)lines.push(ko?'• \uc2e4\ud589 \uc911 \ubcf4\uace0\ub41c \ubb38\uc81c\ub97c \uc804\uccb4 \ubcf4\uace0\uc11c\uc5d0\uc11c \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• Review the reported execution issues in the full report.');
  const path=typeof result?.jobDir==='string'?hostJoin(result.jobDir,'report.json'):null;
- const prefix=(ko?'타임라인이 저장되었습니다. 확인이 필요한 항목: ':'Draft saved. Issues requiring review: ')+warnings.length+'\n'+lines.join('\n')+'\n'+(ko?'전체 보고서: ':'Full report: ');
- const location=path&&path.length<=480-prefix.length?path:(ko?'템플릿 데이터 폴더의 report.json':'report.json in the template data folder');
+ const prefix=(ko?'\ud0c0\uc784\ub77c\uc778\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ud655\uc778\uc774 \ud544\uc694\ud55c \ud56d\ubaa9: ':'Draft saved. Issues requiring review: ')+warnings.length+'\n'+lines.join('\n')+'\n'+(ko?'\uc804\uccb4 \ubcf4\uace0\uc11c: ':'Full report: ');
+ const location=path&&path.length<=480-prefix.length?path:(ko?'\ud15c\ud50c\ub9bf \ub370\uc774\ud130 \ud3f4\ub354\uc758 report.json':'report.json in the template data folder');
  const message=prefix+location;
  return {message,warningCount:warnings.length};
 }

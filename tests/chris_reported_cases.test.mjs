@@ -123,12 +123,12 @@ test('only actual saved-run warnings open a localized host notice; dismissal pre
  const calls=[],report={draftId:'saved',warnings:['Final B-roll crop rejected: first frame is black.']};
  const result=await notifyTemplateIssues({confirm:async request=>{calls.push(plain(request));return false;}},{language:'ko'},report);
  assert.equal(result.shown,true);assert.equal(result.acknowledged,false);assert.equal(report.draftId,'saved');assert.equal(calls.length,1);
- assert.match(calls[0].title,/저장된 결과/);assert.match(calls[0].message,/검은 시작/);
+ assert.match(calls[0].title,/\uc800\uc7a5\ub41c \uacb0\uacfc/);assert.match(calls[0].message,/\uac80\uc740 \uc2dc\uc791/);
  assert.equal((await notifyTemplateIssues({confirm:async()=>{throw Error('Should not run');}},{},{warnings:[]})).shown,false);
  assert.equal((await notifyTemplateIssues({}, {},report)).shown,false);
 });
 
 test('the host-limited notice contains complete next steps and the full report path within 500 characters',()=>{
- const r={jobDir:'/Users/mano/Documents/clip-highlights-analysis/repro-20261023/round3/caption/outputs/chris-williamson-style/runs/9b1c5341-mvklz701',warnings:['Final B-roll crop rejected: The first sampled crop is completely black. '+ 'Detailed original finding. '.repeat(20),"The phrase cannot be read because contrast is low.",'The speaker leans out of frame.']};
+ const r={jobDir:'/fixture/'+ 'x'.repeat(121),warnings:['Final B-roll crop rejected: The first sampled crop is completely black. '+ 'Detailed original finding. '.repeat(20),"The phrase cannot be read because contrast is low.",'The speaker leans out of frame.']};
  for(const language of ['en','ko']){const notice=templateIssueNotice(r,language);assert.ok(notice.message.length<500);assert.ok(notice.message.endsWith(r.jobDir+'/report.json'));assert.equal(notice.warningCount,3);assert.ok(!notice.message.includes('Detailed original finding'));}assert.equal(r.warnings.length,3);assert.ok(templateIssueNotice({...r,jobDir:'/very-long/'+ 'x'.repeat(500)},'en').message.length<500);
 });
