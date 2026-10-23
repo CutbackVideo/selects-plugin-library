@@ -155,9 +155,21 @@ export const SCENE_TYPES = [
   "line_trend_callout",
   "stat_cards",
   "quote_card",
+  "highlight_card",
+  "donut_ratio",
+  "verdict_card",
+  "flow_cause_effect",
 ] as const;
 
 const TONES = new Set(["grey", "accent"]);
+const VERDICT_TONES = new Set(["accent", "contrast"]);
+// Heritage style: one scene title line and subtitle line, sized to fit the 960 px content width.
+export const TITLE_MAX_CHARS = 18;
+export const SUBTITLE_MAX_CHARS = 30;
+// [word] = accent colour, {phrase} = accent colour + highlighter. One hero emphasis per scene.
+const ACCENT_WORD_RE = /\[[^\]]+\]/g;
+const HIGHLIGHT_RE = /\{[^}]+\}/g;
+export const EMPHASIS_MAX = { accentWords: 2, highlights: 1 };
 const FOCUS = new Set(["center", "top", "bottom", "left", "right"]);
 const isStr = (x: any) => typeof x === "string" && x.trim().length > 0;
 const isNum = (x: any) => typeof x === "number" && Number.isFinite(x);
@@ -189,14 +201,40 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
       break;
     case "number_callout":
       need(isStr(p.label), "label is required");
-      need(isNumOrStr(p.from) && isNumOrStr(p.to), "from and to are required (number or text copied from the article)");
+      need(isNumOrStr(p.from) && isNumOrStr(p.to), "from and to are required (number or text copied from the article); for a single value use highlight_card");
       need(/\d/.test(String(p.from)) && /\d/.test(String(p.to)), "from and to must each contain a digit; use another scene type when the article gives only a phrase such as \"nearly double\"");
       traceNumbers(p.from, sceneNums, `${where}.from`, errors);
       traceNumbers(p.to, sceneNums, `${where}.to`, errors);
       break;
+    case "highlight_card":
+      need(isStr(p.title), "title is required");
+      need(isNumOrStr(p.value) && /\d/.test(String(p.value)), "value is required and must contain a digit copied from the article");
+      traceNumbers(p.value, sceneNums, `${where}.value`, errors);
+      break;
+    case "donut_ratio":
+      need(isStr(p.title), "title is required");
+      need(Array.isArray(p.slices) && p.slices.length >= 2 && p.slices.length <= 4, "2-4 slices are required");
+      need((p.slices ?? []).filter((x: any) => x?.tone === "accent").length === 1, "exactly one slice must have tone accent (the hero)");
+      (p.slices ?? []).forEach((x: any, i: number) => {
+        need(isObj(x) && isStr(x.label) && isNum(x.value) && TONES.has(x.tone), `slices[${i}] needs label, numeric value, tone grey|accent`);
+        if (isObj(x)) traceNumbers(x.value, sceneNums, `${where}.slices[${i}]`, errors);
+      });
+      break;
+    case "verdict_card":
+      need(isStr(p.title), "title is required (the ribbon text, for example the verdict word)");
+      need(Array.isArray(p.cards) && p.cards.length >= 1 && p.cards.length <= 2, "1-2 cards are required");
+      need((p.cards ?? []).filter((c: any) => c?.tone === "accent").length <= 1, "at most one card may have tone accent");
+      (p.cards ?? []).forEach((c: any, i: number) => need(isObj(c) && isStr(c.text) && VERDICT_TONES.has(c.tone), `cards[${i}] needs text and tone accent|contrast`));
+      break;
+    case "flow_cause_effect":
+      need(isStr(p.title), "title is required");
+      need(isObj(p.cause) && isStr(p.cause.word), "cause.word is required");
+      need(isObj(p.effect) && isStr(p.effect.word), "effect.word is required");
+      break;
     case "bar_compare_h":
       need(isStr(p.title) && isStr(p.source) && isStr(p.unit), "title, source and unit are required");
       need(Array.isArray(p.bars) && p.bars.length === 2, "exactly 2 bars are required");
+      need((p.bars ?? []).filter((b: any) => b?.tone === "accent").length <= 1, "only one bar may be accent (the hero)");
       (p.bars ?? []).forEach((b: any, i: number) => {
         need(isObj(b) && isStr(b.label) && isNum(b.value) && TONES.has(b.tone), `bars[${i}] needs label, numeric value, tone grey|accent`);
         if (isObj(b)) traceNumbers(b.value, sceneNums, `${where}.bars[${i}]`, errors);
@@ -229,8 +267,16 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
   }
 }
 
+// Counts [ ] and { } emphasis marks in every string of a scene's params (the source line is not styled text).
+function countEmphasis(v: any, key = ""): { accentWords: number; highlights: number } {
+  if (key === "source") return { accentWords: 0, highlights: 0 };
+  if (typeof v === "string") return { accentWords: (v.match(ACCENT_WORD_RE) ?? []).length, highlights: (v.match(HIGHLIGHT_RE) ?? []).length };
+  const kids = Array.isArray(v) ? v.map((x) => countEmphasis(x)) : isObj(v) ? Object.entries(v).map(([k, x]) => countEmphasis(x, k)) : [];
+  return kids.reduce((a, b) => ({ accentWords: a.accentWords + b.accentWords, highlights: a.highlights + b.highlights }), { accentWords: 0, highlights: 0 });
+}
+
 // Longest allowed scene, in seconds. Data scenes carry charts that need more time to read.
-export const DATA_SCENE_TYPES = ["bar_compare_h", "line_trend_callout", "stat_cards", "number_callout"] as const;
+export const DATA_SCENE_TYPES = ["bar_compare_h", "line_trend_callout", "stat_cards", "number_callout", "highlight_card", "donut_ratio", "verdict_card", "flow_cause_effect"] as const;
 // Most scenes one asset may appear in; more reads as repetition. Reported as a warning only.
 export const MAX_ASSET_USES = 2;
 export const SCENE_MAX_SEC = { default: 10.5, data: 12 };
@@ -245,7 +291,7 @@ export function demoteNumberlessCallouts(json: any, sentences: TimedSentence[]):
   let demoted = 0;
   const scenes = json.scenes.map((sc: any) => {
     const p = sc?.params;
-    if (!isObj(sc) || sc.type !== "number_callout" || (/\d/.test(String(p?.from)) && /\d/.test(String(p?.to)))) return sc;
+    if (!isObj(sc) || sc.type !== "number_callout" || (/\d/.test(String(p?.to)) && /\d/.test(String(p?.from)))) return sc;
     demoted++;
     const first = byId.get(sc.sentenceIds?.[0])?.text ?? "";
     const text = isStr(p?.label) && p.label.trim() ? p.label.trim() : first.slice(0, 20);
@@ -304,6 +350,15 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     const sceneText = sceneSentences.map((s) => s.text).join(" ");
     const sceneNums = new Set([...numberTokens(sceneText), ...rawNumberTokens(sceneText)]);
     checkParams(sc.type, sc.params ?? {}, sceneNums, where, errors);
+    if (isObj(sc.params)) {
+      const { title, subtitle } = sc.params;
+      if (isStr(title) && title.trim().length > TITLE_MAX_CHARS) warnings.push(`${where}: title "${title}" is over ${TITLE_MAX_CHARS} characters and will not fit one line`);
+      if (isStr(subtitle) && subtitle.trim().length > SUBTITLE_MAX_CHARS) warnings.push(`${where}: subtitle is over ${SUBTITLE_MAX_CHARS} characters and will not fit one line`);
+      const marks = countEmphasis(sc.params);
+      if (marks.accentWords > EMPHASIS_MAX.accentWords || marks.highlights > EMPHASIS_MAX.highlights) {
+        warnings.push(`${where}: ${marks.accentWords} [ ] and ${marks.highlights} { } emphasis marks; keep at most ${EMPHASIS_MAX.accentWords} [ ] and ${EMPHASIS_MAX.highlights} { } per scene`);
+      }
+    }
     if (sc.type === "text_card" && isStr(sc.params?.sub) && SOURCE_LIKE_SUB.test(sc.params.sub)) {
       warnings.push(`${where}: text_card sub "${sc.params.sub}" looks like a source; sources belong in "source" of a data scene, not on a text card`);
     }
@@ -315,7 +370,7 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     const asset = sc.assetRef ? assetByRef.get(sc.assetRef) : undefined;
     if (sc.assetRef && !asset) errors.push(`${where}: assetRef "${sc.assetRef}" is not in the asset list`);
     if (sc.type === "news_photo" && !asset) errors.push(`${where}: news_photo needs an assetRef`);
-    if (sc.type !== "news_photo" && sc.type !== "number_callout" && sc.type !== "quote_card" && sc.assetRef) {
+    if (sc.type !== "news_photo" && sc.type !== "quote_card" && sc.assetRef) {
       errors.push(`${where}: ${sc.type} must not carry an assetRef`);
     }
     if (asset) assetUses.set(asset.ref, (assetUses.get(asset.ref) ?? 0) + 1);
