@@ -1453,13 +1453,20 @@ function useEmbeddedFont(data) {
 }
 
 // Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-function useScene(data) {
+// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
+// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
+// whole timeline faster instead of cutting entrances off.
+const HOLD = 1.5;
+function useScene(data, natural = 0) {
   const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps, durationInFrames } = useVideoConfig();
   const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
   return {
-    fontFace, fps, frame, t: frame / fps, end: durationInFrames / fps, k: width / 1080,
+    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
     fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
     top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
   };
@@ -1654,7 +1661,8 @@ const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(t
 // up from 0 and slows to a stop so its last digits read; text around it (a "$" prefix, a word before it) stays fixed.
 // \`subtitle\` sits under the card, \`source\` bottom-right.
 export default function HighlightCard({ data }) {
-  const s = useScene(data);
+  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s.
+  const s = useScene(data, 2.0);
   const k = s.k;
   const title = String(data?.title ?? '');
   const subtitle = String(data?.subtitle ?? '');
@@ -1931,13 +1939,20 @@ function useEmbeddedFont(data) {
 }
 
 // Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-function useScene(data) {
+// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
+// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
+// whole timeline faster instead of cutting entrances off.
+const HOLD = 1.5;
+function useScene(data, natural = 0) {
   const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps, durationInFrames } = useVideoConfig();
   const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
   return {
-    fontFace, fps, frame, t: frame / fps, end: durationInFrames / fps, k: width / 1080,
+    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
     fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
     top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
   };
@@ -2132,11 +2147,13 @@ const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(t
 // once its line has settled. Optional scene \`title\` (+ double gold rule) top-left, \`sub\` as a smaller
 // grey line under the sentence, \`source\` bottom-right.
 export default function TextCard({ data }) {
-  const s = useScene(data);
-  const k = s.k;
   const title = String(data?.title ?? '');
   const sub = String(data?.sub ?? '');
   const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '');
+  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
+  // Last entrance: the sub line (0.8 s) or the last line's brush (0.55 + 0.9 s after the line starts).
+  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, at(Math.max(0, lines.length - 1)) + 1.45));
+  const k = s.k;
   // One size for every line: the longest decides, between 56 and the requested size.
   const want = Number(data?.fontSize ?? 72);
   const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
@@ -2144,7 +2161,6 @@ export default function TextCard({ data }) {
   const top = title ? 150 : 0;
   const block = lines.length * lh + (sub ? 36 + 44 : 0);
   const y0 = top + (794 - top - block) / 2;
-  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
   return (
     <Win s={s} data={data}>
       <Header s={s} title={title} subtitle="" />
