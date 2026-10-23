@@ -212,9 +212,14 @@ function uniqueDraftNameScript(sourceName: string) {
   return `const baseName=${JSON.stringify((sourceName||'Draft')+' · Ali Abdaal Style')};const existingNames=[];for(const id of (await project.meta()).draftIds||[]){try{existingNames.push((await selects.draft(id).meta()).name)}catch{}}let outputName=baseName;for(let n=2;existingNames.includes(outputName);n++)outputName=baseName+' ('+n+')';`;
 }
 
+/** Canvas transforms are relative to the editor's contain fit, not source pixels. */
+function portraitCanvasScript(projectId: string) {
+  return `const portraitProject=selects.project(${JSON.stringify(projectId)});await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const sourceMeta=await portraitProject.resource(clip.resourceId).meta();const sw=Number(sourceMeta.frameSize?.width),sh=Number(sourceMeta.frameSize?.height);if(!(sw>0&&sh>0))throw new Error('The source video dimensions are unavailable.');const contain=Math.min(1080/sw,1920/sh);const cover=Math.max(1080/(sw*contain),1920/(sh*contain));await d.setClipTransform({clip,scale:{x:cover,y:cover},position:{x:0,y:0}});}`;
+}
+
 /** The panel's own draft: the whole source footage, reframed to 9:16. */
 function portraitDraftScript(projectId: string, sequenceId: string, sourceName: string) {
-  return `const project=selects.project(${JSON.stringify(projectId)});const source=selects.draft(${JSON.stringify(sequenceId)});const meta=await source.meta();const sourceClip=(await source.clips({trackScope:'main'})).find(c=>c.resourceId);if(!sourceClip)throw new Error('The analyzed source has no video clip.');const resource=project.resource(sourceClip.resourceId);const resourceMeta=await resource.meta();${uniqueDraftNameScript(sourceName)}const d=await project.createDraft({name:outputName});await d.insert({source:await resource.rangeAtFrames(0,resourceMeta.durationFrames),tracks:'main'});await d.setFrameSize({width:1080,height:1920});const sourceWidth=Number(meta.frameSize?.width||1080),sourceHeight=Number(meta.frameSize?.height||1920);const fit=Math.max(1080/sourceWidth,1920/sourceHeight);const portraitMains=(await d.clips({trackScope:'main'})).filter(c=>c.trackKind==='video');for(const clip of portraitMains){await d.setClipTransform({clip,scale:{x:fit,y:fit},position:{x:0,y:0}});}`;
+  return `const project=selects.project(${JSON.stringify(projectId)});const source=selects.draft(${JSON.stringify(sequenceId)});const meta=await source.meta();const sourceClip=(await source.clips({trackScope:'main'})).find(c=>c.resourceId);if(!sourceClip)throw new Error('The analyzed source has no video clip.');const resource=project.resource(sourceClip.resourceId);const resourceMeta=await resource.meta();${uniqueDraftNameScript(sourceName)}const d=await project.createDraft({name:outputName});await d.insert({source:await resource.rangeAtFrames(0,resourceMeta.durationFrames),tracks:'main'});${portraitCanvasScript(projectId)}`;
 }
 
 /**
@@ -224,8 +229,8 @@ function portraitDraftScript(projectId: string, sequenceId: string, sourceName: 
  * (`ali_template:draft_changed`), and so is one that already carries graphics
  * (`ali_template:has_graphics`), since the style is built on a clean draft.
  */
-function inPlaceDraftScript(timeline: TimelineInput, words: Word[], startFrame: number, endFrame: number) {
-  return `const d=selects.draft(${JSON.stringify(timeline.sequenceId)});if((await d.motionGraphics()).length)throw new Error('ali_template:has_graphics');const expectedWords=${JSON.stringify(words)};const draftWords=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()&&w.startFrame>=${startFrame}&&w.startFrame<${endFrame});if(draftWords.length!==expectedWords.length||draftWords.some((w,i)=>w.text!==expectedWords[i].text||w.startFrame!==expectedWords[i].startFrame||w.endFrame!==expectedWords[i].endFrame))throw new Error('ali_template:draft_changed');`;
+function inPlaceDraftScript(projectId: string, timeline: TimelineInput, words: Word[], startFrame: number, endFrame: number) {
+  return `const d=selects.draft(${JSON.stringify(timeline.sequenceId)});if((await d.motionGraphics()).length)throw new Error('ali_template:has_graphics');const expectedWords=${JSON.stringify(words)};const draftWords=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()&&w.startFrame>=${startFrame}&&w.startFrame<${endFrame});if(draftWords.length!==expectedWords.length||draftWords.some((w,i)=>w.text!==expectedWords[i].text||w.startFrame!==expectedWords[i].startFrame||w.endFrame!==expectedWords[i].endFrame))throw new Error('ali_template:draft_changed');${portraitCanvasScript(projectId)}`;
 }
 
 function inPlaceCommitScript(sequenceId: string) {
@@ -234,13 +239,13 @@ function inPlaceCommitScript(sequenceId: string) {
 
 /**
  * A template run's draft from a picked clip: a new draft holding the whole clip
- * on Main, at the clip's own frame size (not reframed). Runs twice:
+ * on Main, reframed to the template's 9:16 canvas. Runs twice:
  * once uncommitted to read the words the draft plays (the
  * working copy is discarded when that script ends), then again to style and
  * commit, refusing (`ali_template:clip_mismatch`) if the words moved between.
  */
 function clipDraftScript(projectId: string, clip: VideoInput, sourceName: string) {
-  return `const project=selects.project(${JSON.stringify(projectId)});const resource=project.resource(${JSON.stringify(clip.resourceId)});const resourceMeta=await resource.meta();${uniqueDraftNameScript(sourceName)}const d=await project.createDraft({name:outputName});await d.insertResource({resourceId:${JSON.stringify(clip.resourceId)}});const clipSize=resourceMeta.frameSize;if(clipSize&&Number.isInteger(clipSize.width)&&Number.isInteger(clipSize.height)&&clipSize.width>0&&clipSize.height>0)await d.setFrameSize({width:clipSize.width,height:clipSize.height});else await d.setFrameSize('original');const draftMeta=await d.meta();const draftWords=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame}));`;
+  return `const project=selects.project(${JSON.stringify(projectId)});const resource=project.resource(${JSON.stringify(clip.resourceId)});const resourceMeta=await resource.meta();${uniqueDraftNameScript(sourceName)}const d=await project.createDraft({name:outputName});await d.insertResource({resourceId:${JSON.stringify(clip.resourceId)}});${portraitCanvasScript(projectId)}const draftMeta=await d.meta();const draftWords=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame}));`;
 }
 
 const CLIP_READ_SCRIPT = `return {meta:draftMeta,words:draftWords};`;
@@ -252,7 +257,7 @@ function clipVerifyScript(words: Word[], durationFrames: number) {
 /** Camera movement, visual beats, and captions on `d`. */
 function styleScript(words: Word[], plan: Plan) {
   const {camera, scenes, captions} = plan;
-  return `const words=${JSON.stringify(words)};const codeCamera=${JSON.stringify(CAMERA_EFFECT)};const camera=${JSON.stringify(camera)};const mains=(await d.clips({trackScope:'main'})).filter(c=>c.trackKind==='video');for(const clip of mains){await d.addVideoEffect({clip,label:'Ali Abdaal Style · camera movement',tsxCode:codeCamera,parameters:{start:clip.startFrame,camera},editableParameters:[]});}const codeGraphic=${JSON.stringify(GRAPHIC)};const scenes=${JSON.stringify(scenes)};for(const scene of scenes){const start=words[scene.start].startFrame;const end=words[scene.end-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · '+scene.title,within:await d.rangeAtFrames(start,end),tsxCode:codeGraphic,parameters:{...scene,start,enter:2,end,camera},editableParameters:[{key:'title',label:'Headline',type:'text',defaultValue:scene.title},{key:'body',label:'Note',type:'text',defaultValue:scene.body}]});}const codeCaption=${JSON.stringify(CAPTION)};const captions=${JSON.stringify(captions)};for(const group of captions){const start=group[0].startFrame;const end=group[group.length-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · Caption · '+group.map(w=>w.text).join(' '),within:await d.rangeAtFrames(start,end),tsxCode:codeCaption,parameters:{text:group.map(w=>w.text).join(' '),starts:group.map(w=>w.startFrame-start)},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:group.map(w=>w.text).join(' ')}]});}`;
+  return `const words=${JSON.stringify(words)};const codeCamera=${JSON.stringify(CAMERA_EFFECT)};const camera=${JSON.stringify(camera)};const mains=(await d.clips({trackScope:'main'})).filter(c=>c.resourceId);for(const clip of mains){await d.addVideoEffect({clip,label:'Ali Abdaal Style · camera movement',tsxCode:codeCamera,parameters:{start:clip.startFrame,camera},editableParameters:[]});}const codeGraphic=${JSON.stringify(GRAPHIC)};const scenes=${JSON.stringify(scenes)};for(const scene of scenes){const start=words[scene.start].startFrame;const end=words[scene.end-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · '+scene.title,within:await d.rangeAtFrames(start,end),tsxCode:codeGraphic,parameters:{...scene,start,enter:2,end,camera},editableParameters:[{key:'title',label:'Headline',type:'text',defaultValue:scene.title},{key:'body',label:'Note',type:'text',defaultValue:scene.body}]});}const codeCaption=${JSON.stringify(CAPTION)};const captions=${JSON.stringify(captions)};for(const group of captions){const start=group[0].startFrame;const end=group[group.length-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · Caption · '+group.map(w=>w.text).join(' '),within:await d.rangeAtFrames(start,end),tsxCode:codeCaption,parameters:{text:group.map(w=>w.text).join(' '),starts:group.map(w=>w.startFrame-start)},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:group.map(w=>w.text).join(' ')}]});}`;
 }
 
 const COMMIT_SCRIPT = `const saved=await d.commitAll('Create Ali Abdaal Style draft');return {id:saved.createdDraftId,name:(await d.meta()).name};`;
@@ -329,7 +334,7 @@ async function buildTemplateDraft(sdk: any, projectId: string, timeline: Timelin
   const plan = await step("Selects AI could not plan the visual beats. Check that you are signed in and online, then try again.", () => planTreatment(sdk, words, endFrame));
   checkpoint();
   report("Styling the draft…");
-  const styled = await step(TEMPLATE_FAILED, () => run(inPlaceDraftScript(timeline, words, startFrame, endFrame) + styleScript(words, plan) + inPlaceCommitScript(sequenceId), "Apply Ali Abdaal Style", true));
+  const styled = await step(TEMPLATE_FAILED, () => run(inPlaceDraftScript(projectId, timeline, words, startFrame, endFrame) + styleScript(words, plan) + inPlaceCommitScript(sequenceId), "Apply Ali Abdaal Style", true));
   if (!styled?.id) throw panelError(TEMPLATE_FAILED);
   return String(styled.id);
 }
