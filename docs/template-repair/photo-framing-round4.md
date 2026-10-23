@@ -8,7 +8,7 @@ Recap selections now persist one `selection-v2:<Project>` value containing durab
 
 ## Actual execution evidence
 
-Evidence root: `/Users/mano/Documents/clip-highlights-analysis/repro-20261023/reported-cases/round4/photo/`.
+Evidence is retained in the private `reported-cases/round4/photo/` QA archive.
 
 | Run | Actual result | Remaining gate |
 | --- | --- | --- |
