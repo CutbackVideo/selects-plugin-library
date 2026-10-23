@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 test('Chosun migration preserves requested designs with explicit Premiere corrections and original image bytes',()=>{
  const root=path.join(__dirname,'../template-packs/chosun-ilbo'),manifest=JSON.parse(fs.readFileSync(path.join(root,'pack.json'))),baseline=require('./fixtures/chosun-legacy-template-summary.json');
- assert.equal(manifest.templates.length,9);assert.equal(manifest.assets.length,12);assert.equal(manifest.requiresApp.templateApi,6);
+ assert.equal(manifest.templates.length,9);assert.equal(manifest.assets.length,9);assert.equal(manifest.requiresApp.templateApi,6);
  assert.deepEqual(manifest.templates.map(x=>path.basename(x,'.json')).sort(),['health','heukbaek','history','jeongjwippul','money','panilgi','parenting','politics-landscape','villain']);
  assert.equal(manifest.legacy.templateIds.kimkwangil,undefined);
  assert.ok(!manifest.assets.some(x=>x.includes('kimkwangil')));
@@ -9,13 +9,13 @@ test('Chosun migration preserves requested designs with explicit Premiere correc
  for(const legacy of baseline.templates){
   const old=structuredClone(legacy);
   for(const [section,fields] of Object.entries(corrections[old.id]||{}))Object.assign(old[section],fields);const t=JSON.parse(fs.readFileSync(path.join(root,'templates',old.id+'.json')));
-  assert.equal(manifest.legacy.templateIds[old.id],old.id);assert.equal(t.renderer,undefined);assert.equal(t.layout.reframe,true);
-  old.layout.reframe=true;
+  assert.equal(manifest.legacy.templateIds[old.id],old.id);assert.equal(t.renderer,undefined);assert.equal(t.layout.reframe,!['history','money','villain'].includes(old.id));
+  old.layout.reframe=!['history','money','villain'].includes(old.id);
   for(const [key,value] of Object.entries(old.layout))assert.deepEqual(t.layout[key],value,old.id+': '+key);
   for(const key of ['names','captions','editing','detect','prompt','border'])assert.deepEqual(t[key],old[key],old.id+': '+key);
   for(const [key,value] of Object.entries(old.headline))assert.deepEqual(t.headline[key],value,old.id+': headline '+key);
   for(const section of ['background','logo']){
-   if(!t[section].image){assert.equal(t[section].mode,'color');assert.equal(old[section].imageSha256,null);continue;}
+   if(!t[section].image){assert.equal(t[section].mode,section==='logo'?'none':'color');assert.equal(old[section].imageSha256,null);continue;}
    assert.ok(manifest.assets.includes(t[section].image));assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,t[section].image))).digest('hex'),old[section].imageSha256);
   }
  }

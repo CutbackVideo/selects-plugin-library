@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chosun-ilbo",
-  "version": "1.4.4",
+  "version": "1.4.6",
   "name": "Chosun Ilbo",
   "names": {
     "en": "Chosun Ilbo",
@@ -23,18 +23,15 @@
     "templates/politics-landscape.json"
   ],
   "assets": [
-    "assets/history-background.webp",
-    "assets/history-logo.webp",
-    "assets/villain-background.webp",
-    "assets/villain-logo.webp",
-    "assets/money-background.webp",
-    "assets/money-logo.webp",
     "assets/health-frame.png",
     "assets/parenting-frame.png",
     "assets/heukbaek-logo-original.png",
     "assets/heukbaek-background-original.jpg",
     "assets/panilgi-logo-original.png",
-    "assets/jeongjwippul-bumper-original.png"
+    "assets/jeongjwippul-bumper-original.png",
+    "assets/money-frame-original.png",
+    "assets/history-frame-original.png",
+    "assets/villain-frame-original.png"
   ],
   "legacy": {
     "appId": "chosun-clips",

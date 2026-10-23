@@ -1,6 +1,6 @@
 {
   "id": "history",
-  "version": 2,
+  "version": 5,
   "names": {
     "ko": "\uc5ed\uc0ac\uc804\uc7c1",
     "en": "History War"
@@ -16,12 +16,12 @@
   "layout": {
     "windowTop": 557,
     "windowBottom": 1172,
-    "sourceTop": 0,
-    "sourceBottom": 1080,
+    "sourceTop": -6.666666666666629,
+    "sourceBottom": 1086.6666666666665,
     "offsetX": 0,
-    "headlineCenter": 378,
+    "headlineCenter": 372,
     "logoCenter": 1358,
-    "reframe": true,
+    "reframe": false,
     "reframePreset": "speaker",
     "reframeFocus": "speaker",
     "splitPolicy": "never",
@@ -34,9 +34,10 @@
     "mode": "image",
     "style": "radial-gradient(ellipse at 50% 45%,#F1F0EC 0%,#DCDBD6 55%,#B5B4AE 100%)",
     "color": "#F1F0EC",
-    "image": "assets/history-background.webp",
-    "imageName": "history-background.webp",
-    "dim": 0
+    "image": "assets/history-frame-original.png",
+    "imageName": "history-frame-original.png",
+    "dim": 0,
+    "canvasAligned": true
   },
   "border": {
     "on": false,
@@ -46,10 +47,10 @@
     "font": "SDGdMyeongjo",
     "size1": 100,
     "size2": 100,
-    "color1": "#131313",
+    "color1": "#151515",
     "color2": "#FFFFFF",
     "box2On": true,
-    "box2": "#EF3F54",
+    "box2": "#FF5354",
     "italic": false,
     "shadow": false,
     "fontWeight": 400,
@@ -65,12 +66,21 @@
     "strokeOn": false,
     "strokeWidth": 3,
     "strokeColor": "currentColor",
-    "gap": 14
+    "gap": 14,
+    "letterSpacing1": -5.1,
+    "letterSpacing2": 0,
+    "rowGap": 136,
+    "offsetX1": -4.500269293785095,
+    "offsetX2": -4.500269293785095,
+    "baseline1": 334,
+    "baseline2": 470,
+    "boxPadding": 10,
+    "baselineCenter": 372
   },
   "logo": {
-    "mode": "image",
-    "image": "assets/history-logo.webp",
-    "imageName": "history-logo.webp",
+    "mode": "none",
+    "image": "",
+    "imageName": "",
     "width": 952
   },
   "captions": {

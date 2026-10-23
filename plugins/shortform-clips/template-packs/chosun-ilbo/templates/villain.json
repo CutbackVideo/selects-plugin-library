@@ -1,6 +1,6 @@
 {
   "id": "villain",
-  "version": 2,
+  "version": 4,
   "names": {
     "ko": "\uc545\uc778\uc804",
     "en": "Villains"
@@ -16,12 +16,12 @@
   "layout": {
     "windowTop": 558,
     "windowBottom": 1161,
-    "sourceTop": 0,
-    "sourceBottom": 1080,
+    "sourceTop": 0.0,
+    "sourceBottom": 1080.0,
     "offsetX": 0,
-    "headlineCenter": 376,
+    "headlineCenter": 372,
     "logoCenter": 1494,
-    "reframe": true,
+    "reframe": false,
     "reframePreset": "speaker",
     "reframeFocus": "speaker",
     "splitPolicy": "never",
@@ -34,9 +34,10 @@
     "mode": "image",
     "style": "linear-gradient(180deg,#702126 0%,#5A181C 100%)",
     "color": "#702126",
-    "image": "assets/villain-background.webp",
-    "imageName": "villain-background.webp",
-    "dim": 0
+    "image": "assets/villain-frame-original.png",
+    "imageName": "villain-frame-original.png",
+    "dim": 0,
+    "canvasAligned": true
   },
   "border": {
     "on": false,
@@ -47,9 +48,9 @@
     "size1": 100,
     "size2": 100,
     "color1": "#FFFFFF",
-    "color2": "#131313",
+    "color2": "#151515",
     "box2On": true,
-    "box2": "#DBBB5E",
+    "box2": "#E2BA5A",
     "italic": false,
     "shadow": true,
     "fontWeight": 400,
@@ -65,12 +66,17 @@
     "strokeOn": false,
     "strokeWidth": 3,
     "strokeColor": "currentColor",
-    "gap": 14
+    "gap": 14,
+    "letterSpacing1": -11.1,
+    "letterSpacing2": -9.2,
+    "rowGap": 136,
+    "offsetX1": -0.600000784615987,
+    "offsetX2": -1.200037338003759
   },
   "logo": {
-    "mode": "image",
-    "image": "assets/villain-logo.webp",
-    "imageName": "villain-logo.webp",
+    "mode": "none",
+    "image": "",
+    "imageName": "",
     "width": 920
   },
   "captions": {

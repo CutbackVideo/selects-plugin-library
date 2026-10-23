@@ -1,6 +1,6 @@
 {
   "id": "money",
-  "version": 2,
+  "version": 4,
   "names": {
     "ko": "\uba38\ub2c8\uc6cc\uce58",
     "en": "Money Watch"
@@ -17,12 +17,12 @@
   "layout": {
     "windowTop": 558,
     "windowBottom": 1161,
-    "sourceTop": 0,
-    "sourceBottom": 1080,
+    "sourceTop": 0.0,
+    "sourceBottom": 1080.0,
     "offsetX": 0,
-    "headlineCenter": 392,
+    "headlineCenter": 389.94949264526366,
     "logoCenter": 1316,
-    "reframe": true,
+    "reframe": false,
     "reframePreset": "speaker",
     "reframeFocus": "speaker",
     "splitPolicy": "never",
@@ -35,20 +35,21 @@
     "mode": "image",
     "style": "radial-gradient(ellipse at 50% 40%,#2A2A2A 0%,#171717 60%,#0D0D0D 100%)",
     "color": "#2A2A2A",
-    "image": "assets/money-background.webp",
-    "imageName": "money-background.webp",
-    "dim": 0
+    "image": "assets/money-frame-original.png",
+    "imageName": "money-frame-original.png",
+    "dim": 0,
+    "canvasAligned": true
   },
   "border": {
     "on": false,
     "color": "#C9A45C"
   },
   "headline": {
-    "font": "ROKAF Sans Bold",
-    "size1": 86,
-    "size2": 86,
+    "font": "ROKAF-Sans-Bold",
+    "size1": 89.83160400390625,
+    "size2": 89.83160400390625,
     "color1": "#FFFFFF",
-    "color2": "#34EDA4",
+    "color2": "#26D8A4",
     "box2On": false,
     "box2": "#D7263D",
     "italic": false,
@@ -64,14 +65,19 @@
     "fitOther": 0.4,
     "fitWideLatin": 0.6,
     "strokeOn": true,
-    "strokeWidth": 3,
-    "strokeColor": "currentColor",
-    "gap": 2
+    "strokeWidth": 2,
+    "strokeColor": "#04503A",
+    "gap": 2,
+    "letterSpacing1": -3.59326416015625,
+    "letterSpacing2": -2.2457901000976563,
+    "rowGap": 107.7979248046875,
+    "offsetX1": -2.98681658576242,
+    "offsetX2": -2.98681658576242
   },
   "logo": {
-    "mode": "image",
-    "image": "assets/money-logo.webp",
-    "imageName": "money-logo.webp",
+    "mode": "none",
+    "image": "",
+    "imageName": "",
     "width": 696
   },
   "captions": {
