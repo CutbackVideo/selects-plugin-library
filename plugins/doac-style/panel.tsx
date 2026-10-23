@@ -388,6 +388,16 @@ export function captionFit(frame){
 // panel and the headless template run. `onStatus` reports progress; `persist`
 // records each job checkpoint (the panel keeps them so an interrupted save can
 // resume; a template run keeps them in memory only).
+// Atlas bounds use the renderer's 540×960 working canvas. Ordinary 52px
+// reference text ends around y=739 (baseline 1460 in 1080×1920); 740 keeps
+// that established lower edge while taller blocks grow upward.
+export function stableCaptionPayload(data){
+ if(!Number.isFinite(data?.y)||!Number.isFinite(data?.h)||data.h<=0)throw Error('The caption bounds are unavailable.');
+ return {...data,y:740-data.h};
+}
+function doacPortraitScript(pid,sid){
+ return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});if((await d.motionGraphics()).length)throw Error('This draft already contains generated graphics. Open the original draft without captions.');await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}});}await d.commitAll('Frame DOAC Style template to portrait');return true;`;
+}
 function captionSteps({sdk,currentProject,onStatus,persist}){
  hostUseSdk(sdk);
  function fs(){const f=hostSdk.files;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdir||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
@@ -518,7 +528,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  sameProject(j);onStatus(`Adding captions · ${i+1} / ${j.manifest.scenes.length}`);
  let committing=false;
  try{
- const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));await persist({...j,uncertain:true});
+ const scene=j.manifest.scenes[i],data=stableCaptionPayload(JSON.parse(await read(scene.payload)));await persist({...j,uncertain:true});
  committing=true;
  // Every saved scene adds one video clip, so the expected count is the base plus the scenes saved so far.
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const all=await d.clips({trackScope:'all'});if(all.filter(c=>c.trackKind==='video').length!==${j.baseCount+j.clipIds.length})throw Error('The result draft changed. Saving stopped to avoid duplicate captions.');const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+scene.template+' · '+scene.text)},within:await d.rangeAtFrames(${scene.start},${scene.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});${place}await d.commitAll('Add approved caption scene');return {clipId:r.clipId};`,'Save approved caption scene',true);
@@ -530,7 +540,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  onStatus('Your captioned draft is ready.');if(open)await run(`return await selects.editor.openDraft(${JSON.stringify(j.targetId)});`,'Open DOAC Style draft');
  return {job:j,failed};
  }
- return {fs,read,run,sameProject,compile,createFromClip,prepare,create};
+ return {fs,read,run,sameProject,compile,createFromClip,prepare,create,framePortrait:(pid,sid)=>run(doacPortraitScript(pid,sid),'Frame DOAC Style template to portrait',true)};
 }
 const TEMPLATE_ERRORS={
  'no-project':'Open a project, then try again.',
@@ -572,9 +582,10 @@ async function runCaptionTemplate({sdk,context,currentProject,onStatus,onJob=()=
    await persist({projectId:pid,sourceId:made.id,resourceId:source.resourceId,uncertain:false});
   }else await persist({projectId:pid,sourceId:source.sequenceId,uncertain:false});
  }
- const prepared=job.manifest?job:await steps.prepare({projectId:pid,sourceId:job.sourceId,anyAspect:true,resume:job,
+ if(!job.manifest&&!job.portrait){await persist({...job,uncertain:true});await steps.framePortrait(pid,job.sourceId);await persist({...job,portrait:true,uncertain:false});}
+ const prepared=job.manifest?job:await steps.prepare({projectId:pid,sourceId:job.sourceId,anyAspect:false,resume:job,
   cacheKey:source.kind==='video'?'video-'+String(source.resourceId).replace(/[^\w-]/g,'_'):job.sourceId});
- return await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
+ return await steps.create(prepared,{open:false,fit:false,skipFailedScenes:true,inPlace:true});
 }
 function TemplateRun({sdk,context}){
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
