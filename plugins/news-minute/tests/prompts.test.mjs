@@ -118,3 +118,13 @@ test('plan requires asset summaries and warns on source-like text_card sub', () 
   const prompt = P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets});
   assert.ok(prompt.includes('assetSummaries') && prompt.includes('"context": "before"'));
 });
+
+test('plannerPrompt adds a revision block only when feedback and previous plan are given', () => {
+  const base = {headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x', startSec: 0, endSec: 3}], assets: []};
+  assert.ok(!P.plannerPrompt(base).includes('REVISION'));
+  assert.ok(!P.plannerPrompt({...base, feedback: 'fix'}).includes('REVISION'));
+  const prev = {assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card'}]};
+  const text = P.plannerPrompt({...base, feedback: 'make scene 1 a photo', previous: prev});
+  assert.ok(text.includes('REVISION') && text.includes('make scene 1 a photo') && text.includes('"type":"text_card"'));
+  assert.ok(text.indexOf('REVISION') < text.indexOf('RULES'));
+});
