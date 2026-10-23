@@ -76,7 +76,26 @@ var MESSAGES = {
   fontFallback: ["The embedded font could not be loaded; the installed fonts are used.", "\uB0B4\uC7A5 \uAE00\uAF34\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD574 \uC124\uCE58\uB41C \uAE00\uAF34\uB85C \uB9CC\uB4E4\uC5B4\uC694."],
   makePlan: ["Plan the scenes", "\uD654\uBA74 \uAD6C\uC131 \uB9CC\uB4E4\uAE30"],
   planReview: ["Review the scene plan", "\uD654\uBA74 \uAD6C\uC131 \uAC80\uD1A0"],
-  planReviewHint: ["One row per scene. Change a scene's type, photo or text here, or describe what to change below and rebuild. Nothing is added to the Project until you build the video.", "\uD55C \uC904\uC774 \uC7A5\uBA74 \uD558\uB098\uC608\uC694. \uC7A5\uBA74\uC758 \uC885\uB958\xB7\uC0AC\uC9C4\xB7\uBB38\uAD6C\uB97C \uC5EC\uAE30\uC11C \uBC14\uAFB8\uAC70\uB098, \uC544\uB798\uC5D0 \uBC14\uAFC0 \uC810\uC744 \uC801\uACE0 \uB2E4\uC2DC \uB9CC\uB4E4 \uC218 \uC788\uC5B4\uC694. \uC601\uC0C1 \uB9CC\uB4E4\uAE30\uB97C \uB204\uB974\uAE30 \uC804\uC5D0\uB294 \uD504\uB85C\uC81D\uD2B8\uC5D0 \uC544\uBB34\uAC83\uB3C4 \uCD94\uAC00\uB418\uC9C0 \uC54A\uC544\uC694."],
+  planReviewHint: ["One row per scene. Click a row to see that scene in the preview Draft on the right; Edit opens its type, photo and text. You can also describe what to change below and rebuild. The preview is a Draft in this Project: building the video renames it and keeps it as the video.", '\uD55C \uC904\uC774 \uC7A5\uBA74 \uD558\uB098\uC608\uC694. \uC904\uC744 \uB204\uB974\uBA74 \uC624\uB978\uCABD \uBBF8\uB9AC\uBCF4\uAE30 Draft\uC5D0\uC11C \uADF8 \uC7A5\uBA74\uC744 \uBCF4\uC5EC \uC918\uC694. "\uACE0\uCE58\uAE30"\uB97C \uB204\uB974\uBA74 \uC7A5\uBA74\uC758 \uC885\uB958\xB7\uC0AC\uC9C4\xB7\uBB38\uAD6C\uB97C \uBC14\uAFC0 \uC218 \uC788\uC5B4\uC694. \uC544\uB798\uC5D0 \uBC14\uAFC0 \uC810\uC744 \uC801\uACE0 \uB2E4\uC2DC \uB9CC\uB4E4 \uC218\uB3C4 \uC788\uC5B4\uC694. \uBBF8\uB9AC\uBCF4\uAE30\uB294 \uC774 \uD504\uB85C\uC81D\uD2B8\uC5D0 Draft\uB85C \uC800\uC7A5\uB3FC\uC694. \uC601\uC0C1 \uB9CC\uB4E4\uAE30\uB97C \uB204\uB974\uBA74 \uC0C8\uB85C \uB9CC\uB4E4\uC9C0 \uC54A\uACE0 \uC774 Draft\uB97C \uCD5C\uC885 \uC774\uB984\uC73C\uB85C \uBC14\uAFD4 \uADF8\uB300\uB85C \uC368\uC694.'],
+  stillTime: ["Scene {n} thumbnail: {sec} s", "{n}\uBC88 \uC7A5\uBA74 \uC378\uB124\uC77C: {sec}\uCD08"],
+  previewPrefix: ["Preview", "\uBBF8\uB9AC\uBCF4\uAE30"],
+  stalePrefix: ["Outdated preview", "\uC218\uC815 \uC804 \uBBF8\uB9AC\uBCF4\uAE30"],
+  previewBuilding: ["Building the preview Draft\u2026", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694\u2026"],
+  previewReady: ["The preview Draft is open on the right. Click a scene to see it there.", "\uC624\uB978\uCABD \uBDF0\uC5B4\uC5D0 \uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uC5F4\uC5C8\uC5B4\uC694. \uC7A5\uBA74\uC744 \uB204\uB974\uBA74 \uADF8 \uC7A5\uBA74\uC744 \uBCF4\uC5EC \uC918\uC694."],
+  previewStale: ["The plan changed. The viewer and thumbnails still show the preview from before the change.", "\uACC4\uD68D\uC774 \uBC14\uB00C\uC5C8\uC5B4\uC694. \uBDF0\uC5B4\uC640 \uC378\uB124\uC77C\uC740 \uC218\uC815 \uC804 \uBBF8\uB9AC\uBCF4\uAE30\uC608\uC694."],
+  previewPartial: ["The preview Draft was only partly built. Build it again to fill it.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uAC00 \uB2E4 \uB9CC\uB4E4\uC5B4\uC9C0\uC9C0 \uC54A\uC558\uC5B4\uC694. \uB2E4\uC2DC \uB9CC\uB4E4\uBA74 \uAC19\uC740 Draft\uB97C \uC0C8\uB85C \uCC44\uC6CC\uC694."],
+  previewRebuild: ["Update the preview", "\uBBF8\uB9AC\uBCF4\uAE30 \uB2E4\uC2DC \uB9CC\uB4E4\uAE30"],
+  previewBuild: ["Build the preview", "\uBBF8\uB9AC\uBCF4\uAE30 \uB9CC\uB4E4\uAE30"],
+  previewFailed: ["The preview Draft could not be built: {error}", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uB9CC\uB4E4\uC9C0 \uBABB\uD588\uC5B4\uC694: {error}"],
+  previewBlocked: ["Fix these before the preview can be built: {errors}", "\uBBF8\uB9AC\uBCF4\uAE30\uB97C \uB9CC\uB4E4\uB824\uBA74 \uBA3C\uC800 \uACE0\uCCD0 \uC8FC\uC138\uC694: {errors}"],
+  openPreview: ["Open preview", "\uBBF8\uB9AC\uBCF4\uAE30 \uC5F4\uAE30"],
+  staleBadge: ["Before edit", "\uC218\uC815 \uC804"],
+  rendering: ["Rendering\u2026", "\uADF8\uB9AC\uB294 \uC911"],
+  sourcePhoto: ["Article photo", "\uC6D0\uBB38 \uC0AC\uC9C4"],
+  editScene: ["Edit", "\uACE0\uCE58\uAE30"],
+  closeScene: ["Close", "\uB2EB\uAE30"],
+  videoFromPreview: ["The preview Draft is now the video.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uADF8\uB300\uB85C \uC601\uC0C1\uC73C\uB85C \uC37C\uC5B4\uC694."],
+  seekUnconfirmed: ["The viewer did not move to scene {n}.", "\uBDF0\uC5B4\uAC00 {n}\uBC88 \uC7A5\uBA74\uC73C\uB85C \uC62E\uACA8\uC9C0\uC9C0 \uC54A\uC558\uC5B4\uC694."],
   planFallbackNote: ["This is the simple fallback plan (photos and text cards): the AI plan did not pass its check.", "AI \uACC4\uD68D\uC774 \uAC80\uC0AC\uB97C \uD1B5\uACFC\uD558\uC9C0 \uBABB\uD574 \uB2E8\uC21C \uB300\uCCB4 \uD50C\uB79C(\uC0AC\uC9C4\xB7\uAE00\uC790 \uCE74\uB4DC)\uC744 \uBCF4\uC5EC \uC8FC\uACE0 \uC788\uC5B4\uC694."],
   sceneType: ["Type", "\uC885\uB958"],
   scenePhoto: ["Photo", "\uC0AC\uC9C4"],
@@ -497,6 +516,14 @@ return chars;`
 var openDraftScript = (draftId) => ({
   summary: "Open the Draft",
   script: `return await selects.editor.openDraft(${J(draftId)});`
+});
+var renameDraftScript = (draftId, name) => ({
+  summary: "Rename the Draft",
+  allowCommit: true,
+  script: `const d = selects.draft(${J(draftId)});
+await d.setName(${J(name)});
+await d.commitAll("News short: name");
+return true;`
 });
 
 // src/pipeline/host.ts
@@ -5286,14 +5313,21 @@ const mg = async (label: string, tsxCode: string, parameters: any, editableParam
   const within = await win(a, b);
   if (within) await d.addMotionGraphic({ label, tsxCode, parameters, editableParameters, timeIndependent, within });
 };`;
-function baseDraftScript(x) {
-  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
-  if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
+function narrationAndFrame(x) {
   const frame = tpl("frame");
-  const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
   const deco = x.decorate ?? ((p) => p);
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
+  return `${PRELUDE}
+const narr = await win(0, ${J2(x.narrationSeconds)});
+if (!narr) throw new Error("narration range is empty");
+await d.overlayResource({ resource: p.resource(${J2(x.narrationId)}), over: narr });
+${x.bandsId ? "" : `await mg(${J2(frame.label)}, ${J2(frame.tsxCode)}, ${J2(frameParams)}, ${J2(frame.editableParameters)}, true, 0, total / fps);`}`;
+}
+function baseDraftScript(x) {
+  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
+  if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
+  const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
@@ -5301,13 +5335,29 @@ function baseDraftScript(x) {
 const d = await p.createDraft({ name: ${J2(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
 await d.insertResource({ resourceId: ${J2(x.plateId)}, sourceRange: { startSeconds: 0, endSeconds: ${J2(end)} } });
-${PRELUDE}
-const narr = await win(0, ${J2(x.narrationSeconds)});
-if (!narr) throw new Error("narration range is empty");
-await d.overlayResource({ resource: p.resource(${J2(x.narrationId)}), over: narr });
-${x.bandsId ? "" : `await mg(${J2(frame.label)}, ${J2(frame.tsxCode)}, ${J2(frameParams)}, ${J2(frame.editableParameters)}, true, 0, total / fps);`}
+${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`
+  };
+}
+function refillDraftScript(draftId, frames, x) {
+  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
+  return {
+    summary: "Refill the preview Draft",
+    allowCommit: true,
+    script: `const p = selects.project(${J2(x.projectId)});
+const d = selects.draft(${J2(draftId)});
+try { await d.meta(); } catch (e) { return { refilled: false, reason: "missing: " + String((e as any)?.message || e).slice(0, 200), frames: 0 }; }
+const before = await d.clips({ trackScope: "all" });
+const mainEnd = before.filter((c: any) => c.trackKind === "main").reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);
+if (mainEnd !== ${J2(frames)}) return { refilled: false, reason: "main is " + mainEnd + " frames, expected " + ${J2(frames)}, frames: mainEnd };
+const extra = before.filter((c: any) => c.trackKind === "video" || c.trackKind === "audio");
+if (extra.length) await d.removeClips(extra);
+await d.removeEmptyTracks();
+await d.setName(${J2(x.draftName)});
+${narrationAndFrame(x)}
+await d.commitAll("News short: preview refilled");
+return { refilled: true, reason: "", frames: total, removed: extra.length };`
   };
 }
 function fitControls(type, params) {
@@ -6100,11 +6150,25 @@ async function revisePlan(sdk, env, s, preset, feedback, log, rec) {
   recordPlan(rec, plan, r.images);
   return { plan, kept: false };
 }
-async function assemble(sdk, env, s, preset, log, rec) {
+var previewRev = (s) => ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
+var previewFresh = (s) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s));
+var finalName = (s) => s.script?.headline.line1 || s.article?.title || "News short";
+var previewName = (s, prefix) => prefix + " \xB7 " + (s.article?.title || finalName(s));
+var canRefill = (p, projectId, presetId, plateLen) => !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0;
+var PartialDraftError = class extends Error {
+  draft;
+  preview = null;
+  constructor(message, draft) {
+    super(message);
+    this.draft = draft;
+  }
+};
+async function assemble(sdk, env, s, preset, log, rec, target) {
   const script = s.script, article = s.article, projectId = s.projectId, sp = s.plan;
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
   const texts = sentences.map((x2) => x2.text);
   const plateLen = plateSeconds(total);
+  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen) ? target.reuse : null;
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
@@ -6136,17 +6200,18 @@ async function assemble(sdk, env, s, preset, log, rec) {
   };
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
-  const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  if (reuse) rec.notes.push("plate: reused " + (reuse.plateImage ? "image" : "colour") + " Resource " + reuse.plateId, "bands: " + (reuse.bandsId ? "reused image Resource " + reuse.bandsId : "frame graphic"));
+  const bg = reuse ? { id: reuse.plateId, image: reuse.plateImage } : await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;
   const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...bg.image ? { background: CLEAR_PAPER } : {} };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
-  const bandsId = await bands(sdk, env, projectId, preset, rec);
+  const bandsId = reuse ? reuse.bandsId ?? void 0 : await bands(sdk, env, projectId, preset, rec);
   const headFont = await findHeadlineFont(preset.headlineFonts);
   rec.notes.push(headlineFontNote(headFont));
   log("assembling");
   const x = {
     projectId,
-    draftName: script.headline.line1 || article.title || "News short",
+    draftName: target?.name || finalName(s),
     plateId,
     plateSeconds: plateLen,
     narrationId: sp.narrationId,
@@ -6159,13 +6224,29 @@ async function assemble(sdk, env, s, preset, log, rec) {
     decorate,
     headlineFont: headFont?.kind === "installed" ? headFont.params : void 0
   };
-  let draftId = null;
+  let draftId = null, frames = 0, refilled = false;
+  const placed = scenes.map((sc) => ({ startSec: sc.startSec, endSec: sc.endSec }));
+  const record = () => ({ draftId, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, scenes: placed });
   try {
-    const baseCall = baseDraftScript(x);
-    rec.notes.push("script bytes: base " + scriptBytes(baseCall));
-    const base = await run(sdk, baseCall);
-    if (!base.draftId) throw new Error("the Draft was not created");
-    draftId = base.draftId;
+    if (reuse) {
+      const call = refillDraftScript(reuse.draftId, reuse.frames, x);
+      rec.notes.push("script bytes: refill " + scriptBytes(call));
+      const r = await run(sdk, call);
+      if (r.refilled) {
+        draftId = reuse.draftId;
+        frames = r.frames;
+        refilled = true;
+        rec.notes.push("preview: refilled Draft " + draftId + " (" + (r.removed ?? 0) + " clips removed)");
+      } else rec.notes.push("preview: Draft " + reuse.draftId + " not refilled (" + r.reason + "); building a new Draft, the old one stays in the Project");
+    }
+    if (!draftId) {
+      const baseCall = baseDraftScript(x);
+      rec.notes.push("script bytes: base " + scriptBytes(baseCall));
+      const base = await run(sdk, baseCall);
+      if (!base.draftId) throw new Error("the Draft was not created");
+      draftId = base.draftId;
+      frames = base.frames;
+    }
     const calls = [
       ...sceneScripts(draftId, scenes).map((c) => ({ c, what: "scene" })),
       ...bandsId ? [{ c: bandsScript(draftId, projectId, bandsId), what: "bands" }] : [],
@@ -6177,14 +6258,28 @@ async function assemble(sdk, env, s, preset, log, rec) {
       try {
         await run(sdk, calls[i].c);
       } catch (e) {
-        throw new Error(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`);
+        throw new PartialDraftError(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`, record());
       }
     }
   } finally {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
   rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId, timing: sp.timing, fallbackPlan: sp.fallback };
+  return { draftId, timing: sp.timing, fallbackPlan: sp.fallback, refilled, draft: record() };
+}
+async function buildPreview(sdk, env, s, preset, prefix, log, rec) {
+  const name = previewName(s, prefix);
+  const planRev = previewRev(s);
+  log("previewBuilding");
+  const t0 = Date.now();
+  try {
+    const r = await assemble(sdk, env, s, preset, log, rec, { name, reuse: s.preview });
+    rec.notes.push("preview: " + (r.refilled ? "refilled" : "built") + " in " + ((Date.now() - t0) / 1e3).toFixed(1) + " s");
+    return { preview: { ...r.draft, name, planRev, at: (/* @__PURE__ */ new Date()).toISOString() }, refilled: r.refilled };
+  } catch (e) {
+    if (e instanceof PartialDraftError) e.preview = { ...e.draft, name, planRev: "", at: (/* @__PURE__ */ new Date()).toISOString() };
+    throw e;
+  }
 }
 
 // src/Panel.tsx
@@ -6195,6 +6290,9 @@ var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit
 var MAX_CHARS = TARGET_CHARS.max;
 var warn = { color: "#d9822b", fontSize: 12 };
 var field = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
+var thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
+var thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" };
+var oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 function thumbOf(dataUrl) {
   return new Promise((resolve, reject) => {
     const im = new Image();
@@ -6239,7 +6337,18 @@ function NewsMinutePanel({ sdk, context }) {
   const [voices, setVoices] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [jsonErr, setJsonErr] = useState({});
+  const [openRow, setOpenRow] = useState(null);
+  const [picked, setPicked] = useState(null);
+  const [stills, setStills] = useState({});
   const env = useRef(null);
+  const latest = useRef(null);
+  latest.current = s;
+  const viewer = {
+    open: (_p, d) => run(sdk, openDraftScript(d)),
+    rename: (_p, d, name) => run(sdk, renameDraftScript(d, name)),
+    seek: null,
+    still: null
+  };
   useAppUpdateGuard(sdk, context?.language, () => busy);
   const log = (k, v) => {
     const m = T(k, v);
@@ -6308,6 +6417,39 @@ function NewsMinutePanel({ sdk, context }) {
       stop = true;
     };
   }, [tts?.workflowId, tts?.state]);
+  const pv = s?.preview ?? null;
+  const rendering = useRef(false);
+  useEffect(() => {
+    if (!viewer.still || !pv || !pv.planRev || busy || rendering.current) return;
+    const order = pv.scenes.map((_, i2) => i2);
+    if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
+    const i = order.find((k) => !stills[pv.draftId + ":" + k + ":" + pv.planRev]);
+    if (i === void 0) return;
+    const key = pv.draftId + ":" + i + ":" + pv.planRev;
+    rendering.current = true;
+    setStills((m) => ({ ...m, [key]: { state: "rendering" } }));
+    viewer.still(pv, i, key).then((r) => {
+      rendering.current = false;
+      setStills((m) => ({ ...m, [key]: { state: "ready", dataUrl: r.dataUrl } }));
+      if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1e3).toFixed(1) });
+    }).catch(() => {
+      rendering.current = false;
+      setStills((m) => ({ ...m, [key]: { state: "failed" } }));
+    });
+  }, [pv?.draftId, pv?.planRev, picked, busy, stills]);
+  const stale = !!(pv && s?.plan && pv.planRev !== previewRev(s));
+  useEffect(() => {
+    const cur = latest.current;
+    if (!stale || busy || !cur?.preview || !cur.projectId) return;
+    const name = previewName(cur, T("stalePrefix"));
+    if (cur.preview.name === name) return;
+    const p = cur.preview;
+    viewer.rename(cur.projectId, p.draftId, name).then(() => {
+      const now = latest.current;
+      if (now?.preview?.draftId === p.draftId) update({ ...now, preview: { ...now.preview, name } });
+    }).catch(() => {
+    });
+  }, [stale, busy]);
   if (!s) return /* @__PURE__ */ jsx("div", { style: { padding: 12 }, children: error || "\u2026" });
   const preset = PRESETS[s.presetId] ?? PRESETS.chosun;
   const writeScript2 = () => guard(async () => {
@@ -6359,10 +6501,39 @@ function NewsMinutePanel({ sdk, context }) {
     } finally {
       await finish(rec);
     }
-    await update({ ...s, plan: plan2, draftId: null });
+    const next22 = { ...s, plan: plan2, draftId: null };
+    await update(next22);
     setFeedback("");
     setJsonErr({});
+    setOpenRow(null);
+    setPicked(null);
     if (plan2.timing === "ratio") setError(T("timingRatio"));
+    await previewInto(next22);
+  });
+  const previewInto = async (sess) => {
+    const v = checkPlan(sess.plan);
+    const blocking = v.errors.filter((e) => BLOCKING_PLAN_ERROR.test(e));
+    if (blocking.length) {
+      setError(T("previewBlocked", { errors: blocking.slice(0, 3).join("; ") }));
+      return;
+    }
+    const rec = newRunRecord(preset.id, sess.article?.url ?? "");
+    try {
+      const r = await buildPreview(sdk, env.current, sess, preset, T("previewPrefix"), log, rec);
+      await update({ ...sess, preview: r.preview });
+      await viewer.open(sess.projectId, r.preview.draftId).catch(() => {
+      });
+      log("previewReady");
+    } catch (e) {
+      rec.notes.push("error: " + String(e?.message || e));
+      if (e instanceof PartialDraftError && e.preview) await update({ ...sess, preview: e.preview });
+      setError(T("previewFailed", { error: String(e?.message || e) }));
+    } finally {
+      await finish(rec);
+    }
+  };
+  const refreshPreview = () => guard(async () => {
+    if (latest.current?.plan) await previewInto(latest.current);
   });
   const revise = () => guard(async () => {
     const note = feedback.trim();
@@ -6378,12 +6549,14 @@ function NewsMinutePanel({ sdk, context }) {
     } finally {
       await finish(rec);
     }
-    await update({ ...s, plan: r.plan });
+    const next2 = { ...s, plan: r.plan };
+    await update(next2);
     setJsonErr({});
     if (r.kept) setError(T("reviseKept"));
     else {
       setFeedback("");
       log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length });
+      await previewInto(next2);
     }
   });
   const build = () => guard(async () => {
@@ -6394,17 +6567,28 @@ function NewsMinutePanel({ sdk, context }) {
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
-    let r;
+    const name = finalName(s);
+    let draftId;
     try {
-      r = await assemble(sdk, env.current, s, preset, log, rec);
+      if (previewFresh(s) && s.preview.projectId === s.projectId) {
+        await viewer.rename(s.projectId, s.preview.draftId, name);
+        draftId = s.preview.draftId;
+        rec.notes.push("video: preview Draft " + draftId + " renamed");
+        log("videoFromPreview");
+      } else {
+        const r = await assemble(sdk, env.current, s, preset, log, rec, { name, reuse: s.preview });
+        draftId = r.draftId;
+        rec.notes.push("video: " + (r.refilled ? "preview Draft " + draftId + " refilled" : "new Draft " + draftId));
+      }
     } catch (e) {
       rec.notes.push("error: " + String(e?.message || e));
+      if (e instanceof PartialDraftError) await update({ ...s, preview: { ...e.draft, name, planRev: "", at: (/* @__PURE__ */ new Date()).toISOString() } });
       throw e;
     } finally {
       await finish(rec);
     }
-    await update({ ...s, draftId: r.draftId });
-    await run(sdk, openDraftScript(r.draftId)).catch(() => {
+    await update({ ...s, draftId, preview: null });
+    await viewer.open(s.projectId, draftId).catch(() => {
     });
   });
   const setScene = (i, sc2) => {
@@ -6415,10 +6599,20 @@ function NewsMinutePanel({ sdk, context }) {
     update({ ...s, plan: { ...plan2, scenes, edited }, draftId: null });
   };
   const reset = () => guard(async () => {
-    await update({ ...emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId });
+    await update({ ...emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null });
     setUrl("");
     setText("");
+    setOpenRow(null);
+    setPicked(null);
   });
+  const pick = (i) => {
+    setPicked(i);
+    const p = latest.current?.preview;
+    if (!p || !viewer.seek || i >= p.scenes.length) return;
+    viewer.seek(p, i).then((r) => {
+      if (!r.confirmed) log("seekUnconfirmed", { n: i + 1 });
+    }).catch(() => log("seekUnconfirmed", { n: i + 1 }));
+  };
   const sc = s.script;
   const touched = !!sc?.sentences.some((x) => x.edited);
   const chars = sc ? scriptText(sc).length : 0;
@@ -6461,78 +6655,102 @@ function NewsMinutePanel({ sdk, context }) {
         lastRound.fallback ? "" : " \xB7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })
       ] }) : null,
       general.length ? /* @__PURE__ */ jsx("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
+      pv ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }, children: [
+        /* @__PURE__ */ jsx("span", { style: stale ? warn : muted, children: T(!pv.planRev ? "previewPartial" : stale ? "previewStale" : "previewReady") }),
+        stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewRebuild") }) : null,
+        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: () => viewer.open(s.projectId, pv.draftId).catch(() => {
+        }), children: T("openPreview") })
+      ] }) : /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewBuild") }),
       plan2.scenes.map((scene, i) => {
         const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean);
         const start = ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0, end = ss.length ? Math.max(...ss.map((x) => x.endSec)) : 0;
         const changed = plan2.changed.includes(i), edited = plan2.edited.includes(i);
         const setParam = (k, val) => setScene(i, { ...scene, params: { ...scene.params ?? {}, [k]: val } });
         const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-        return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, background: changed ? "rgba(74,144,217,0.08)" : void 0 }, children: [
-          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
-            /* @__PURE__ */ jsx("strong", { children: String(i + 1).padStart(2, "0") }),
-            /* @__PURE__ */ jsx("span", { style: muted, children: start.toFixed(1) + "\u2013" + end.toFixed(1) + "s" }),
-            changed ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9", fontWeight: 600 }, children: T("changedMark") }) : null,
-            edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedMark") }) : null
+        const key = pv ? pv.draftId + ":" + i + ":" + pv.planRev : "";
+        const still = pv && pv.planRev && i < pv.scenes.length ? stills[key] : void 0;
+        const photo = scene.assetRef ? plan2.thumbs[scene.assetRef] : void 0;
+        const open = openRow === i;
+        return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : void 0 }, children: [
+          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", cursor: viewer.seek && pv ? "pointer" : void 0 }, onClick: () => pick(i), children: [
+            /* @__PURE__ */ jsx("strong", { style: { flex: "none" }, children: String(i + 1).padStart(2, "0") }),
+            /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
+              still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
+              still?.state === "ready" ? stale ? /* @__PURE__ */ jsx("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("sourcePhoto") }) : null
+            ] }),
+            /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }, children: [
+              /* @__PURE__ */ jsxs("span", { style: muted, children: [
+                start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \xB7 " + T("type_" + scene.type),
+                changed ? /* @__PURE__ */ jsx("span", { style: { color: "#4a90d9", fontWeight: 600 }, children: " \xB7 " + T("changedMark") }) : null,
+                edited ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: " \xB7 " + T("editedMark") }) : null
+              ] }),
+              /* @__PURE__ */ jsx("span", { style: oneLine, children: ss.map((x) => x.text).join(" ") }),
+              (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, ...oneLine }, children: "\u2022 " + x }, "e" + k))
+            ] }),
+            /* @__PURE__ */ jsx("button", { style: { flex: "none" }, onClick: (e) => {
+              e.stopPropagation();
+              setOpenRow(open ? null : i);
+            }, children: T(open ? "closeScene" : "editScene") })
           ] }),
-          /* @__PURE__ */ jsx("span", { style: { ...muted, color: "inherit" }, children: ss.map((x) => x.text).join(" ") }),
-          /* @__PURE__ */ jsxs("label", { style: field, children: [
-            T("sceneType"),
-            /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
-          ] }),
-          canPhoto ? /* @__PURE__ */ jsxs("label", { style: field, children: [
-            T("scenePhoto"),
-            /* @__PURE__ */ jsxs("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
-              const { assetRef: _x, ...rest } = scene;
-              setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest);
-            }, children: [
-              /* @__PURE__ */ jsx("option", { value: "", children: T("noPhoto") }),
-              photoRefs.map((r) => /* @__PURE__ */ jsx("option", { value: r, children: r }, r))
-            ] })
-          ] }) : null,
-          scene.assetRef ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" }, children: [
-            plan2.thumbs[scene.assetRef] ? /* @__PURE__ */ jsx("img", { src: plan2.thumbs[scene.assetRef], style: { width: 72, borderRadius: 4, flex: "none" } }) : null,
-            /* @__PURE__ */ jsx("span", { style: muted, children: T("assetShows", { summary: summary.get(scene.assetRef) ?? "" }) })
-          ] }) : null,
-          (SCENE_FIELDS[scene.type] ?? []).map((k) => {
-            const raw = scene.params?.[k];
-            if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: field, children: [
-              T("field_lines"),
-              /* @__PURE__ */ jsx("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
-            ] }, k);
-            return /* @__PURE__ */ jsxs("label", { style: field, children: [
-              T("field_" + k),
-              k === "text" ? /* @__PURE__ */ jsx("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
-            ] }, k);
-          }),
-          /* @__PURE__ */ jsxs("details", { children: [
-            /* @__PURE__ */ jsx("summary", { style: muted, children: T("sceneParams") }),
-            /* @__PURE__ */ jsx(
-              "textarea",
-              {
-                style: { ...input, fontFamily: "monospace", fontSize: 11 },
-                rows: 6,
-                disabled: busy,
-                defaultValue: JSON.stringify(scene.params ?? {}, null, 1),
-                onBlur: (e) => {
-                  try {
-                    const p = JSON.parse(e.target.value);
-                    setJsonErr((m) => {
-                      const n = { ...m };
-                      delete n[i];
-                      return n;
-                    });
-                    if (JSON.stringify(p) !== JSON.stringify(scene.params ?? {})) setScene(i, { ...scene, params: p });
-                  } catch (err) {
-                    setJsonErr((m) => ({ ...m, [i]: T("badJson", { error: String(err?.message || err) }) }));
+          open ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }, children: [
+            /* @__PURE__ */ jsxs("label", { style: field, children: [
+              T("sceneType"),
+              /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
+            ] }),
+            canPhoto ? /* @__PURE__ */ jsxs("label", { style: field, children: [
+              T("scenePhoto"),
+              /* @__PURE__ */ jsxs("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
+                const { assetRef: _x, ...rest } = scene;
+                setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest);
+              }, children: [
+                /* @__PURE__ */ jsx("option", { value: "", children: T("noPhoto") }),
+                photoRefs.map((r) => /* @__PURE__ */ jsx("option", { value: r, children: r }, r))
+              ] })
+            ] }) : null,
+            scene.assetRef ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" }, children: [
+              plan2.thumbs[scene.assetRef] ? /* @__PURE__ */ jsx("img", { src: plan2.thumbs[scene.assetRef], style: { width: 72, borderRadius: 4, flex: "none" } }) : null,
+              /* @__PURE__ */ jsx("span", { style: muted, children: T("assetShows", { summary: summary.get(scene.assetRef) ?? "" }) })
+            ] }) : null,
+            (SCENE_FIELDS[scene.type] ?? []).map((k) => {
+              const raw = scene.params?.[k];
+              if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: field, children: [
+                T("field_lines"),
+                /* @__PURE__ */ jsx("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
+              ] }, k);
+              return /* @__PURE__ */ jsxs("label", { style: field, children: [
+                T("field_" + k),
+                k === "text" ? /* @__PURE__ */ jsx("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
+              ] }, k);
+            }),
+            /* @__PURE__ */ jsxs("details", { children: [
+              /* @__PURE__ */ jsx("summary", { style: muted, children: T("sceneParams") }),
+              /* @__PURE__ */ jsx(
+                "textarea",
+                {
+                  style: { ...input, fontFamily: "monospace", fontSize: 11 },
+                  rows: 6,
+                  disabled: busy,
+                  defaultValue: JSON.stringify(scene.params ?? {}, null, 1),
+                  onBlur: (e) => {
+                    try {
+                      const p = JSON.parse(e.target.value);
+                      setJsonErr((m) => {
+                        const n = { ...m };
+                        delete n[i];
+                        return n;
+                      });
+                      if (JSON.stringify(p) !== JSON.stringify(scene.params ?? {})) setScene(i, { ...scene, params: p });
+                    } catch (err) {
+                      setJsonErr((m) => ({ ...m, [i]: T("badJson", { error: String(err?.message || err) }) }));
+                    }
                   }
-                }
-              },
-              JSON.stringify(scene.params ?? {})
-            ),
-            jsonErr[i] ? /* @__PURE__ */ jsx("span", { style: warn, children: jsonErr[i] }) : null
-          ] }),
-          (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: warn, children: "\u2022 " + x }, "e" + k)),
-          (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: muted, children: "\u2022 " + x }, "w" + k))
+                },
+                JSON.stringify(scene.params ?? {})
+              ),
+              jsonErr[i] ? /* @__PURE__ */ jsx("span", { style: warn, children: jsonErr[i] }) : null
+            ] }),
+            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: muted, children: "\u2022 " + x }, "w" + k))
+          ] }) : null
         ] }, i + ":" + scene.sentenceIds.join(","));
       }),
       /* @__PURE__ */ jsxs("label", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [

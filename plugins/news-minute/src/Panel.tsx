@@ -6,7 +6,7 @@ import { PRESETS } from "./preset.ts";
 import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
-import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
+import { voicesScript, openDraftScript, renameDraftScript } from "./pipeline/scripts.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
 import { SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
@@ -22,6 +22,20 @@ const MAX_CHARS = TARGET_CHARS.max;
 const warn = { color: "#d9822b", fontSize: 12 } as const;
 // Review fields stack the label over its control at any panel width.
 const field = { ...muted, display: "flex", flexDirection: "column", gap: 2 } as const;
+// A 9:16 thumbnail slot in a scene row.
+const thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" } as const;
+const thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" } as const;
+const oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+
+// The viewer and thumbnail calls for the preview Draft. seek and still stay null until the preview helpers
+// (src/pipeline/preview.ts) are wired in: rows then show the article photo and do not move the viewer.
+type Viewer = {
+  open: (projectId: string, draftId: string) => Promise<unknown>;
+  rename: (projectId: string, draftId: string, name: string) => Promise<unknown>;
+  seek: null | ((p: F.PreviewDraft, scene: number) => Promise<{ confirmed: boolean }>);
+  still: null | ((p: F.PreviewDraft, scene: number, key: string) => Promise<{ dataUrl: string; ms: number; cached: boolean }>);
+};
+type Still = { state: "rendering" | "ready" | "failed"; dataUrl?: string };
 
 // A small JPEG of an article photo for the plan review rows (kept in the session, so it stays small).
 function thumbOf(dataUrl: string): Promise<string> {
@@ -70,7 +84,18 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [voices, setVoices] = useState<Array<{ voiceId: string; name: string }>>([]);
   const [feedback, setFeedback] = useState("");
   const [jsonErr, setJsonErr] = useState<Record<number, string>>({});
+  const [openRow, setOpenRow] = useState<number | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [stills, setStills] = useState<Record<string, Still>>({});
   const env = useRef<F.Env | null>(null);
+  const latest = useRef<F.Session | null>(null);
+  latest.current = s;
+  const viewer: Viewer = {
+    open: (_p, d) => run(sdk, openDraftScript(d)),
+    rename: (_p, d, name) => run(sdk, renameDraftScript(d, name)),
+    seek: null,
+    still: null,
+  };
   useAppUpdateGuard(sdk, context?.language, () => busy);
 
   const log: F.Log = (k, v) => { const m = T(k, v); setStatus(m); setLines((l) => [...l.slice(-40), new Date().toLocaleTimeString() + "  " + m]); };
@@ -114,6 +139,36 @@ function NewsMinutePanel({ sdk, context }: Props) {
     })();
     return () => { stop = true; };
   }, [tts?.workflowId, tts?.state]);
+
+  // Finished-frame thumbnails of the preview Draft, one at a time, the picked scene first; kept for the open panel.
+  const pv = s?.preview ?? null;
+  const rendering = useRef(false);
+  useEffect(() => {
+    if (!viewer.still || !pv || !pv.planRev || busy || rendering.current) return;
+    const order = pv.scenes.map((_, i) => i);
+    if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
+    const i = order.find((k) => !stills[pv.draftId + ":" + k + ":" + pv.planRev]);
+    if (i === undefined) return;
+    const key = pv.draftId + ":" + i + ":" + pv.planRev;
+    rendering.current = true;
+    setStills((m) => ({ ...m, [key]: { state: "rendering" } }));
+    viewer.still(pv, i, key)
+      .then((r) => { rendering.current = false; setStills((m) => ({ ...m, [key]: { state: "ready", dataUrl: r.dataUrl } })); if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) }); })
+      .catch(() => { rendering.current = false; setStills((m) => ({ ...m, [key]: { state: "failed" } })); });
+  }, [pv?.draftId, pv?.planRev, picked, busy, stills]);
+
+  // Once the plan moves past the preview, the Draft's name says so in the editor too (once per change).
+  const stale = !!(pv && s?.plan && pv.planRev !== F.previewRev(s));
+  useEffect(() => {
+    const cur = latest.current;
+    if (!stale || busy || !cur?.preview || !cur.projectId) return;
+    const name = F.previewName(cur, T("stalePrefix"));
+    if (cur.preview.name === name) return;
+    const p = cur.preview;
+    viewer.rename(cur.projectId, p.draftId, name)
+      .then(() => { const now = latest.current; if (now?.preview?.draftId === p.draftId) update({ ...now, preview: { ...now.preview, name } }); })
+      .catch(() => {});
+  }, [stale, busy]);
 
   if (!s) return <div style={{ padding: 12 }}>{error || "\u2026"}</div>;
   const preset = PRESETS[s.presetId] ?? PRESETS.chosun;
@@ -160,10 +215,31 @@ function NewsMinutePanel({ sdk, context }: Props) {
     try { plan = await F.planScenes(sdk, env.current!, s, preset, next, log, rec, thumbOf); }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
-    await update({ ...s, plan, draftId: null });
-    setFeedback(""); setJsonErr({});
+    const next2 = { ...s, plan, draftId: null };
+    await update(next2);
+    setFeedback(""); setJsonErr({}); setOpenRow(null); setPicked(null);
     if (plan.timing === "ratio") setError(T("timingRatio"));
+    await previewInto(next2);
   });
+
+  // Builds (or refills) the preview Draft for sess and opens it; a failure leaves the plan to review.
+  const previewInto = async (sess: F.Session) => {
+    const v = F.checkPlan(sess.plan!);
+    const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e));
+    if (blocking.length) { setError(T("previewBlocked", { errors: blocking.slice(0, 3).join("; ") })); return; }
+    const rec = F.newRunRecord(preset.id, sess.article?.url ?? "");
+    try {
+      const r = await F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec);
+      await update({ ...sess, preview: r.preview });
+      await viewer.open(sess.projectId!, r.preview.draftId).catch(() => {});
+      log("previewReady");
+    } catch (e: any) {
+      rec.notes.push("error: " + String(e?.message || e));
+      if (e instanceof F.PartialDraftError && e.preview) await update({ ...sess, preview: e.preview });
+      setError(T("previewFailed", { error: String(e?.message || e) }));
+    } finally { await finish(rec); }
+  };
+  const refreshPreview = () => guard(async () => { if (latest.current?.plan) await previewInto(latest.current); });
 
   const revise = () => guard(async () => {
     const note = feedback.trim();
@@ -174,10 +250,11 @@ function NewsMinutePanel({ sdk, context }: Props) {
     try { r = await F.revisePlan(sdk, env.current!, s, preset, note, log, rec); }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
-    await update({ ...s, plan: r.plan });
+    const next2 = { ...s, plan: r.plan };
+    await update(next2);
     setJsonErr({});
     if (r.kept) setError(T("reviseKept"));
-    else { setFeedback(""); log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length }); }
+    else { setFeedback(""); log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length }); await previewInto(next2); }
   });
 
   const build = () => guard(async () => {
@@ -188,12 +265,30 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
-    let r;
-    try { r = await F.assemble(sdk, env.current!, s, preset, log, rec); }
-    catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
+    const name = F.finalName(s);
+    let draftId: string;
+    try {
+      // The reviewed preview becomes the video: renamed when it shows this plan, else filled again first.
+      if (F.previewFresh(s) && s.preview!.projectId === s.projectId) {
+        await viewer.rename(s.projectId!, s.preview!.draftId, name);
+        draftId = s.preview!.draftId;
+        rec.notes.push("video: preview Draft " + draftId + " renamed");
+        log("videoFromPreview");
+      } else {
+        const r = await F.assemble(sdk, env.current!, s, preset, log, rec, { name, reuse: s.preview });
+        draftId = r.draftId;
+        rec.notes.push("video: " + (r.refilled ? "preview Draft " + draftId + " refilled" : "new Draft " + draftId));
+      }
+    }
+    catch (e: any) {
+      rec.notes.push("error: " + String(e?.message || e));
+      if (e instanceof F.PartialDraftError) await update({ ...s, preview: { ...e.draft, name, planRev: "", at: new Date().toISOString() } });
+      throw e;
+    }
     finally { await finish(rec); }
-    await update({ ...s, draftId: r.draftId });
-    await run(sdk, openDraftScript(r.draftId)).catch(() => {});
+    // The preview is used up: a later change to the plan starts a new preview Draft.
+    await update({ ...s, draftId, preview: null });
+    await viewer.open(s.projectId!, draftId).catch(() => {});
   });
 
   // A scene the reviewer changed by hand; it is marked and goes to the planner as part of the previous plan.
@@ -205,7 +300,15 @@ function NewsMinutePanel({ sdk, context }: Props) {
     update({ ...s, plan: { ...plan, scenes, edited }, draftId: null });
   };
 
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId }); setUrl(""); setText(""); });
+  // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); });
+
+  const pick = (i: number) => {
+    setPicked(i);
+    const p = latest.current?.preview;
+    if (!p || !viewer.seek || i >= p.scenes.length) return;
+    viewer.seek(p, i).then((r) => { if (!r.confirmed) log("seekUnconfirmed", { n: i + 1 }); }).catch(() => log("seekUnconfirmed", { n: i + 1 }));
+  };
 
   const sc = s.script;
   const touched = !!sc?.sentences.some((x) => x.edited);
@@ -247,66 +350,93 @@ function NewsMinutePanel({ sdk, context }: Props) {
         {plan.fallback ? <span style={warn}>{T("planFallbackNote")}</span> : null}
         {lastRound ? <span style={muted}>{T("rounds", { n: plan.rounds.length })}{lastRound.fallback ? "" : " \u00b7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })}</span> : null}
         {general.length ? <div style={warn}>{general.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
+        {pv ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={stale ? warn : muted}>{T(!pv.planRev ? "previewPartial" : stale ? "previewStale" : "previewReady")}</span>
+            {stale ? <button disabled={busy} onClick={refreshPreview}>{T("previewRebuild")}</button> : null}
+            <button disabled={busy} onClick={() => viewer.open(s.projectId!, pv.draftId).catch(() => {})}>{T("openPreview")}</button>
+          </div>
+        ) : <button disabled={busy} onClick={refreshPreview}>{T("previewBuild")}</button>}
         {plan.scenes.map((scene, i) => {
           const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean) as F.ScenePlan["sentences"];
           const start = ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0, end = ss.length ? Math.max(...ss.map((x) => x.endSec)) : 0;
           const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
           const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
           const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
+          const key = pv ? pv.draftId + ":" + i + ":" + pv.planRev : "";
+          const still = pv && pv.planRev && i < pv.scenes.length ? stills[key] : undefined;
+          const photo = scene.assetRef ? plan.thumbs[scene.assetRef] : undefined;
+          const open = openRow === i;
           return (
-            <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, background: changed ? "rgba(74,144,217,0.08)" : undefined }}>
-              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                <strong>{String(i + 1).padStart(2, "0")}</strong>
-                <span style={muted}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s"}</span>
-                {changed ? <span style={{ ...muted, color: "#4a90d9", fontWeight: 600 }}>{T("changedMark")}</span> : null}
-                {edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedMark")}</span> : null}
+            <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : undefined }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: viewer.seek && pv ? "pointer" : undefined }} onClick={() => pick(i)}>
+                <strong style={{ flex: "none" }}>{String(i + 1).padStart(2, "0")}</strong>
+                <div style={thumbBox}>
+                  {still?.state === "ready" ? <img src={still.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : photo ? <img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 }} />
+                    : <span style={{ ...muted, fontSize: 10, textAlign: "center", padding: 2 }}>{T("type_" + scene.type)}</span>}
+                  {still?.state === "ready" ? (stale ? <span style={{ ...thumbTag, background: "rgba(217,130,43,0.85)" }}>{T("staleBadge")}</span> : null)
+                    : still?.state === "rendering" ? <span style={thumbTag}>{T("rendering")}</span>
+                    : photo ? <span style={thumbTag}>{T("sourcePhoto")}</span> : null}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
+                  <span style={muted}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \u00b7 " + T("type_" + scene.type)}
+                    {changed ? <span style={{ color: "#4a90d9", fontWeight: 600 }}>{" \u00b7 " + T("changedMark")}</span> : null}
+                    {edited ? <span style={{ color: "#d9822b" }}>{" \u00b7 " + T("editedMark")}</span> : null}
+                  </span>
+                  <span style={oneLine}>{ss.map((x) => x.text).join(" ")}</span>
+                  {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={{ ...warn, ...oneLine }}>{"\u2022 " + x}</span>)}
+                </div>
+                <button style={{ flex: "none" }} onClick={(e) => { e.stopPropagation(); setOpenRow(open ? null : i); }}>{T(open ? "closeScene" : "editScene")}</button>
               </div>
-              <span style={{ ...muted, color: "inherit" }}>{ss.map((x) => x.text).join(" ")}</span>
-              <label style={field}>{T("sceneType")}
-                <select value={scene.type} disabled={busy} onChange={(e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs))}>
-                  {SCENE_TYPES.map((t2) => <option key={t2} value={t2}>{T("type_" + t2)}</option>)}
-                </select>
-              </label>
-              {canPhoto ? (
-                <label style={field}>{T("scenePhoto")}
-                  <select value={scene.assetRef ?? ""} disabled={busy} onChange={(e) => { const { assetRef: _x, ...rest } = scene; setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest); }}>
-                    <option value="">{T("noPhoto")}</option>
-                    {photoRefs.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </label>
-              ) : null}
-              {scene.assetRef ? (
-                <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                  {plan.thumbs[scene.assetRef] ? <img src={plan.thumbs[scene.assetRef]} style={{ width: 72, borderRadius: 4, flex: "none" }} /> : null}
-                  <span style={muted}>{T("assetShows", { summary: summary.get(scene.assetRef) ?? "" })}</span>
+              {open ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
+                  <label style={field}>{T("sceneType")}
+                    <select value={scene.type} disabled={busy} onChange={(e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs))}>
+                      {SCENE_TYPES.map((t2) => <option key={t2} value={t2}>{T("type_" + t2)}</option>)}
+                    </select>
+                  </label>
+                  {canPhoto ? (
+                    <label style={field}>{T("scenePhoto")}
+                      <select value={scene.assetRef ?? ""} disabled={busy} onChange={(e) => { const { assetRef: _x, ...rest } = scene; setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest); }}>
+                        <option value="">{T("noPhoto")}</option>
+                        {photoRefs.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
+                  {scene.assetRef ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                      {plan.thumbs[scene.assetRef] ? <img src={plan.thumbs[scene.assetRef]} style={{ width: 72, borderRadius: 4, flex: "none" }} /> : null}
+                      <span style={muted}>{T("assetShows", { summary: summary.get(scene.assetRef) ?? "" })}</span>
+                    </div>
+                  ) : null}
+                  {(SCENE_FIELDS[scene.type] ?? []).map((k) => {
+                    const raw = scene.params?.[k];
+                    if (k === "lines") return (
+                      <label key={k} style={field}>{T("field_lines")}
+                        <textarea style={input} rows={3} value={Array.isArray(raw) ? raw.join("\n") : ""} disabled={busy} onChange={(e) => setParam("lines", e.target.value.split("\n"))} />
+                      </label>
+                    );
+                    return (
+                      <label key={k} style={field}>{T("field_" + k)}
+                        {k === "text"
+                          ? <textarea style={input} rows={2} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />
+                          : <input style={input} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />}
+                      </label>
+                    );
+                  })}
+                  <details>
+                    <summary style={muted}>{T("sceneParams")}</summary>
+                    <textarea style={{ ...input, fontFamily: "monospace", fontSize: 11 }} rows={6} disabled={busy} defaultValue={JSON.stringify(scene.params ?? {}, null, 1)} key={JSON.stringify(scene.params ?? {})}
+                      onBlur={(e) => {
+                        try { const p = JSON.parse(e.target.value); setJsonErr((m) => { const n = { ...m }; delete n[i]; return n; }); if (JSON.stringify(p) !== JSON.stringify(scene.params ?? {})) setScene(i, { ...scene, params: p }); }
+                        catch (err: any) { setJsonErr((m) => ({ ...m, [i]: T("badJson", { error: String(err?.message || err) }) })); }
+                      }} />
+                    {jsonErr[i] ? <span style={warn}>{jsonErr[i]}</span> : null}
+                  </details>
+                  {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={muted}>{"\u2022 " + x}</span>)}
                 </div>
               ) : null}
-              {(SCENE_FIELDS[scene.type] ?? []).map((k) => {
-                const raw = scene.params?.[k];
-                if (k === "lines") return (
-                  <label key={k} style={field}>{T("field_lines")}
-                    <textarea style={input} rows={3} value={Array.isArray(raw) ? raw.join("\n") : ""} disabled={busy} onChange={(e) => setParam("lines", e.target.value.split("\n"))} />
-                  </label>
-                );
-                return (
-                  <label key={k} style={field}>{T("field_" + k)}
-                    {k === "text"
-                      ? <textarea style={input} rows={2} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />
-                      : <input style={input} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />}
-                  </label>
-                );
-              })}
-              <details>
-                <summary style={muted}>{T("sceneParams")}</summary>
-                <textarea style={{ ...input, fontFamily: "monospace", fontSize: 11 }} rows={6} disabled={busy} defaultValue={JSON.stringify(scene.params ?? {}, null, 1)} key={JSON.stringify(scene.params ?? {})}
-                  onBlur={(e) => {
-                    try { const p = JSON.parse(e.target.value); setJsonErr((m) => { const n = { ...m }; delete n[i]; return n; }); if (JSON.stringify(p) !== JSON.stringify(scene.params ?? {})) setScene(i, { ...scene, params: p }); }
-                    catch (err: any) { setJsonErr((m) => ({ ...m, [i]: T("badJson", { error: String(err?.message || err) }) })); }
-                  }} />
-                {jsonErr[i] ? <span style={warn}>{jsonErr[i]}</span> : null}
-              </details>
-              {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={warn}>{"\u2022 " + x}</span>)}
-              {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={muted}>{"\u2022 " + x}</span>)}
             </div>
           );
         })}
