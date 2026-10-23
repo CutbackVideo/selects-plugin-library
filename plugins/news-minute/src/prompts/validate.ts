@@ -10,6 +10,7 @@ import {
   isSoftEnding,
   normalizeWs,
   numberTokens,
+  rawNumberTokens,
   totalChars,
 } from "./text.ts";
 
@@ -163,7 +164,8 @@ const isNumOrStr = (x: any) => isNum(x) || isStr(x);
 
 // A displayed numeric value must be traceable to the narration of the scene it sits in.
 function traceNumbers(value: any, sceneNums: Set<string>, where: string, errors: string[]) {
-  const toks = isNum(value) ? numberTokens(String(value)) : isStr(value) ? numberTokens(value) : [];
+  const text = isNum(value) ? String(value) : isStr(value) ? value : "";
+  const toks = [...new Set([...numberTokens(text), ...rawNumberTokens(text)])];
   for (const t of toks) {
     if (!sceneNums.has(t)) errors.push(`${where}: number "${t}" is not in this scene's narration; use only numbers from the article`);
   }
@@ -258,7 +260,8 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
       maxSceneSec = Math.max(maxSceneSec, dur);
       if (dur > 10.5) errors.push(`${where}: lasts ${dur.toFixed(1)} s; split it so no scene runs past 10 s`);
     }
-    const sceneNums = new Set(numberTokens(sceneSentences.map((s) => s.text).join(" ")));
+    const sceneText = sceneSentences.map((s) => s.text).join(" ");
+    const sceneNums = new Set([...numberTokens(sceneText), ...rawNumberTokens(sceneText)]);
     checkParams(sc.type, sc.params ?? {}, sceneNums, where, errors);
 
     if (typeof sc.hideCaption !== "boolean") errors.push(`${where}: hideCaption must be true or false`);

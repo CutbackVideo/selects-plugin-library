@@ -13,7 +13,7 @@ test('validateScript flags count, length, quote and invented numbers', () => {
   );
   assert.equal(v.ok, false);
   assert.ok(v.errors.some((e) => e.includes('sourceQuote')));
-  assert.ok(v.errors.some((e) => e.includes('"99"')));
+  assert.ok(v.errors.some((e) => e.includes('"990000"')));
   assert.ok(v.errors.some((e) => e.includes('8-14')));
 });
 
@@ -30,4 +30,13 @@ test('validatePlan enforces coverage, disclaimer and number tracing', () => {
 
 test('parseJsonLoose unwraps fences and trailing commas', () => {
   assert.deepEqual(P.parseJsonLoose('x\n```json\n{"a":1,}\n```'), {a: 1});
+});
+
+test('numberTokens compares by value across commas and units', () => {
+  const v = (s) => P.numberTokens(s).join();
+  assert.equal(v('201,000\uC6D0'), v('20\uB9CC1000\uC6D0'));
+  assert.equal(v('1\uC870 2000\uC5B5'), '1200000000000');
+  assert.equal(v('52.3%'), '52.3');
+  assert.equal(v('2020\uB144 3\uC6D4'), '2020,3');
+  assert.notEqual(v('164\uB9CC\uC6D0'), v('164\uB9CC1000\uC6D0'));
 });
