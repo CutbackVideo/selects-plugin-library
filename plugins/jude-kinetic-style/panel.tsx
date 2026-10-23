@@ -197,7 +197,8 @@ export function placements(scenes:Scene[],words:W[],fps:number,total:number){
   const card=scene.layout==='card';
   const circleAt=card?(words[scene.lines[2].from].startFrame-first.startFrame)/fps:0;
   const expandAt=card?(words[scene.lines[3].from].startFrame-first.startFrame)/fps:0;
-  if(card)cards.push({start:first.startFrame,end,parameters:{cream:STYLE.cream,red:STYLE.red,fadeSeconds:Math.min(.43,(words[scene.lines[1].from].startFrame-first.startFrame)/fps),circleAt,expandAt}});
+  // Hide the source face before centered card type appears; retain circle and word clocks.
+  if(card)cards.push({start:first.startFrame,end,parameters:{cream:STYLE.cream,red:STYLE.red,fadeSeconds:0,circleAt,expandAt}});
   shots.push({start:first.startFrame,end,layout:scene.layout});
   const side=scene.layout==='left'||scene.layout==='right',tilt=scene.layout==='left'?TILT.degrees:0,align=scene.layout==='left'?'left':scene.layout==='right'?'right':'center';
   const rows=scene.lines.map((line,li)=>{
