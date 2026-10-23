@@ -1,4 +1,5 @@
-// The run, step by step: article -> script (+ fidelity pass) -> [human review] -> narration -> Draft.
+// The run, step by step: article -> script (+ fidelity pass) -> [human review] -> narration -> scene plan and its
+// preview Draft -> [human review] -> the same Draft renamed as the video.
 
 import * as P from "../prompts/index.ts";
 import type { Article as PromptArticle, PlanAsset, PlanScene, TimedSentence } from "../prompts/types.ts";
@@ -12,7 +13,7 @@ import {
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
 import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { bandsScript, baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { bandsScript, baseDraftScript, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
 
@@ -30,6 +31,26 @@ export type Session = {
   draftId: string | null;
   // The scene plan the user reviews after the narration and before the Draft is built.
   plan?: ScenePlan | null;
+  // The Draft built from the plan for review; "build the video" renames it instead of making another.
+  preview?: PreviewDraft | null;
+};
+
+// What the preview Draft was built from. planRev differs from previewRev(...) once the plan changes (an outdated
+// preview); the rest says whether the Draft can be refilled in place and where each scene sits on it.
+export type PreviewDraft = {
+  draftId: string;
+  name: string;
+  projectId: string;
+  planRev: string; // "" for a Draft whose build stopped part way
+  presetId: string;
+  narrationId: string;
+  plateSeconds: number;
+  plateId: string;
+  plateImage: boolean;
+  bandsId: string | null;
+  frames: number; // Main length in frames at 30000/1001
+  scenes: Array<{ startSec: number; endSec: number }>; // the scene graphics as placed, in plan order
+  at: string;
 };
 
 // One "rebuild with feedback" round: what the user asked and how many scenes came back different.
@@ -327,7 +348,8 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
   return { scenes, summaries, images };
 }
 
-// Timing, photos and the first scene plan. Nothing is added to the Project.
+// Timing, photos and the first scene plan. Nothing is added to the Project here; the panel builds the preview
+// Draft from the plan next.
 export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
   const script = s.script!, article = s.article!, projectId = s.projectId!;
   const total = narration.durationSeconds;
@@ -385,12 +407,35 @@ export async function revisePlan(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   return { plan, kept: false };
 }
 
-// Builds the Draft from the reviewed plan.
-export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Preset, log: Log, rec: RunRecord): Promise<{ draftId: string; timing: string; fallbackPlan: boolean }> {
+// The plan as the preview shows it: scenes, look, headline and narration.
+export const previewRev = (s: Pick<Session, "presetId" | "script" | "plan">) =>
+  ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
+export const previewFresh = (s: Session) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s));
+export const finalName = (s: Session) => s.script?.headline.line1 || s.article?.title || "News short";
+export const previewName = (s: Session, prefix: string) => prefix + " \u00b7 " + (s.article?.title || finalName(s));
+
+// The Draft a recorded preview can be refilled into: same Project, look and plate length (the narration is put
+// back on, so a new narration of the same length still fits).
+export const canRefill = (p: PreviewDraft | null | undefined, projectId: string, presetId: string, plateLen: number): p is PreviewDraft =>
+  !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0;
+
+// A build that stopped after the Draft was saved; the Draft is kept and recorded as an outdated preview.
+export class PartialDraftError extends Error {
+  draft: Omit<PreviewDraft, "name" | "planRev" | "at">;
+  preview: PreviewDraft | null = null;
+  constructor(message: string, draft: Omit<PreviewDraft, "name" | "planRev" | "at">) { super(message); this.draft = draft; }
+}
+
+export type AssembleTarget = { name: string; reuse?: PreviewDraft | null };
+export type Assembled = { draftId: string; timing: string; fallbackPlan: boolean; refilled: boolean; draft: Omit<PreviewDraft, "name" | "planRev" | "at"> };
+
+// Builds the Draft from the reviewed plan, or fills the recorded preview Draft again when it can.
+export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Preset, log: Log, rec: RunRecord, target?: AssembleTarget): Promise<Assembled> {
   const script = s.script!, article = s.article!, projectId = s.projectId!, sp = s.plan!;
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
   const texts = sentences.map((x) => x.text);
   const plateLen = plateSeconds(total);
+  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen) ? target!.reuse! : null;
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
@@ -429,25 +474,39 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
 
-  const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  // A refill keeps the plate and bands Resources it was built with (importing them again adds duplicates).
+  if (reuse) rec.notes.push("plate: reused " + (reuse.plateImage ? "image" : "colour") + " Resource " + reuse.plateId, "bands: " + (reuse.bandsId ? "reused image Resource " + reuse.bandsId : "frame graphic"));
+  const bg = reuse ? { id: reuse.plateId, image: reuse.plateImage } : await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;
   // Scenes draw in the layout's window; over a background image they leave their own fill off so it shows.
   // "transparent" fails the colour control's check (addMotionGraphic rejects it); a zero-alpha hex passes.
   const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: CLEAR_PAPER } : {}) };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
-  const bandsId = await bands(sdk, env, projectId, preset, rec);
+  const bandsId = reuse ? reuse.bandsId ?? undefined : await bands(sdk, env, projectId, preset, rec);
   const headFont = await findHeadlineFont(preset.headlineFonts);
   rec.notes.push(headlineFontNote(headFont));
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
+  const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
     headlineFont: headFont?.kind === "installed" ? headFont.params : undefined };
-  let draftId: string | null = null;
+  let draftId: string | null = null, frames = 0, refilled = false;
+  const placed = scenes.map((sc) => ({ startSec: sc.startSec, endSec: sc.endSec }));
+  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, scenes: placed });
   try {
-    const baseCall = baseDraftScript(x);
-    rec.notes.push("script bytes: base " + scriptBytes(baseCall));
-    const base = await run<{ draftId: string | null }>(sdk, baseCall);
-    if (!base.draftId) throw new Error("the Draft was not created");
-    draftId = base.draftId;
+    if (reuse) {
+      const call = refillDraftScript(reuse.draftId, reuse.frames, x);
+      rec.notes.push("script bytes: refill " + scriptBytes(call));
+      const r = await run<{ refilled: boolean; reason: string; frames: number; removed?: number }>(sdk, call);
+      if (r.refilled) { draftId = reuse.draftId; frames = r.frames; refilled = true; rec.notes.push("preview: refilled Draft " + draftId + " (" + (r.removed ?? 0) + " clips removed)"); }
+      else rec.notes.push("preview: Draft " + reuse.draftId + " not refilled (" + r.reason + "); building a new Draft, the old one stays in the Project");
+    }
+    if (!draftId) {
+      const baseCall = baseDraftScript(x);
+      rec.notes.push("script bytes: base " + scriptBytes(baseCall));
+      const base = await run<{ draftId: string | null; frames: number }>(sdk, baseCall);
+      if (!base.draftId) throw new Error("the Draft was not created");
+      draftId = base.draftId;
+      frames = base.frames;
+    }
     // Stacking follows call order: scenes above the frame, the bands above the scenes, then headline and captions.
     const calls = [
       ...sceneScripts(draftId, scenes).map((c) => ({ c, what: "scene" })),
@@ -458,11 +517,28 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     for (let i = 0; i < calls.length; i++) {
       log("assemblingStep", { n: i + 1, of: calls.length });
       try { await run(sdk, calls[i].c); }
-      catch (e: any) { throw new Error(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`); }
+      catch (e: any) { throw new PartialDraftError(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`, record()); }
     }
   } finally {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
   rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback };
+  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback, refilled, draft: record() };
+}
+
+// The preview Draft for the current plan: built (or refilled) and named "Preview \u00b7 <article title>".
+export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: Preset, prefix: string, log: Log, rec: RunRecord): Promise<{ preview: PreviewDraft; refilled: boolean }> {
+  const name = previewName(s, prefix);
+  const planRev = previewRev(s);
+  log("previewBuilding");
+  const t0 = Date.now();
+  try {
+    const r = await assemble(sdk, env, s, preset, log, rec, { name, reuse: s.preview });
+    rec.notes.push("preview: " + (r.refilled ? "refilled" : "built") + " in " + ((Date.now() - t0) / 1000).toFixed(1) + " s");
+    return { preview: { ...r.draft, name, planRev, at: new Date().toISOString() }, refilled: r.refilled };
+  } catch (e) {
+    // The partly built Draft is kept as an outdated preview, so the next build fills it again.
+    if (e instanceof PartialDraftError) e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+    throw e;
+  }
 }

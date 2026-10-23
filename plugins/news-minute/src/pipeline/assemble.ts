@@ -7,6 +7,8 @@
 // Clips added later draw on top (an image overlay too: checked on Staging 2.0.763, its transparent middle shows
 // the scenes and a graphic added after it lands above it), so the calls follow the stacking order
 // frame -> scenes -> bands -> headline -> captions -> disclaimers.
+// The preview Draft is built the same way and later refilled in place: refillDraftScript replaces step 1 (not yet
+// run on Selects; removeClips, removeEmptyTracks and setName follow the SDK declarations).
 
 import { TEMPLATES } from "../templates/generated.ts";
 import type { Preset } from "../preset.ts";
@@ -57,14 +59,23 @@ const mg = async (label: string, tsxCode: string, parameters: any, editableParam
   if (within) await d.addMotionGraphic({ label, tsxCode, parameters, editableParameters, timeIndependent, within });
 };`;
 
-export function baseDraftScript(x: AssemblyInput): ScriptCall {
-  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
-  if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
+// Narration over the plate and the frame graphic (only without a bands image); shared by a new and a refilled Draft.
+function narrationAndFrame(x: AssemblyInput): string {
   const frame = tpl("frame");
-  const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
   const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
+  return `${PRELUDE}
+const narr = await win(0, ${J(x.narrationSeconds)});
+if (!narr) throw new Error("narration range is empty");
+await d.overlayResource({ resource: p.resource(${J(x.narrationId)}), over: narr });
+${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);`}`;
+}
+
+export function baseDraftScript(x: AssemblyInput): ScriptCall {
+  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
+  if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
+  const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
@@ -72,13 +83,34 @@ export function baseDraftScript(x: AssemblyInput): ScriptCall {
 const d = await p.createDraft({ name: ${J(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
 await d.insertResource({ resourceId: ${J(x.plateId)}, sourceRange: { startSeconds: 0, endSeconds: ${J(end)} } });
-${PRELUDE}
-const narr = await win(0, ${J(x.narrationSeconds)});
-if (!narr) throw new Error("narration range is empty");
-await d.overlayResource({ resource: p.resource(${J(x.narrationId)}), over: narr });
-${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);`}
+${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`,
+  };
+}
+
+// The preview Draft filled again from a changed plan: every clip on the Video and Audio tracks goes (scenes,
+// bands, headline, captions, narration), the Main plate stays, and the narration and frame go back on; the rest
+// follows with the usual scene, bands and text calls. A Draft that is gone or whose Main no longer has the
+// recorded length (edited by hand) is left alone and reported, and the caller builds a new one.
+export function refillDraftScript(draftId: string, frames: number, x: AssemblyInput): ScriptCall {
+  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
+  return {
+    summary: "Refill the preview Draft",
+    allowCommit: true,
+    script: `const p = selects.project(${J(x.projectId)});
+const d = selects.draft(${J(draftId)});
+try { await d.meta(); } catch (e) { return { refilled: false, reason: "missing: " + String((e as any)?.message || e).slice(0, 200), frames: 0 }; }
+const before = await d.clips({ trackScope: "all" });
+const mainEnd = before.filter((c: any) => c.trackKind === "main").reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);
+if (mainEnd !== ${J(frames)}) return { refilled: false, reason: "main is " + mainEnd + " frames, expected " + ${J(frames)}, frames: mainEnd };
+const extra = before.filter((c: any) => c.trackKind === "video" || c.trackKind === "audio");
+if (extra.length) await d.removeClips(extra);
+await d.removeEmptyTracks();
+await d.setName(${J(x.draftName)});
+${narrationAndFrame(x)}
+await d.commitAll("News short: preview refilled");
+return { refilled: true, reason: "", frames: total, removed: extra.length };`,
   };
 }
 

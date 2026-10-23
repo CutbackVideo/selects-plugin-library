@@ -332,3 +332,136 @@ test("only order and coverage errors block building the Draft", async () => {
   assert.ok(numbers.errors.length > 0);
   assert.ok(!numbers.errors.some((e) => BLOCKING_PLAN_ERROR.test(e)));
 });
+
+test("preview refill keeps Main, clears the Video and Audio tracks, renames, and puts narration and frame back", async () => {
+  const { PRESETS } = await import("../src/preset.ts");
+  const { refillDraftScript } = await import("../src/pipeline/assemble.ts");
+  const x = { projectId: "p", draftName: "Preview · t", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
+  const r = refillDraftScript("d1", 1228, x).script;
+  assert.ok(r.includes('selects.draft("d1")') && !r.includes("createDraft") && !r.includes("insertResource"));
+  assert.ok(r.includes('c.trackKind === "video" || c.trackKind === "audio"') && r.includes("removeClips(extra)") && r.includes("removeEmptyTracks()"));
+  assert.ok(r.includes("mainEnd !== 1228") && r.includes('setName("Preview · t")') && r.includes('resource("r2")') && r.includes("commitAll"));
+  assert.ok(r.indexOf("removeClips") < r.indexOf("overlayResource"));
+  assert.ok(r.includes('"News frame"') && !refillDraftScript("d1", 1228, { ...x, bandsId: "r3" }).script.includes('"News frame"'));
+});
+
+test("preview revision follows the scenes, look, headline and narration only", async () => {
+  const { previewRev, previewFresh, canRefill, previewName } = await import("../src/pipeline/flow.ts");
+  const plan = { narrationId: "n1", scenes: [{ type: "text_card", sentenceIds: ["s1"], params: { text: "a" } }], edited: [], thumbs: {} };
+  const s = { presetId: "chosun", script: { headline: { line1: "h", line2: "i" }, sentences: [] }, plan, article: { title: "T" } };
+  const rev = previewRev(s);
+  assert.equal(previewRev({ ...s, plan: { ...plan, edited: [0], thumbs: { x: "y" } } }), rev);
+  assert.notEqual(previewRev({ ...s, plan: { ...plan, scenes: [{ ...plan.scenes[0], params: { text: "b" } }] } }), rev);
+  assert.notEqual(previewRev({ ...s, presetId: "generic" }), rev);
+  assert.notEqual(previewRev({ ...s, plan: { ...plan, narrationId: "n2" } }), rev);
+  assert.ok(previewFresh({ ...s, preview: { planRev: rev } }));
+  assert.ok(!previewFresh({ ...s, preview: { planRev: "" } }) && !previewFresh({ ...s, preview: null }));
+  assert.equal(previewName(s, "Preview"), "Preview · T");
+  const p = { projectId: "p", presetId: "chosun", plateSeconds: 41.1, frames: 1230 };
+  assert.ok(canRefill(p, "p", "chosun", 41.1));
+  assert.ok(!canRefill(p, "q", "chosun", 41.1) && !canRefill(p, "p", "generic", 41.1) && !canRefill(p, "p", "chosun", 41.6) && !canRefill(null, "p", "chosun", 41.1));
+});
+
+// A fake host for the Draft steps: answers each run_script by its summary and records the calls.
+function fakeHost(answers) {
+  const calls = [];
+  const sdk = {
+    async runScript(c) {
+      calls.push(c);
+      const a = answers[c.summary];
+      if (a === undefined) return { isError: true, output: "no answer for " + c.summary };
+      return { result: typeof a === "function" ? a(c) : a };
+    },
+  };
+  return { sdk, calls };
+}
+const HOST_ENV = { platform: "darwin", sep: "/", dir: "/d", tmp: "/tmp", skills: "/s", projectId: "p" };
+const DRAFT_ANSWERS = {
+  "Check a file": { exists: false, size: 0 },
+  "Make the background": { jobId: "j" },
+  "Check a media job": { state: "succeeded", events: [] },
+  "Add media to the Project": { ids: ["plate1"] },
+  "Build the news short Draft": { draftId: "d-new", frames: 1230 },
+  "Add scene graphics (1/1)": { added: 1 },
+  "Add headline and captions (1/1)": { added: 1 },
+};
+async function planSession() {
+  const { PRESETS } = await import("../src/preset.ts");
+  const sentences = [{ id: "s1", text: "\uccab \ubb38\uc7a5\uc785\ub2c8\ub2e4.", startSec: 0, endSec: 20 }, { id: "s2", text: "\ub458\uc9f8 \ubb38\uc7a5\uc785\ub2c8\ub2e4.", startSec: 20, endSec: 40 }];
+  const plan = { narrationId: "n1", durationSeconds: 40, sentences, times: sentences.map((x) => ({ startSec: x.startSec, endSec: x.endSec })), timing: "alignment", chars: null, assets: [], thumbs: {}, assetSummaries: [],
+    scenes: [{ type: "text_card", sentenceIds: ["s1"], params: { text: "a" } }, { type: "text_card", sentenceIds: ["s2"], params: { text: "b" } }], fallback: false, rounds: [], changed: [], edited: [] };
+  const preset = { ...PRESETS.chosun, layout: { ...PRESETS.chosun.layout, bandsImage: undefined, backgroundImage: undefined } };
+  const s = { presetId: preset.id, voiceId: "v", article: { url: "u", title: "Title", source: "", date: "", body: "", photos: [], method: "text" }, script: { headline: { line1: "Head", line2: "Two" }, sentences: sentences.map((x) => ({ ...x, sourceQuote: "", issues: [], rewritten: false })) }, scriptErrors: [], approved: "a", projectId: "p", draftId: null, plan };
+  return { s, preset };
+}
+
+test("the preview Draft is built once, then refilled in place without new Resources", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const log = () => {};
+  const first = fakeHost(DRAFT_ANSWERS);
+  const a = await F.buildPreview(first.sdk, HOST_ENV, s, preset, "Preview", log, F.newRunRecord("chosun", "u"));
+  assert.equal(a.preview.draftId, "d-new");
+  assert.equal(a.refilled, false);
+  assert.equal(a.preview.name, "Preview · Title");
+  assert.equal(a.preview.planRev, F.previewRev(s));
+  assert.deepEqual([a.preview.frames, a.preview.plateId, a.preview.bandsId, a.preview.scenes.length], [1230, "plate1", null, 2]);
+  assert.ok(a.preview.scenes[1].startSec > a.preview.scenes[0].startSec && a.preview.scenes[1].endSec <= 41);
+  assert.ok(first.calls.some((c) => c.script.includes('createDraft({ name: "Preview · Title" })')));
+
+  // a hand edit, then the refill: the same Draft, no createDraft, no import
+  const edited = { ...s, preview: a.preview, plan: { ...s.plan, scenes: [s.plan.scenes[0], { ...s.plan.scenes[1], params: { text: "c" } }] } };
+  assert.ok(!F.previewFresh(edited));
+  const again = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230, removed: 9 } });
+  const rec = F.newRunRecord("chosun", "u");
+  const b = await F.buildPreview(again.sdk, HOST_ENV, edited, preset, "Preview", log, rec);
+  assert.equal(b.refilled, true);
+  assert.equal(b.preview.draftId, "d-new");
+  assert.equal(b.preview.planRev, F.previewRev(edited));
+  assert.ok(!again.calls.some((c) => c.script.includes("createDraft") || c.summary === "Add media to the Project"));
+  assert.ok(again.calls.every((c) => c.summary === "Refill the preview Draft" || c.script.includes('selects.draft("d-new")') || c.summary === "Read a downloaded file"));
+  assert.ok(rec.notes.some((n) => n.startsWith("preview: refilled Draft d-new")));
+
+  // the video from a refilled preview keeps the Draft and takes the final name
+  const video = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230 } });
+  const v = await F.assemble(video.sdk, HOST_ENV, edited, preset, log, F.newRunRecord("chosun", "u"), { name: F.finalName(edited), reuse: a.preview });
+  assert.equal(v.draftId, "d-new");
+  assert.ok(video.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Head")'));
+});
+
+test("a preview Draft that cannot be refilled is left alone and a new one is built", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const old = { draftId: "d-old", name: "Preview · Title", projectId: "p", planRev: "x", presetId: preset.id, narrationId: "n1", plateSeconds: 40.6, plateId: "plate0", plateImage: false, bandsId: null, frames: 1230, scenes: [], at: "" };
+  const h = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: false, reason: "main is 900 frames, expected 1230", frames: 900 } });
+  const rec = F.newRunRecord("chosun", "u");
+  const r = await F.buildPreview(h.sdk, HOST_ENV, { ...s, preview: old }, preset, "Preview", () => {}, rec);
+  assert.equal(r.preview.draftId, "d-new");
+  assert.equal(r.refilled, false);
+  // the recorded plate is reused even for the new Draft
+  assert.ok(!h.calls.some((c) => c.summary === "Add media to the Project"));
+  assert.ok(h.calls.find((c) => c.summary === "Build the news short Draft").script.includes('resourceId: "plate0"'));
+  assert.ok(rec.notes.some((n) => n.includes("not refilled (main is 900 frames")));
+});
+
+test("a build that stops part way keeps its Draft as an outdated preview", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const { ["Add headline and captions (1/1)"]: _drop, ...answers } = DRAFT_ANSWERS;
+  const h = fakeHost(answers);
+  await assert.rejects(F.buildPreview(h.sdk, HOST_ENV, s, preset, "Preview", () => {}, F.newRunRecord("chosun", "u")), (e) => {
+    assert.ok(e instanceof F.PartialDraftError);
+    assert.equal(e.preview.draftId, "d-new");
+    assert.equal(e.preview.planRev, "");
+    assert.equal(e.preview.frames, 1230);
+    return true;
+  });
+});
+
+test("preview strings exist in both languages", async () => {
+  const { MESSAGES } = await import("../src/messages.ts");
+  for (const k of ["previewPrefix", "stalePrefix", "previewBuilding", "previewReady", "previewStale", "previewPartial", "previewRebuild", "previewBuild", "previewFailed", "previewBlocked", "openPreview", "staleBadge", "rendering", "sourcePhoto", "editScene", "closeScene", "videoFromPreview", "seekUnconfirmed", "stillTime"]) {
+    assert.ok(MESSAGES[k] && MESSAGES[k][0] && MESSAGES[k][1], k);
+  }
+  assert.ok(!MESSAGES.planReviewHint[1].includes("\uc544\ubb34\uac83\ub3c4 \ucd94\uac00\ub418\uc9c0 \uc54a\uc544\uc694"));
+});
