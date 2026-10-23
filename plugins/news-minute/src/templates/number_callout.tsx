@@ -1,73 +1,78 @@
 import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+import { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+// @heritage
 
-// Before -> after value over a dimmed photo: small white label, large white old value and a down
-// arrow, then the new value as black text on a yellow box (the headline line-2 look). Label and old
-// value fade in first; arrow and new value follow `revealSec` later. `from`/`to` are numbers (shown
-// with their own decimals plus `unit`) or already-formatted strings. The caption is hidden here.
-// Without a photo the window is the brand green with a soft centre glow instead of plain black.
-const show = (v, unit) => {
+// Before -> after value under the scene title: the old value (96, dark grey) rises in, a crimson
+// arrow draws down `revealSec` later, then the new value (150, crimson) pops and counts up from the
+// old one (from 0 when the two are not comparable numbers). `from`/`to` are numbers (shown with their
+// own decimals plus `unit`) or already-formatted strings. An optional photo shows faintly through
+// the paper, never competing with the numbers.
+const show = (v) => {
   if (typeof v === 'number') {
-    const s = String(v);
-    const d = s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;
-    return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 }) + unit;
+    const str = String(v);
+    const d = str.includes('.') ? str.split('.')[1].length : 0;
+    return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
-  return String(v ?? '') + unit;
+  return String(v ?? '');
 };
 
-// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
-// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
 export default function NumberCallout({ data }) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const image = typeof data?.image === 'string' ? data.image : '';
-  const unit = String(data?.unit ?? '');
-  const from = show(data?.from, unit);
-  const to = show(data?.to, unit);
+  const reveal = Math.max(0, Number(data?.revealSec ?? 0.75));
+  const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
+  // Last entrance: the count-up, 1.2 s after the new value starts.
+  const s = useScene(data, toAt + 1.2);
+  const k = s.k;
+  const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
-  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };
-  const late = Math.round(fps * Number(data?.revealSec ?? 0.75));
-  const a = interpolate(frame, [0, Math.round(fps * 0.25)], [0, 1], ease);
-  const b = interpolate(frame, [late, late + Math.round(fps * 0.25)], [0, 1], ease);
-  const fit = (s, size, max) => Math.min(size, max / Math.max(1, [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\x21-\x7e]/.test(c) ? 0.58 : 0.95), 0)));
-  const zoom = 1 + 0.04 * interpolate(frame, [0, fps * 8], [0, 1], { extrapolateRight: 'clamp' });
+  const unit = String(data?.unit ?? '');
+  const from = show(data?.from), to = show(data?.to);
+  const image = typeof data?.image === 'string' ? data.image : '';
+  const cf = countable(from), ct = countable(to);
+  const cp = smooth(prog(s.t, toAt, toAt + 1.2));
+  // Count from the old value when both hold one number in the same format, else from 0.
+  const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail
+    ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1)
+    : counted(ct, cp);
+  const top = title ? 150 : 40;
+  const mid = (top + 794) / 2;
+  const yFrom = mid - 190 + (label ? 30 : 0), yArrow = yFrom + 80, yTo = yFrom + 290;
+  const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
+  const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
+  const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+  const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: image ? '#000000' : String(data?.background ?? '#2B3D34'), pointerEvents: 'none' }}>
-      {fontFace}
-      {image ? <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(' + zoom + ')' }} /> : null}
-      <div style={{ position: 'absolute', inset: 0, background: image ? 'rgba(0,0,0,' + Number(data?.dim ?? 0.45) + ')' : 'radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 55%, rgba(0,0,0,0.30) 100%)' }} />
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily, color: '#FFFFFF', textShadow: '0 ' + 3 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.5)' }}>
-        <div style={{ opacity: a, transform: 'translateY(' + (1 - a) * 16 * k + 'px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {label ? <div style={{ fontWeight: 700, fontSize: fit(label, 92, 960) * k, letterSpacing: -2 * k, whiteSpace: 'nowrap' }}>{label}</div> : null}
-          <div style={{ fontWeight: 800, fontSize: fit(from, 176, 1020) * k, letterSpacing: -3 * k, whiteSpace: 'nowrap', lineHeight: 1.15 }}>{from}</div>
+    <Win s={s} data={data}>
+      {image ? <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.16, filter: 'grayscale(1) sepia(0.35)' }} /> : null}
+      <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
+      {label ? (
+        <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
+          <div style={{ fontSize: fitSize(label, 44, 900) * k, fontWeight: 700, color: C.ink2 }}>{label}</div>
+        </Rise>
+      ) : null}
+      <Rise s={s} t0={fromAt} x={540} y={yFrom}>
+        <div style={{ display: 'flex', alignItems: 'baseline', color: C.ink2, fontWeight: 800, letterSpacing: -2 * k }}>
+          <span style={{ ...tnum, fontSize: 96 * sFrom * k }}>{from}</span>
+          {unit ? <span style={{ ...tnum, fontSize: 53 * sFrom * k, fontWeight: 700, marginLeft: 4 * k }}>{unit}</span> : null}
         </div>
-        <div style={{ opacity: b, display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 16 * k }}>
-          <svg width={84 * k} height={156 * k} viewBox="0 0 70 130" style={{ transform: 'translateY(' + (1 - b) * -20 * k + 'px)' }}>
-            <rect x="29" y="0" width="12" height="88" fill="#FFFFFF" />
-            <polygon points="0,80 70,80 35,130" fill="#FFFFFF" />
-          </svg>
-          <div style={{ marginTop: 34 * k, background: String(data?.boxColor ?? '#FFD700'), color: '#000000', textShadow: 'none', fontWeight: 900, fontSize: fit(to, 176, 990) * k, letterSpacing: -3 * k, lineHeight: 1.12, padding: '0 ' + 18 * k + 'px', whiteSpace: 'nowrap', transform: 'scale(' + (0.9 + 0.1 * b) + ')' }}>{to}</div>
+      </Rise>
+      {ap > 0 ? (
+        <svg width={60 * k} height={110 * k} viewBox="0 0 60 110" style={{ position: 'absolute', left: 510 * k, top: yArrow * k }}>
+          <line x1="30" y1="0" x2="30" y2={Math.max(0, 110 * ap - 30)} stroke={C.acc} strokeWidth="12" strokeLinecap="round" />
+          {ap > 0.25 ? <polygon points={'30,' + 110 * ap + ' 8,' + (110 * ap - 34) + ' 52,' + (110 * ap - 34)} fill={C.acc} /> : null}
+        </svg>
+      ) : null}
+      <Pop s={s} t0={toAt} x={540} y={yTo}>
+        <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * sTo * k }}>
+          <span style={{ position: 'relative' }}>
+            {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
+            <span style={{ ...tnum, fontSize: 150 * sTo * k, visibility: 'hidden' }}>{to}</span>
+            <span style={{ ...tnum, fontSize: 150 * sTo * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span>
+          </span>
+          {unit ? <span style={{ ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
         </div>
-      </div>
-    </div>
+      </Pop>
+      <Source s={s} text={String(data?.source ?? '')} />
+    </Win>
   );
 }
