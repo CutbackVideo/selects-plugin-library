@@ -289,6 +289,8 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     errors.push(`scenes must cover every sentence exactly once, in order; expected [${expected.join(",")}] but got [${seen.join(",")}]`);
   }
   const first = json.scenes[0];
+  const textCards = json.scenes.filter((sc: any) => sc?.type === "text_card").length;
+  if (json.scenes.length >= 6 && textCards > json.scenes.length / 3) warnings.push(`${textCards} of ${json.scenes.length} scenes are text cards; use data scenes where the narration has numbers`);
   if (first && first.type === "text_card" && photoRefs.length) warnings.push("the opening scene should use the strongest visual, not a text card");
   if (photoRefs.length && usedPhotos.size < photoRefs.length) warnings.push(`unused article photos: ${photoRefs.filter((r) => !usedPhotos.has(r)).join(", ")}`);
 
