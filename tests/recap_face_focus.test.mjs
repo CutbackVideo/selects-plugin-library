@@ -39,8 +39,8 @@ test('Recap production batch applies focus only to the corresponding slot and pr
  assert.equal(after.transforms[0].clip.resourceId,'r1');assert.ok(after.transforms[0].position.x>0);assert.equal(after.transforms.at(-1).position,undefined);
 });
 test('Recap production intro refuses a focus planned on a different Project grid',async()=>{
- const cfg={projectId:'p',intro:{resourceId:'r0',startSeconds:2,frameSize:{width:640,height:338}},introEnd:8.1,name:'Recap',expectedFps:24,faceTransform:transform({width:640,height:338},{focusX:.3,focusY:.5})};
- for(const fps of [24,30]){let writes=0;const calls=[],d={insertResource:async()=>{},setFrameSize:async()=>{},meta:async()=>({fps}),clips:async()=>[{clipId:1,resourceId:'r0',startFrame:0,endFrame:Math.round(8.1*fps)}],setClipTransform:async value=>{if(writes++)throw Error('stale_clip_target');calls.push(value)},commitAll:async()=>({createdDraftId:'saved'})};await new Function('selects','return (async()=>{'+script('createScript',cfg)+'})()')({project:()=>({createDraft:async()=>d})});assert.equal(calls.filter(x=>x.position).length,fps===24?1:0);}
+ const cfg={projectId:'p',intro:{resourceId:'r0',startSeconds:2,frameSize:{width:640,height:338}},introEnd:8.1,name:'Recap',sourceGuard:{r0:{path:'/r0',size:1,sha256:'4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a'}},expectedFps:24,faceTransform:transform({width:640,height:338},{focusX:.3,focusY:.5})};
+ for(const fps of [24,30]){let writes=0;const calls=[],d={insertResource:async()=>{},setFrameSize:async()=>{},meta:async()=>({fps}),clips:async()=>[{clipId:1,resourceId:'r0',startFrame:0,endFrame:Math.round(8.1*fps)}],setClipTransform:async value=>{if(writes++)throw Error('stale_clip_target');calls.push(value)},commitAll:async()=>({createdDraftId:'saved'})};await new Function('selects','return (async()=>{'+script('createScript',cfg)+'})()')({project:()=>({createDraft:async()=>d}),files:{stat:async()=>({size:1,mtimeMs:1,ino:1,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})}});assert.equal(calls.filter(x=>x.position).length,fps===24?1:0);}
 });
 
 function faceClient(options={}){

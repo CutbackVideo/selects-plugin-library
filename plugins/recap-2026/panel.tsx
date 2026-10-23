@@ -930,15 +930,26 @@ async function prepareRecapFaceFocus(sdk,{projectId,slots,byId,manifest,limit,is
   const check=()=>{if(!isCurrent())throw Error('The recap ended during face analysis.');};check();
   const fps=byId[slots[0]?.resourceId]?.frameRate;
   const windows=recapFaceWindows(slots,byId,manifest.placements,manifest.introEnd,limit,fps);
-  const diagnostics=[],focusBySlot={};
-  if(!windows.length||!sdk.storage?.getItem||!sdk.storage?.setItem)return {fps,focusBySlot,diagnostics:[{status:'unavailable',reason:'source-clock-or-storage'}]};
-  let capability;try{capability=await recapFaceScript(sdk,"return {supported:typeof selects.ai?.submit==='function'};",'Check selected-window face analysis');}catch{}
-  check();if(!capability?.supported)return {fps,focusBySlot,diagnostics:[{status:'unavailable',reason:'host-support'}]};
-  const automatic=windows.filter(row=>!(Number.isFinite(slots[row.slot-1].focusX)&&Number.isFinite(slots[row.slot-1].focusY)));
-  const ranges=recapMergeFaceWindows(automatic),aliases=await sharedAiResources.resolveSharedAiResources(sdk,projectId,ranges.map(row=>row.resourceId));check();
+  const diagnostics=[],focusBySlot={},manualFocusBySlot={};
+  // Manual cover coordinates need original-source evidence, never an AI capability or journal.
+  const usedSlots=new Set([1,...manifest.placements.slice(1,limit).map(row=>row.slot)]);
+  const manualIds=slots.flatMap((slot,index)=>usedSlots.has(index+1)&&Number.isFinite(slot.focusX)&&Number.isFinite(slot.focusY)&&byId[slot.resourceId]?.frameSize?[slot.resourceId]:[]);
+  let automatic=windows.filter(row=>!(Number.isFinite(slots[row.slot-1].focusX)&&Number.isFinite(slots[row.slot-1].focusY)));
+  if(!windows.length||!sdk.storage?.getItem||!sdk.storage?.setItem){
+    diagnostics.push({status:'unavailable',reason:'source-clock-or-storage'});automatic=[];
+  }else if(automatic.length){
+    let capability;try{capability=await recapFaceScript(sdk,"return {supported:typeof selects.ai?.submit==='function'};",'Check selected-window face analysis');}catch{}
+    check();if(!capability?.supported){diagnostics.push({status:'unavailable',reason:'host-support'});automatic=[];}
+  }
+  const ranges=recapMergeFaceWindows(automatic),sourceIds=[...new Set([...manualIds,...ranges.map(row=>row.resourceId)])];
+  const aliases=sourceIds.length?await sharedAiResources.resolveSharedAiResources(sdk,projectId,sourceIds):new Map();check();
   const key='recap-2026:face-source-window-v1:'+projectId;
-  const jobs=sharedAiJobs.createSharedAiJobClient({projectId,scope:'recap-2026:face-source-window-v1',runScript:(code,summary,write)=>{check();return recapFaceScript(sdk,code,summary,write)},load:async()=>{const value=await panelStorage(sdk).getItem(key);return value==null?null:JSON.parse(value)},save:value=>panelStorage(sdk).setItem(key,JSON.stringify(value)),maxWaitMs:120000,readTimeoutMs:10000,pollMs:500});
+  const jobs=ranges.length?sharedAiJobs.createSharedAiJobClient({projectId,scope:'recap-2026:face-source-window-v1',runScript:(code,summary,write)=>{check();return recapFaceScript(sdk,code,summary,write)},load:async()=>{const value=await panelStorage(sdk).getItem(key);return value==null?null:JSON.parse(value)},save:value=>panelStorage(sdk).setItem(key,JSON.stringify(value)),maxWaitMs:120000,readTimeoutMs:10000,pollMs:500}):null;
   const observations=[],fingerprints=new Map(),deadline=Date.now()+120000;
+  for(const resourceId of new Set(manualIds)){
+    const fingerprint=await recapFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(byId[resourceId].path)+');','Verify manual recap source bytes');check();
+    if(!fingerprint)throw Error('The original recap source is missing.');fingerprints.set(resourceId,fingerprint);
+  }
   for(const range of ranges){
     check();const sourceRange={startSeconds:range.startSeconds,endSeconds:range.endSeconds},rawId=aliases.get(range.resourceId),source=byId[range.resourceId];
     if(Date.now()>=deadline){diagnostics.push({...range,status:'unavailable',reason:'observation-budget'});continue;}
@@ -960,17 +971,32 @@ async function prepareRecapFaceFocus(sdk,{projectId,slots,byId,manifest,limit,is
     if(JSON.stringify(before)!==JSON.stringify(after))throw Error('Original recap footage changed during face analysis.');
   }
   for(let index=0;index<slots.length;index++){
-    check();const slot=slots[index],source=byId[slot.resourceId];if(!source?.frameSize)continue;
+    check();const slot=slots[index],source=byId[slot.resourceId];if(!usedSlots.has(index+1)||!source?.frameSize)continue;
     const selected=windows.filter(row=>row.slot===index+1),manual=Number.isFinite(slot.focusX)&&Number.isFinite(slot.focusY)?slot:null;
     const matches=selected.map(window=>observations.find(row=>row.resourceId===window.resourceId&&row.startSeconds<=window.startSeconds+1e-9&&row.endSeconds>=window.endSeconds-1e-9));
     const complete=selected.length&&matches.every(Boolean);
     const first=matches.find(Boolean)?.data;
     const samples=complete?selected.flatMap((window,i)=>matches[i].data.samples.filter(sample=>sample.sourceTimeSeconds>=window.startSeconds-1e-7&&sample.sourceTimeSeconds<window.endSeconds+1e-7)):[];
     const focus=recapFaceFocus(source.frameSize,{width:1080,height:1920},first?{...first,samples}:null,manual);
-    diagnostics.push({slot:index+1,...focus,coverage:'sampled-source-windows'});
+    diagnostics.push({slot:index+1,...focus,coverage:manual?'manual-source':'sampled-source-windows'});
     if(focus.status==='manual'||focus.status==='focused'&&focus.changed)focusBySlot[index+1]=recapFocusTransform(source.frameSize,focus);
+    if(focus.status==='manual')manualFocusBySlot[index+1]=focusBySlot[index+1];
   }
-  check();return {fps,focusBySlot,diagnostics,sourceGuard:Object.fromEntries([...fingerprints].map(([id,value])=>[id,{path:byId[id].path,...value}]))};
+  check();return {fps,focusBySlot,manualFocusBySlot,diagnostics,sourceGuard:Object.fromEntries([...fingerprints].map(([id,value])=>[id,{path:byId[id].path,sourceResourceId:aliases.get(id),...value}]))};
+}
+
+// Re-check short aliases against persistent identity and the Project's current source path.
+// File bytes are checked inside the actual authoring scripts immediately before each use.
+async function verifyRecapFocusBindings(sdk,projectId,sourceGuard,byId,isCurrent) {
+  const ids=Object.keys(sourceGuard||{});if(!ids.length)return;
+  const aliases=await sharedAiResources.resolveSharedAiResources(sdk,projectId,ids);
+  const current=await recapFaceScript(sdk,selectedVideosScript(projectId,ids),'Verify recap focus source bindings');
+  if(!isCurrent())throw Error('The recap ended before verifying its source.');
+  for(const id of ids){
+    const expected=sourceGuard[id],matches=current.filter(row=>row.resourceId===id);
+    if(aliases.get(id)!==expected.sourceResourceId||byId[id]?.sourceResourceId&&byId[id].sourceResourceId!==expected.sourceResourceId||matches.length!==1||matches[0].path!==expected.path)
+      throw Error('The recap focus source binding changed. Reselect the original footage.');
+  }
 }
 
 function buildSlots(videos, intro, count) {
@@ -989,7 +1015,7 @@ function buildSlots(videos, intro, count) {
 function createScript(cfg) {
   return [
     core(cfg),
-    "if(cfg.faceTransform&&cfg.sourceGuard?.[cfg.intro.resourceId]){const expected=cfg.sourceGuard[cfg.intro.resourceId],actual=await ("+fingerprintTemplateFile.toString()+")(selects.files,expected.path);if(!actual||actual.size!==expected.size||actual.sha256!==expected.sha256)throw Error('Intro changed after face analysis');}",
+    "if(cfg.faceTransform){const expected=cfg.sourceGuard?.[cfg.intro.resourceId];if(!expected)throw Error('Face analysis source evidence missing');const actual=await ("+fingerprintTemplateFile.toString()+")(selects.files,expected.path);if(!actual||actual.size!==expected.size||actual.sha256!==expected.sha256)throw Error('Intro changed after face analysis');}",
     "const d=await p.createDraft({name:cfg.name});",
     "await d.insertResource({resourceId:cfg.intro.resourceId,sourceRange:{startSeconds:cfg.intro.startSeconds,endSeconds:cfg.intro.startSeconds+cfg.introEnd+0.3}});",
     "await d.setFrameSize({width:1080,height:1920});",
@@ -998,7 +1024,7 @@ function createScript(cfg) {
     "if(end<target)throw Error('Intro shorter than target');",
     "if(end>target)await d.remove(await d.rangeAtFrames(target,end),{tracks:'main'});",
     "const cur=(await d.clips({trackScope:'main'}))[0];",
-    "const sz=cfg.intro.frameSize;if(cur&&sz?.width&&sz?.height){const fit=Math.min(1080/sz.width,1920/sz.height),cover=Math.max(1080/sz.width,1920/sz.height)/fit,face=cfg.faceTransform&&fps===cfg.expectedFps?cfg.faceTransform:null;if(cover>1.001||face)await d.setClipTransform({clip:cur,...(face||{scale:{x:cover,y:cover}})});}",
+    "const sz=cfg.intro.frameSize;if(cur&&sz?.width&&sz?.height){const fit=Math.min(1080/sz.width,1920/sz.height),cover=Math.max(1080/sz.width,1920/sz.height)/fit,face=cfg.faceTransform&&(cfg.manualFocus||fps===cfg.expectedFps)?cfg.faceTransform:null;if(cover>1.001||face)await d.setClipTransform({clip:cur,...(face||{scale:{x:cover,y:cover}})});}",
     "const commit=await d.commitAll('2026 Recap: create intro');",
     "return {draftId:commit.createdDraftId,fps,mainCount:1};"
   ].join("\n");
@@ -1091,19 +1117,22 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
   const limit = mode === "sample" ? manifest.placements.filter((p) => p.startSeconds < 12).length : manifest.placements.length;
   const faceFocus=await prepareRecapFaceFocus(sdk,{projectId,slots,byId,manifest,limit,isCurrent});
   if(!isCurrent())throw Error('The recap ended before creating a Draft.');
+  await verifyRecapFocusBindings(sdk,projectId,faceFocus.sourceGuard,byId,isCurrent);
   const audioId = await ensureAudio(sdk, projectId);
   if(!isCurrent())throw Error('The recap ended before creating a Draft.');
   const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
+  await verifyRecapFocusBindings(sdk,projectId,faceFocus.sourceGuard,byId,isCurrent);
   let r = await sdk.runScript({
     summary:"Create recap intro",allowCommit:true,timeoutSeconds:120,
-    script:createScript({projectId,name,intro,introEnd:manifest.introEnd,faceTransform:faceFocus.focusBySlot[1],expectedFps:faceFocus.fps,sourceGuard:faceFocus.sourceGuard})
+    script:createScript({projectId,name,intro,introEnd:manifest.introEnd,faceTransform:faceFocus.focusBySlot[1],expectedFps:faceFocus.fps,manualFocus:Boolean(faceFocus.manualFocusBySlot[1]),sourceGuard:faceFocus.sourceGuard})
   });
   const created=scriptResult(r),draftId=created.draftId;
-  if(created.fps!==faceFocus.fps)faceFocus.focusBySlot={};
+  if(created.fps!==faceFocus.fps)faceFocus.focusBySlot=faceFocus.manualFocusBySlot;
   if (!draftId) throw new Error("Created Draft ID missing");
   for (let end=25;end<limit+24;end+=24) {
     const to = Math.min(end,limit);
     if (to <= 1) break;
+    await verifyRecapFocusBindings(sdk,projectId,faceFocus.sourceGuard,byId,isCurrent);
     r = await sdk.runScript({
       summary:"Add recap footage",allowCommit:true,timeoutSeconds:120,
       script:batchScript({projectId,draftId,start:1,end:to,placements:manifest.placements,slots,media:byId,faceFocus:faceFocus.focusBySlot,sourceGuard:faceFocus.sourceGuard})
