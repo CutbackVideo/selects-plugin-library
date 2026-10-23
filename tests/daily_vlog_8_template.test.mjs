@@ -1,8 +1,8 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';import vm from 'node:vm';import test from 'node:test';import{panelSource,loadPanelFunctions}from './windows_host.mjs';
 const source=(process.env.DAILY_VLOG_PANEL?fs.readFileSync(process.env.DAILY_VLOG_PANEL,'utf8'):panelSource('daily-vlog-8')).replace('return <p role="status" style={{ margin: 0, fontSize: 12 }}>{status}</p>;','return null;');
-async function mounted(indices,{missingOpening=false,buildError=null}={}){
+async function mounted(indices,{missingOpening=false,buildError=null,inventoryError=null}={}){
  const app=Array.from({length:11},(_,i)=>({resourceId:'app'+i,type:'Video',name:'clip'+i+'.mp4',durationSeconds:20}));const rows=app.map((r,i)=>({...r,resourceId:'r'+i}));const effects=[],calls=[];let finish;const ended=new Promise(r=>finish=r);
- const sdk={call:async()=>app,runScript:async({script})=>({result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>({resources:async()=>rows})}})}),finishTemplate:finish};
+ const sdk={call:async()=>{if(inventoryError)throw inventoryError;return app;},runScript:async({script})=>({result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>({resources:async()=>rows})}})}),finishTemplate:finish};
  const K=loadPanelFunctions(source,['TEMPLATE_FAILED','templateIssue','scriptResourceIds','VIDEO_LENGTHS','readMediaPages','DailyTemplateRun','REFERENCE','castReference'],{React:{useState:v=>[v,()=>{}],useRef:v=>({current:v}),useEffect:f=>effects.push(f)},useAppUpdateGuard:()=>{},console:{warn:()=>{}},buildDailyVlog:async(_sdk,input)=>{calls.push(input);if(buildError)throw buildError;return{draftId:'test'};}});const pick=i=>({kind:'video',resourceId:app[i].resourceId,name:app[i].name});
  K.DailyTemplateRun({sdk,context:{projectId:'p',template:{runId:'one',inputs:{opening:[missingOpening?{kind:'video',resourceId:'09090909-0909-4909-8909-090909090909',name:'absent.mp4'}:pick(0)],clips:indices.map(pick)}}}});for(const f of effects)f();return{outcome:await ended,input:calls[0],cast:calls[0]&&K.castReference(calls[0].titleId,calls[0].order)};
 }
@@ -16,3 +16,8 @@ test('missing original resource retains its cause before authoring',async()=>{co
 test('unexpected build failure retains its bounded cause',async()=>{const message='sequence_settings_mismatch: '+ 'x'.repeat(600);const r=await mounted([1,2,3,4,5,6,7],{buildError:new Error(message)});assert.equal(r.outcome.error,message.slice(0,500));assert.equal(r.outcome.sequenceId,undefined);});
 test('too-short failures retain the actionable existing guidance',async()=>{const r=await mounted([1,2,3,4,5,6,7],{buildError:new Error('clip too short: 1.2 seconds')});assert.equal(r.outcome.error,'A picked clip is too short for its slot; pick longer clips, then try again.');});
 test('empty failures retain the existing generic fallback',async()=>{const r=await mounted([1,2,3,4,5,6,7],{buildError:new Error('   ')});assert.equal(r.outcome.error,'8-Clip Daily Vlog could not make the timeline; try again.');});
+
+for(const message of ['EACCES: permission denied while reading source','sequence_settings_mismatch: incompatible source fps','Could not read project resources: request timed out']) {
+ test('Daily build failures reach the template outcome without losing their cause: '+message,async()=>{const r=await mounted([1,2,3,4,5,6,7],{buildError:new Error(message)});assert.equal(r.outcome.error,message);assert.equal(r.outcome.sequenceId,undefined);});
+ test('Daily inventory failure stops before authoring and preserves its cause: '+message,async()=>{const r=await mounted([1,2,3,4,5,6,7],{inventoryError:new Error(message)});assert.equal(r.outcome.error,message);assert.equal(r.input,undefined);assert.equal(r.outcome.sequenceId,undefined);});
+}

@@ -14,6 +14,7 @@ function fixture(plugin, mode) {
     settings: 'sequence_settings_mismatch: source is 30000/1001; Draft is 24000/1001',
     create: 'The scratch Draft could not be created: storage unavailable',
     read: 'Could not read the scratch Draft clips: request timed out',
+    permission: 'EACCES: permission denied while reading the selected source',
     missing: 'Resource missing-id is not in this Project',
   };
   let next = 0;
@@ -25,6 +26,7 @@ function fixture(plugin, mode) {
       return clips.map(row => ({...row}));
     }, insertResource: async ({resourceId}) => {
       if (mode === 'settings') throw Error(messages.settings);
+      if (mode === 'permission') throw Error(messages.permission);
       if (resourceId === 'missing-id') throw Error(messages.missing);
       clips.push({clipId: ++next, resourceId: resourceId.replace('app-', '')});
     }};
@@ -41,7 +43,7 @@ for (const plugin of ['city-weekend-vlog', 'selfie-aesthetic', 'summer-trip', 't
     assert.equal(result.failed.length, 0);
     assert.equal(f.failure(result.resolved, result.failed), null);
   });
-  for (const mode of ['settings', 'create', 'read']) test(`${plugin}: ${mode} failure retains its real cause`, async () => {
+  for (const mode of ['settings', 'create', 'read', 'permission']) test(`${plugin}: ${mode} failure retains its real cause`, async () => {
     const f = fixture(plugin, mode), result = await f.run(good);
     assert.equal(result.resolved.length, 0);
     assert.equal(result.failed.length, 2);
