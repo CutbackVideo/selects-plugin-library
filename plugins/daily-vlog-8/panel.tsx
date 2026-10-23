@@ -805,7 +805,7 @@ function DailyTemplateRun({ sdk, context }) {
       } catch (e) {
         console.warn("[daily-vlog-8] template run failed:", e?.message || String(e));
         const said = String(e?.message || "");
-        finish({ error: e?.publicMessage || (/too short/.test(said) ? "A picked clip is too short for its slot; pick longer clips, then try again." : TEMPLATE_FAILED) });
+        finish({ error: e?.publicMessage || (/too short/.test(said) ? "A picked clip is too short for its slot; pick longer clips, then try again." : said.trim().slice(0, 500) || TEMPLATE_FAILED) });
       } finally { finish({ error: TEMPLATE_FAILED }); }
     })();
   }, [runId]);
