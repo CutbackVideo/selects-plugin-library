@@ -49,6 +49,20 @@ test('batched template file reads preserve errors, budgets and complete-template
   result=await repo.load();assert.deepEqual(result.templates,[]);assert.match(result.errors.join(' '),/damaged template image/);
   f.rows.set(asset,image);assert.deepEqual((await repo.load()).errors,[]);
  });
+ await t.test('saving may clear pending rows while full or list reads wait for a batch',async()=>{
+  const gate=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
+  for(const [method,phase] of [['load','template-snapshots'],['load','template-assets'],['listTemplates','template-snapshots']]){
+   const f=store(),repo=api.makeTemplateRepository(f);await repo.importTemplates([pack.templates[0]],{kind:'file'});
+   const value=(await repo.load()).templates[0],index=gate(),parked=gate(),batch=gate(),reached=gate();
+   const put=f.put,many=f.getMany;
+   f.put=async(k,id,v)=>{if(k==='template-library'){parked.resolve();await index.promise;}return put(k,id,v);};
+   f.getMany=async(k,ids)=>{if(k===phase){reached.resolve();await batch.promise;}return many(k,ids);};
+   const saving=repo.put('templates',value.id,value);await parked.promise;
+   const loading=repo[method]();await reached.promise;index.resolve();await saving;
+   const persisted=structuredClone([...f.rows]);batch.resolve();
+   const result=await loading;assert.deepEqual(result.errors,[],method+' during '+phase);assert.equal(result.templates.length,1);assert.deepEqual([...f.rows],persisted);
+  }
+ });
  await t.test('invalid references are rejected before batching arbitrary paths',async()=>{
   const f=store(),repo=api.makeTemplateRepository(f);await repo.importTemplates([pack.templates[0]],{kind:'file'});
   const index=f.rows.get('template-library/index');index.records[0].working='../not-a-snapshot';f.batches.length=0;

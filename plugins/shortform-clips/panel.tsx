@@ -1916,7 +1916,7 @@ function makeTemplateRepository(storage:any) {
         const needed=ids.filter(id=>!pendingSnapshots.has(id)),rows=await readRecords('template-snapshots',needed);
         const byId=new Map(needed.map((id,i)=>[id,rows[i]]));
         await Promise.all(ids.map(async id=>{
-          const row=pendingSnapshots.get(id)||byId.get(id);
+          const row=pendingSnapshots.get(id)||byId.get(id)||await readRecord('template-snapshots',id);
           packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');snapshots.set(id,row.data);
         }));
         next('assets');
@@ -1933,7 +1933,7 @@ function makeTemplateRepository(storage:any) {
         const assetById=new Map(missing.map((id,i)=>[id,assetRows[i]])),assets=new Map<string,Promise<string>>();
         // One cache per load; verify every unique image before exposing any editable templates.
         for(const id of assetIds)assets.set(id,(async()=>{
-          const row=pendingAssets.get(id)||assetById.get(id);
+          const row=pendingAssets.get(id)||assetById.get(id)||await readRecord('template-assets',id);
           packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template image.');return row.data;
         })());
         await Promise.all(assets.values());next('hydrate');
