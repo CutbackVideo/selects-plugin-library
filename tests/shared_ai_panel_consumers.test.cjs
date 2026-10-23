@@ -68,16 +68,20 @@ test('Travel shows the recoverable observation message instead of a generic temp
  assert.equal(api.templateMessage(error),error.message);
 });
 test('Depth template finish retains the recoverable observation message',async()=>{
- const error=await pendingError(),effects=[];let finish;
+ const error=await pendingError(),effects=[],scripts=[];let finish,captionCalls=0;
  const finished=new Promise(resolve=>{finish=resolve;});
  const {topLevel}=await import('./windows_host.mjs');
  const source=fs.readFileSync(require.resolve('../plugins/depth-type-captions/panel.tsx'),'utf8');
  const context=vm.createContext({useAppUpdateGuard:()=>{},useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:fn=>effects.push(fn),h:()=>null,
   DEPTH_TAG:'depth',DEPTH_TEMPLATE_SECONDS:90,DEPTH_DEFAULTS:{},DEPTH_TEMPLATE_ERRORS:{},DEPTH_TEMPLATE_FAILED:'Generic failure',
   depthStorage:()=>({getItem:async()=>null}),depthSave:async()=>{},depthHostProblem:()=>false,
-  depthMakeCaptions:async()=>{throw error;},console:{warn:()=>{}},
+  depthMakeCaptions:async()=>{captionCalls++;throw error;},console:{warn:()=>{}},
  });
- const component=vm.runInContext(topLevel(source,'DepthTemplateRun')+';DepthTemplateRun;',context);
- component({sdk:{runScript:async()=>({result:{seconds:10}}),finishTemplate:finish},context:{projectId:'p',template:{runId:'run',libraryId:'lib',inputs:{speaker:[{kind:'timeline',sequenceId:'d'}]}}}});
- effects[0]();assert.equal((await finished).error,error.message);
+ const component=vm.runInContext(topLevel(source,'depthPortraitDraftScript')+'\n'+topLevel(source,'DepthTemplateRun')+';DepthTemplateRun;',context);
+ component({sdk:{runScript:async input=>{scripts.push(input);return {result:input.summary==="Read the draft's length"?{seconds:10}:true};},finishTemplate:finish},context:{projectId:'p',template:{runId:'run',libraryId:'lib',inputs:{speaker:[{kind:'timeline',sequenceId:'d'}]}}}});
+ effects[0]();const result=await finished;
+ assert.equal(captionCalls,1,'the template reaches the intended AI observation failure');
+ assert.deepEqual(scripts.map(s=>s.summary),["Read the draft's length",'Frame Depth Type template to portrait']);
+ assert.match(scripts[1].script,/await d\.setFrameSize\(\{width:1080,height:1920\}\)/);
+ assert.equal(result.error,error.message);
 });
