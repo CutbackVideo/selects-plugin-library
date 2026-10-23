@@ -67,3 +67,18 @@ test('fixture boundaries cannot silently replace removed declarations or unexpec
     {names:['run'], overrides:{boundary:()=>9}});
   assert.equal(run(), 2, 'nested local bindings must retain their real scope');
 });
+
+test('a host-boundary override preserves exported function hoisting and async results', async () => {
+  const source = `
+    const early = boundary(3);
+    export function boundary(value: number) { return value; }
+    export async function later(value: number) { return value; }
+    function run() { return early; }
+  `;
+  const {run, later} = loadPanelModule(source, {names:['run','later'],
+    overrides:{boundary:value=>value*2, later:value=>value+1}});
+  assert.equal(run(), 6);
+  const result = later(4);
+  assert.equal(typeof result.then, 'function');
+  assert.equal(await result, 5);
+});

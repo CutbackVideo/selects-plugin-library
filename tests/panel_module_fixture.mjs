@@ -39,9 +39,12 @@ export function loadPanelModule(source, {names, overrides = {}, React = {}, modu
       const statements = file.statements.map(statement => {
         if (ts.isFunctionDeclaration(statement) && statement.name && pending.has(statement.name.text)) {
           const name = statement.name.text; pending.delete(name);
-          return ts.factory.createVariableStatement(undefined, ts.factory.createVariableDeclarationList([
-            ts.factory.createVariableDeclaration(name, undefined, undefined, replacement(name)),
-          ], ts.NodeFlags.Const));
+          // Keep function hoisting, async behavior, parameters and exports intact.
+          return ts.factory.updateFunctionDeclaration(statement, statement.modifiers, statement.asteriskToken,
+            statement.name, statement.typeParameters, statement.parameters, statement.type,
+            ts.factory.createBlock([ts.factory.createReturnStatement(ts.factory.createCallExpression(
+              ts.factory.createPropertyAccessExpression(replacement(name), 'apply'), undefined,
+              [ts.factory.createThis(), ts.factory.createIdentifier('arguments')]))], true));
         }
         if (ts.isVariableStatement(statement)) {
           return ts.factory.updateVariableStatement(statement, statement.modifiers,

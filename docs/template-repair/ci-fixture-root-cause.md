@@ -43,9 +43,10 @@ Host fixtures do not constitute real Windows or installed-app acceptance.
   file-observation implementation still executes to fingerprint a file.
 - Insert an error in a real dependency: execution fails; the loader does not
   mask it. Invalid syntax, an undeclared import and an obsolete fixture override
-  also fail. Nested bindings retain their actual scope.
-- Local affected JavaScript suites: 127 passed, one pre-existing skip because
-  the AI-enabled app SDK declarations are absent (128 total).
+  also fail. Nested bindings retain their actual scope; boundary overrides preserve
+  exported function hoisting and asynchronous return values.
+- Local affected JavaScript suites: 128 passed, one pre-existing skip because
+  the AI-enabled app SDK declarations are absent (129 total).
 - Python suite: 312 passed, six existing skips (318 total).
 - The complete remote workflow must be checked on the new commit separately;
   the previous successful CI run does not verify this change.
