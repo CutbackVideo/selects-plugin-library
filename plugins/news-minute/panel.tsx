@@ -547,6 +547,7 @@ var LENGTH_RULES = `LENGTH RULES (hard limits, text-to-speech runs at about ${TT
 - ${SENTENCE_COUNT.min} to ${SENTENCE_COUNT.max} sentences.
 - Total narration, all sentences joined by single spaces: aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} characters. Never go above ${TARGET_CHARS.goal[1]}; ${TARGET_CHARS.max} is the failure line and anything over it is rejected. Count the characters of every sentence (spaces and punctuation included) and add them up before you reply; if the sum is above ${TARGET_CHARS.goal[1]}, cut the least important fact and count again. Length matters more than covering every detail.
 - Headline: line1 and line2 each at most 24 characters. line1 states the topic, line2 states the key number or turn. They are display text, not sentences.`;
+var JSON_ONLY = "Output exactly one JSON object and nothing else: no explanation, no lead-in sentence, no markdown, no code fence, no text after the closing brace.";
 function scriptPrompt(article, opts = {}) {
   const language = opts.language ?? "Korean";
   return [
@@ -561,7 +562,7 @@ function scriptPrompt(article, opts = {}) {
     "SOURCE MAPPING",
     "For every sentence, copy into sourceQuote one passage from the article body that supports it. It must be an exact, contiguous substring of the body (same characters, same spacing, no ellipsis, no edits). If a sentence draws on several passages, quote the main one.",
     "",
-    "OUTPUT: reply with one JSON object only, no prose, no code fence.",
+    `OUTPUT: ${JSON_ONLY}`,
     '{"headline":{"line1":"","line2":""},"sentences":[{"text":"","sourceQuote":""}]}'
   ].join("\n");
 }
@@ -596,7 +597,7 @@ function fidelityPrompt(article, script) {
     "",
     LENGTH_RULES,
     "",
-    "OUTPUT: reply with one JSON object only, no prose, no code fence.",
+    `OUTPUT: ${JSON_ONLY}`,
     '{"headline":{"line1":"","line2":"","issues":[{"kind":"meaning|number|unsupported|ai_tone|register","note":""}]},"sentences":[{"id":"","text":"","sourceQuote":"","issues":[{"kind":"","note":""}],"rewritten":false}]}'
   ].join("\n");
 }
@@ -645,7 +646,7 @@ function plannerPrompt(input2) {
     "- hideCaption is true only for number_callout, false otherwise.",
     "- sentenceIds must use the ids above. assetRef must be one of the refs above or omitted.",
     "",
-    "OUTPUT: reply with one JSON object only, no prose, no code fence.",
+    `OUTPUT: ${JSON_ONLY}`,
     '{"scenes":[{"sentenceIds":["s1"],"type":"news_photo","params":{},"hideCaption":false,"disclaimer":false,"assetRef":"photo-1"}]}'
   ].join("\n");
 }
@@ -909,20 +910,45 @@ function validatePlan(json, sentences, assets) {
 }
 
 // src/prompts/json.ts
+function balancedObject(s, from) {
+  const start = s.indexOf("{", from);
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return { text: s.slice(start, i + 1), end: i + 1 };
+  }
+  return null;
+}
+function tryParse(t2) {
+  for (const x of [t2, t2.replace(/,\s*([}\]])/g, "$1")]) {
+    try {
+      return JSON.parse(x);
+    } catch {
+    }
+  }
+  return void 0;
+}
 function parseJsonLoose(text) {
-  const s = String(text ?? "").trim();
-  const candidates = [s];
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) candidates.push(fence[1].trim());
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first >= 0 && last > first) candidates.push(s.slice(first, last + 1));
-  for (const c of candidates) {
-    for (const t2 of [c, c.replace(/,\s*([}\]])/g, "$1")]) {
-      try {
-        return JSON.parse(t2);
-      } catch {
-      }
+  const s = String(text ?? "").replace(/^\uFEFF/, "").trim();
+  const sources = [s];
+  for (const m of s.matchAll(/```[a-zA-Z]*\s*([\s\S]*?)```/g)) sources.push(m[1].trim());
+  for (const src of sources) {
+    const whole = tryParse(src);
+    if (whole && typeof whole === "object") return whole;
+    let pos = 0;
+    for (; ; ) {
+      const found = balancedObject(src, pos);
+      if (!found) break;
+      const v = tryParse(found.text);
+      if (v && typeof v === "object") return v;
+      pos = found.end;
     }
   }
   throw new Error("No parseable JSON object in model reply");
@@ -941,7 +967,7 @@ function repairPrompt(basePrompt, previous, errors) {
       `LENGTH FIX: the narration is currently ${now} characters (spaces included). Make the total land between ${lo} and ${hi} characters: not below ${lo}, not above ${hi}.` + (now > hi ? ` Cut about ${now - Math.round((lo + hi) / 2)} characters by removing the least important fact or shortening wording; do not strip more than needed.` : ` Add about ${Math.round((lo + hi) / 2) - now} characters by restoring the next most important fact from the article.`) + " Add up the characters of all sentences before replying."
     );
   }
-  lines.push("", "Reply with the full corrected JSON object only, no prose, no code fence.");
+  lines.push("", `Reply with the full corrected JSON object. ${JSON_ONLY}`);
   return `${basePrompt}
 ${lines.join("\n")}`;
 }
