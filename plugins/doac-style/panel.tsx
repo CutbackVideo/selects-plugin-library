@@ -616,9 +616,25 @@ function TemplateRun({sdk,context}){
 function Panel(props){
   hostUseSdk(props.sdk);return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
 function CaptionPanel({sdk,context,ui}) {
+ const DOAC_TARGET_LABELS={"en":{"heading":"Caption target","project":"Project","current":"Current draft","source":"Caption source draft","result":"Caption result draft","noProject":"Open a project to begin.","noDraft":"Open a draft to begin.","loading":"Reading target\u2026","unavailable":"Name unavailable.","unnamedProject":"Untitled project"},"ko":{"heading":"\uc790\ub9c9 \uc791\uc5c5 \ub300\uc0c1","project":"\ud504\ub85c\uc81d\ud2b8","current":"\ud604\uc7ac Draft","source":"\uc790\ub9c9 \uc6d0\ubcf8 Draft","result":"\uc790\ub9c9 \uacb0\uacfc Draft","noProject":"\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","noDraft":"Draft\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","loading":"\ub300\uc0c1\uc744 \ud655\uc778\ud558\ub294 \uc911\u2026","unavailable":"\uc774\ub984\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.","unnamedProject":"\uc81c\ubaa9 \uc5c6\ub294 \ud504\ub85c\uc81d\ud2b8"}};
   useAppUpdateGuard(sdk, context?.language, () => !!(busy || lock.current || !!pendingSave.current || editing || storageLoading || !!job?.uncertain));
- const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[job,setJob]=useState(null),[index,setIndex]=useState(0),[text,setText]=useState(''),[preview,setPreview]=useState(''),[editing,setEditing]=useState(false),[sourceName,setSourceName]=useState(''),[pendingPlan,setPendingPlan]=useState(false);
- useEffect(()=>{let live=true;if(!context.sequenceId){setSourceName('');return;}sdk.runScript({script:`return await selects.draft(${JSON.stringify(context.sequenceId)}).meta();`,summary:'Read current draft'}).then(r=>{if(live)setSourceName(r.result?.name||'');}).catch(()=>{});return()=>{live=false;};},[context.sequenceId]);
+ const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[job,setJob]=useState(null),[index,setIndex]=useState(0),[text,setText]=useState(''),[preview,setPreview]=useState(''),[editing,setEditing]=useState(false),[targetInfo,setTargetInfo]=useState(null),[pendingPlan,setPendingPlan]=useState(false);
+ const targetScope={projectId:context.projectId||null,currentId:context.sequenceId||null,sourceId:job?.projectId===context.projectId?job.sourceId||null:null,resultId:job?.projectId===context.projectId?job.targetId||null:null};
+ const targetKey=JSON.stringify(targetScope),targetCurrent=useRef(targetKey);targetCurrent.current=targetKey;
+ useEffect(()=>{
+  let live=true;const captured={...targetScope},key=targetKey;
+  const publish=value=>{if(live&&targetCurrent.current===key)setTargetInfo({key,...value});};
+  publish({status:captured.projectId?'loading':'empty'});
+  if(captured.projectId){
+   sdk.runScript({script:`const p=await selects.project(${JSON.stringify(captured.projectId)}).meta();const names={};for(const id of ${JSON.stringify([...new Set([captured.currentId,captured.sourceId,captured.resultId].filter(Boolean))])}){names[id]=p.draftIds.includes(id)?(await selects.draft(id).meta()).name:null;}return {projectName:p.title,names};`,summary:'Read caption target names',allowCommit:false})
+    .then(r=>{if(r.isError||!r.result||!r.result.names)throw Error('Target metadata unavailable');publish({status:'ready',projectName:r.result.projectName,names:r.result.names});})
+    .catch(()=>publish({status:'failed'}));
+  }
+  return()=>{live=false;};
+ },[sdk,targetKey]);
+ const targetLabels=DOAC_TARGET_LABELS[String(context.language||'').toLowerCase().startsWith('ko')?'ko':'en'];
+ const displayedTarget=targetInfo?.key===targetKey?targetInfo:null;
+ const targetName=id=>!id?targetLabels.noDraft:displayedTarget?.status==='ready'?(displayedTarget.names[id]||targetLabels.unavailable):displayedTarget?.status==='failed'?targetLabels.unavailable:targetLabels.loading;
  const lock=useRef(false),project=useRef(context.projectId);project.current=context.projectId;
  const key='doac-style-'+PLAN_VERSION+'-'+context.projectId;
  const [restoredKey,setRestoredKey]=useState(null),readyKey=useRef(null),pendingSave=useRef(null),latestJob=useRef(null),activeKey=useRef(key);activeKey.current=key;
@@ -651,6 +667,12 @@ function CaptionPanel({sdk,context,ui}) {
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
  const complete=job?.targetId&&job.next===job.editorial.length;
  return <ui.Section title="DOAC Style"><ui.Stack>
+ <div aria-label={targetLabels.heading}>
+ <p><strong>{targetLabels.project}</strong>: {!targetScope.projectId?targetLabels.noProject:displayedTarget?.status==='ready'?(displayedTarget.projectName||targetLabels.unnamedProject):displayedTarget?.status==='failed'?targetLabels.unavailable:targetLabels.loading}</p>
+ <p><strong>{targetLabels.current}</strong>: {targetName(targetScope.currentId)}</p>
+ {targetScope.sourceId&&<p><strong>{targetLabels.source}</strong>: {targetName(targetScope.sourceId)}</p>}
+ {targetScope.resultId&&<p><strong>{targetLabels.result}</strong>: {targetName(targetScope.resultId)}</p>}
+ </div>
  {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English and Korean talking-head videos.</small>
  <ui.Button onClick={()=>load()} disabled={storageLoading||busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
