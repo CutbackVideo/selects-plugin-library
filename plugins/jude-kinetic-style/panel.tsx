@@ -835,7 +835,7 @@ async function judeFFmpegStdout(args:string[],signal?:AbortSignal) {
 async function judeRunFFmpeg(args:string[],signal?:AbortSignal) {
  await hostNeed('Runtime','runFFmpeg').runFFmpeg(['-nostdin',...args],true,signal);
 }
-// The cropped RGB picture, mask timing, inverted WebP tiles and ink coverage use
+// The cropped RGB picture, mask timing, inverted PNG tiles and ink coverage use
 // the existing caption contract; inference is the shared RVM task on either OS.
 async function judeSharedSprites(env:Env,projectId:string,m:any,dir:string) {
  const W=540,H=960,q=W/1080,step=Math.max(1,m.step||2),out:any={};
@@ -873,11 +873,11 @@ async function judeSharedSprites(env:Env,projectId:string,m:any,dir:string) {
    const stats=await judeFFmpegStdout([...input,'-frames:v',String(count),'-vf',`crop=${ink.join(':')},format=gray,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-`,'-f','null','-'],env.signal);
    const levels=[...stats.matchAll(/YAVG=([0-9.]+)/g)].map(v=>Number(v[1])/255);
    if(levels.length!==count)throw new Error('Mask measurement failed.');
-   const sprite=hostJoin(work,line.key+'.webp');
+   const sprite=hostJoin(work,line.key+'.png');
    await judeRunFFmpeg([...input,'-filter_complex',`[0:v]crop=${w}:${h}:${x}:${y},format=gray,negate,tile=${cols}x${rows}:nb_frames=${count}[m];color=white:s=${cols*w}x${rows*h}:r=1:d=1,format=rgb24[c];[c][m]alphamerge`,
-    '-frames:v','1','-c:v','libwebp','-lossless','1',sprite],env.signal);
+    '-frames:v','1','-c:v','png',sprite],env.signal);
    const bytes=await hostReadBytes(sprite),data=hostJoin(work,line.key+'.b64');let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-   await env.writeText(data,'data:image/webp;base64,'+btoa(binary));
+   await env.writeText(data,'data:image/png;base64,'+btoa(binary));
    out[line.key]={spritePath:data,bytes:(await fs.stat(data)).size,cols,rows,count,fps:m.fps/step,coverage:levels.reduce((a,b)=>a+b,0)/levels.length,peak:Math.max(...levels)};
   }
  }
