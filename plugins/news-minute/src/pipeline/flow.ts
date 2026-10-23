@@ -7,12 +7,12 @@ import { decodeHtml, extractArticle, type Article } from "./article.ts";
 import { ask, ASK_MAX_IMAGE_CHARS, ASK_MAX_IMAGES, ASK_MAX_TOTAL_CHARS, ffmpeg, type AskImage, load, readFileBase64, readFileBytes, run, save, scriptBytes, writeText, type PanelSdk } from "./host.ts";
 import {
   alignmentScript, createProjectScript, downloadScript, envScript, existsScript, generateScript, importScript,
-  narrationStatusScript, photoArgs, PHOTO_MAX_B64, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
+  imagePlateArgs, narrationStatusScript, photoArgs, PHOTO_MAX_B64, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
 import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { bandsScript, baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 
 export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
@@ -246,13 +246,35 @@ export function plannerImages(photos: PhotoAsset[]): AskImage[] {
   return out;
 }
 
-async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number, color: string, log: Log): Promise<string> {
-  log("plate");
-  const path = join(env, `plate-${color.replace("#", "")}-${seconds.toFixed(1)}.mp4`);
+// A layout image in <plug-in data>/assets, or null when the preset names none or the file is not there.
+async function layoutImage(sdk: PanelSdk, env: Env, name: string | undefined): Promise<string | null> {
+  if (!name) return null;
+  const path = join(env, "assets", name);
   const st = await run<{ exists: boolean; size: number }>(sdk, existsScript(path));
-  if (!st.exists || st.size < 1000) await ffmpeg(sdk, "Make the background", plateArgs(seconds, color, path));
+  return st.exists && st.size > 1000 ? path : null;
+}
+
+// The Main plate: the preset's background image held still, else its flat colour.
+async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number, preset: Preset, log: Log, rec: RunRecord): Promise<string> {
+  log("plate");
+  const image = await layoutImage(sdk, env, preset.layout.backgroundImage);
+  const name = image ? preset.layout.backgroundImage!.replace(/\.[^.]+$/, "") : preset.background.replace("#", "");
+  const path = join(env, `plate-${name}-${seconds.toFixed(1)}.mp4`);
+  rec.notes.push("plate: " + (image ? "image " + preset.layout.backgroundImage : "colour " + preset.background));
+  const st = await run<{ exists: boolean; size: number }>(sdk, existsScript(path));
+  if (!st.exists || st.size < 1000) await ffmpeg(sdk, "Make the background", image ? imagePlateArgs(seconds, image, path) : plateArgs(seconds, preset.background, path));
   const r = await run<{ ids: string[] }>(sdk, importScript(projectId, [path]));
   if (!r.ids?.length) throw new Error("background was not added to the Project");
+  return r.ids[0];
+}
+
+// The bands image as a Project Resource, or undefined (the frame graphic draws the bands instead).
+async function bands(sdk: PanelSdk, env: Env, projectId: string, preset: Preset, rec: RunRecord): Promise<string | undefined> {
+  const image = await layoutImage(sdk, env, preset.layout.bandsImage);
+  rec.notes.push("bands: " + (image ? "image " + preset.layout.bandsImage : "frame graphic"));
+  if (!image) return undefined;
+  const r = await run<{ ids: string[] }>(sdk, importScript(projectId, [image]));
+  if (!r.ids?.length) throw new Error("bands image was not added to the Project");
   return r.ids[0];
 }
 
@@ -398,13 +420,15 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     }
   };
 
-  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate(sc.params) }));
+  const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight };
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
 
-  const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
+  const plateId = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  const bandsId = await bands(sdk, env, projectId, preset, rec);
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate };
   let draftId: string | null = null;
   try {
     const baseCall = baseDraftScript(x);
@@ -412,9 +436,10 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     const base = await run<{ draftId: string | null }>(sdk, baseCall);
     if (!base.draftId) throw new Error("the Draft was not created");
     draftId = base.draftId;
-    // Stacking follows call order: scenes above the frame, then headline and captions above the scenes.
+    // Stacking follows call order: scenes above the frame, the bands above the scenes, then headline and captions.
     const calls = [
       ...sceneScripts(draftId, scenes).map((c) => ({ c, what: "scene" })),
+      ...(bandsId ? [{ c: bandsScript(draftId, projectId, bandsId), what: "bands" }] : []),
       ...overlayTextScripts(draftId, x).map((c) => ({ c, what: "headline and captions" })),
     ];
     rec.notes.push("script bytes: " + calls.map((k) => k.what.split(" ")[0] + " " + Math.round(scriptBytes(k.c) / 1024) + " KB").join(", "));

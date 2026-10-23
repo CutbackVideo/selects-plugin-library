@@ -86,6 +86,11 @@ export function plateArgs(seconds: number, color: string, out: string): string[]
   return ["-y", "-f", "lavfi", "-i", `color=c=0x${color.replace(/^#/, "")}:s=1080x1920:r=${PLATE_FPS}`, "-t", seconds.toFixed(2),
     "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-pix_fmt", "yuv420p", "-an", out];
 }
+// The same plate from an opaque 1080x1920 background image held still.
+export function imagePlateArgs(seconds: number, image: string, out: string): string[] {
+  return ["-y", "-loop", "1", "-framerate", PLATE_FPS, "-i", image, "-t", seconds.toFixed(2), "-vf", "scale=1080:1920,format=yuv420p",
+    "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-pix_fmt", "yuv420p", "-an", out];
+}
 export const plateSeconds = (narrationSeconds: number) => Math.ceil((narrationSeconds + 0.5) * 2) / 2 + 0.1;
 
 // Scenes travel inside run_script (262,144-byte cap), so photos stay around 100 KB: 1080 px, then 720 px if needed.
