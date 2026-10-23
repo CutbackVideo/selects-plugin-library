@@ -365,7 +365,8 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
    stage='place '+c.slot+' at '+c.startFrame;
    const v=input.videos[c.slot];
    const before=new Set((await d.clips({trackScope:'all'})).map(r=>r.clipId+':'+r.trackId));
-   await d.overlayResource({resource:project.resource(v.resourceId),over:await d.rangeAtFrames(c.startFrame,c.endFrame),sourceStartSeconds:c.inSeconds});
+   // Keep the planned target interval exact when a reused shot starts inside its source.
+   await d.overlayResource({resource:project.resource(v.resourceId),over:await d.rangeAtFrames(c.startFrame,c.endFrame),sourceStartSeconds:c.inSeconds,playbackSpeed:{numerator:1,denominator:1}});
    const row=(await d.clips({trackScope:'all'})).find(r=>r.resourceId===v.resourceId&&r.startFrame===c.startFrame&&!before.has(r.clipId+':'+r.trackId));
    if(!row)throw Error('Video clip for '+c.slot+' was not placed at frame '+c.startFrame);
    await d.setClipAudio({clip:row,volumeDb:-60});

@@ -106,3 +106,31 @@ The photo path now uses shared local RVM on macOS and Windows. Previous Vision-s
 - A real FFmpeg fixture decodes the generated RGBA PNG and proves every original RGB byte and every input grayscale alpha byte is preserved by `heroAlphaArgs`.
 - The shared photo adapter's emitted source-join, image submission, durable `prepareMatte(...,{sourceKind:'image'})` and canonical local URL path scripts compile against the current public Selects SDK declarations.
 - Panel TSX syntax and byte-identical shared orchestration/resource modules are checked. Model and full-template app checks belong to the integration run; this file does not claim a new Mac/Windows full template render has passed.
+
+## Reported overlay failure (2026-10-23, version 0.2.10)
+
+SELECTS-1602 reported failed creation after rearranging clips and trying several
+times. Its renderer log records five failures at the second V6 placement; the
+Project dump has a 25 fps frame grid and 30 / 29.97 fps source videos.
+
+The failure reproduces in the unmodified development app with replacement media:
+the default overlay path rounds a reused shot's source boundaries and then
+requires more frames than its planned target holds. A normal-speed explicit rate
+uses the existing exact-target path. Only the template's video overlay request
+changes; no SDK or application change is included.
+
+- The previous canonical finishing step fails at the repeated V6 shot. The new
+  step saves four successive clip-order variations, each with 35 video placements
+  at their exact planned intervals and a 390-frame, 25 fps Draft.
+- Independent saved-state reads pass for all four. All four native MP4 exports
+  succeed and fully decode to 390 frames, 1080×1920, 15.6 seconds, with audio.
+- Eight focused regression cases cover 25 / 23.976 / 30 / 60 fps Drafts with
+  30 / 29.97 fps sources. They and the existing 21 Travel tests pass. The original
+  source fails the 25 fps regression before the fix.
+
+These are controlled canonical finishing runs with supplied reference timing,
+prepared hero media and synthetic source videos. They do not verify the original
+recording, song discovery, RVM subject extraction, installed panel UI, Preview
+playback, visual-reference quality or Windows. The 26 input files contain two
+repeated test patterns; saved resource identity/order is checked independently
+of visual diversity.
