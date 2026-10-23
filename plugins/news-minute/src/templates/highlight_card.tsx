@@ -28,7 +28,7 @@ export default function HighlightCard({ data }) {
       </Rise>
       {title ? (
         <Rise s={s} t0={0.3} dy={14} x={540} y={y0 + 78}>
-          <div style={{ fontSize: fitSize(title, 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k }}>{title}</div>
+          <div style={{ fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k }}><Marked s={s} text={title} hlAt={0.85} /></div>
         </Rise>
       ) : null}
       <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136} t0={0.5} />
@@ -44,7 +44,7 @@ export default function HighlightCard({ data }) {
       </Pop>
       {subtitle ? (
         <Rise s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58}>
-          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}>{subtitle}</div>
+          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={1.75} /></div>
         </Rise>
       ) : null}
       <Source s={s} text={String(data?.source ?? '')} />

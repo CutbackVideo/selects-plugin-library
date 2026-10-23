@@ -91,12 +91,12 @@ export default function QuoteCard({ data }) {
       <Medal s={s} headshot={headshot} />
       {name ? (
         <Rise s={s} t0={0.3} dy={16} x={330} y={122} anchor="l">
-          <div style={{ fontSize: fitSize(name, 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k }}>{name}</div>
+          <div style={{ fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
         </Rise>
       ) : null}
       {affiliation ? (
         <Rise s={s} t0={0.5} dy={16} x={332} y={198} anchor="l">
-          <div style={{ fontSize: fitSize(affiliation, 40, X1 - 332) * k, fontWeight: 600, color: C.gray }}>{affiliation}</div>
+          <div style={{ fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={affiliation} hlAt={1.05} /></div>
         </Rise>
       ) : null}
       <GoldRule s={s} y={318} t0={0.6} />

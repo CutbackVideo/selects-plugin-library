@@ -11,7 +11,7 @@ const FW = 400, FH = 330, LCX = 290, RCX = 790;
 
 function Card({ s, cx, cy, t0, hero, caption, word }) {
   const k = s.k;
-  const size = fitSize(word, 64, FW - 60);
+  const size = fitSize(plainText(word), 64, FW - 60);
   return (
     <>
       <Rise s={s} t0={t0} dur={0.9} dy={22} x={cx} y={cy}>
@@ -19,11 +19,11 @@ function Card({ s, cx, cy, t0, hero, caption, word }) {
       </Rise>
       {caption ? (
         <Rise s={s} t0={t0 + 0.25} dy={10} x={cx} y={cy - 56}>
-          <div style={{ fontSize: fitSize(caption, 40, FW - 60) * k, fontWeight: 800, color: C.green }}>{caption}</div>
+          <div style={{ fontSize: fitSize(plainText(caption), 40, FW - 60) * k, fontWeight: 800, color: C.green }}><Marked s={s} text={caption} hlAt={t0 + 0.8} /></div>
         </Rise>
       ) : null}
       <Rise s={s} t0={t0 + (caption ? 0.45 : 0.3)} dy={12} x={cx} y={cy + (caption ? 26 : 0)}>
-        <div style={{ fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}>{word}</div>
+        <div style={{ fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}><Marked s={s} text={word} hlAt={t0 + 1.0} /></div>
       </Rise>
     </>
   );

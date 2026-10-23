@@ -73,11 +73,11 @@ export default function BarCompareH({ data }) {
           <React.Fragment key={i}>
             {h > 0.5 ? <div style={{ position: 'absolute', left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + 'px ' + Math.min(8, h) * k + 'px 0 0' }} /> : null}
             <Rise s={s} t0={t0 + 0.05} dy={14} x={cx[i]} y={BASE + 48}>
-              <div style={{ fontSize: fitSize(label, 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}>{label}</div>
+              <div style={{ fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}><Marked s={s} text={label} hlAt={t0 + 0.6} /></div>
             </Rise>
             {sub ? (
               <Rise s={s} t0={t0 + 0.17} dy={14} x={cx[i]} y={BASE + 100}>
-                <div style={{ fontSize: fitSize(sub, 30, slot) * k, fontWeight: 500, color: C.gray }}>{sub}</div>
+                <div style={{ fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={sub} hlAt={t0 + 0.72} /></div>
               </Rise>
             ) : null}
             {!big ? <Pop s={s} t0={t0 + 0.6} x={cx[i]} y={BASE - H[i] - 48}>{valueRun(fmt(v, dec), 58, 34, C.ink2, slot)}</Pop> : null}

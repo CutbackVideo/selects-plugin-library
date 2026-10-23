@@ -28,7 +28,7 @@ export default function TextCard({ data }) {
       {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
       {sub ? (
         <Rise s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 22}>
-          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}>{sub}</div>
+          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={sub} hlAt={at(lines.length) + 0.55} /></div>
         </Rise>
       ) : null}
       <Source s={s} text={String(data?.source ?? '')} />
