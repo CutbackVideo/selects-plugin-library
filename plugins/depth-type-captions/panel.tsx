@@ -589,10 +589,20 @@ function depthVersionBelow(version, minimum) {
   for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
   return false;
 }
-function depthHostProblem() {
+function depthHostStatus() {
   const version = depthHostVersion(), minimum = DEPTH_CLOUD_MASKS ? DEPTH_CLOUD_MIN_HOST : DEPTH_MIN_HOST;
-  return !version || depthVersionBelow(version, minimum)
-    ? "Behind speaker needs Selects " + minimum + " or later (this app is " + (version || "unknown") + "). Update Selects, or turn off Behind speaker under Fine-tune."
+  if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version) || !version.split(/[.+-]/).slice(0, 3).every(n => Number.isSafeInteger(Number(n)))) return { state: "unknown", version, minimum };
+  return { state: depthVersionBelow(version, minimum) ? "unsupported" : "supported", version, minimum };
+}
+function depthHostProblem() {
+  const { state, version, minimum } = depthHostStatus();
+  return state === "unsupported"
+    ? "Behind speaker needs Selects " + minimum + " or later (this app is " + version + "). Update Selects, or turn off Behind speaker under Fine-tune."
+    : "";
+}
+function depthHostWarning() {
+  return depthHostStatus().state === "unknown"
+    ? "Could not verify the Selects version. Behind speaker is enabled, but compatibility has not been verified."
     : "";
 }
 function depthRequireHost() {
@@ -1390,6 +1400,7 @@ async function depthMaskIsCurrent(files, meta, settings, pid, sid, excluded) {
 // lines placed around the speaker → one caption clip on the timeline, replacing `owned`.
 // The hooks let the panel show each stage; the template run passes none.
 async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse = null, control, progress, fallbackSize = {}, hooks = {} }) {
+  if (settings.depth) depthRequireHost();
   const recoveryKey = DEPTH_TAG + ":" + pid + ":" + sid;
   const previous = JSON.parse(await depthStorage().getItem(recoveryKey) || "null");
   await depthSave(recoveryKey, { ...previous, settings, owned });
@@ -1548,6 +1559,7 @@ function DepthTemplateRun({ sdk, context }) {
       try {
         const pid = context.projectId;
         if (!pid) throw depthTemplateError("no-project");
+        if (depthHostProblem()) throw depthTemplateError("host");
         const runKey = DEPTH_TAG + ":template:" + pid + ":" + runId;
         const previousRun = JSON.parse(await depthStorage().getItem(runKey) || "null");
         control.retryAi=!previousRun;
@@ -1561,7 +1573,6 @@ function DepthTemplateRun({ sdk, context }) {
         // The app hands over the library: the person may move to another page while this runs.
         const libraryId = template.libraryId;
         if (!libraryId || !sdk?.runScript) throw depthTemplateError("host");
-        if (depthHostProblem()) throw depthTemplateError("host");
         if (control.canceled) throw new Error("Canceled.");
         let sid;
         if (timeline) {
@@ -1623,7 +1634,7 @@ function DepthTemplateRun({ sdk, context }) {
       } catch {}
     };
   }, [runId]);
-  return h("small", null, status);
+  return h("div", null, h("small", null, status), depthHostWarning() && h("p", { role: "status" }, depthHostWarning()));
 }
 
 function DepthVideo({ preview, time, playing, onTime, onEnded, onError }) {
@@ -2056,7 +2067,7 @@ function DepthEditorReady({ sdk, context, saved }) {
     setSelected(Math.max(0, selected - 1));
     setLayerIndex(0);
   };
-  const hostProblem = settings.depth ? depthHostProblem() : "";
+  const hostProblem = settings.depth ? depthHostProblem() : "", hostWarning = settings.depth ? depthHostWarning() : "";
   let validation = "";
   try {
     if (plan.length) depthValidate(cleanPlan(plan));
@@ -2081,6 +2092,7 @@ function DepthEditorReady({ sdk, context, saved }) {
     ),
     owned && h("small", null, "Redo follows the current edit of the draft and replaces changes made in Fine-tune."),
     hostProblem && alert(hostProblem),
+    hostWarning && h("p", { role: "status", style: { margin: 0, color: "var(--panel-muted-fg,#aaa)" } }, hostWarning),
   );
   const phraseList = h(
     "div",
