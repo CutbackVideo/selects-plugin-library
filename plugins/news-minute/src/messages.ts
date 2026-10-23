@@ -104,6 +104,10 @@ export const MESSAGES: Record<string, [string, string]> = {
   type_line_trend_callout: ["Trend chart", "\ucd94\uc774 \uadf8\ub798\ud504"],
   type_stat_cards: ["Stat cards", "\uc218\uce58 \uce74\ub4dc"],
   type_quote_card: ["Quote", "\uc778\uc6a9"],
+  type_highlight_card: ["Highlight card", "\uac15\uc870 \uce74\ub4dc"],
+  type_donut_ratio: ["Share donut", "\ube44\uc728 \ub3c4\ub11b"],
+  type_verdict_card: ["Verdict cards", "\ud310\uc815 \uce74\ub4dc"],
+  type_flow_cause_effect: ["Cause and effect", "\ud750\ub984"],
 };
 
 export function t(lang: string | undefined, key: string, vars: Record<string, string | number> = {}): string {

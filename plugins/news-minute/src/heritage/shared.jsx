@@ -35,13 +35,20 @@ function useEmbeddedFont(data) {
 }
 
 // Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-function useScene(data) {
+// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold
+// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
+// whole timeline faster instead of cutting entrances off.
+const HOLD = 1.5;
+function useScene(data, natural = 0) {
   const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps, durationInFrames } = useVideoConfig();
   const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
   return {
-    fontFace, fps, frame, t: frame / fps, end: durationInFrames / fps, k: width / 1080,
+    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
     fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
     top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
   };
