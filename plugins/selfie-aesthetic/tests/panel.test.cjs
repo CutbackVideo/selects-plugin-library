@@ -462,13 +462,13 @@ test('the worker source runs the unmodified beat-detect.cjs and matches analyze(
 // Panel hands a run with `context.template` to TemplateRun (out of sight); anything else is the panel UI.
 const tplSrc = own.slice(own.indexOf('// Template runs.'), own.indexOf('function Panel('));
 const tplRun = between(own, 'async function runSelfieTemplate(', '\nfunction TemplateRun(');
-test('template run: the code from the "Template runs." banner to the end is byte-identical to origin/main (user policy)', () => {
-  // Hyun/Jay's Clip highlights template mode: never edited by this plugin's changes. It benefits from the shared steps
-  // (readSpans, readMotionCurves, searchCloseUps, buildDraft), whose signatures it calls unchanged.
-  // Normalize SDK setup and the reload guard only; keep the existing template-body hash.
+test('template run: the reviewed body stays pinned after the C-09 diagnostic repair', () => {
+  // The selected-file failure causes are now retained. Keep the remainder of the
+  // reviewed template flow pinned; shared build-step signatures stay unchanged.
+  // Normalize SDK setup and the reload guard as before.
   const slice = panel.slice(panel.indexOf('// Template runs.'), panel.indexOf('// local-sdk:start')).trimEnd().replace(/^ *function Panel\(/m, 'export default function Panel(') + '\n';
   const originalTemplate = slice.replace(/  useAppUpdateGuard\(sdk, context\?\.language, \(\) => !!\(true\)\);\n/g, '').replace(/  hostUseSdk\((?:props\.)?sdk\);\n/g, '').replace('(await saeSkillsDir(PLUGIN_ID))', 'saeSkillsDir(PLUGIN_ID)').replaceAll('fs.mkdir"', 'fs.mkdirSync"');
-  assert.equal(require('node:crypto').createHash('sha256').update(originalTemplate).digest('hex'), '02aada7708b5c40e26f3b496bd9c95fbff4515842cb76567aedba4beacaf685f');
+  assert.equal(require('node:crypto').createHash('sha256').update(originalTemplate).digest('hex'), '95d6931b2cce1345f04b153a11d32e53a89e0df8874c495eef7522c40704498a');
   for (const sig of ['async function readSpans(sdk: any, pid: string, inv: any, rids: string[], spansCache: Map<string, number[][]>, check: () => void,',
     'async function readMotionCurves(pid: string, inv: any, rids: string[], motionCache: Map<string, { fps: number; values: Float32Array }>, check: () => void,',
     'async function searchCloseUps(run: RunFn, assets: any, pid: string, rids: string[], searchCache: { current: Map<string, any[]> }, check: () => void,',

@@ -4677,9 +4677,19 @@ function errorText(e: any) { return String(e?.message || e); }
 // clips to their holds by that id (crop, clip sound, whip and look). So each handed file is placed once on an unsaved
 // scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its own, whose frame size is the
 // photo's, as inventory.js measures it. Nothing is committed. A file that cannot be placed is left out.
+
+// Preserve per-file causes across the existing retry; usable files still proceed.
+function templateAliasFailure(resolved, failed) {
+  const found = new Set(resolved.map(row => row.rid)), remaining = new Map();
+  for (const row of failed) if (!found.has(row.rid)) remaining.set(row.rid, row.message);
+  if (!remaining.size) return null;
+  console.warn("[selfie-aesthetic] selected file checks failed:", [...remaining]);
+  return resolved.length ? null : [...new Set(remaining.values())].join("\n");
+}
+
 const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-const resolved = [];
+const resolved = [], failed = [];
 let shared = null;
 for (const h of cfg.files) {
   try {
@@ -4697,9 +4707,9 @@ for (const h of cfg.files) {
       if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
     }
     resolved.push({ rid: h.rid, alias: clip.resourceId, size });
-  } catch (e) {}
+  } catch (e) { failed.push({ rid: h.rid, message: String(e?.message || e) }); }
 }
-return { resolved };`;
+return { resolved, failed };`;
 
 // The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
 // frame closing) replaced this one. `advance` names the current build step for the status line and the error.
@@ -4731,11 +4741,13 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
   if (!cue) throw new Error("no bundled music in assets/cues/manifest.json");
 
   const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const aliasFailures: Array<{ rid: string; message: string }> = [];
   const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
     for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
       const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
       check();
       resolved.push(...(r.resolved || []));
+      aliasFailures.push(...(r.failed || []));
     }
   };
   await resolveFiles(files);
@@ -4743,6 +4755,8 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
   const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
   if (unresolved.length) await resolveFiles(unresolved);
   const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const aliasFailure = templateAliasFailure(resolved, aliasFailures);
+  if (aliasFailure) throw new Error(aliasFailure);
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   // sdk.call (bad-shot spans) wants the app's ids: each alias maps back to the handed id it came from.

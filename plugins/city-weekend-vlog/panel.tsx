@@ -3585,9 +3585,19 @@ function errorText(e: any) { return String(e?.message || e); }
 // scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its own, whose frame size is the
 // photo's, as inventory.js measures it. Nothing is committed. A file that cannot be placed is left out. The first call
 // also reads the Project's title, the name the place is suggested from.
+
+// Preserve per-file causes across the existing retry; usable files still proceed.
+function templateAliasFailure(resolved, failed) {
+  const found = new Set(resolved.map(row => row.rid)), remaining = new Map();
+  for (const row of failed) if (!found.has(row.rid)) remaining.set(row.rid, row.message);
+  if (!remaining.size) return null;
+  console.warn("[city-weekend-vlog] selected file checks failed:", [...remaining]);
+  return resolved.length ? null : [...new Set(remaining.values())].join("\n");
+}
+
 const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-const resolved = [];
+const resolved = [], failed = [];
 let shared = null;
 for (const h of cfg.files) {
   try {
@@ -3605,11 +3615,11 @@ for (const h of cfg.files) {
       if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
     }
     resolved.push({ rid: h.rid, alias: clip.resourceId, size });
-  } catch (e) {}
+  } catch (e) { failed.push({ rid: h.rid, message: String(e?.message || e) }); }
 }
 let title = null;
 if (cfg.readTitle) { try { title = (await p.meta()).title || null; } catch (e) { title = null; } }
-return { resolved, title };`;
+return { resolved, failed, title };`;
 
 // The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
 // frame closing) replaced this one. `advance` names the current build step for the status line and the error.
@@ -3637,12 +3647,14 @@ async function runCityTemplate(sdk: any, context: any, check: () => void, advanc
   if (!cue) throw new Error("no bundled music in assets/cues/manifest.json");
 
   const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const aliasFailures: Array<{ rid: string; message: string }> = [];
   let projectTitle: string | null = null;
   const resolveFiles = async (list: Array<{ rid: string; kind: string }>, readTitle: boolean) => {
     for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
       const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH), readTitle: readTitle && i === 0 }));
       check();
       resolved.push(...(r.resolved || []));
+      aliasFailures.push(...(r.failed || []));
       if (readTitle && i === 0) projectTitle = r.title ?? null;
     }
   };
@@ -3651,6 +3663,8 @@ async function runCityTemplate(sdk: any, context: any, check: () => void, advanc
   const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
   if (unresolved.length) await resolveFiles(unresolved, false);
   const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const aliasFailure = templateAliasFailure(resolved, aliasFailures);
+  if (aliasFailure) throw new Error(aliasFailure);
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.

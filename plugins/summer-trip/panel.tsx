@@ -5435,9 +5435,19 @@ async function runTemplateStep(sdk: any, summary: string, script: string, allowC
 // aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
 // file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
 // own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
+
+// Preserve per-file causes across the existing retry; usable files still proceed.
+function templateAliasFailure(resolved, failed) {
+  const found = new Set(resolved.map(row => row.rid)), remaining = new Map();
+  for (const row of failed) if (!found.has(row.rid)) remaining.set(row.rid, row.message);
+  if (!remaining.size) return null;
+  console.warn("[summer-trip] selected file checks failed:", [...remaining]);
+  return resolved.length ? null : [...new Set(remaining.values())].join("\n");
+}
+
 const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-const resolved = [];
+const resolved = [], failed = [];
 let shared = null;
 for (const h of cfg.files) {
   try {
@@ -5455,9 +5465,9 @@ for (const h of cfg.files) {
       if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
     }
     resolved.push({ rid: h.rid, alias: clip.resourceId, size });
-  } catch (e) {}
+  } catch (e) { failed.push({ rid: h.rid, message: String(e?.message || e) }); }
 }
-return { resolved };`;
+return { resolved, failed };`;
 
 // The handed videos and photos, each once, in the order they were picked.
 function templateFootage(context: any) {
@@ -5508,17 +5518,21 @@ async function runSummerTripTemplate(sdk: any, context: any, check: () => void, 
 
   // Handed ids to the Project's aliases; the files the first pass skipped get one more.
   const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const aliasFailures: Array<{ rid: string; message: string }> = [];
   const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
     for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
       const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
       check();
       resolved.push(...(r.resolved || []));
+      aliasFailures.push(...(r.failed || []));
     }
   };
   await resolveFiles(files);
   const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
   if (unresolved.length) await resolveFiles(unresolved);
   const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const aliasFailure = templateAliasFailure(resolved, aliasFailures);
+  if (aliasFailure) throw templateIssue(aliasFailure);
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
