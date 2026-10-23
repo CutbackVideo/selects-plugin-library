@@ -2774,7 +2774,7 @@ export default function NewsPhoto({ data }) {
 }
 `, editableParameters: PARAM_SCHEMAS["news_photo"] ?? [], timeIndependent: !!TIME_INDEPENDENT["news_photo"], label: LABELS["news_photo"] ?? "news_photo" },
   "number_callout": { tsxCode: `import React from 'react';
-import { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 // Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
 // omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
@@ -3016,11 +3016,13 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
-// Before -> after value under the scene title: the old value (96, dark grey) rises in, a crimson
-// arrow draws down \`revealSec\` later, then the new value (150, crimson) pops and counts up from the
-// old one (from 0 when the two are not comparable numbers). \`from\`/\`to\` are numbers (shown with their
-// own decimals plus \`unit\`) or already-formatted strings. An optional photo shows faintly through
-// the paper, never competing with the numbers.
+// Before -> after value under the scene title: the old value (96, dark grey) rises in, a gold
+// chevron (reading order only, no up/down meaning) draws \`revealSec\` later, then the new value (150,
+// crimson) pops and counts up from the old one (from 0 when the two are not comparable numbers). A
+// small crimson triangle beside the new value says whether it rose or fell, by comparing the two
+// numbers; no difference is computed or shown. \`from\`/\`to\` are numbers (shown with their own
+// decimals plus \`unit\`) or already-formatted strings. A photo is never drawn here (spec 2: no
+// decoration behind the numbers).
 const show = (v) => {
   if (typeof v === 'number') {
     const str = String(v);
@@ -3033,14 +3035,13 @@ const show = (v) => {
 export default function NumberCallout({ data }) {
   const reveal = Math.max(0, Number(data?.revealSec ?? 0.75));
   const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
-  // Last entrance: the count-up, 1.2 s after the new value starts.
-  const s = useScene(data, toAt + 1.2);
+  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts.
+  const s = useScene(data, toAt + 1.6);
   const k = s.k;
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
   const unit = String(data?.unit ?? '');
   const from = show(data?.from), to = show(data?.to);
-  const image = typeof data?.image === 'string' ? data.image : '';
   const cf = countable(from), ct = countable(to);
   const cp = smooth(prog(s.t, toAt, toAt + 1.2));
   // Count from the old value when both hold one number in the same format, else from 0.
@@ -3053,10 +3054,12 @@ export default function NumberCallout({ data }) {
   const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
   const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
   const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+  // Rose or fell: only when both values hold one number in the same format.
+  const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
+  const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   return (
     <Win s={s} data={data}>
-      {image ? <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.16, filter: 'grayscale(1) sepia(0.35)' }} /> : null}
       <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
       {label ? (
         <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
@@ -3070,9 +3073,9 @@ export default function NumberCallout({ data }) {
         </div>
       </Rise>
       {ap > 0 ? (
-        <svg width={60 * k} height={110 * k} viewBox="0 0 60 110" style={{ position: 'absolute', left: 510 * k, top: yArrow * k }}>
-          <line x1="30" y1="0" x2="30" y2={Math.max(0, 110 * ap - 30)} stroke={C.acc} strokeWidth="12" strokeLinecap="round" />
-          {ap > 0.25 ? <polygon points={'30,' + 110 * ap + ' 8,' + (110 * ap - 34) + ' 52,' + (110 * ap - 34)} fill={C.acc} /> : null}
+        // Gold chevron, opening from its centre outwards.
+        <svg width={80 * k} height={60 * k} viewBox="0 0 80 60" style={{ position: 'absolute', left: 500 * k, top: (yArrow + 25) * k }}>
+          <polyline points={(40 - 28 * ap) + ',' + (14 + 22 * (1 - ap)) + ' 40,36 ' + (40 + 28 * ap) + ',' + (14 + 22 * (1 - ap))} fill="none" stroke={C.gold} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
       <Pop s={s} t0={toAt} x={540} y={yTo}>
@@ -3083,6 +3086,11 @@ export default function NumberCallout({ data }) {
             <span style={{ ...tnum, fontSize: 150 * sTo * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span>
           </span>
           {unit ? <span style={{ ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
+          {dir ? (
+            <svg width={44 * sTo * k} height={40 * sTo * k} viewBox="0 0 44 40" style={{ marginLeft: 18 * sTo * k, alignSelf: 'center', opacity: smooth(tri / 0.6), transform: 'translateY(' + (1 - smooth(tri)) * (dir === 'up' ? 8 : -8) * k + 'px)' }}>
+              <polygon points={dir === 'up' ? '22,2 42,38 2,38' : '2,2 42,2 22,38'} fill={C.acc} />
+            </svg>
+          ) : null}
         </div>
       </Pop>
       <Source s={s} text={String(data?.source ?? '')} />
@@ -3614,7 +3622,7 @@ const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(t
 // Applies or not, target or exempt (style spec 6-6). A plain gold rule draws across the top and the
 // \`title\` ribbon pops on it; then one or two full-width cards (960 x 270) rise in, each with an icon
 // disc on the left and a two-line sentence on the right ('\\n' splits it; [word] crimson). A card of
-// tone "accent" is the hero side: crimson target mark drawn ring by ring. Tone "contrast" is the
+// tone "accent" is the hero side: crimson X drawn one stroke after the other. Tone "contrast" is the
 // opposite side (excluded, allowed): a green check drawn stroke by stroke. \`subtitle\` is an optional
 // grey line under the ribbon. The second card waits until the first one has settled.
 const CW = X1 - X0, CH = 270, D = 196;
@@ -3632,15 +3640,13 @@ function Mark({ s, tone, t0 }) {
       </svg>
     );
   }
-  // Target: rings close one after another, then the centre dot settles in.
-  const r1 = clamp(p * 2), r2 = clamp(p * 2 - 0.6), dot = settle(clamp(p * 2 - 1), 0.12);
-  const arc = (r, q) => <circle cx="98" cy="98" r={r} fill="none" stroke={C.acc} strokeWidth="12" strokeDasharray={2 * Math.PI * r} strokeDashoffset={2 * Math.PI * r * (1 - q)} transform="rotate(-90 98 98)" strokeLinecap="round" />;
+  // X: the two strokes are drawn in turn (spec 6-6).
+  const a = clamp(p * 2), b = clamp(p * 2 - 1);
   return (
     <svg width={D * s.k} height={D * s.k} viewBox="0 0 196 196">
       <circle cx="98" cy="98" r="98" fill={C.accL} />
-      {r1 > 0 ? arc(62, r1) : null}
-      {r2 > 0 ? arc(36, r2) : null}
-      {dot > 0 ? <circle cx="98" cy="98" r={13 * dot} fill={C.acc} /> : null}
+      {a > 0 ? <line x1="62" y1="62" x2={lerp(62, 134, a)} y2={lerp(62, 134, a)} stroke={C.acc} strokeWidth="16" strokeLinecap="round" /> : null}
+      {b > 0 ? <line x1="134" y1="62" x2={lerp(134, 62, b)} y2={lerp(62, 134, b)} stroke={C.acc} strokeWidth="16" strokeLinecap="round" /> : null}
     </svg>
   );
 }

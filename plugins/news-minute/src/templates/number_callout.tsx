@@ -1,13 +1,15 @@
 import React from 'react';
-import { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 // @heritage
 
-// Before -> after value under the scene title: the old value (96, dark grey) rises in, a crimson
-// arrow draws down `revealSec` later, then the new value (150, crimson) pops and counts up from the
-// old one (from 0 when the two are not comparable numbers). `from`/`to` are numbers (shown with their
-// own decimals plus `unit`) or already-formatted strings. An optional photo shows faintly through
-// the paper, never competing with the numbers.
+// Before -> after value under the scene title: the old value (96, dark grey) rises in, a gold
+// chevron (reading order only, no up/down meaning) draws `revealSec` later, then the new value (150,
+// crimson) pops and counts up from the old one (from 0 when the two are not comparable numbers). A
+// small crimson triangle beside the new value says whether it rose or fell, by comparing the two
+// numbers; no difference is computed or shown. `from`/`to` are numbers (shown with their own
+// decimals plus `unit`) or already-formatted strings. A photo is never drawn here (spec 2: no
+// decoration behind the numbers).
 const show = (v) => {
   if (typeof v === 'number') {
     const str = String(v);
@@ -20,14 +22,13 @@ const show = (v) => {
 export default function NumberCallout({ data }) {
   const reveal = Math.max(0, Number(data?.revealSec ?? 0.75));
   const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
-  // Last entrance: the count-up, 1.2 s after the new value starts.
-  const s = useScene(data, toAt + 1.2);
+  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts.
+  const s = useScene(data, toAt + 1.6);
   const k = s.k;
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
   const unit = String(data?.unit ?? '');
   const from = show(data?.from), to = show(data?.to);
-  const image = typeof data?.image === 'string' ? data.image : '';
   const cf = countable(from), ct = countable(to);
   const cp = smooth(prog(s.t, toAt, toAt + 1.2));
   // Count from the old value when both hold one number in the same format, else from 0.
@@ -40,10 +41,12 @@ export default function NumberCallout({ data }) {
   const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
   const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
   const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+  // Rose or fell: only when both values hold one number in the same format.
+  const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
+  const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   return (
     <Win s={s} data={data}>
-      {image ? <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.16, filter: 'grayscale(1) sepia(0.35)' }} /> : null}
       <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
       {label ? (
         <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
@@ -57,9 +60,9 @@ export default function NumberCallout({ data }) {
         </div>
       </Rise>
       {ap > 0 ? (
-        <svg width={60 * k} height={110 * k} viewBox="0 0 60 110" style={{ position: 'absolute', left: 510 * k, top: yArrow * k }}>
-          <line x1="30" y1="0" x2="30" y2={Math.max(0, 110 * ap - 30)} stroke={C.acc} strokeWidth="12" strokeLinecap="round" />
-          {ap > 0.25 ? <polygon points={'30,' + 110 * ap + ' 8,' + (110 * ap - 34) + ' 52,' + (110 * ap - 34)} fill={C.acc} /> : null}
+        // Gold chevron, opening from its centre outwards.
+        <svg width={80 * k} height={60 * k} viewBox="0 0 80 60" style={{ position: 'absolute', left: 500 * k, top: (yArrow + 25) * k }}>
+          <polyline points={(40 - 28 * ap) + ',' + (14 + 22 * (1 - ap)) + ' 40,36 ' + (40 + 28 * ap) + ',' + (14 + 22 * (1 - ap))} fill="none" stroke={C.gold} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
       <Pop s={s} t0={toAt} x={540} y={yTo}>
@@ -70,6 +73,11 @@ export default function NumberCallout({ data }) {
             <span style={{ ...tnum, fontSize: 150 * sTo * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span>
           </span>
           {unit ? <span style={{ ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
+          {dir ? (
+            <svg width={44 * sTo * k} height={40 * sTo * k} viewBox="0 0 44 40" style={{ marginLeft: 18 * sTo * k, alignSelf: 'center', opacity: smooth(tri / 0.6), transform: 'translateY(' + (1 - smooth(tri)) * (dir === 'up' ? 8 : -8) * k + 'px)' }}>
+              <polygon points={dir === 'up' ? '22,2 42,38 2,38' : '2,2 42,2 22,38'} fill={C.acc} />
+            </svg>
+          ) : null}
         </div>
       </Pop>
       <Source s={s} text={String(data?.source ?? '')} />
