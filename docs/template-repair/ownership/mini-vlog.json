@@ -599,7 +599,7 @@
         "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
-        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
@@ -1361,12 +1361,12 @@
     },
     {
       "path": "plugins/mini-vlog/tests/panel.test.cjs",
-      "sha256": "e2f2aadb99d770bdcc5d6e507b85e99b25aeb834309a1e28db6d7de3033165d3",
+      "sha256": "1e88c2b78a7c26067b6ca1853669b4e2e1a4502c8dd4f496f05177900971a6b0",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 631,
+          "endLine": 632,
           "feature": "test-harness"
         }
       ],
