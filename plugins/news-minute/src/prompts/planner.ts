@@ -1,10 +1,11 @@
 import { JSON_ONLY } from "./script.ts";
+import { DATA_SCENE_TYPES, SCENE_MAX_SEC } from "./validate.ts";
 import type { PlanAsset, TimedSentence } from "./types.ts";
 
 const CATALOG = `SCENE TYPES (pick one per scene; v1 subset)
 1. news_photo  - a real article photo (assetRef required). params: {} plus optional "focus": "center|top|bottom|left|right". Ken Burns move is automatic. 4-8 s.
 2. text_card   - key phrase on a plain card; the fallback when no photo or number fits. params: {"text": short key phrase (max ~20 chars per line, \\n allowed), "sub": optional smaller line}. No assetRef.
-3. number_callout - a before-to-after value (rate, price). params: {"label": "", "from": number or text copied from the article, "to": number or text copied from the article, "unit": optional}. Optional assetRef (photo) as dimmed background. Set hideCaption=true. 5-7 s.
+3. number_callout - a before-to-after value (rate, price). params: {"label": "", "from": a value that contains a digit, copied from the article (for example 6.0 or 201,000), "to": likewise a value that contains a digit, never a phrase without a number, "unit": optional}. Optional assetRef (photo) as dimmed background. Set hideCaption=true. 5-7 s.
 4. bar_compare_h - exactly 2 comparable values. params: {"title","source","unit","bars":[{"label","value":number,"tone":"grey|accent","sub":optional period text}]}. 4-5 s. source is the data attribution as written in the article.
 5. line_trend_callout - a time series ending in a record or jump (needs at least 3 data points stated in the article). params: {"title","subtitle":optional,"source","points":[{"x","y":number}],"accentFrom":index of the first highlighted point,"endLabel":number or text,"unit","threshold":optional {"y","label"},"cards":optional [{"text","tone":"grey|accent"}]}. 8-10 s.
 6. stat_cards  - 2-4 parallel items with one or two numbers each. params: {"title","subtitle":optional,"source":optional,"cards":[{"header","rows":[{"label","value":number or text,"unit":optional}]}]}. 6-8 s.
@@ -40,7 +41,7 @@ export function plannerPrompt(input: {
     "",
     "RULES",
     "- Scenes cover every sentence exactly once, in order. A scene covers one sentence, or two or three consecutive short ones. Split nothing across scenes.",
-    "- No scene may last more than 10 s (end of its last sentence minus start of its first). Merge short sentences, never stretch a long one.",
+    `- No scene may last more than ${SCENE_MAX_SEC.default} s, except data scenes (${DATA_SCENE_TYPES.join(", ")}), which may last up to ${SCENE_MAX_SEC.data} s (end of its last sentence minus start of its first). Merge short sentences, never stretch a long one.`,
     "- The first scene uses the strongest visual: a photo of the main subject, or the headline-number chart when the story is data-driven. The last one or two sentences are usually a photo of an official or a quote_card.",
     "- Use a data scene (number_callout, bar_compare_h, line_trend_callout, stat_cards) only when the scene's own sentences contain the numbers it shows. Every number in params must be copied from the narration of that same scene, as a JSON number or the exact wording. Never compute, round, or invent values.",
     "- Use each article photo at least once when there are enough scenes; a photo may be reused in non-adjacent scenes. Choose the photo whose caption best matches the sentence.",

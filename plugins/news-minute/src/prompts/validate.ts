@@ -190,6 +190,7 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
     case "number_callout":
       need(isStr(p.label), "label is required");
       need(isNumOrStr(p.from) && isNumOrStr(p.to), "from and to are required (number or text copied from the article)");
+      need(/\d/.test(String(p.from)) && /\d/.test(String(p.to)), "from and to must each contain a digit; use another scene type when the article gives only a phrase such as \"nearly double\"");
       traceNumbers(p.from, sceneNums, `${where}.from`, errors);
       traceNumbers(p.to, sceneNums, `${where}.to`, errors);
       break;
@@ -228,6 +229,30 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
   }
 }
 
+// Longest allowed scene, in seconds. Data scenes carry charts that need more time to read.
+export const DATA_SCENE_TYPES = ["bar_compare_h", "line_trend_callout", "stat_cards", "number_callout"] as const;
+export const SCENE_MAX_SEC = { default: 10.5, data: 12 };
+export function sceneMaxSec(type: string): number {
+  return (DATA_SCENE_TYPES as readonly string[]).includes(type) ? SCENE_MAX_SEC.data : SCENE_MAX_SEC.default;
+}
+
+// Turns number_callout scenes whose from/to carry no digit into text_card, for use after repair has failed.
+export function demoteNumberlessCallouts(json: any, sentences: TimedSentence[]): { plan: any; demoted: number } {
+  if (!isObj(json) || !Array.isArray(json.scenes)) return { plan: json, demoted: 0 };
+  const byId = new Map(sentences.map((s) => [s.id, s]));
+  let demoted = 0;
+  const scenes = json.scenes.map((sc: any) => {
+    const p = sc?.params;
+    if (!isObj(sc) || sc.type !== "number_callout" || (/\d/.test(String(p?.from)) && /\d/.test(String(p?.to)))) return sc;
+    demoted++;
+    const first = byId.get(sc.sentenceIds?.[0])?.text ?? "";
+    const text = isStr(p?.label) && p.label.trim() ? p.label.trim() : first.slice(0, 20);
+    const { assetRef: _drop, ...rest } = sc;
+    return { ...rest, type: "text_card", params: { text }, hideCaption: false };
+  });
+  return { plan: { ...json, scenes }, demoted };
+}
+
 export function validatePlan(json: any, sentences: TimedSentence[], assets: PlanAsset[]): Validation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -259,7 +284,8 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     if (sceneSentences.length) {
       const dur = Math.max(...sceneSentences.map((s) => s.endSec)) - Math.min(...sceneSentences.map((s) => s.startSec));
       maxSceneSec = Math.max(maxSceneSec, dur);
-      if (dur > 10.5) errors.push(`${where}: lasts ${dur.toFixed(1)} s; split it so no scene runs past 10 s`);
+      const maxSec = sceneMaxSec(sc.type);
+      if (dur > maxSec) errors.push(`${where}: lasts ${dur.toFixed(1)} s; split it so a ${sc.type} scene does not run past ${Math.floor(maxSec)} s`);
     }
     const sceneText = sceneSentences.map((s) => s.text).join(" ");
     const sceneNums = new Set([...numberTokens(sceneText), ...rawNumberTokens(sceneText)]);
