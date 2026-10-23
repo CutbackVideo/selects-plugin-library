@@ -70,7 +70,7 @@ on the final PR head.
 ## Evidence
 
 Owned local directory:
-`/Users/mano/Documents/clip-highlights-analysis/repro-20261023/sdk-free-live/`.
+`clip-highlights-analysis/repro-20261023/sdk-free-live/`.
 Key artifacts: `provenance.json`, `gallery-*-saved.json`,
 `gallery-cold-verify.log`, `*-actual-core-fallback.json`,
 `archive-cold-readback.json`, `*-export-job.json`, `*-export-status-*.json`,
