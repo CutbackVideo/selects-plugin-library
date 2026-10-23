@@ -173,7 +173,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   const needsAssets=(!state.assets && scope!=='captions')||scope==='all'||scope==='broll';
   if(needsAssets&&!state.assetsReady) {
     const firstWarnings:string[]=[];
-    const freshAssets=await chooseAssets(env,jobDir,mediaFolder,reel,fps,projectId,options,firstWarnings);
+    const freshAssets=await chooseAssets(env,jobDir,mediaFolder,reel,fps,projectId,options,firstWarnings,"b",words);
     // Cutaways must stay evenly spread: every keyword whose picture was not found gets one more search with the
     // planner's broader query (or the keyword itself), so gaps are not left wherever the first search failed.
     const missing=reel.brolls.filter(b=>!freshAssets.some((a:any)=>a.keyStart===b.key.start));
@@ -181,7 +181,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
       env.status(`Searching again for ${missing.length} missing B-roll…`);
       const again=missing.map(b=>({...b,query:b.key.alt&&b.key.alt!==b.query?b.key.alt:b.key.text.replace(/[^\p{L}\p{N}' -]/gu,"").trim()}));
       const retryWarnings:string[]=[];
-      freshAssets.push(...await chooseAssets(env,jobDir,mediaFolder,{brolls:again},fps,projectId,options,retryWarnings,"r"));
+      freshAssets.push(...await chooseAssets(env,jobDir,mediaFolder,{brolls:again},fps,projectId,options,retryWarnings,"r",words));
       const filled=missing.filter(b=>freshAssets.some((a:any)=>a.keyStart===b.key.start)).map(b=>b.query);
       report.warnings.push(...firstWarnings.filter(w=>!filled.some(query=>w.includes("“"+query+"”"))),...retryWarnings);
     } else report.warnings.push(...firstWarnings);
