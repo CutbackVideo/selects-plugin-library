@@ -82,6 +82,7 @@ export const MESSAGES: Record<string, [string, string]> = {
   field_from: ["From", "\uc774\uc804 \uac12"],
   field_to: ["To", "\uc774\ud6c4 \uac12"],
   field_unit: ["Unit", "\ub2e8\uc704"],
+  field_value: ["Value", "\uac12"],
   field_name: ["Name", "\uc774\ub984"],
   field_title: ["Title", "\uc81c\ubaa9"],
   field_lines: ["Quote (one line each)", "\uc778\uc6a9 \ubb38\uad6c(\ud55c \uc904\uc529)"],

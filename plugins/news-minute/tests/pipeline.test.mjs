@@ -138,6 +138,15 @@ test("heritage layout: graphics y 481-1290, one dark caption line y 1310-1380, b
   assert.equal(PRESETS.generic.layout.bandsImage, undefined);
 });
 
+test("scene params match their control types (the planner may send a number for a text control)", async () => {
+  const { fitControls } = await import("../src/pipeline/assemble.ts");
+  const p = fitControls("highlight_card", { title: "t", value: 3592, unit: "x", other: 5 });
+  assert.equal(p.value, "3592");
+  assert.equal(p.other, 5);
+  assert.equal(fitControls("caption", { text: "a", fontSize: "48" }).fontSize, 48);
+  assert.equal(fitControls("caption", { text: "a", fontSize: "big" }).fontSize, "big");
+});
+
 test("Arc article: text paragraphs and photos with captions", () => {
   const g = { headlines: { basic: "T" }, display_date: "2026-10-23", promo_items: { basic: { type: "image", url: "https://x/a.png", caption: "lead /Yonhap", width: 1200, height: 900 } },
     content_elements: [{ type: "text", content: "First <b>para</b>." }, { type: "image", url: "https://x/a.png", caption: "dup" }, { type: "image", url: "https://x/b.png", caption: "chart", credits: { by: [{ name: "Lab" }] } }, { type: "text", content: "Second." }] };

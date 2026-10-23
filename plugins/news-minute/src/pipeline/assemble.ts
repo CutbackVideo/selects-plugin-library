@@ -80,6 +80,19 @@ return { draftId: out.createdDraftId ?? null, frames: total };`,
   };
 }
 
+// Selects rejects a graphic whose parameter does not match its control's type (addMotionGraphic: "Editable
+// parameter 'value' does not match its definition"). The planner may send 3592 where the control is text, so
+// numbers become text for text controls and numeric text becomes a number for number controls.
+export function fitControls(type: string, params: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...params };
+  for (const d of tpl(type).editableParameters as Array<{ key: string; type: string }>) {
+    const v = out[d.key];
+    if (d.type === "text" && typeof v === "number") out[d.key] = String(v);
+    else if (d.type === "number" && typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) out[d.key] = Number(v);
+  }
+  return out;
+}
+
 // Scene graphics in batches that keep each script under SCENE_BATCH_BYTES.
 export function sceneScripts(draftId: string, scenes: SceneClip[]): ScriptCall[] {
   const batches: SceneClip[][] = [];
@@ -94,7 +107,7 @@ export function sceneScripts(draftId: string, scenes: SceneClip[]): ScriptCall[]
   const calls = batches.map((batch, i) => {
     const types = [...new Set(batch.map((s) => s.type))];
     const codes = Object.fromEntries(types.map((t) => [t, { tsx: tpl(t).tsxCode, edit: tpl(t).editableParameters, ti: tpl(t).timeIndependent }]));
-    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.params, a: s.startSec, b: s.endSec }));
+    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: fitControls(s.type, s.params), a: s.startSec, b: s.endSec }));
     return {
       summary: `Add scene graphics (${i + 1}/${batches.length})`,
       allowCommit: true,

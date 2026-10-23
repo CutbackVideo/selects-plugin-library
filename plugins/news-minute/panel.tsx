@@ -90,6 +90,7 @@ var MESSAGES = {
   field_from: ["From", "\uC774\uC804 \uAC12"],
   field_to: ["To", "\uC774\uD6C4 \uAC12"],
   field_unit: ["Unit", "\uB2E8\uC704"],
+  field_value: ["Value", "\uAC12"],
   field_name: ["Name", "\uC774\uB984"],
   field_title: ["Title", "\uC81C\uBAA9"],
   field_lines: ["Quote (one line each)", "\uC778\uC6A9 \uBB38\uAD6C(\uD55C \uC904\uC529)"],
@@ -5292,6 +5293,15 @@ const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`
   };
 }
+function fitControls(type, params) {
+  const out = { ...params };
+  for (const d of tpl(type).editableParameters) {
+    const v = out[d.key];
+    if (d.type === "text" && typeof v === "number") out[d.key] = String(v);
+    else if (d.type === "number" && typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) out[d.key] = Number(v);
+  }
+  return out;
+}
 function sceneScripts(draftId, scenes) {
   const batches = [];
   let cur = [], size = 0;
@@ -5309,7 +5319,7 @@ function sceneScripts(draftId, scenes) {
   const calls = batches.map((batch, i) => {
     const types = [...new Set(batch.map((s) => s.type))];
     const codes = Object.fromEntries(types.map((t2) => [t2, { tsx: tpl(t2).tsxCode, edit: tpl(t2).editableParameters, ti: tpl(t2).timeIndependent }]));
-    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.params, a: s.startSec, b: s.endSec }));
+    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: fitControls(s.type, s.params), a: s.startSec, b: s.endSec }));
     return {
       summary: `Add scene graphics (${i + 1}/${batches.length})`,
       allowCommit: true,
