@@ -62,12 +62,13 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (!tts || tts.state !== "submitted") return;
     let stop = false;
     (async () => {
-      let rec = tts;
+      let rec = tts, fails = 0;
       while (!stop && rec.state === "submitted") {
         await sleep(3000);
         if (stop) return;
-        try { rec = await F.pollNarration(sdk, rec); } catch { continue; }
-        if (!stop) setTts(rec);
+        try { rec = await F.pollNarration(sdk, rec); fails = 0; }
+        catch (e: any) { if (++fails >= 3) setError(T("error", { error: String(e?.message || e) })); continue; }
+        if (!stop) { setError(""); setTts(rec); }
       }
     })();
     return () => { stop = true; };
@@ -160,7 +161,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
           <label>{T("accent")}<input style={input} value={sc.headline.accent ?? ""} disabled={busy || approved} onChange={(e) => setHead("accent", e.target.value)} /></label>
           {sc.sentences.map((x, i) => (
             <div key={x.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <textarea style={{ ...input, minHeight: 44 }} value={x.text} disabled={busy || approved} onChange={(e) => setLine(i, e.target.value)} />
+              <textarea style={input} rows={Math.max(2, Math.ceil([...x.text].length / 11))} value={x.text} disabled={busy || approved} onChange={(e) => setLine(i, e.target.value)} />
               <span style={muted}>{T("source")}: {x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")}</span>
               {x.rewritten ? <span style={{ ...muted, color: "#4a90d9" }}>{T("rewritten")}</span> : null}
               {x.edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedCheck")}</span> : null}

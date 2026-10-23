@@ -15,9 +15,10 @@ export const envScript = (): ScriptCall => ({
 const sep = /^win/i.test(env.platform) ? "\\\\" : "/";
 const dir = [env.homedir, ".selects", "plugin-data", "news-minute"].join(sep);
 await selects.files.mkdir(dir, { recursive: true });
-let projectId = null;
+let projectId: string | null = null;
 try { const s = await selects.editor.state(); projectId = s && s.projectId ? s.projectId : null; } catch (e) { projectId = null; }
-return { platform: env.platform, sep, dir, projectId };`,
+const tmp = env.tempDirectory;
+return { platform: env.platform, sep, dir, tmp, projectId };`,
 });
 
 export const createProjectScript = (): ScriptCall => ({
@@ -37,7 +38,7 @@ return { size: st ? st.size : 0 };`,
 // Up to `count` chunks from `offset`, base64 each.
 export const readChunksScript = (path: string, offset: number, count: number): ScriptCall => ({
   summary: "Read a downloaded file",
-  script: `const out = [];
+  script: `const out: string[] = [];
 let offset = ${J(offset)};
 for (let i = 0; i < ${J(count)}; i++) {
   const r = await selects.files.readRange({ path: ${J(path)}, offset, length: ${READ_CHUNK} });
@@ -71,7 +72,7 @@ export const ffmpegScript = (summary: string, args: string[]): ScriptCall => ({
 export const mediaJobScript = (jobId: string, cursor: number): ScriptCall => ({
   summary: "Check a media job",
   script: `const s = await selects.media.job(${J(jobId)}).status({ cursor: ${J(cursor)} });
-return { state: s.state, events: (s.events || []).map((e) => ({ cursor: e.cursor, text: String(e.text || "").slice(-400) })), truncated: !!s.truncated };`,
+return { state: s.state, events: (s.events || []).map((e: any) => ({ cursor: e.cursor, text: String(e.text || "").slice(-400) })), truncated: !!s.truncated };`,
 });
 
 export const existsScript = (path: string): ScriptCall => ({
@@ -118,7 +119,7 @@ export const narrationStatusScript = (workflowId: string): ScriptCall => ({
   script: `const j = selects.narration.job(${J(workflowId)});
 const s = await j.status();
 const r = await j.result();
-return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null, resourceId: s.resourceId || null }, result: r };`,
+return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null, resourceId: (s as any).resourceId || null }, result: r };`,
 });
 
 export const resumeImportScript = (workflowId: string): ScriptCall => ({
@@ -131,8 +132,8 @@ export const resumeImportScript = (workflowId: string): ScriptCall => ({
 export const alignmentScript = (projectId: string, resourceId: string): ScriptCall => ({
   summary: "Read the narration timing",
   script: `const h = selects.project(${J(projectId)}).resource(${J(resourceId)});
-const chars = [];
-let cursor;
+const chars: any[] = [];
+let cursor: string | undefined;
 for (let i = 0; i < 100; i++) {
   const a = await h.speechAlignment({ cursor, limit: 1000 });
   if (!a) return null;
