@@ -126,6 +126,7 @@ test('plannerPrompt adds a revision block only when feedback and previous plan a
   const prev = {assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card'}]};
   const text = P.plannerPrompt({...base, feedback: 'make scene 1 a photo', previous: prev});
   assert.ok(text.includes('REVISION') && text.includes('make scene 1 a photo') && text.includes('"type":"text_card"'));
+  assert.ok(text.includes('Never move an asset'));
   assert.ok(text.indexOf('REVISION') < text.indexOf('RULES'));
 });
 
@@ -140,4 +141,50 @@ test('an asset used in a third scene only produces a warning', () => {
   const two = P.validatePlan({...plan, scenes: plan.scenes.slice(0, 2)}, sents.slice(0, 2), assets);
   assert.ok(!two.warnings.some((w) => w.includes('is used in')));
   assert.ok(P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets}).includes('at most 2 times'));
+});
+
+test('a single value goes to highlight_card; number_callout needs from and to again', () => {
+  const sents = [{id: 's1', text: '3,592 done.', startSec: 0, endSec: 6}];
+  const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: type === 'number_callout', disclaimer: false}]});
+  assert.equal(P.validatePlan(mk('highlight_card', {title: 'cash', value: '3,592', unit: 'x'}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk('highlight_card', {title: 'cash', value: 'many'}), sents, []).ok);
+  assert.ok(!P.validatePlan(mk('highlight_card', {title: 'cash', value: 9999}), sents, []).ok);
+  assert.ok(!P.validatePlan(mk('number_callout', {title: 't', label: 'cash', to: 3592}), sents, []).ok);
+});
+
+test('heritage scene types validate and allow one hero only', () => {
+  const sents = [{id: 's1', text: '46 of 105, 43.8 percent.', startSec: 0, endSec: 6}];
+  const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});
+  const donut = (tones) => mk('donut_ratio', {title: 'old', slices: [{label: 'a', value: 46, tone: tones[0]}, {label: 'b', value: 105, tone: tones[1]}]});
+  assert.equal(P.validatePlan(donut(['accent', 'grey']), sents, []).ok, true);
+  assert.ok(P.validatePlan(donut(['accent', 'accent']), sents, []).errors.some((e) => e.includes('exactly one slice')));
+  assert.equal(P.validatePlan(mk('verdict_card', {title: 'target', cards: [{text: 'a [b]', tone: 'accent'}, {text: 'c', tone: 'contrast'}]}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk('verdict_card', {title: 'target', cards: [{text: 'a', tone: 'red'}]}), sents, []).ok);
+  assert.equal(P.validatePlan(mk('flow_cause_effect', {title: 't', cause: {word: 'a'}, effect: {word: 'b'}}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk('flow_cause_effect', {title: 't', cause: {word: 'a'}}), sents, []).ok);
+  const mixed = P.validatePlan(mk('text_card', {text: 'only [a] and {b c}'}), sents, []);
+  assert.equal(mixed.ok, true);
+  assert.ok(!mixed.warnings.some((w) => w.includes('emphasis')));
+  const many = P.validatePlan(mk('text_card', {text: '{a} {b} [c] [d] [e]'}), sents, []);
+  assert.equal(many.ok, true);
+  assert.ok(many.warnings.some((w) => w.includes('emphasis marks')));
+  const long = P.validatePlan(mk('text_card', {text: 't', title: 'x'.repeat(P.TITLE_MAX_CHARS + 1)}), sents, []);
+  assert.ok(long.warnings.some((w) => w.includes('title')));
+  const bars = mk('bar_compare_h', {title: 't', source: 's', unit: 'u', bars: [{label: 'a', value: 46, tone: 'accent'}, {label: 'b', value: 105, tone: 'accent'}]});
+  assert.ok(P.validatePlan(bars, sents, []).errors.some((e) => e.includes('only one bar')));
+});
+
+test('planner prompt lists the heritage types and the no-calculation rule', () => {
+  const t = P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x', startSec: 0, endSec: 3}], assets: []});
+  for (const type of ['highlight_card', 'donut_ratio', 'verdict_card', 'flow_cause_effect']) assert.ok(t.includes(type));
+  assert.ok(t.includes('calculated') && t.includes('order the narration says'));
+});
+
+test('number_callout must not carry an assetRef', () => {
+  const sents = [{id: 's1', text: '6.0 to 7.0', startSec: 0, endSec: 6}];
+  const assets = [{ref: 'photo-1', kind: 'photo'}];
+  const plan = {assetSummaries: [{ref: 'photo-1', summary: 'x'}], scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {title: 't', label: 'l', from: 6.0, to: 7.0}, hideCaption: true, disclaimer: false, assetRef: 'photo-1'}]};
+  assert.ok(P.validatePlan(plan, sents, assets).errors.some((e) => e.includes('must not carry an assetRef')));
+  delete plan.scenes[0].assetRef;
+  assert.equal(P.validatePlan(plan, sents, assets).ok, true);
 });
