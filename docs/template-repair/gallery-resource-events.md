@@ -39,3 +39,25 @@ Local reproduction scripts and before/after logs are retained under
 `C-08-live-events.json`. Preview/export acceptance of a Gallery composition is
 separate from this media-list repair. Existing Gallery border-quality findings
 are not closed by an inventory refresh.
+
+## Installed asset closure repair
+
+The real installed-panel check found `retainUnconfirmedAssetFiles` undefined.
+The canonical shared helper existed, but Gallery's generator omitted it from
+the list of browser-side asset functions. Both callers were included. Existing
+interaction tests injected the entire shared asset source, hiding that omission.
+
+The generator now includes the existing helper and regenerates the two shipped
+outputs. Shared implementation and SDK/app code are unchanged. Two regressions
+execute only the packaged `PANEL_ASSET_SOURCE`: a host job with an unknown exit
+preserves its original error as the cause and retains the reserved workspace
+paths without deleting them or touching unrelated files. Both fail before the
+generator repair and pass afterward. The actual installed PanelHost check is a
+separate runtime checkpoint.
+
+All 207 scoped Gallery checks pass. Running the actual app's `panel-check.ts`
+worker with its bundled TypeScript libraries reports the two undefined names
+before this repair and no undefined names afterward; no SDK/UI call is made by
+that static check. Logs: `C-08-asset-closure-red.log`,
+`C-08-asset-closure-package.log`, and `C-08-actual-panel-check.json` in the same
+local evidence directory.
