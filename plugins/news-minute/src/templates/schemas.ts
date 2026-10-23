@@ -97,6 +97,7 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "label", label: "Label", type: "text", defaultValue: "" },
     { key: "unit", label: "Unit", type: "text", defaultValue: "" },
     { key: "dim", label: "Photo dim", type: "number", defaultValue: 0.45, min: 0, max: 0.9, step: 0.05 },
+    { key: "background", label: "Background (no photo)", type: "color", defaultValue: "#2B3D34" },
     { key: "revealSec", label: "New value delay (s)", type: "number", defaultValue: 0.75, min: 0, max: 5, step: 0.05 },
     { key: "boxColor", label: "Box", type: "color", defaultValue: "#FFD700" },
   ],
