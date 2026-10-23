@@ -1,19 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
-import { webcrypto } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createRequire, stripTypeScriptTypes } from 'node:module';
+import { createRequire } from 'node:module';
+import {loadPanelModule} from './panel_module_fixture.mjs';
 import {fingerprintTemplateFile} from '../shared/file-observation.js';
 
 const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8');
 function load(React = {}, clientSource = source) {
-  const plain = stripTypeScriptTypes(clientSource.replace(/^import React from "react";\n/, '').replace(/^import \{fingerprintTemplateFile\} from ['"]\.\/file-observation\.js['"];\n/m, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
-  const context = vm.createContext({React, fingerprintTemplateFile, console, crypto:webcrypto, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
-  vm.runInContext(plain + '\nthis.api={createPanelLocalClient,panelLocalClient,withPanelLocalClient};', context);
-  return context.api;
+  return loadPanelModule(clientSource, {names:['createPanelLocalClient','panelLocalClient','withPanelLocalClient'], React,
+    modules:{'./file-observation.js':{fingerprintTemplateFile}}});
 }
 function host({platform='darwin', clipRead=false, onStart}={}) {
   const files = new Map(), calls=[], jobs=new Map(), fileCalls=[];
@@ -72,37 +69,40 @@ for (const directory of [process.cwd(), process.env.SELECTS_DEV_REPO,
   catch { /* Try the next local installation. */ }
 }
 
-test('shared, Card News Maker, a16z and both photo consumers pass the host SDK TypeScript check', {
+let scriptsFromConsumers;
+function consumerScripts() {
+  return scriptsFromConsumers ||= (async () => {
+    const scripts = [];
+    const panels = ['card-news-maker','a16z-style-captions','no14-still-video','camera-shutter-dump']
+      .map(id => fs.readFileSync(id === 'a16z-style-captions' && process.env.A16Z_STYLE_CAPTIONS_PANEL ||
+        new URL('../plugins/'+id+'/panel.tsx', import.meta.url), 'utf8'));
+    for (const clientSource of [source, ...panels]) {
+      for (const platform of ['darwin','win32']) {
+        const h = host({platform}), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
+        const file = platform === 'win32' ? 'C:\\tmp\\\uD55C\uAE00 "quoted".bin' : '/tmp/\uD55C\uAE00 "quoted".bin';
+        await client.files.writeFile(file, new Uint8Array(100000));
+        assert.deepEqual(await client.files.readFile(file), new Uint8Array(100000));
+        await client.files.writeFile(file, '', 'utf8');
+        await client.files.writeFile('/lease', 'owner', {flag:'wx'});
+        await client.files.writeFile('/lease', '\nnext', {flag:'a'});
+        assert.equal(await client.files.readFile('/lease', 'utf8'), 'owner\nnext');
+        scripts.push(...h.calls.map(call => call.script));
+        client.dispose();
+      }
+    }
+    return scripts;
+  })();
+}
+// This behavior check must run even when optional installed-app typings are absent.
+test('complete shared and four consumer modules round-trip bounded binary/text files on macOS and Windows', async () => {
+  assert.ok((await consumerScripts()).length > 0);
+});
+test('all consumer scripts pass the installed host SDK TypeScript check', {
   skip: !typescript || !sdkTypes ? 'requires local TypeScript and Selects SDK declarations' : false,
 }, async () => {
-  const panel = fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx', import.meta.url), 'utf8');
-  const embedded = panel.split('// local-sdk:start\n')[1].split('// local-sdk:end')[0]
-    .replace(/^export default withPanelLocalClient\(\w+\);\s*$/m, '');
-  const a16zPanel = fs.readFileSync(process.env.A16Z_STYLE_CAPTIONS_PANEL ||
-    new URL('../plugins/a16z-style-captions/panel.tsx', import.meta.url), 'utf8');
-  // esbuild can split one module around an imported dependency. Keep every
-  // emitted local-client section, rather than only the first banner's chunk.
-  const clientMarker = '// shared/local-client.ts\n';
-  const clientStart = a16zPanel.indexOf(clientMarker);
-  const clientEnd = a16zPanel.indexOf('// plugins/a16z-style-captions/', clientStart);
-  assert.ok(clientStart >= 0 && clientEnd > clientStart, 'complete bundled local client exists');
-  const a16zClient = a16zPanel.slice(clientStart + clientMarker.length, clientEnd);
   const directory = fs.mkdtempSync(path.join(tmpdir(), 'local-client-types-'));
   try {
-    const scripts = [];
-    const photoClients=['no14-still-video','camera-shutter-dump'].map(id=>fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8')
-      .split('// local-sdk:start\n')[1].split('// local-sdk:end')[0].replace(/^export default withPanelLocalClient\(\w+\);\s*$/m,''));
-    for (const clientSource of [source, embedded, a16zClient,...photoClients]) {
-      const h = host(), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
-      const file = '/tmp/\ud55c\uae00 "quoted"\\file.bin';
-      await client.files.writeFile(file, new Uint8Array(100000));
-      assert.deepEqual(await client.files.readFile(file), new Uint8Array(100000));
-      await client.files.writeFile(file, '', 'utf8');
-      await client.files.writeFile('/lease', 'owner', {flag:'wx'});
-      await client.files.writeFile('/lease', '\nnext', {flag:'a'});
-      assert.equal(await client.files.readFile('/lease', 'utf8'), 'owner\nnext');
-      scripts.push(...h.calls.map(call => call.script));
-    }
+    const scripts = await consumerScripts();
     const file = path.join(directory, 'scripts.ts');
     fs.writeFileSync(file, 'declare const selects: {files: LocalFilesService};\n' +
       scripts.map((script, index) => `async function run${index}() { ${script} }`).join('\n'));

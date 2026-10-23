@@ -198,7 +198,8 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.2.19')
+        # Version syntax is checked centrally by tools/plugin_files.py; a release bump does not alter this contract.
+        self.assertEqual(manifest['id'], 'chris-williamson-style')
         self.assertIn('Shared YuNet', manifest['compatibility']['selects'])
         self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 

@@ -24,6 +24,8 @@ jobs:
           printf 'SELECTS_TSC=%s/shortform-test/node_modules/typescript/bin/tsc\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'MV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'AV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Test complete panel module fixtures
+        run: node --test tests/panel_module_fixture.test.mjs
       - name: Test SDK-free template observation and saved-result compatibility
         run: |
           SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node tools/build_file_observation.mjs --check

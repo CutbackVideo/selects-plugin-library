@@ -25,6 +25,7 @@ class JudeWindowsTest(unittest.TestCase):
             self.assertIn(value,self.text)
     def test_installed_package_has_no_private_inference_runtime(self):
         manifest=json.loads((ROOT/'plugins/jude-kinetic-style/plugin.json').read_text())
-        self.assertEqual(manifest['version'],'0.4.12')
+        # Version syntax is checked centrally by tools/plugin_files.py; a release bump does not alter this contract.
+        self.assertEqual(manifest['id'],'jude-kinetic-style')
         self.assertEqual(manifest['compatibility']['platforms'],['macOS arm64','Windows x64'])
         for old in ['engine.mjs','runtime.sh','vision-helper.js']:self.assertNotIn(old,manifest['files'])
