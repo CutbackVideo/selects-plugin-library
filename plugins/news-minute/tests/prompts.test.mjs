@@ -128,3 +128,16 @@ test('plannerPrompt adds a revision block only when feedback and previous plan a
   assert.ok(text.includes('REVISION') && text.includes('make scene 1 a photo') && text.includes('"type":"text_card"'));
   assert.ok(text.indexOf('REVISION') < text.indexOf('RULES'));
 });
+
+test('an asset used in a third scene only produces a warning', () => {
+  const sents = [1, 2, 3].map((n) => ({id: 's' + n, text: 'x', startSec: n * 3, endSec: n * 3 + 3}));
+  const assets = [{ref: 'photo-1', kind: 'photo'}];
+  const sc = (id) => ({sentenceIds: [id], type: 'news_photo', params: {}, hideCaption: false, disclaimer: false, assetRef: 'photo-1'});
+  const plan = {assetSummaries: [{ref: 'photo-1', summary: 'a graph'}], scenes: [sc('s1'), sc('s2'), sc('s3')]};
+  const v = P.validatePlan(plan, sents, assets);
+  assert.equal(v.ok, true);
+  assert.ok(v.warnings.some((w) => w.includes('photo-1 is used in 3 scenes')));
+  const two = P.validatePlan({...plan, scenes: plan.scenes.slice(0, 2)}, sents.slice(0, 2), assets);
+  assert.ok(!two.warnings.some((w) => w.includes('is used in')));
+  assert.ok(P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets}).includes('at most 2 times'));
+});

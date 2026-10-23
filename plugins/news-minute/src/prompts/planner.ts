@@ -1,5 +1,5 @@
 import { JSON_ONLY } from "./script.ts";
-import { DATA_SCENE_TYPES, SCENE_MAX_SEC } from "./validate.ts";
+import { DATA_SCENE_TYPES, MAX_ASSET_USES, SCENE_MAX_SEC } from "./validate.ts";
 import type { PlanAsset, TimedSentence } from "./types.ts";
 
 const CATALOG = `SCENE TYPES (pick one per scene; v1 subset)
@@ -65,7 +65,7 @@ export function plannerPrompt(input: {
     `- No scene may last more than ${SCENE_MAX_SEC.default} s, except data scenes (${DATA_SCENE_TYPES.join(", ")}), which may last up to ${SCENE_MAX_SEC.data} s (end of its last sentence minus start of its first). Merge short sentences, never stretch a long one.`,
     "- The first scene uses the strongest visual: a photo of the main subject, or the headline-number chart when the story is data-driven. The last one or two sentences are usually a photo of an official or a quote_card.",
     "- Use a data scene (number_callout, bar_compare_h, line_trend_callout, stat_cards) only when the scene's own sentences contain the numbers it shows. Every number in params must be copied from the narration of that same scene, as a JSON number or the exact wording. Never compute, round, or invent values.",
-    "- Use each article photo at least once when there are enough scenes; a photo may be reused in non-adjacent scenes. Choose the photo whose caption best matches the sentence.",
+    `- Use each article photo at least once when there are enough scenes; an asset may be reused in non-adjacent scenes but at most ${MAX_ASSET_USES} times in total: give any further scene a text_card or a data scene instead. Choose the photo whose caption best matches the sentence.`,
     "- A photo of a named person (check the caption) may only be used on sentences that are about that person: where the sentence names them or states their own words or actions. Never put it on a sentence about someone else or about a group, even if it is the only photo. Reusing the same person photo is fine only when each sentence is about that person; otherwise use a text_card or a number_callout instead.",
     '- Assets of kind "illustration" are generated images. Use them only for sentences that no article photo fits and only after every photo has been used. A scene that shows an illustration must set disclaimer=true. All other scenes set disclaimer=false.',
     "- When a scene's sentences state two comparable numbers (for example this year vs last year), prefer bar_compare_h over text_card; when they state 2-4 parallel items with numbers, prefer stat_cards. Fill every field from the narration only.",
