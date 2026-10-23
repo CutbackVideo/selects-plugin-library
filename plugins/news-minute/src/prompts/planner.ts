@@ -1,9 +1,9 @@
 import { JSON_ONLY } from "./script.ts";
-import { DATA_SCENE_TYPES, MAX_ASSET_USES, SCENE_MAX_SEC, SUBTITLE_MAX_CHARS, TITLE_MAX_CHARS } from "./validate.ts";
+import { DATA_SCENE_TYPES, MAX_ASSET_USES, EMPHASIS_MAX, SCENE_MAX_SEC, SUBTITLE_MAX_CHARS, TITLE_MAX_CHARS } from "./validate.ts";
 import type { PlanAsset, TimedSentence } from "./types.ts";
 
 const CATALOG = `SCENE TYPES (pick one per scene)
-Every scene except news_photo and quote_card has params.title (the scene title, one line, at most ${TITLE_MAX_CHARS} characters) and an optional params.subtitle (one line, at most ${SUBTITLE_MAX_CHARS} characters). Emphasis markup in any displayed sentence: [word] = accent colour, {phrase} = accent colour plus highlighter. Use at most ONE emphasis mark in the whole scene.
+Every scene except news_photo and quote_card has params.title (the scene title, one line, at most ${TITLE_MAX_CHARS} characters) and an optional params.subtitle (one line, at most ${SUBTITLE_MAX_CHARS} characters). Emphasis markup in any displayed sentence: [word] = accent colour, {phrase} = accent colour plus highlighter. Per scene use at most ${EMPHASIS_MAX.highlights} {phrase} and at most ${EMPHASIS_MAX.accentWords} [word] marks (for example "only [14 months] and {passed}").
 1. news_photo  - a real article photo or graphic (assetRef required). params: {} plus optional "focus": "center|top|bottom|left|right" and "fit": "cover|contain" (contain for graphs and charts). Slow zoom is automatic. 4-8 s.
 2. text_card   - a key sentence on a plain card; the fallback when no photo or number fits. params: {"text": short key sentence (max ~20 chars per line, \\n allowed, emphasis markup allowed), "title": optional, "sub": optional smaller line, never a source or credit}. No assetRef.
 3. highlight_card - ONE big value (an amount, a rate, a count). params: {"title","subtitle":optional,"value": number or text with a digit copied from the article,"unit":optional,"source":optional}. The value counts up. Use this, not number_callout, whenever the narration gives a single value. 5-7 s.
@@ -78,7 +78,7 @@ export function plannerPrompt(input: {
     "- hideCaption is true only for number_callout, false otherwise.",
     "- When the scene's narration states exactly one notable value, use highlight_card. Never show a multiple, ratio or percentage that you calculated from article numbers (such as '11.5 times' or 'double'); show it only when the narration itself says it.",
     "- Inside a scene, list labels, values, bars, rows and points in the order the narration says them.",
-    "- Only one hero per scene: one accent bar, slice, card or emphasis mark. Everything else stays neutral.",
+    "- Only one hero per scene: one accent bar, slice or card. Everything else stays neutral.",
     "- Scene titles are short noun phrases that name what the scene shows (not a full sentence), written in the output language.",
     "- sentenceIds must use the ids above. assetRef must be one of the refs above or omitted.",
     "",

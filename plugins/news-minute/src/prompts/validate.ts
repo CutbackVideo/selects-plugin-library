@@ -167,7 +167,9 @@ const VERDICT_TONES = new Set(["accent", "contrast"]);
 export const TITLE_MAX_CHARS = 18;
 export const SUBTITLE_MAX_CHARS = 30;
 // [word] = accent colour, {phrase} = accent colour + highlighter. One hero emphasis per scene.
-const EMPHASIS_RE = /\[[^\]]+\]|\{[^}]+\}/g;
+const ACCENT_WORD_RE = /\[[^\]]+\]/g;
+const HIGHLIGHT_RE = /\{[^}]+\}/g;
+export const EMPHASIS_MAX = { accentWords: 2, highlights: 1 };
 const FOCUS = new Set(["center", "top", "bottom", "left", "right"]);
 const isStr = (x: any) => typeof x === "string" && x.trim().length > 0;
 const isNum = (x: any) => typeof x === "number" && Number.isFinite(x);
@@ -266,12 +268,11 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
 }
 
 // Counts [ ] and { } emphasis marks in every string of a scene's params (the source line is not styled text).
-function countEmphasis(v: any, key = ""): number {
-  if (key === "source") return 0;
-  if (typeof v === "string") return (v.match(EMPHASIS_RE) ?? []).length;
-  if (Array.isArray(v)) return v.reduce((n, x) => n + countEmphasis(x), 0);
-  if (isObj(v)) return Object.entries(v).reduce((n, [k, x]) => n + countEmphasis(x, k), 0);
-  return 0;
+function countEmphasis(v: any, key = ""): { accentWords: number; highlights: number } {
+  if (key === "source") return { accentWords: 0, highlights: 0 };
+  if (typeof v === "string") return { accentWords: (v.match(ACCENT_WORD_RE) ?? []).length, highlights: (v.match(HIGHLIGHT_RE) ?? []).length };
+  const kids = Array.isArray(v) ? v.map((x) => countEmphasis(x)) : isObj(v) ? Object.entries(v).map(([k, x]) => countEmphasis(x, k)) : [];
+  return kids.reduce((a, b) => ({ accentWords: a.accentWords + b.accentWords, highlights: a.highlights + b.highlights }), { accentWords: 0, highlights: 0 });
 }
 
 // Longest allowed scene, in seconds. Data scenes carry charts that need more time to read.
@@ -354,7 +355,9 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
       if (isStr(title) && title.trim().length > TITLE_MAX_CHARS) warnings.push(`${where}: title "${title}" is over ${TITLE_MAX_CHARS} characters and will not fit one line`);
       if (isStr(subtitle) && subtitle.trim().length > SUBTITLE_MAX_CHARS) warnings.push(`${where}: subtitle is over ${SUBTITLE_MAX_CHARS} characters and will not fit one line`);
       const marks = countEmphasis(sc.params);
-      if (marks > 1) errors.push(`${where}: ${marks} emphasis marks ([ ] or { }); only one hero emphasis per scene`);
+      if (marks.accentWords > EMPHASIS_MAX.accentWords || marks.highlights > EMPHASIS_MAX.highlights) {
+        warnings.push(`${where}: ${marks.accentWords} [ ] and ${marks.highlights} { } emphasis marks; keep at most ${EMPHASIS_MAX.accentWords} [ ] and ${EMPHASIS_MAX.highlights} { } per scene`);
+      }
     }
     if (sc.type === "text_card" && isStr(sc.params?.sub) && SOURCE_LIKE_SUB.test(sc.params.sub)) {
       warnings.push(`${where}: text_card sub "${sc.params.sub}" looks like a source; sources belong in "source" of a data scene, not on a text card`);

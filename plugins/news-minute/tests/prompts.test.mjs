@@ -162,9 +162,12 @@ test('heritage scene types validate and allow one hero only', () => {
   assert.ok(!P.validatePlan(mk('verdict_card', {title: 'target', cards: [{text: 'a', tone: 'red'}]}), sents, []).ok);
   assert.equal(P.validatePlan(mk('flow_cause_effect', {title: 't', cause: {word: 'a'}, effect: {word: 'b'}}), sents, []).ok, true);
   assert.ok(!P.validatePlan(mk('flow_cause_effect', {title: 't', cause: {word: 'a'}}), sents, []).ok);
-  const two = P.validatePlan(mk('text_card', {text: '[a] and {b c}'}), sents, []);
-  assert.ok(two.errors.some((e) => e.includes('only one hero emphasis')));
-  assert.equal(P.validatePlan(mk('text_card', {text: '{b c} only'}), sents, []).ok, true);
+  const mixed = P.validatePlan(mk('text_card', {text: 'only [a] and {b c}'}), sents, []);
+  assert.equal(mixed.ok, true);
+  assert.ok(!mixed.warnings.some((w) => w.includes('emphasis')));
+  const many = P.validatePlan(mk('text_card', {text: '{a} {b} [c] [d] [e]'}), sents, []);
+  assert.equal(many.ok, true);
+  assert.ok(many.warnings.some((w) => w.includes('emphasis marks')));
   const long = P.validatePlan(mk('text_card', {text: 't', title: 'x'.repeat(P.TITLE_MAX_CHARS + 1)}), sents, []);
   assert.ok(long.warnings.some((w) => w.includes('title')));
   const bars = mk('bar_compare_h', {title: 't', source: 's', unit: 'u', bars: [{label: 'a', value: 46, tone: 'accent'}, {label: 'b', value: 105, tone: 'accent'}]});
