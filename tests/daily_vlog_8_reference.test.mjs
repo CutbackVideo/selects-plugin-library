@@ -63,7 +63,10 @@ test('at 25 fps the default build is the reference timeline, frame for frame', a
   assert.deepEqual(b.main.map((c) => [byClip.get(c.clipId)?.scale ?? 1, byClip.get(c.clipId)?.x ?? 0]), REF.main.map((c) => [c.scale, c.x]));
   assert.ok(REF.main.every((c) => c.effects.length === 0 && c.opacity === 100), 'the reference has no clip effects to add');
   assert.deepEqual(b.transitions, REF.transitions);
-  assert.deepEqual(b.graphics, REF.motionGraphics);
+  // Typography is now canvas-relative; this fixture still pins every reference value/placement.
+  // The dedicated typography test compares the full rendered1920×1080 style tree to the old programs.
+  const withoutProgramHash = ({codeHash, ...graphic}) => graphic;
+  assert.deepEqual(b.graphics.map(withoutProgramHash), REF.motionGraphics.map(withoutProgramHash));
   assert.deepEqual(REF.overlayVideo, REF.motionGraphics.map((m) => [m.start, m.end]), 'the overlay video track is the motion graphics');
   // Music: Relaxed Urban Bed from 36.04 s over the whole video, on its own track.
   const music = b.audio.find((c) => c.name === 'relaxed-urban-bed.wav');
