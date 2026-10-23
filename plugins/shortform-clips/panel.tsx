@@ -1135,6 +1135,7 @@ function normalizeTemplateSettings(t: any) {
   return t;
 }
 function validateTemplate(t: any, runtime = false) {
+  packAssert(!t?.templateSummary, "Load template images before using or saving this template.");
   safeJson(t);
   normalizeTemplateSettings(t);
   validateCoverSettings(t?.thumbnail);
@@ -1529,6 +1530,7 @@ function independentTemplateDesigns(value: any) {
 const TEMPLATE_SHARE_MAX_BYTES = 256 * 1024 * 1024;
 const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","platformLayouts","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","variants","labels","thumbnail","music","editorial","landscape"];
 function portableTemplate(value: any) {
+  packAssert(!value?.templateSummary, "Load template images before exporting this template.");
   safeJson(value);
   value = normalizeTemplateSettings(clone(value));
   const template: any = {id: "shared-template"};
@@ -1814,6 +1816,21 @@ function makeTemplateRepository(storage:any) {
     }
     return validateTemplate(await hydrate(data,assets),true);
   }
+  async function snapshotData(id:string,provided?:any){
+    packAssert(/^[a-f0-9]{64}$/.test(id),'Invalid template snapshot reference.');
+    const row=pendingSnapshots.get(id)||(provided===undefined?await readRecord('template-snapshots',id):provided);
+    packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');
+    return row.data;
+  }
+  const metadata=(record:any)=>({id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0});
+  async function summary(record:any,row?:any){
+    const t=await snapshotData(record.working,row);
+    // Deliberately NOT an editable template: no image references or partial design sections escape.
+    packAssert(plainObject(t.names)&&typeof t.names.en==='string'&&Object.values(t.names).every(v=>typeof v==='string'),'Invalid template names.');
+    packAssert(t.name===undefined||typeof t.name==='string','Invalid template name.');
+    packAssert(plainObject(t.detect)&&typeof t.detect.host==='string'&&['keywords','exclude'].every(k=>Array.isArray(t.detect[k])&&t.detect[k].every((v:any)=>typeof v==='string')),'Invalid template detection rules.');
+    return {...metadata(record),templateSummary:true,snapshotId:record.working,name:t.name,names:clone(t.names),detect:clone(t.detect)};
+  }
   async function state(onLegacy?:()=>void){
     const existing=await readIndex();if(existing)return existing;
     onLegacy?.();
@@ -1851,8 +1868,40 @@ function makeTemplateRepository(storage:any) {
   }
   const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
   async function view(record:any,assets:Map<string,Promise<string>>,snapshots?:Map<string,any>){return {...await getSnapshot(record.working,assets,snapshots),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
+  const logTiming=(tag:string,started:number,before:any,timing:any)=>{
+    const data={route:storage.fs?.via||'other',...timing,totalMs:Date.now()-started},after=storage.fs?.readMetrics?.();
+    for(const key of ['scriptCalls','scriptMs','readBytes'])data[key]=before&&after?after[key]-before[key]:null;
+    console.info(tag,JSON.stringify(data));
+  };
   const api:any={
     fs:storage.fs,
+    async listTemplates(){
+      const started=Date.now(),before=storage.fs?.readMetrics?.();
+      const timing:any={legacy:false,templates:0,snapshots:0,assets:0,stateMs:0,snapshotsMs:0,status:'error'};
+      try{
+        const index=await state(()=>timing.legacy=true),records=index.records.filter((r:any)=>!r.removed);
+        timing.stateMs=Date.now()-started;
+        const phase=Date.now(),ids=[...new Set<string>(records.map((r:any)=>r.working))];
+        timing.templates=records.length;timing.snapshots=ids.length;
+        ids.forEach(id=>packAssert(/^[a-f0-9]{64}$/.test(id),'Invalid template snapshot reference.'));
+        const needed=ids.filter(id=>!pendingSnapshots.has(id)),rows=await readRecords('template-snapshots',needed);
+        const byId=new Map(needed.map((id,i)=>[id,rows[i]]));
+        const templates=await Promise.all(records.map((r:any)=>summary(r,byId.get(r.working))));
+        timing.snapshotsMs=Date.now()-phase;timing.status='ok';
+        return {templates,packs:index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)})),errors:[]};
+      }catch(e:any){return {templates:[],packs:[],errors:[e.message]};}
+      finally{logTiming('[shortform:template-list]',started,before,timing);}
+    },
+    async resolveTemplate(item:any){
+      const started=Date.now(),before=storage.fs?.readMetrics?.();let status='error';
+      try{
+        packAssert(item?.templateSummary,'Expected a template list entry.');
+        const index=await state(),record=index.records.find((r:any)=>r.id===item.id&&!r.removed);
+        packAssert(record,'This template is no longer available. Reload the template list.');
+        packAssert(record.working===item.snapshotId,'Template settings changed. Reload the template list.');
+        const template={...await getSnapshot(record.working),...metadata(record)};status='ok';return template;
+      }finally{logTiming('[shortform:template-selected]',started,before,{templates:1,status});}
+    },
     async load(){
       const started=Date.now(),before=storage.fs?.readMetrics?.();
       const timing:any={route:storage.fs?.via||'other',legacy:false,templates:0,snapshots:0,assets:0,stateMs:0,snapshotsMs:0,assetsMs:0,hydrateMs:0,status:'error'};
@@ -1901,7 +1950,8 @@ function makeTemplateRepository(storage:any) {
       }
     },
     put(kind:string,id:string,value:any){return serial(async()=>{
-      packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
+      packAssert(kind==='templates','Invalid template collection.');
+      packAssert(!value?.templateSummary,'Load template images before saving this template.');validateTemplate(cleanTemplate(value),true);
       const index=await mutableState(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
       if(at<0)index.records.push({id,baseline:hash,working:hash,source:{kind:'local'},history:[],removed:false});
       else index.records[at]={...index.records[at],working:hash,removed:false};
@@ -8271,12 +8321,41 @@ function TemplateEditorForm(props: any) {
   );
 }
 
+function useResolvedTemplate(repository:any,entry:any,enabled=true) {
+  const [result,setResult]=React.useState<any>(null),[attempt,setAttempt]=React.useState(0);
+  const lazy=!!entry?.templateSummary;
+  React.useEffect(()=>{
+    if(!enabled||!lazy)return;
+    let live=true;
+    setResult(null);
+    Promise.resolve().then(()=>repository.resolveTemplate(entry)).then(
+      template=>{if(live)setResult({repository,entry,template,error:''});},
+      error=>{if(live)setResult({repository,entry,template:null,error:String(error?.message||error)});});
+    return ()=>{live=false;};
+  },[repository,entry,enabled,attempt]);
+  // Check the entry object during render too: effects run AFTER a selection render.
+  const current=result?.repository===repository&&result?.entry===entry?result:null;
+  return {template:lazy?current?.template||null:entry,loading:!!(enabled&&lazy&&!current),error:lazy?current?.error||'':'',retry:()=>setAttempt(n=>n+1)};
+}
+function TemplateLoadFeedback({ui,lang,loading,error,onRetry}:any){
+  return <>{loading&&<PanelLoading compact label={lang==='ko'?'\uc774\ubbf8\uc9c0\ub97c \ubd88\ub7ec\uc624\ub294 \uc911…':'Loading template images…'}/>}
+    {error&&<ui.Message tone="error">{error}</ui.Message>}
+    {error&&<ui.Button variant="secondary" onClick={onRetry}>{lang==='ko'?'\ub2e4\uc2dc \uc2dc\ub3c4':'Retry'}</ui.Button>}</>;
+}
 function TemplateEditor(props: any) {
-  const current = props.templates.find((t: any) => t.id === props.state.selId) || props.templates[0];
+  const entry = props.templates.find((t: any) => t.id === props.state.selId) || props.templates[0];
+  const loaded=useResolvedTemplate(props.store,entry,props.active!==false);
+  if(props.active===false||!entry)return null;
+  if(!loaded.template)return <>
+    <TemplatePicker ui={props.ui} templates={props.templates} lang={props.lang} label={props.S.template} value={entry?.id||''}
+      onChange={props.state.setSelId} onAdd={props.onAddTemplates} addLabel={props.addTemplatesLabel} disabled={props.busy||props.packBusy}/>
+    <TemplateLoadFeedback ui={props.ui} lang={props.lang} {...loaded} onRetry={()=>props.onReload?void props.onReload():loaded.retry()}/>
+  </>;
+  const current=loaded.template;
   const profile = templateEditorProfile(current);
   // Reset transient form state when selecting a different template.
   // The parent still owns the working copy, so switching main tabs keeps edits.
-  return <TemplateEditorForm key={props.state.selId} {...props} profile={profile} />;
+  return <TemplateEditorForm key={current.id} {...props} templates={props.templates.map((t:any)=>t.id===current.id?current:t)} profile={profile} />;
 }
 
 function PanelLoading({label, compact = false}: {label: string; compact?: boolean}) {
@@ -9814,21 +9893,24 @@ if (P.editorialEvents) {
 // Optional host update contract. Old hosts and all unregistered apps stay unchanged.
 const MANUAL_TEXT:any = {"en": {"tab": "Edit manually", "target": "Current timeline", "noTarget": "Open an editable timeline first.", "template": "Template", "title1": "Title / first line", "title2": "Second title line", "credit": "Source credit", "sample": "Caption sample (first 3 seconds)", "sampleHint": "Optional editable sample", "note": "Apply across the current timeline. Footage, audio and cuts stay unchanged. Reapplying replaces graphics added here, including edits to those graphics. Existing graphics may overlap; adjust footage placement manually.", "unsaved": "Save or discard template changes first.", "resize": "Change canvas size? Existing footage placement may look different.", "confirm": "Change canvas and apply", "cancel": "Cancel", "make": "Apply template to current timeline", "creating": "Applying template", "ready": "Template applied. Continue editing on this timeline.", "failed": "Application could not be confirmed. Retry to replace these template graphics without duplicates.", "targetChanged": "The open timeline changed. Check the target and try again.", "empty": "Add footage or a gap to this timeline before applying a template."}, "ko": {"tab": "\uc9c1\uc811 \ud3b8\uc9d1", "target": "\ud604\uc7ac \ud0c0\uc784\ub77c\uc778", "noTarget": "\ud3b8\uc9d1\ud560 \ud0c0\uc784\ub77c\uc778\uc744 \uba3c\uc800 \uc5f4\uc5b4\uc8fc\uc138\uc694.", "template": "\ud15c\ud50c\ub9bf", "title1": "\uc81c\ubaa9 / \uccab \ubc88\uc9f8 \uc904", "title2": "\uc81c\ubaa9 \ub450 \ubc88\uc9f8 \uc904", "credit": "\uc601\uc0c1 \ucd9c\ucc98", "sample": "\uc0d8\ud50c \uc790\ub9c9 (\ucc98\uc74c 3\ucd08)", "sampleHint": "\ud544\uc694\ud558\uba74 \ud3b8\uc9d1\ud560 \uc0d8\ud50c \uc790\ub9c9\uc744 \uc785\ub825\ud558\uc138\uc694", "note": "\ud604\uc7ac \ud0c0\uc784\ub77c\uc778 \uc804\uccb4\uc5d0 \uc801\uc6a9\ud569\ub2c8\ub2e4. \uc601\uc0c1\u00b7\uc624\ub514\uc624\u00b7\ucef7\uc740 \uc720\uc9c0\ud569\ub2c8\ub2e4. \uc7ac\uc801\uc6a9\ud558\uba74 \uc5ec\uae30\uc11c \ub123\uc740 \uadf8\ub798\ud53d\uacfc \uadf8 \uc218\uc815\uc0ac\ud56d\uc744 \uad50\uccb4\ud569\ub2c8\ub2e4. \uae30\uc874 \uadf8\ub798\ud53d\uc774 \uacb9\uce58\uba74 \uc815\ub9ac\ud558\uace0 \uc601\uc0c1 \uc704\uce58\ub294 \uc9c1\uc811 \uc870\uc808\ud558\uc138\uc694.", "unsaved": "\ud15c\ud50c\ub9bf \ubcc0\uacbd\uc0ac\ud56d\uc744 \uba3c\uc800 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud574\uc8fc\uc138\uc694.", "resize": "\uce94\ubc84\uc2a4 \ud06c\uae30\ub97c \ubc14\uafc0\uae4c\uc694? \uae30\uc874 \uc601\uc0c1\uc758 \ubcf4\uc774\ub294 \ubc30\uce58\uac00 \ub2ec\ub77c\uc9c8 \uc218 \uc788\uc5b4\uc694.", "confirm": "\uce94\ubc84\uc2a4 \ubcc0\uacbd \ud6c4 \uc801\uc6a9", "cancel": "\ucde8\uc18c", "make": "\ud604\uc7ac \ud0c0\uc784\ub77c\uc778\uc5d0 \ud15c\ud50c\ub9bf \uc801\uc6a9", "creating": "\ud15c\ud50c\ub9bf \uc801\uc6a9 \uc911", "ready": "\ud15c\ud50c\ub9bf\uc744 \uc801\uc6a9\ud588\uc5b4\uc694. \uc774 \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \uacc4\uc18d \ud3b8\uc9d1\ud558\uc138\uc694.", "failed": "\uc801\uc6a9 \uc644\ub8cc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \uc7ac\uc2dc\ub3c4\ud558\uba74 \uc774 \uae30\ub2a5\uc758 \uadf8\ub798\ud53d\uc744 \uc911\ubcf5 \uc5c6\uc774 \uad50\uccb4\ud569\ub2c8\ub2e4.", "targetChanged": "\uc5f4\ub9b0 \ud0c0\uc784\ub77c\uc778\uc774 \ubc14\ub00c\uc5c8\uc5b4\uc694. \uc801\uc6a9 \ub300\uc0c1\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.", "empty": "\ud0c0\uc784\ub77c\uc778\uc5d0 \uc601\uc0c1\uc774\ub098 \ube48 \uad6c\uac04\uc744 \uba3c\uc800 \ub123\uc5b4\uc8fc\uc138\uc694."}};
 function manualTimelineParams(template:any,values:any,S:any) {
+ packAssert(!template?.templateSummary,'Load template images before applying this template.');
  const t=clone(template);
  if(t.landscape){t.landscape.title=values.title1;t.landscape.source=values.credit;}
  return {projectId:values.projectId,draftId:values.draftId,confirmSize:values.confirmSize,messages:values.messages,previousTrackIds:values.previousTrackIds||[],
   ...splitDate(radioFrameParams(t,values.title1,values.title2),S),editableFrame:radioEditableFrame(S),
   caption:t.captions.on?radioCaptionParams(t):null,editableCaption:editableCaption(S),sampleCaption:values.sampleCaption||''};
 }
-function ManualTimelinePanel({ui,lang,S,projectId,draftId,targetName,templates,loading,disabled,dirty,store,script,onBusy,onOpen}:any) {
+function ManualTimelinePanel({ui,lang,S,projectId,draftId,targetName,templates,loading,disabled,dirty,store,script,onBusy,onOpen,repository,active=true,onReload}:any) {
  const M=MANUAL_TEXT[lang]||MANUAL_TEXT.en;
  const [selected,setSelected]=React.useState(''),[title1,setTitle1]=React.useState(''),[title2,setTitle2]=React.useState(''),[credit,setCredit]=React.useState(''),[sampleCaption,setSampleCaption]=React.useState('');
  const [working,setWorking]=React.useState(false),[error,setError]=React.useState(''),[result,setResult]=React.useState<any>(null),[confirmation,setConfirmation]=React.useState<any>(null);
  const lock=React.useRef(false),mounted=React.useRef(true);
  React.useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  React.useEffect(()=>{setConfirmation(null);setResult(null);setError('');},[projectId,draftId,selected,title1,title2,credit,sampleCaption]);
- const template=templates.find((t:any)=>t.id===selected)||templates[0];
- const blocked=disabled||working||loading||dirty;
+ const entry=templates.find((t:any)=>t.id===selected)||templates[0];
+ const loaded=useResolvedTemplate(repository,entry,active);
+ const template=loaded.template;
+ const blocked=!active||disabled||working||loading||dirty||!template;
  async function apply(confirm=false){
   if(lock.current||blocked||!template||!draftId)return;
   lock.current=true;setWorking(true);onBusy(true);setError('');setResult(null);
@@ -9836,7 +9918,9 @@ function ManualTimelinePanel({ui,lang,S,projectId,draftId,targetName,templates,l
    const registryId=encodeURIComponent(projectId+'_'+draftId);
    const previous=await store.get('manual-template-tracks',registryId);
    const previousTrackIds=Array.isArray(previous?.trackIds)?previous.trackIds.filter((x:any)=>typeof x==='string'):[];
-   const params=manualTimelineParams(template,{previousTrackIds,projectId,draftId,title1,title2,credit,sampleCaption,messages:M,confirmSize:confirm?confirmation?.from:null},S);
+   // Revalidate at the write boundary; never apply a summary or a cached pre-update image.
+   const ready=entry?.templateSummary?await repository.resolveTemplate(entry):template;
+   const params=manualTimelineParams(ready,{previousTrackIds,projectId,draftId,title1,title2,credit,sampleCaption,messages:M,confirmSize:confirm?confirmation?.from:null},S);
    const path=store.fs&&store.root?store.join(store.root,'build-params','manual-apply-'+crypto.randomUUID()+'.json'):'';
    const code=await templateBuildScript(SCRIPT_MANUAL_BUILD,params,store,path);
    if(code.length>SCRIPT_LIMIT)throw Error(S.imagesTooLarge);
@@ -9852,10 +9936,11 @@ function ManualTimelinePanel({ui,lang,S,projectId,draftId,targetName,templates,l
  <ui.Stack gap={16}>
  <ui.Stack gap={8}>
   <ui.Message>{draftId?M.target+': '+(targetName||draftId):M.noTarget}</ui.Message>
-  <ui.Select label={M.template} value={template?.id||''} onChange={setSelected} options={templates.map((t:any)=>({value:t.id,label:nameOf(t,lang)}))} disabled={blocked}/>
+  <ui.Select label={M.template} value={entry?.id||''} onChange={setSelected} options={templates.map((t:any)=>({value:t.id,label:nameOf(t,lang)}))} disabled={disabled||working||loading||dirty}/>
+  <TemplateLoadFeedback ui={ui} lang={lang} {...loaded} onRetry={()=>onReload?void onReload():loaded.retry()}/>
   <ui.TextField label={M.title1} value={title1} onChange={setTitle1} disabled={blocked}/>
   {template?.landscape?<ui.TextField label={M.credit} value={credit} onChange={setCredit} disabled={blocked}/>:<ui.TextField label={M.title2} value={title2} onChange={setTitle2} disabled={blocked}/>}
-  {template?.captions.on&&<ui.TextField label={M.sample} value={sampleCaption} onChange={setSampleCaption} placeholder={M.sampleHint} disabled={blocked}/>}
+  {template?.captions?.on&&<ui.TextField label={M.sample} value={sampleCaption} onChange={setSampleCaption} placeholder={M.sampleHint} disabled={blocked}/>}
  </ui.Stack>
  <ui.Stack gap={8}>
   <ui.Message>{M.note}</ui.Message>
@@ -10081,7 +10166,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const loadTemplates = React.useCallback(async () => {
     const revision = ++templateLoadRevision.current;
     try {
-      const result = await repository.load();
+      const result = await repository.listTemplates();
       if (revision !== templateLoadRevision.current) return null;
       setTemplates(result.templates);
       setPacks(result.packs);
@@ -11440,7 +11525,8 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
     };
     try {
       const list = (await loadTemplates()) || templates;
-      const direct=list.find((t:any)=>t.id===(job.key||job.program)) || (job.program==='auto'&&list.length===1?list[0]:null);
+      const directEntry=list.find((t:any)=>t.id===(job.key||job.program)) || (job.program==='auto'&&list.length===1?list[0]:null);
+      const direct=directEntry?await guard(repository.resolveTemplate(directEntry)):null;
       if(job.mode==='project-all'&&direct?.editorial?.execution!=='layers')throw Error(S.wholeProjectTemplate);
       if(direct?.editorial?.execution==='layers') {
         if(!['project','project-all'].includes(job.mode)||(job.mode==='project'&&(job.sourceDraftId||resources.find((r:any)=>r.id===job.pick)?.kind==='draft')))throw Error('This scene executor requires an imported project episode with dialogue.');
@@ -11489,7 +11575,8 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
         await persist({ key, why });
         await mark("identified", {key});
       }
-      const baseTemplate = list.find((t: any) => t.id === job.key);
+      const chosen = list.find((t: any) => t.id === job.key);
+      const baseTemplate = direct?.id===job.key?direct:chosen?await guard(repository.resolveTemplate(chosen)):null;
       const tpl=baseTemplate?{...baseTemplate,layout:{...baseTemplate.layout,fixedLayout:job.fixedLayout||"auto",subjectInstructions:job.subjectInstructions||""}}:null;
       if (!tpl) throw new Error(S.templateGone);
       if(tpl.layout.fixedLayout!=='auto'){
@@ -11841,7 +11928,9 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
   const shownDrafts=shownResult?.built?.filter((d:any)=>d && !d.deleted) || [];
   const selectedClips=clipSelection.job===shownResult?.id?clipSelection.ids.filter(id=>shownDrafts.some((d:any)=>d.draftId===id)):[];
   const selectClip=(id:string,on:boolean)=>setClipSelection({job:shownResult?.id||"",ids:on?[...selectedClips.filter(x=>x!==id),id]:selectedClips.filter(x=>x!==id)});
-  const shownTemplate=templates.find(t=>t.id===shownResult?.key);
+  const shownEntry=templates.find(t=>t.id===shownResult?.key);
+  const shownLoaded=useResolvedTemplate(repository,shownEntry,tab==='results');
+  const shownTemplate=shownLoaded.template;
   const infoTpl = info ? templates.find((t) => t.id === info.key) : null;
   const resourceName = (id: string | null) => resources.find((r) => r.id === id)?.name || "";
   const templateName = (id: string) => {
@@ -12032,7 +12121,8 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
               </div>
             </div>}
         </div>}
-        <DraftResults onEditFraming={(d:any,index:number,shot:any)=>editResultFraming(shownResult,d,index,shot)} coverContext={{job:shownResult,config:coverSettings(shownTemplate||{thumbnail:shownResult.coverConfig}),lang,disabled:busy}} drafts={shownDrafts} busy={busy} onRetry={(id:string)=>run(shownResult,id)} selection={shownResult.sceneStudy?undefined:selectedClips} onSelect={shownResult.sceneStudy?undefined:selectClip} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
+        <TemplateLoadFeedback ui={ui} lang={lang} {...shownLoaded} onRetry={()=>void loadTemplates()}/>
+        <DraftResults onEditFraming={(d:any,index:number,shot:any)=>editResultFraming(shownResult,d,index,shot)} coverContext={{job:shownResult,config:coverSettings(shownTemplate||{thumbnail:shownResult.coverConfig}),lang,disabled:busy||!!shownEntry&&!shownTemplate}} drafts={shownDrafts} busy={busy} onRetry={(id:string)=>run(shownResult,id)} selection={shownResult.sceneStudy?undefined:selectedClips} onSelect={shownResult.sceneStudy?undefined:selectClip} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
           sdk={sdk} store={store} jobId={shownResult.id} projectId={projectId} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
           overlayControl={<ui.Stack gap={4}><ui.Toggle
             label={O.title}
@@ -12062,7 +12152,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
       onChange={setTab}
       tabs={[
         { value: "make", label: S.tabMake, content: make },
-        { value: "manual", label: (MANUAL_TEXT[lang]||MANUAL_TEXT.en).tab, content: projectId ? <ManualTimelinePanel key={projectId} ui={ui} lang={lang} S={S} projectId={projectId} draftId={visibleDraftId} targetName={overlayTarget?.name} templates={templates} loading={templatesLoading||overlayLoading} disabled={busy||packBusy||overlayBusy} dirty={templateDirty||templateSaving} store={store} script={scriptNow} onBusy={setBusy} onOpen={openDraft} onRefresh={loadResources}/> : <ui.Message>{S.noProject}</ui.Message> },
+        { value: "manual", label: (MANUAL_TEXT[lang]||MANUAL_TEXT.en).tab, content: projectId ? <ManualTimelinePanel key={projectId} repository={repository} active={tab==='manual'} onReload={loadTemplates} ui={ui} lang={lang} S={S} projectId={projectId} draftId={visibleDraftId} targetName={overlayTarget?.name} templates={templates} loading={templatesLoading||overlayLoading} disabled={busy||packBusy||overlayBusy} dirty={templateDirty||templateSaving} store={store} script={scriptNow} onBusy={setBusy} onOpen={openDraft} onRefresh={loadResources}/> : <ui.Message>{S.noProject}</ui.Message> },
         { value: "results", label: R.myClips, content: myClips },
         {
           value: "templates",
@@ -12107,6 +12197,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
               </div></div>
             </TemplatePackDialog>
             {templates.length > 0 && <TemplateEditor
+              active={tab==='templates'} onReload={loadTemplates}
               packBusy={packBusy}
               busy={busy}
               onExportTemplate={(selected:any)=>void transferTemplate("export",selected)}

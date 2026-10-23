@@ -53,6 +53,11 @@ test('template startup shares verified images and reduces Windows host calls',{s
   const sdk={runScript:async({script})=>{scripts.push(script);const code=esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code;return {result:await new Function('selects',code)(selects)};}};
   const filesApi=api.hostFiles(await api.sdkFiles(sdk)),disk=api.makeStore(filesApi),repo=api.makeTemplateRepository(disk);
   scripts.length=0;digests.length=0;
+  const list=await repo.listTemplates();assert.deepEqual(list.errors,[]);assert.equal(list.templates.length,12);
+  assert.equal(scripts.length,4,'index and all settings each use a metadata + read batch');
+  assert.equal(ranges.filter(p=>p.includes('template-assets')).length,0);assert.equal(imageDigests().length,0);
+  scripts.length=0;stats.length=0;ranges.length=0;digests.length=0;
+  const beforeLoad=filesApi.readMetrics();
   const result=await repo.load();assert.deepEqual(result.errors,[]);assert.equal(result.templates.length,12);
   t.diagnostic(`12 templates: ${scripts.length} host scripts, ${imageDigests().length} image verifications`);
   const expected=['template-library/index',...rows.keys()].filter((k,i,a)=>a.indexOf(k)===i).map(k=>root+'\\'+k.replaceAll('/','\\')+'.json');
@@ -62,8 +67,8 @@ test('template startup shares verified images and reduces Windows host calls',{s
   assert.equal(imageDigests().length,assets.length);
   // Index, all 12 settings, and the shared image each use one metadata + one read script.
   assert.equal(scripts.length,6);
-  const metrics=filesApi.readMetrics();assert.equal(metrics.scriptCalls,7,'includes the initial environment query');
-  assert.equal(metrics.readBytes,expected.reduce((n,p)=>n+files.get(p).length,0));
+  const metrics=filesApi.readMetrics();assert.equal(metrics.scriptCalls-beforeLoad.scriptCalls,6);
+  assert.equal(metrics.readBytes-beforeLoad.readBytes,expected.reduce((n,p)=>n+files.get(p).length,0));
   // Large records still respect the SDK's per-read and script response limits.
   const large={id:'large',data:'x'.repeat(340*1024)},largePath=root+'\\template-library\\large.json';
   files.set(largePath,Buffer.from(JSON.stringify(large)));stats.length=0;scripts.length=0;

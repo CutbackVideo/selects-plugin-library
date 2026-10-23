@@ -616,10 +616,18 @@ Reapplying remembers template-owned tracks per project and Draft. If their clips
 
 ## Diagnose template startup
 
-Each template-library load emits a `[shortform:template-load]` diagnostic with
-elapsed time for state/index loading, snapshot reads and verification, image reads
-and verification, and final hydration. It also reports template/snapshot/image
-counts, success or failure, and whether the legacy migration path was used.
+The app shows the template list after reading names and detection rules, without
+reading template images. Images are loaded and verified when needed for the
+selected editor, manual application, clip generation or result-cover settings.
+An image error leaves the picker usable and offers a retry. Saving, exporting
+and generation require a complete, validated template.
+
+Startup emits `[shortform:template-list]` with state and snapshot timings and
+counts; selected-image loads emit `[shortform:template-selected]`. The full-library
+compatibility loader emits `[shortform:template-load]` with additional image and
+hydration timings. Diagnostics report total elapsed time and success or failure;
+list/full loads also indicate whether legacy migration was needed. Legacy libraries
+still read their old embedded images during migration until a library index exists.
 On the SDK file route, it includes file-script count, bytes read and summed script
 time. Summed concurrent script time can exceed total elapsed time; counter deltas
 can include overlapping file work on the same adapter. Unsupported counters are
@@ -629,5 +637,6 @@ For a slow Windows opening, record these diagnostics for the first opening and a
 close/reopen using the same app version and installed template library. Compare
 `totalMs` and stage times, then `scriptCalls` and `readBytes`. Host call counts in
 Node-based SDK simulations are regression evidence, not measured Windows latency.
-The app still verifies every active template and its images before completing
-loading; no partial templates are exposed to editing or generation.
+The initial list contains no image data or editable design fields. Every selected
+template is verified before it reaches editing, export or generation. Switching
+selection ignores late results from the previous request.
