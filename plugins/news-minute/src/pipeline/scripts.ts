@@ -87,10 +87,11 @@ export function plateArgs(seconds: number, color: string, out: string): string[]
 }
 export const plateSeconds = (narrationSeconds: number) => Math.ceil((narrationSeconds + 0.5) * 2) / 2 + 0.1;
 
-// A photo scaled to fit 1600 px and saved as JPEG (data URLs live in Draft parameters, so keep them small).
-export function photoArgs(src: string, out: string): string[] {
-  return ["-y", "-i", src, "-frames:v", "1", "-vf", "scale='min(1600,iw)':-2", "-q:v", "4", out];
+// Scenes travel inside run_script (262,144-byte cap), so photos stay around 100 KB: 1080 px, then 720 px if needed.
+export function photoArgs(src: string, out: string, width = 1080, quality = 6): string[] {
+  return ["-y", "-i", src, "-frames:v", "1", "-vf", `scale='min(${width},iw)':-2`, "-q:v", String(quality), out];
 }
+export const PHOTO_MAX_B64 = 180_000;
 
 export const importScript = (projectId: string, paths: string[]): ScriptCall => ({
   summary: "Add media to the Project",

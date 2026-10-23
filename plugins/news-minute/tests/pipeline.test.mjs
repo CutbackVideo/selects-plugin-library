@@ -119,3 +119,14 @@ test("Arc article: text paragraphs and photos with captions", () => {
   assert.equal(a.photos.length, 2);
   assert.deepEqual(a.photos.map((p) => [p.ref, p.credit]), [["photo-1", "Yonhap"], ["photo-2", "Lab"]]);
 });
+
+test("scene scripts stay under the run_script size cap", async () => {
+  const { sceneScripts, SCRIPT_MAX_BYTES } = await import("../src/pipeline/assemble.ts");
+  const img = "data:image/jpeg;base64," + "A".repeat(170_000);
+  const scenes = Array.from({ length: 6 }, (_, i) => ({ type: "news_photo", label: "Photo " + i, params: { image: img }, startSec: i * 5, endSec: i * 5 + 5, disclaimer: false }));
+  const calls = sceneScripts("d", scenes);
+  assert.ok(calls.length >= 6);
+  for (const c of calls) assert.ok(new TextEncoder().encode(c.script).length <= SCRIPT_MAX_BYTES);
+  const huge = [{ ...scenes[0], params: { image: "data:," + "A".repeat(300_000) } }];
+  assert.throws(() => sceneScripts("d", huge), /too large/);
+});

@@ -11,7 +11,7 @@ export type PhotoAsset = { ref: string; dataUrl: string; credit: string };
 
 const MAX_SCENE_SEC = 10;
 
-// One scene per sentence (two short ones merged while under 6 s); article photos in turn, text cards between.
+// One scene per sentence (two short ones merged while under 6 s); each article photo once, text cards between.
 export function fallbackPlan(sentences: Sentence[], times: Span[], photoRefs: string[]): PlanScene[] {
   const groups: number[][] = [];
   for (let i = 0; i < sentences.length; i++) {
@@ -22,9 +22,10 @@ export function fallbackPlan(sentences: Sentence[], times: Span[], photoRefs: st
   }
   let photo = 0;
   return groups.map((g, k) => {
-    const usePhoto = photoRefs.length > 0 && (k % 2 === 0 || photo < photoRefs.length);
+    // Each photo once: a photo of one person must not illustrate sentences about someone else.
+    const usePhoto = photo < photoRefs.length && k % 2 === 0;
     if (usePhoto) {
-      const ref = photoRefs[photo % photoRefs.length];
+      const ref = photoRefs[photo];
       photo++;
       return { sentenceIds: g.map((i) => sentences[i].id), type: "news_photo", params: { motion: k % 2 ? "pull_out" : "push_in" }, hideCaption: false, disclaimer: false, assetRef: ref };
     }

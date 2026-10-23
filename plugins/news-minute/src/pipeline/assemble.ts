@@ -26,7 +26,9 @@ export type AssemblyInput = {
 };
 
 const J = (v: unknown) => JSON.stringify(v);
-export const SCENE_BATCH_BYTES = 1_500_000;
+// run_script rejects scripts over 262,144 bytes (Selects Staging 2.0.763), so scene batches stay well under it.
+export const SCRIPT_MAX_BYTES = 262_144;
+export const SCENE_BATCH_BYTES = 200_000;
 
 function tpl(type: string) {
   const t = (TEMPLATES as Record<string, { tsxCode: string; editableParameters: unknown[]; timeIndependent: boolean; label: string }>)[type];
@@ -82,7 +84,7 @@ export function sceneScripts(draftId: string, scenes: SceneClip[]): ScriptCall[]
     size += n;
   }
   if (cur.length) batches.push(cur);
-  return batches.map((batch, i) => {
+  const calls = batches.map((batch, i) => {
     const types = [...new Set(batch.map((s) => s.type))];
     const codes = Object.fromEntries(types.map((t) => [t, { tsx: tpl(t).tsxCode, edit: tpl(t).editableParameters, ti: tpl(t).timeIndependent }]));
     const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.params, a: s.startSec, b: s.endSec }));
@@ -97,6 +99,8 @@ await d.commitAll("News short: scenes");
 return { added: ${batch.length} };`,
     };
   });
+  for (const c of calls) if (new TextEncoder().encode(c.script).length > SCRIPT_MAX_BYTES) throw new Error("a scene is too large for one script (photo too big)");
+  return calls;
 }
 
 export function overlayTextScript(draftId: string, x: Pick<AssemblyInput, "headline" | "preset" | "scenes" | "captions">): ScriptCall {
