@@ -1,5 +1,22 @@
 // Presets: brand text and colours handed to the templates. Hangul is written as \uXXXX (public-source check).
 
+// Screen layout in 1080x1920 px. Scenes draw in the graphic window; one caption line sits under it. When the
+// band and background images exist in <plug-in data>/assets, the background becomes the Main plate and the
+// bands go on the Draft as an image clip over the scenes; otherwise the frame graphic and a colour plate stand in.
+export type Layout = {
+  windowTop: number;
+  windowHeight: number;
+  frameWindowBottom: number; // lower edge of the frame graphic's opening (the bands image's transparent rows)
+  captionBottom: number;
+  captionHeight: number;
+  captionMaxWidth: number;
+  captionWeight: number;
+  captionColor: string;
+  captionBox: string;
+  bandsImage?: string; // file name in <plug-in data>/assets, 1080x1920 PNG with a transparent middle
+  backgroundImage?: string; // file name in <plug-in data>/assets, opaque 1080x1920 PNG
+};
+
 export type Preset = {
   id: string;
   label: string;
@@ -11,6 +28,12 @@ export type Preset = {
   disclaimer: string;
   scriptLanguage: string; // prompt output language
   ttsLanguage: string; // narration language code
+  layout: Layout;
+};
+
+const DEFAULT_LAYOUT: Layout = {
+  windowTop: 480, windowHeight: 920, frameWindowBottom: 1400,
+  captionBottom: 1385, captionHeight: 70, captionMaxWidth: 980, captionWeight: 600, captionColor: "#FFFFFF", captionBox: "rgba(0,0,0,0.44)",
 };
 
 export const PRESETS: Record<string, Preset> = {
@@ -25,6 +48,13 @@ export const PRESETS: Record<string, Preset> = {
     disclaimer: "\u203B\uC704 \uC0AC\uC9C4\uC740 \uD574\uB2F9 \uBCF4\uB3C4\uC640 \uAD00\uB828 \uC5C6\uC2B5\uB2C8\uB2E4", // "this image is unrelated to the report"
     scriptLanguage: "Korean",
     ttsLanguage: "ko",
+    // The customer's heritage style sheet (2026-10-21): graphics in y 481-1290, one caption line in y 1310-1380
+    // (Pretendard Medium, about 720 px wide) on the ivory background, bands with the logo above and below.
+    layout: {
+      windowTop: 481, windowHeight: 809, frameWindowBottom: 1399,
+      captionBottom: 1380, captionHeight: 70, captionMaxWidth: 720, captionWeight: 500, captionColor: "#1E2422", captionBox: "transparent",
+      bandsImage: "t1m_bands.png", backgroundImage: "t1m_background.png",
+    },
   },
   generic: {
     id: "generic",
@@ -37,6 +67,7 @@ export const PRESETS: Record<string, Preset> = {
     disclaimer: "Illustration, not a photo of the event",
     scriptLanguage: "Korean",
     ttsLanguage: "ko",
+    layout: DEFAULT_LAYOUT,
   },
 };
 

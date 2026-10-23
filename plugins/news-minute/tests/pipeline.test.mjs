@@ -5,7 +5,7 @@ import fs from "node:fs";
 import { splitSentences, sentenceTimes, ratioTimes, captionChunks, captionTimes, sceneWindows, joinScript } from "../src/pipeline/timing.ts";
 import { ttsNext, applyStatus, ttsRevision, creditQuote, canResumeImport } from "../src/pipeline/tts.ts";
 import { extractArticle } from "../src/pipeline/article.ts";
-import { plateArgs, plateSeconds } from "../src/pipeline/scripts.ts";
+import { imagePlateArgs, plateArgs, plateSeconds } from "../src/pipeline/scripts.ts";
 
 const fx = JSON.parse(fs.readFileSync(new URL("./fixtures/alignment-sarah.json", import.meta.url), "utf8"));
 
@@ -107,6 +107,35 @@ test("background plate covers the narration", () => {
   const args = plateArgs(40.1, "#21302A", "/tmp/p.mp4");
   assert.ok(args.includes("color=c=0x21302A:s=1080x1920:r=30000/1001"));
   assert.equal(args[args.length - 1], "/tmp/p.mp4");
+});
+
+test("background image plate holds the image for the plate length", () => {
+  const args = imagePlateArgs(40.1, "/a/bg.png", "/tmp/p.mp4");
+  assert.deepEqual(args.slice(1, 7), ["-loop", "1", "-framerate", "30000/1001", "-i", "/a/bg.png"]);
+  assert.equal(args[args.indexOf("-t") + 1], "40.10");
+  assert.equal(args[args.length - 1], "/tmp/p.mp4");
+});
+
+test("heritage layout: graphics y 481-1290, one dark caption line y 1310-1380, bands as an image clip", async () => {
+  const { PRESETS } = await import("../src/preset.ts");
+  const { baseDraftScript, bandsScript, overlayTextScripts } = await import("../src/pipeline/assemble.ts");
+  const L = PRESETS.chosun.layout;
+  assert.equal(L.windowTop, 481);
+  assert.equal(L.windowTop + L.windowHeight, 1290);
+  assert.deepEqual([L.captionBottom - L.captionHeight, L.captionBottom, L.captionMaxWidth, L.captionWeight], [1310, 1380, 720, 500]);
+  const x = { projectId: "p", draftName: "n", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [{ text: "c", startSec: 0, endSec: 1 }] };
+  // with a bands image the frame graphic is left out; without one it opens the same window as the image
+  assert.ok(!baseDraftScript({ ...x, bandsId: "r3" }).script.includes('"News frame"'));
+  const framed = baseDraftScript(x).script;
+  assert.ok(framed.includes('"News frame"') && framed.includes('"windowTop":481') && framed.includes('"windowBottom":1399'));
+  const b = bandsScript("d", "p", "r3").script;
+  assert.ok(b.includes('overlayResource({ resource: selects.project("p").resource("r3")') && b.includes("commitAll"));
+  const t = overlayTextScripts("d", x).map((c) => c.script).join("\n");
+  for (const kv of ['"bottom":1380', '"boxHeight":70', '"maxWidth":720', '"fontWeight":500', '"textColor":"#1E2422"', '"boxColor":"transparent"']) assert.ok(t.includes(kv), kv);
+  // the generic preset keeps the old look
+  const g = overlayTextScripts("d", { ...x, preset: PRESETS.generic }).map((c) => c.script).join("\n");
+  assert.ok(g.includes('"maxWidth":980') && g.includes('"boxColor":"rgba(0,0,0,0.44)"'));
+  assert.equal(PRESETS.generic.layout.bandsImage, undefined);
 });
 
 test("Arc article: text paragraphs and photos with captions", () => {

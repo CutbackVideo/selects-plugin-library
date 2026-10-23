@@ -1,10 +1,12 @@
 // Draft assembly as a series of run_script calls, verified on Selects Staging 2.0.763 (export with audio):
 //   1. createDraft, 29.97 fps 1080x1920, the brand plate on Main (a Draft needs video on Main to export),
-//      the narration over it, the frame graphic; commit.
+//      the narration over it, the frame graphic (only without a bands image); commit.
 //   2. scene graphics, a few per call (photos travel as data URLs, so batches keep each script small); commit.
-//   3. headline, captions, disclaimers in batches; commit each.
-// Graphics added later draw on top, so the calls follow the stacking order frame -> scenes -> headline ->
-// captions -> disclaimers.
+//   3. the bands image held over the whole Draft (when the preset has one); commit.
+//   4. headline, captions, disclaimers in batches; commit each.
+// Clips added later draw on top (an image overlay too: checked on Staging 2.0.763, its transparent middle shows
+// the scenes and a graphic added after it lands above it), so the calls follow the stacking order
+// frame -> scenes -> bands -> headline -> captions -> disclaimers.
 
 import { TEMPLATES } from "../templates/generated.ts";
 import type { Preset } from "../preset.ts";
@@ -19,6 +21,7 @@ export type AssemblyInput = {
   plateSeconds: number;
   narrationId: string;
   narrationSeconds: number;
+  bandsId?: string; // image Resource for the bands; without it the frame graphic draws them
   headline: { line1: string; line2: string; accent?: string };
   preset: Preset;
   scenes: SceneClip[];
@@ -58,7 +61,8 @@ export function baseDraftScript(x: AssemblyInput): ScriptCall {
   const frame = tpl("frame");
   const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
   const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
-  const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, fontFamily: "" });
+  const L = x.preset.layout;
+  const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
@@ -70,7 +74,7 @@ ${PRELUDE}
 const narr = await win(0, ${J(x.narrationSeconds)});
 if (!narr) throw new Error("narration range is empty");
 await d.overlayResource({ resource: p.resource(${J(x.narrationId)}), over: narr });
-await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);
+${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);`}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`,
   };
@@ -106,13 +110,30 @@ return { added: ${batch.length} };`,
   return calls;
 }
 
+// The bands image over the whole Draft, above the scenes (its middle is transparent).
+export function bandsScript(draftId: string, projectId: string, bandsId: string): ScriptCall {
+  return {
+    summary: "Add the top and bottom bands",
+    allowCommit: true,
+    script: `const d = selects.draft(${J(draftId)});
+${PRELUDE}
+const all = await win(0, total / fps);
+if (!all) throw new Error("the Draft is empty");
+await d.overlayResource({ resource: selects.project(${J(projectId)}).resource(${J(bandsId)}), over: all });
+await d.commitAll("News short: bands");
+return { added: 1 };`,
+  };
+}
+
 // Headline, captions and disclaimers on top of the scenes, in size-bounded batches (each caption may carry its
 // own embedded font subset, so one call for all of them would pass the script limit).
 export function overlayTextScripts(draftId: string, x: Pick<AssemblyInput, "headline" | "preset" | "scenes" | "captions" | "decorate">): ScriptCall[] {
   const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
   const items: Array<{ type: string; label: string; params: Record<string, unknown>; a: number; b: number }> = [];
   items.push({ type: "headline", label: tpl("headline").label, params: deco({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" }), a: 0, b: 1e9 });
-  x.captions.forEach((c, i) => items.push({ type: "caption", label: tpl("caption").label + " " + String(i + 1).padStart(2, "0"), params: deco({ text: c.text, fontFamily: "" }), a: c.startSec, b: c.endSec }));
+  const L = x.preset.layout;
+  const look = { bottom: L.captionBottom, boxHeight: L.captionHeight, maxWidth: L.captionMaxWidth, fontWeight: L.captionWeight, textColor: L.captionColor, boxColor: L.captionBox };
+  x.captions.forEach((c, i) => items.push({ type: "caption", label: tpl("caption").label + " " + String(i + 1).padStart(2, "0"), params: deco({ text: c.text, ...look, fontFamily: "" }), a: c.startSec, b: c.endSec }));
   for (const s of x.scenes.filter((s) => s.disclaimer)) items.push({ type: "disclaimer", label: tpl("disclaimer").label, params: deco({ text: x.preset.disclaimer, fontFamily: "" }), a: s.startSec, b: s.endSec });
   const batches: typeof items[] = [];
   let cur: typeof items = [], size = 0;
