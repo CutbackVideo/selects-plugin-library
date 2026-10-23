@@ -6,6 +6,17 @@ The current review unit is plugin-library PR #346. App PR #7876 is closed at the
 See [pr-consolidation.md](pr-consolidation.md) for the replacement map and review
 order. New connected Archive work updates #346.
 
+## Reported-case reproduction checkpoint
+
+All 53 report IDs now have individual coverage and remaining gates in
+[reported-case-validation.md](reported-case-validation.md). Substitute media
+reproduces the reported failure conditions. Travel repeated overlays, four
+remaining alias-error consumers, Stop Motion graphic identity and Chris phrase
+contrast/warning surfacing have scoped repairs. Gongju/No14 before-after checks,
+nine decoded native exports and five cold saved-state comparisons add actual-app
+evidence. Native Preview and whole-template acceptance remain open; related
+unit tests are not report closure. SDK/application source and Chan are unchanged.
+
 ## SDK-free Worker consumer follow-up
 
 City Weekend, Torn Paper Love, Summer Trip and THE END now reuse the existing
