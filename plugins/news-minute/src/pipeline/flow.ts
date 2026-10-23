@@ -11,7 +11,7 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { fallbackPlan, hiddenCaptionSentences, sceneClips, type PhotoAsset } from "./plan.ts";
+import { fallbackPlan, hiddenCaptionSentences, isGraphic, sceneClips, type PhotoAsset } from "./plan.ts";
 import { baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 
@@ -188,7 +188,7 @@ async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): 
         if (b64.length <= PHOTO_MAX_B64) break;
       }
       if (b64.length > PHOTO_MAX_B64) continue;
-      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + b64, credit: p.credit });
+      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + b64, credit: p.credit, graphic: isGraphic(p.caption, p.w, p.h) });
     } catch { /* a photo that cannot be read is skipped */ }
     finally {
       await run(sdk, removeScript(src)).catch(() => {});

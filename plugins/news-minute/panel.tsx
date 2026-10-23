@@ -1465,6 +1465,10 @@ export default function NumberCallout({ data }) {
 };
 
 // src/pipeline/plan.ts
+function isGraphic(caption, w, h) {
+  if (/\uADF8\uB798\uD53D\s*=|graphic\s*=|infographic/i.test(caption)) return true;
+  return w > 0 && h > 0 && w / h < 1080 / 920 * 0.85;
+}
 function fallbackPlan(sentences, times, photoRefs) {
   const groups = [];
   for (let i = 0; i < sentences.length; i++) {
@@ -1499,6 +1503,7 @@ function sceneClips(plan, sentences, times, totalSec, photos) {
       if (sc.type === "quote_card") params.headshot = asset.dataUrl;
       else params.image = asset.dataUrl;
       if (sc.type === "news_photo" && asset.credit && !params.credit) params.credit = asset.credit;
+      if (sc.type === "news_photo" && asset.graphic && params.fit === void 0) params.fit = "contain";
     }
     const type = sc.type === "news_photo" && !asset ? "text_card" : sc.type;
     if (type === "text_card" && !params.text) params.text = captionChunks(sentences[first[k]].text, 12).slice(0, 2).join("\n");
@@ -2134,7 +2139,7 @@ async function prepPhotos(sdk, env, article, log) {
         if (b64.length <= PHOTO_MAX_B64) break;
       }
       if (b64.length > PHOTO_MAX_B64) continue;
-      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + b64, credit: p.credit });
+      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + b64, credit: p.credit, graphic: isGraphic(p.caption, p.w, p.h) });
     } catch {
     } finally {
       await run(sdk, removeScript(src)).catch(() => {
