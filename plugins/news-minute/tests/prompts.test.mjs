@@ -43,9 +43,9 @@ test('numberTokens compares by value across commas and units', () => {
 
 test('repairPrompt adds a target range for length errors only', () => {
   const prev = {sentences: [{text: 'x'.repeat(420)}]};
-  const withLen = P.repairPrompt('BASE', prev, ['narration is 420 chars (spaces included); the hard cap is 390']);
+  const withLen = P.repairPrompt('BASE', prev, ['narration is 420 chars (spaces included); the hard cap is 370']);
   assert.ok(withLen.startsWith('BASE'));
-  assert.ok(withLen.includes('between 360 and 380'));
+  assert.ok(withLen.includes('between 340 and 360'));
   assert.ok(!P.repairPrompt('BASE', prev, ['sentence 1: number "5" does not appear in the article']).includes('LENGTH FIX'));
   assert.ok(P.repairPrompt('BASE', {scenes: []}, ['scene 1: x']).includes('scene 1: x'));
 });

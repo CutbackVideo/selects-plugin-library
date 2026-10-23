@@ -1,4 +1,5 @@
 import type { Article, IdSentence } from "./types.ts";
+import { TARGET_CHARS } from "./text.ts";
 import { JSON_ONLY, LENGTH_RULES, STYLE_RULES, articleBlock } from "./script.ts";
 
 export function fidelityPrompt(
@@ -24,7 +25,7 @@ export function fidelityPrompt(
     "REWRITE RULES",
     "- If a sentence has no issue, return it unchanged with rewritten=false and issues=[].",
     "- If it has an issue, rewrite that sentence minimally so it matches the article exactly, set rewritten=true, and list each issue with a short note in English (what was wrong and what you changed). Never paraphrase the meaning away to make a sentence smoother.",
-    "- A rewrite must not make the total longer: if the draft total is already above 380 characters, shorten while fixing. The final total must stay within the length rules below.",
+    `- A rewrite must not make the total longer: if the draft total is already above ${TARGET_CHARS.goal[1]} characters, shorten while fixing. The final total must stay within the length rules below.`,
     "- Keep the same ids in the same order. Do not add, drop, merge, or reorder sentences.",
     "- Set sourceQuote for each sentence to an exact contiguous substring of the article body that supports the final text.",
     "- The headline obeys the same checks; list its issues in headline.issues and fix it in place.",
