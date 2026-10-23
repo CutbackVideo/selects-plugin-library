@@ -29,7 +29,7 @@ export type TemplateType =
   | "flow_cause_effect";
 
 const FONT: EditableParameterDefinition = { key: "fontFamily", label: "Font", type: "text", defaultValue: "" };
-const ACCENT: EditableParameterDefinition = { key: "accentColor", label: "Accent", type: "color", defaultValue: "#E8502F" };
+const ACCENT: EditableParameterDefinition = { key: "accentColor", label: "Accent", type: "color", defaultValue: "#A9222B" };
 const TITLE: EditableParameterDefinition = { key: "title", label: "Title", type: "text", defaultValue: "" };
 const SOURCE: EditableParameterDefinition = { key: "source", label: "Source", type: "text", defaultValue: "" };
 const SUBTITLE: EditableParameterDefinition = { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" };
@@ -128,7 +128,7 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "revealSec", label: "New value delay (s)", type: "number", defaultValue: 0.75, min: 0, max: 5, step: 0.05 },
     PAPER,
   ],
-  bar_compare_h: [FONT, TITLE, SOURCE, { key: "unit", label: "Unit", type: "text", defaultValue: "" }, ACCENT],
+  bar_compare_h: [FONT, TITLE, SUBTITLE, SOURCE, { key: "unit", label: "Unit", type: "text", defaultValue: "" }, ACCENT, PAPER],
   line_trend_callout: [
     FONT,
     TITLE,
@@ -143,7 +143,8 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" },
     SOURCE,
     ACCENT,
-    { key: "headerColor", label: "Card header", type: "color", defaultValue: "#D9705A" },
+    { key: "headerColor", label: "Card header", type: "color", defaultValue: "#23342E" },
+    PAPER,
   ],
   quote_card: [
     FONT,
