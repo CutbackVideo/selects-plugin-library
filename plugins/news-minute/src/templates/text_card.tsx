@@ -8,11 +8,13 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // once its line has settled. Optional scene `title` (+ double gold rule) top-left, `sub` as a smaller
 // grey line under the sentence, `source` bottom-right.
 export default function TextCard({ data }) {
-  const s = useScene(data);
-  const k = s.k;
   const title = String(data?.title ?? '');
   const sub = String(data?.sub ?? '');
   const lines = String(data?.text ?? '').split('\n').filter((l) => l.trim() !== '');
+  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
+  // Last entrance: the sub line (0.8 s) or the last line's brush (0.55 + 0.9 s after the line starts).
+  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, at(Math.max(0, lines.length - 1)) + 1.45));
+  const k = s.k;
   // One size for every line: the longest decides, between 56 and the requested size.
   const want = Number(data?.fontSize ?? 72);
   const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
@@ -20,7 +22,6 @@ export default function TextCard({ data }) {
   const top = title ? 150 : 0;
   const block = lines.length * lh + (sub ? 36 + 44 : 0);
   const y0 = top + (794 - top - block) / 2;
-  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
   return (
     <Win s={s} data={data}>
       <Header s={s} title={title} subtitle="" />
