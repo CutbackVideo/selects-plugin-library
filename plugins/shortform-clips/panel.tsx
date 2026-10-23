@@ -4233,7 +4233,7 @@ await d.commitAll("Place the full source as a wide shot");
 return {clips:keys.length};`;
 }
 
-function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number) {
+function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number,snapshot:any=null) {
   return `const shots = __SHOTS__;
 const compositionRects=${compositionRects.toString()},permittedSplits=${permittedSplits.toString()},assertCompositionLayout=${assertCompositionLayout.toString()};
 const SPLIT_LAYOUTS=${JSON.stringify(SPLIT_LAYOUTS)};
@@ -4271,6 +4271,31 @@ for (const s of plan.slice(1)) {
  const clips=await d.clips({trackScope:"main"});
  if (clips.some(c=>c.startFrame<s.startFrame&&c.endFrame>s.startFrame)) await d.splitAt({frame:s.startFrame});
 }
+// Snapshot timing is measured before mutation, including silence cuts and retiming.
+const snapshot=${JSON.stringify(snapshot)},overlays=[];
+const splitPlan=plan.filter(s=>s.panels.length>1);
+if(splitPlan.length){
+ if(!snapshot||!(snapshot.fps>0))throw Error("Split source timing is unavailable");
+ for(const s of splitPlan)for(const c of (await d.clips({trackScope:"main"})).filter(c=>c.resourceId&&c.startFrame>=s.startFrame&&c.endFrame<=s.endFrame)){
+  const matches=snapshot.clips.filter(x=>x.trackKind==="main"&&(aliases.get(x.resourceId)||x.resourceId)===c.resourceId&&x.startFrame<=c.startFrame&&x.endFrame>=c.endFrame);
+  if(matches.length!==1)throw Error("Split source timing changed");
+  const x=matches[0],observedRate=typeof x.playbackSpeed==="number"?x.playbackSpeed:x.playbackSpeed?.numerator/x.playbackSpeed?.denominator||1,speed=c.playbackSpeed||(typeof x.playbackSpeed==="object"?x.playbackSpeed:{numerator:Math.round(observedRate*1000000),denominator:1000000}),rate=speed.numerator/speed.denominator;
+  if(!Number.isFinite(x.sourceStartSeconds)||!Number.isFinite(rate)||rate<=0||Math.abs(rate-observedRate)>1e-6)throw Error("Invalid split source timing");
+  for(const panel of s.panels.slice(1))overlays.push({s,panel,startFrame:c.startFrame,endFrame:c.endFrame,sourceStartSeconds:x.sourceStartSeconds+(c.startFrame-x.startFrame)/snapshot.fps*rate,playbackSpeed:speed});
+ }
+}
+// Only remove generated panel clips, preserving unrelated video and audio.
+const owned=[];
+for(const c of await d.clips({trackScope:"all"}))if(c.trackKind==="video"&&c.resourceId&&!plan.some(s=>s.style==="preserve"&&s.startFrame<c.endFrame&&s.endFrame>c.startFrame)&&(await d.videoEffects(c)).some(e=>e.name==="Shortform source panel"))owned.push(c);
+for(const old of owned){const live=(await d.clips({trackScope:"all"})).find(c=>c.trackId===old.trackId&&c.clipId===old.clipId);await d.removeClips(live);}
+for(const trackId of new Set(owned.map(c=>c.trackId)))if(!(await d.clips({trackScope:"all"})).some(c=>c.trackId===trackId))await d.deleteTrack({trackId});
+// Overlay lanes sit above graphics. Restore editable graphics above picture lanes.
+const graphics=[];
+if(overlays.length)for(const g of await d.motionGraphics()){
+ const program=await d.motionGraphicProgram(g.clip);
+ if(!program)throw Error("Cannot preserve template graphic");
+ graphics.push({g,program,transform:await d.clipTransform(g.clip),opacity:await d.clipOpacity(g.clip)});
+}
 const keys=(await d.clips({trackScope:"main"})).filter(c=>c.resourceId).map(c=>({clipId:c.clipId,trackId:c.trackId}));
 for (const key of keys) {
  const fresh=async()=> (await d.clips({trackScope:"main"})).find(c=>c.clipId===key.clipId&&c.trackId===key.trackId);
@@ -4278,11 +4303,38 @@ for (const key of keys) {
  if (!s) throw new Error("Uncovered main clip");
  if (s.style==="preserve") continue;
  await d.setClipTransform({clip:c,scale:{x:1,y:s.windowH/(s.sourceH*1080/s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
- const parameters={sourceW:s.sourceW,sourceH:s.sourceH,windowH:s.windowH,panels:s.panels};
+ const parameters={sourceW:s.sourceW,sourceH:s.sourceH,windowH:s.windowH,panels:s.panels.slice(0,1)};
  const old=(await d.videoEffects(await fresh())).find(e=>e.name==="Shortform stacked framing");
  if(old) await d.replaceVideoEffect(old,{tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters});
  else await d.addVideoEffect({clip:await fresh(),label:"Shortform stacked framing",tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters});
 }
+// Slot-major order reuses one lane for each panel across every shot/cut.
+for(const slot of [...new Set(overlays.map(o=>o.panel.slot))].sort((a,b)=>a-b)){
+ await d.addTrack({kind:"video"});
+ for(const o of overlays.filter(o=>o.panel.slot===slot)){
+  const before=new Set((await d.clips({trackScope:"all"})).map(c=>c.trackId+":"+c.clipId));
+  await d.overlayResource({resource:p.resource(o.s.resourceId),over:await d.rangeAtFrames(o.startFrame,o.endFrame),sourceStartSeconds:o.sourceStartSeconds,playbackSpeed:o.playbackSpeed,withSound:false});
+  const added=(await d.clips({trackScope:"all"})).filter(c=>c.trackKind==="video"&&!before.has(c.trackId+":"+c.clipId));
+  if(added.length!==1)throw Error("Split panel did not create one silent video clip");
+  const key=added[0],fresh=async()=>(await d.clips({trackScope:"all"})).find(c=>c.trackId===key.trackId&&c.clipId===key.clipId);
+  await d.setClipTransform({clip:await fresh(),scale:{x:1,y:o.s.windowH/(o.s.sourceH*1080/o.s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
+  await d.addVideoEffect({clip:await fresh(),label:"Shortform source panel",tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters:{sourceW:o.s.sourceW,sourceH:o.s.sourceH,windowH:o.s.windowH,panels:[o.panel]}});
+ }
+}
+// Rebuild bottom-to-top so overlapping captions/logos keep their layer order.
+graphics.reverse();
+if(snapshot?.order)graphics.sort((a,b)=>(snapshot.order[b.g.clip.trackId]??0)-(snapshot.order[a.g.clip.trackId]??0));
+for(const {g,program,transform:t,opacity} of graphics){
+ const live=(await d.motionGraphics()).find(x=>x.clip.clipId===g.clip.clipId&&x.clip.trackId===g.clip.trackId);
+ if(!live)throw Error("Template graphic changed during framing");
+ await d.removeClips(live.clip);
+ const placed=await d.addMotionGraphic({label:g.name,tsxCode:program.tsxCode,parameters:program.parameters,editableParameters:program.editableParameters,within:await d.rangeAtFrames(g.clip.startFrame,g.clip.endFrame)});
+ const clip=(await d.clips({trackScope:"all"})).find(c=>c.clipId===placed.clipId);
+ await d.setClipTransform({clip,position:t.positionKeys.length?undefined:t.position,positionKeys:t.positionKeys.length?t.positionKeys:undefined,scale:t.scaleKeys.length?undefined:t.scale,scaleKeys:t.scaleKeys.length?t.scaleKeys:undefined,rotation:t.rotationKeys.length?undefined:t.rotation,rotationKeys:t.rotationKeys.length?t.rotationKeys:undefined,anchor:t.anchor,flipHorizontal:t.flipHorizontal,flipVertical:t.flipVertical});
+ const fresh=(await d.clips({trackScope:"all"})).find(c=>c.clipId===placed.clipId);
+ await d.setClipOpacity({clip:fresh,...(opacity.opacityKeys.length?{opacityKeys:opacity.opacityKeys}:{opacityPercent:opacity.opacityPercent??100})});
+}
+for(const trackId of new Set(graphics.map(x=>x.g.clip.trackId)))if(!(await d.clips({trackScope:"all"})).some(c=>c.trackId===trackId))await d.deleteTrack({trackId});
 await d.commitAll("Apply agent-selected source crops");
 return {applied:plan.map(s=>({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,panels:s.panels}))};`;
 }
@@ -5150,7 +5202,7 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
     const measured=shots;
     checkSourceCompositionGeometry(compileSourceCropPlan(measured,before.sources,before.meta.durationFrames,layout),layout);
     note({plan:'stage',stage:'apply'});
-    const r=await guard(sdk.runScript({timeoutSeconds:120,script:sourceCropApplyScript(projectId,draftId,layout,before.sources,before.meta.durationFrames).replace('__SHOTS__',JSON.stringify(measured)),summary:'Apply agent-selected source crops',allowCommit:true}));
+    const r=await guard(sdk.runScript({timeoutSeconds:120,script:sourceCropApplyScript(projectId,draftId,layout,before.sources,before.meta.durationFrames,measured.some((s:any)=>compositionRects(s.style)?.length>1)?await guard(sdk.call('getDraftMediaSnapshot',projectId,draftId)):null).replace('__SHOTS__',JSON.stringify(measured)),summary:'Apply agent-selected source crops',allowCommit:true}));
     if(r.isError||!r.result?.applied) throw new Error(r.output||'Source crop application failed');
     await unchanged();
   };
@@ -11079,7 +11131,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         // limited/preserved ranges that the user has not chosen to change.
         updated.appliedShots=context.appliedShots.flatMap((s:any)=>{if(s.endFrame<=shot.startFrame||s.startFrame>=shot.endFrame)return [s];return [...(s.startFrame<shot.startFrame?[{...s,endFrame:shot.startFrame}]:[]),...(s.startFrame<=shot.startFrame?measured:[]),...(s.endFrame>shot.endFrame?[{...s,startFrame:shot.endFrame}]:[])];});
         checkSourceCompositionGeometry(compileSourceCropPlan(updated.appliedShots,context.sources,context.duration,layout),layout);
-        code=sourceCropApplyScript(projectId,draft.draftId,layout,context.sources,context.duration).replace('__SHOTS__',JSON.stringify(updated.appliedShots));
+        code=sourceCropApplyScript(projectId,draft.draftId,layout,context.sources,context.duration,await sdk.call('getDraftMediaSnapshot',projectId,draft.draftId)).replace('__SHOTS__',JSON.stringify(updated.appliedShots));
       } else {
         const rows=compileTemplateCameraPlan(plan,context.observations,layout,context.fps);
         updated.rows=rows.filter((r:any)=>r.startFrame>=shot.startFrame&&r.endFrame<=shot.endFrame).concat(context.rows.filter((r:any)=>r.endFrame<=shot.startFrame||r.startFrame>=shot.endFrame)).sort((a:any,b:any)=>a.startFrame-b.startFrame||a.slot-b.slot);
