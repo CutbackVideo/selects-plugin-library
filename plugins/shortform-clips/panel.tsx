@@ -3795,6 +3795,22 @@ function mergeLockedSourceShots(next:any[],previous:any[]):any[] {
 // owns identity, shots and layouts; adapters only translate execution formats.
 const COMPOSITION_PLAN_SCHEMA = `This is a video composition task, not a coding task. This prompt defines the complete output contract. Do not inspect application source code, local logs, prior experiment outputs or other panels. Additional inspection is limited to missing media evidence through the documented Selects SDK. Return {version:1,draftId,status:"planned"|"blocked",summary,shots:[{startFrame,endFrame,compositionId,layout:"speaker"|"stacked"|"side-by-side"|"columns-3"|"top-main-3"|"left-main-3"|"grid-4"|"two-shot"|"insert"|"wide",panels:[{camera:string,targets:[{subjectId:string,refs:string[]}],region?:{x,y,width,height},sourcePane?:{x,y,width,height}}],reason}],speakerEvidence?:[],limitations:[]}. Panels are in display order. One target for speaker, one or more distinct targets per split panel, two distinct targets in the single two-shot panel, no targets for insert/wide. For automatic split grouping, omit panels and supply shot.people:[{camera,subjectId,refs,slot?:number,sourcePane?:{x,y,width,height}}] containing every person to preserve who has an observed ref. Code groups these people into the requested number of panels. slot is a zero-based optional user constraint; omit it unless the user explicitly requests placement. Partial slot constraints are supported. Explicit panels remain available for preserving an existing source split or fully specified grouping. Use columns-3 for three side-by-side columns. Never drop people just to match the number of panels. Every target and every people entry needs non-empty refs of observed reference IDs. A visible person with no observed ref cannot be framed: omit that person and choose the layout for the people you can cite. camera is an exact supplied camera key, NOT a person ID. refs are observed references, NOT invented persistent identities; YOU assign subjectId and link refs by appearance. Reuse compositionId only for the same ordered subjects, cameras, layout and source pane. Include all relevant observations across its passage. Do not specify closeUp, framing or crop coordinates for people. Code computes size, placement and fixed crops; it never chooses different subjects or changes your layout. sourcePane describes an observed embedded camera boundary only, never a desired person crop. A blocked plan has no shots and states the missing evidence or conflicting constraints.`;
 
+// Bounded timing-only evidence: no transcript, images, or full model response.
+function compositionTimingDiagnostic(plan:any,duration:number) {
+  const shots=Array.isArray(plan?.shots)?plan.shots:[];
+  const frame=(value:any)=>typeof value==='number'&&Number.isFinite(value)?value:value==null?null:'invalid-'+typeof value;
+  const row=(shot:any,index:number)=>({index,startFrame:frame(shot?.startFrame),endFrame:frame(shot?.endFrame)});
+  let cursor=0,issue:any=null;
+  for(let i=0;i<shots.length;i++){
+    const shot=shots[i],start=shot?.startFrame,end=shot?.endFrame;
+    const kind=!Number.isInteger(start)||!Number.isInteger(end)?'non-integer':start!==cursor?(start>cursor?'gap':'overlap'):end<=cursor?'empty-or-reversed':end>duration?'past-end':null;
+    if(kind){issue={kind,index:i,expectedStartFrame:cursor,actual:row(shot,i),previous:i?row(shots[i-1],i-1):null,deltaFrames:Number.isFinite(start)?start-cursor:null};break;}
+    cursor=end;
+  }
+  if(!issue&&cursor!==duration)issue={kind:'incomplete-tail',expectedEndFrame:duration,actualEndFrame:cursor};
+  return {durationFrames:duration,shotCount:shots.length,shots:shots.slice(0,128).map(row),truncated:shots.length>128,issue};
+}
+
 // 'structure' checks status and timeline coverage only; 'shots' checks the
 // given shots and their identities without requiring them to cover the clip.
 function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:string[],styles:string[],mode:'full'|'structure'|'shots'='full') {
@@ -5064,11 +5080,12 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
   const faceCatalog=observations.catalog;
   // Composition problems keep the Draft's existing framing for the whole clip;
   // cancellation and edits to dialogue or timing still stop the run.
+  let timingDiagnostics:any={};
   const keepExistingFraming=async(error:any)=>{
     if(error instanceof RunCancelled)throw error;
     const reason=String(error?.message||error),duration=before.meta.durationFrames;
     await unchanged();
-    note({plan:'agent-reframe-preserved',draftId,reason});
+    note({plan:'agent-reframe-preserved',draftId,reason,timingDiagnostics});
     // Locked shots are already on the Draft; keep them so regeneration still protects them.
     const kept=[existingFramingShot(0,duration,'existing-framing')];
     const appliedShots=mergeLockedSourceShots(kept,previousEdit?.appliedShots||[]);
@@ -5076,7 +5093,7 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
     const ranges=appliedShots.filter((s:any)=>s.style==='preserve').map((s:any)=>({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,reason}));
     let mediaKey:any;
     if(!measureFaces)try{mediaKey=framingMediaKey(await guard(sdk.call("getDraftMediaSnapshot",projectId,draftId)));}catch(e:any){if(e instanceof RunCancelled)throw e;}
-    return {version:1,draftId,status:'complete',summary:'Existing framing kept: '+reason,shots:retained.plan.shots,limitations:[reason],
+    return {version:1,draftId,status:'complete',summary:'Existing framing kept: '+reason,timingDiagnostics,shots:retained.plan.shots,limitations:[reason],
       editContext:{kind:'source',plan:retained.plan,catalog:retained.catalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration,fps:before.meta.fps,layout,appliedShots,words:normalizeReframeWords(before.words)},
       appliedShots,qualityStatus:'limited',preservedAll:ranges.length===appliedShots.length,preservedRanges:ranges,geometryAdjustments:[],
       verification:{kind:'geometry-and-timing',status:'not-run',reason},visualReview:{status:'not-run',reason:'No framing was applied.'}};
@@ -5090,10 +5107,12 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
   note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
   const response=await askReframingAI({sdk,guard,note},{prompt,images:evidence.images,timeoutMs:600000,ephemeral:false});
   plan=await parseReframePlanWithRepair({sdk,guard,note,text:String(response.text||''),draftId,budget:{used:false}});
+  timingDiagnostics={fps:before.meta.fps,received:compositionTimingDiagnostic(plan,before.meta.durationFrames)};
   if(plan.draftId!==draftId||plan.status!=='planned') throw new Error(plan.summary||'Agent could not plan reframing');
   note({plan:"agent-source-plan",draftId,report:plan});
   const snap=snapShotBoundaries(plan,before.meta.durationFrames,Math.max(2,Math.round(before.meta.fps*0.2)));
   if(snap.snapped){plan=snap.plan;note({plan:'shot-boundaries-snapped',draftId,count:snap.snapped});}
+  timingDiagnostics.validated=compositionTimingDiagnostic(plan,before.meta.durationFrames);
   ({plan,preserved}=salvageSourceComposition(plan,before.sources,before.meta.durationFrames,layout,faceCatalog));
   if(preserved.length)note({plan:'composition-preserved',draftId,preserved});
   // Descriptive evidence is diagnostic, not an executable crop instruction.
