@@ -664,6 +664,7 @@ function plannerPrompt(input2) {
     "- The first scene uses the strongest visual: a photo of the main subject, or the headline-number chart when the story is data-driven. The last one or two sentences are usually a photo of an official or a quote_card.",
     "- Use a data scene (number_callout, bar_compare_h, line_trend_callout, stat_cards) only when the scene's own sentences contain the numbers it shows. Every number in params must be copied from the narration of that same scene, as a JSON number or the exact wording. Never compute, round, or invent values.",
     "- Use each article photo at least once when there are enough scenes; a photo may be reused in non-adjacent scenes. Choose the photo whose caption best matches the sentence.",
+    "- A photo of a named person (check the caption) may only be used on sentences that are about that person: where the sentence names them or states their own words or actions. Never put it on a sentence about someone else or about a group, even if it is the only photo. Reusing the same person photo is fine only when each sentence is about that person; otherwise use a text_card or a number_callout instead.",
     '- Assets of kind "illustration" are generated images. Use them only for sentences that no article photo fits and only after every photo has been used. A scene that shows an illustration must set disclaimer=true. All other scenes set disclaimer=false.',
     "- When a scene's sentences state two comparable numbers (for example this year vs last year), prefer bar_compare_h over text_card; when they state 2-4 parallel items with numbers, prefer stat_cards. Fill every field from the narration only.",
     "- Use text_card as the fallback when no photo or data fits. Avoid three text_cards in a row, and keep text_card to at most one third of the scenes.",
@@ -1732,9 +1733,9 @@ function fallbackPlan(sentences, times, photoRefs) {
   }
   let photo = 0;
   return groups.map((g, k) => {
-    const usePhoto = photoRefs.length > 0 && (k % 2 === 0 || photo < photoRefs.length);
+    const usePhoto = photo < photoRefs.length && k % 2 === 0;
     if (usePhoto) {
-      const ref = photoRefs[photo % photoRefs.length];
+      const ref = photoRefs[photo];
       photo++;
       return { sentenceIds: g.map((i) => sentences[i].id), type: "news_photo", params: { motion: k % 2 ? "pull_out" : "push_in" }, hideCaption: false, disclaimer: false, assetRef: ref };
     }
