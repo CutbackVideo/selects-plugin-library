@@ -7,7 +7,7 @@ import { decodeHtml, extractArticle, type Article } from "./article.ts";
 import { ask, ffmpeg, load, readFileBase64, readFileBytes, run, save, writeText, type PanelSdk } from "./host.ts";
 import {
   alignmentScript, createProjectScript, downloadScript, envScript, existsScript, generateScript, importScript,
-  narrationStatusScript, photoArgs, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
+  narrationStatusScript, photoArgs, PHOTO_MAX_B64, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
@@ -169,8 +169,14 @@ async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): 
     const src = tmpPath(env, `photo-${stamp}-${p.ref}.img`), jpg = tmpPath(env, `photo-${stamp}-${p.ref}.jpg`);
     try {
       await run(sdk, downloadScript(p.url, src));
-      await ffmpeg(sdk, "Prepare an article photo", photoArgs(src, jpg));
-      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + (await readFileBase64(sdk, jpg, 2 * 1024 * 1024)), credit: p.credit });
+      let b64 = "";
+      for (const [w, q] of [[1080, 6], [720, 8]] as const) {
+        await ffmpeg(sdk, "Prepare an article photo", photoArgs(src, jpg, w, q));
+        b64 = await readFileBase64(sdk, jpg, 2 * 1024 * 1024);
+        if (b64.length <= PHOTO_MAX_B64) break;
+      }
+      if (b64.length > PHOTO_MAX_B64) continue;
+      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + b64, credit: p.credit });
     } catch { /* a photo that cannot be read is skipped */ }
     finally {
       await run(sdk, removeScript(src)).catch(() => {});

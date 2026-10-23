@@ -318,9 +318,10 @@ function plateArgs(seconds, color, out) {
   ];
 }
 var plateSeconds = (narrationSeconds) => Math.ceil((narrationSeconds + 0.5) * 2) / 2 + 0.1;
-function photoArgs(src, out) {
-  return ["-y", "-i", src, "-frames:v", "1", "-vf", "scale='min(1600,iw)':-2", "-q:v", "4", out];
+function photoArgs(src, out, width = 1080, quality = 6) {
+  return ["-y", "-i", src, "-frames:v", "1", "-vf", `scale='min(${width},iw)':-2`, "-q:v", String(quality), out];
 }
+var PHOTO_MAX_B64 = 18e4;
 var importScript = (projectId, paths) => ({
   summary: "Add media to the Project",
   allowCommit: true,
@@ -1773,7 +1774,8 @@ function hiddenCaptionSentences(plan, sentences) {
 
 // src/pipeline/assemble.ts
 var J2 = (v) => JSON.stringify(v);
-var SCENE_BATCH_BYTES = 15e5;
+var SCRIPT_MAX_BYTES = 262144;
+var SCENE_BATCH_BYTES = 2e5;
 function tpl(type) {
   const t2 = TEMPLATES[type];
   if (!t2) throw new Error("unknown template " + type);
@@ -1827,7 +1829,7 @@ function sceneScripts(draftId, scenes) {
     size += n;
   }
   if (cur.length) batches.push(cur);
-  return batches.map((batch, i) => {
+  const calls = batches.map((batch, i) => {
     const types = [...new Set(batch.map((s) => s.type))];
     const codes = Object.fromEntries(types.map((t2) => [t2, { tsx: tpl(t2).tsxCode, edit: tpl(t2).editableParameters, ti: tpl(t2).timeIndependent }]));
     const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.params, a: s.startSec, b: s.endSec }));
@@ -1842,6 +1844,8 @@ await d.commitAll("News short: scenes");
 return { added: ${batch.length} };`
     };
   });
+  for (const c of calls) if (new TextEncoder().encode(c.script).length > SCRIPT_MAX_BYTES) throw new Error("a scene is too large for one script (photo too big)");
+  return calls;
 }
 function overlayTextScript(draftId, x) {
   const head = tpl("headline"), cap = tpl("caption"), dis = tpl("disclaimer");
@@ -1999,8 +2003,14 @@ async function prepPhotos(sdk, env, article, log) {
     const src = tmpPath(env, `photo-${stamp}-${p.ref}.img`), jpg = tmpPath(env, `photo-${stamp}-${p.ref}.jpg`);
     try {
       await run(sdk, downloadScript(p.url, src));
-      await ffmpeg(sdk, "Prepare an article photo", photoArgs(src, jpg));
-      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + await readFileBase64(sdk, jpg, 2 * 1024 * 1024), credit: p.credit });
+      let b64 = "";
+      for (const [w, q] of [[1080, 6], [720, 8]]) {
+        await ffmpeg(sdk, "Prepare an article photo", photoArgs(src, jpg, w, q));
+        b64 = await readFileBase64(sdk, jpg, 2 * 1024 * 1024);
+        if (b64.length <= PHOTO_MAX_B64) break;
+      }
+      if (b64.length > PHOTO_MAX_B64) continue;
+      out.push({ ref: p.ref, dataUrl: "data:image/jpeg;base64," + b64, credit: p.credit });
     } catch {
     } finally {
       await run(sdk, removeScript(src)).catch(() => {
