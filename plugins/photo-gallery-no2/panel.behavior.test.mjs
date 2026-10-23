@@ -488,6 +488,39 @@ test('one Create action uses bundled B2 by default with reference timing and cre
   assert.equal(styled.manualBpm, 113);
   assert.equal(h.calls.filter(c => c.input.operation === 'importOwnedMusic').length, 1);
 });
+for(const fps of [24000/1001,30,50,90])test('untouched default bundled duration fits the actual Project grid '+fps,async()=>{
+ const h=harness(photos,{fps});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));
+ fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));
+ fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.match(h.view.container.textContent,/Saved and read back all 21 tiles/));
+ const input=h.calls.find(c=>c.input.operation==='create').input,plan=planGallery(input);
+ const lastFrame=Math.floor(853/60*fps+1e-9);
+ assert.ok(plan.durationFrames<=lastFrame&&lastFrame-plan.durationFrames<Math.ceil(fps/60));
+ assert.ok(plan.durationFrames/fps<=853/60+1e-9);
+ assert.throws(()=>planGallery({...input,durationFrames:input.durationFrames+1}),/music.*short/i);
+ assert.equal(input.music.resourceId,'bundled-music');
+});
+for(const requested of [14.217,15])test('explicit bundled duration '+requested+' still rejects a shortage without importing',async()=>{
+ const h=harness(photos,{fps:30});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));
+ fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));
+ fireEvent.change(h.view.getByLabelText('Video length'),{target:{value:'15.5'}});
+ fireEvent.change(h.view.getByLabelText('Video length'),{target:{value:String(requested)}});
+ fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.match(h.view.container.textContent,/Bundled music is too short/));
+ assert.equal(h.calls.some(c=>c.input.operation==='create'||c.input.operation==='importOwnedMusic'),false);
+ assert.equal(Number(h.view.getByLabelText('Video length').value),requested);
+});
+test('custom Project music preserves the default requested length on a 30fps grid',async()=>{
+ const h=harness(photos,{fps:30,audio:[{resourceId:'custom',name:'Custom',path:'/custom.mp3',durationSeconds:30,durationFrames:1800}]});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));
+ fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));
+ fireEvent.change(h.view.getByLabelText('Music'),{target:{value:'custom'}});
+ fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.match(h.view.container.textContent,/Saved and read back all 21 tiles/));
+ const input=h.calls.find(c=>c.input.operation==='create').input;assert.equal(input.durationFrames,853);assert.equal(planGallery(input).durationFrames,427);
+});
 test('custom Project music uses its exact resource without importing B2', async () => {
   const audio = [{ resourceId: 'custom', name: 'Custom', path: '/custom.mp3', durationFrames: 900 }];
   const h = harness(photos, { audio });

@@ -2028,11 +2028,16 @@ async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, 
 // Project; `onDispatched` marks possible Draft persistence, while imports have
 // their own observer. `onDraft` gets the complete saved identity. `libraryId`
 // is a template run's library. A stale context stops before Draft dispatch.
-async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false) {
+async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false,fitBundledDefault=false) {
   const stopped=()=>Object.assign(new Error('The Gallery context changed before preparation.'),{contextChanged:true,safeNotSaved:true});
   if(!isCurrent())throw stopped();
   input.fps=await readImageDraftFps(sdk,input.projectId);
   if(!isCurrent())throw stopped();
+  // Only an untouched bundled default may end on the last complete frame
+  // inside the pinned excerpt. Explicit lengths retain the strict music guard.
+  if(fitBundledDefault&&input.durationFrames===853){
+    while(input.durationFrames>1&&galleryFrameClock(input.durationFrames,input.fps).minimumSeconds>GALLERY_MUSIC.seconds+1e-9)input.durationFrames--;
+  }
   try{return planGallery(input,{preparing:true,pendingBpm});}
   catch(error){error.safeNotSaved=true;throw error;}
 }
@@ -2100,6 +2105,7 @@ function GalleryPanel({ sdk, context, ui }) {
   const [manualBpm, setManualBpm] = React.useState(113);
   const [estimated, setEstimated] = React.useState(null);
   const [durationFrames, setDurationFrames] = React.useState(853);
+  const durationEdited = React.useRef(false);
   const [name, setName] = React.useState('Photo Grid Reveal');
   const [busy, setBusy] = React.useState(false);
   const [unknown, setUnknown] = React.useState(false);
@@ -2216,7 +2222,7 @@ function GalleryPanel({ sdk, context, ui }) {
       const next = await readInventory(projectId);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       setInventory(next); setLoadedKey(requestedKey);
-      setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
+      setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);durationEdited.current=false;
       setMusicChoice('bundled'); setManualEnabled(true); setManualBpm(113); setEstimated(null);
       setStatus(null);
     } catch (error) { setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) }); }
@@ -2292,7 +2298,8 @@ function GalleryPanel({ sdk, context, ui }) {
     const isCurrent = () => sameContext(projectId, sequenceId) && requestedKey === key;
     try {
       input = await verifyGalleryInputs(sdk, t, input, isCurrent);
-      await planGalleryPreparation(sdk,input,isCurrent,!manualEnabled);
+      await planGalleryPreparation(sdk,input,isCurrent,!manualEnabled,musicChoice==='bundled'&&!durationEdited.current);
+      if(input.durationFrames!==durationFrames)setDurationFrames(input.durationFrames);
       const audio = musicChoice === 'bundled' ? await prepareBundledMusic(sdk, t, { projectId,
         durationFrames: input.durationFrames, fps:input.fps, isCurrent, onImportStarted: () => { dispatched = true; } }) : input.music;
       input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, durationSeconds: audio.durationSeconds, startFrame: 0 } : null;
@@ -2357,7 +2364,7 @@ function GalleryPanel({ sdk, context, ui }) {
       {manualEnabled && <ui.NumberField label={t.bpm} value={manualBpm} onChange={setManualBpm} min={1} max={300} step={0.1} disabled={busy}/>}
       {!manualEnabled && selectedMusic && <ui.Button variant="secondary" onClick={estimateOnClick} disabled={busy}>{t.estimate}</ui.Button>}
       {estimated && selectedMusic && estimated.resourceId === selectedMusic.resourceId && <small>{t.estimated}: {estimated.bpm}</small>}
-      <ui.NumberField label={t.duration} value={Number((durationFrames / 60).toFixed(3))} onChange={seconds => setDurationFrames(Math.max(1, Math.round(seconds * 60)))} min={1 / 60} step={1 / 60} unit="s" disabled={busy}/>
+      <ui.NumberField label={t.duration} value={Number((durationFrames / 60).toFixed(3))} onChange={seconds => {durationEdited.current=true;setDurationFrames(Math.max(1, Math.round(seconds * 60)));}} min={1 / 60} step={1 / 60} unit="s" disabled={busy}/>
       <small>{t.durationNote}</small>
     </ui.Section>}
     {ready && <ui.Section title={t.createMode}>
@@ -2527,7 +2534,7 @@ function GalleryTemplateRun({ sdk, context }) {
           if(!live())throw templateIssue('The template run ended before the Draft was made.');
           const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
           Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
-          await planGalleryPreparation(sdk,input,live);
+          await planGalleryPreparation(sdk,input,live,false,request.music==='bundled');
           if(request.music!=='none'){
             say('Adding the music…');
             const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,fps:input.fps,isCurrent:live,onImportStarted:()=>{}});
