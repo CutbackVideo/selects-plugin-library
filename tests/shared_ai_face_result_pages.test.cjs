@@ -78,6 +78,18 @@ test('read errors propagate and unsupported budgets are not silently raised', as
   await assert.rejects(readFaceResultPages(async () => {throw failure;}, {id: 'owned'}, 'project'), e => e === failure);
   for (const bad of [{maxBytes: 65537}, {maxSamples: 129}, {maxSamples: 0}]) await assert.rejects(readFaceResultPages(async () => null, {id: 'owned'}, 'project', bad), /PAGE_INVALID/);
 });
+test('a second-page abort propagates the same object without a third read or partial result', async () => {
+  const r = reader(faceResultFixture()), abort = new DOMException('Owned read canceled', 'AbortError');
+  let calls = 0, partialResultReturned = false;
+  const operation = readFaceResultPages(async script => {
+    if (++calls === 2) throw abort;
+    return r.read(script);
+  }, {id: 'owned'}, 'project').then(value => {partialResultReturned = true; return value;});
+  await assert.rejects(operation, error => error === abort);
+  assert.equal(calls, 2);
+  assert.equal(r.pages.length, 1);
+  assert.equal(partialResultReturned, false);
+});
 test('the serialized projector uses only the existing readJSON capability and never requests a bigger result cap', async () => {
   const r = reader(faceResultFixture(1)); let code;
   await readFaceResultPages(async script => {code = script; return r.read(script);}, {id: 'owned'}, 'project');
