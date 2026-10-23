@@ -235,6 +235,13 @@
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"
       ]
+    },
+    {
+      "id": "face-result-pages",
+      "source": "shared/face-result-pages.cjs",
+      "targets": [
+        "plugins/jude-kinetic-style/panel.tsx"
+      ]
     }
   ]
 }
