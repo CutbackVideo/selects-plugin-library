@@ -281,6 +281,6 @@ jobs:
         run: |
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/photo_face*.test.mjs tests/gallery_face*.test.mjs tests/recap_face*.test.mjs tests/recap_selection_identity.test.mjs tests/daily_vlog_8_typography.test.mjs tests/chris_broll_search_recovery.test.mjs tests/chris_broll_context.test.mjs tests/chris_verification_capture_reuse.test.mjs tests/chris_target_display.test.mjs tests/doac_target_display.test.mjs tests/caption_target_display.test.mjs tests/critical_panel_storage.test.mjs plugins/depth-type-captions/tests/*.test.mjs plugins/jude-kinetic-style/tests/*.test.mjs
       - name: Test Chris Williamson shared AI consumer
-        run: node --test tests/chris_williamson*.test.mjs tests/chris_reported_cases.test.mjs
+        run: node --test tests/chris_williamson*.test.mjs tests/chris_reported_cases.test.mjs tests/chris_low_motion_video.test.mjs
       - name: Test EO Shorts
         run: node --experimental-strip-types --test tests/eo_shorts*.test.mjs
