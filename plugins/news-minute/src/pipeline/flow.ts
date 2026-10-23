@@ -33,6 +33,8 @@ export type Session = {
   plan?: ScenePlan | null;
   // The Draft built from the plan for review; "build the video" renames it instead of making another.
   preview?: PreviewDraft | null;
+  // Drafts that became the video; a preview is never refilled into one of them.
+  videos?: string[];
 };
 
 // What the preview Draft was built from. planRev differs from previewRev(...) once the plan changes (an outdated
@@ -410,20 +412,31 @@ export async function revisePlan(sdk: PanelSdk, env: Env, s: Session, preset: Pr
 // The plan as the preview shows it: scenes, look, headline and narration.
 export const previewRev = (s: Pick<Session, "presetId" | "script" | "plan">) =>
   ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
-export const previewFresh = (s: Session) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s));
+export const previewFresh = (s: Session) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s) && !s.videos?.includes(s.preview.draftId));
 export const finalName = (s: Session) => s.script?.headline.line1 || s.article?.title || "News short";
 export const previewName = (s: Session, prefix: string) => prefix + " \u00b7 " + (s.article?.title || finalName(s));
 
 // The Draft a recorded preview can be refilled into: same Project, look and plate length (the narration is put
 // back on, so a new narration of the same length still fits).
-export const canRefill = (p: PreviewDraft | null | undefined, projectId: string, presetId: string, plateLen: number): p is PreviewDraft =>
-  !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0;
+export const canRefill = (p: PreviewDraft | null | undefined, projectId: string, presetId: string, plateLen: number, videos: string[] = []): p is PreviewDraft =>
+  !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
 
 // A build that stopped after the Draft was saved; the Draft is kept and recorded as an outdated preview.
 export class PartialDraftError extends Error {
   draft: Omit<PreviewDraft, "name" | "planRev" | "at">;
   preview: PreviewDraft | null = null;
   constructor(message: string, draft: Omit<PreviewDraft, "name" | "planRev" | "at">) { super(message); this.draft = draft; }
+}
+
+// Calls on the preview Draft (build, refill, rename, open, seek, stills) run one at a time in the order asked;
+// a failed call does not stop the ones queued after it.
+export function draftQueue() {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const p = tail.then(fn);
+    tail = p.catch(() => {});
+    return p;
+  };
 }
 
 export type AssembleTarget = { name: string; reuse?: PreviewDraft | null };
@@ -435,7 +448,8 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
   const texts = sentences.map((x) => x.text);
   const plateLen = plateSeconds(total);
-  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen) ? target!.reuse! : null;
+  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen, s.videos) ? target!.reuse! : null;
+  if (target?.reuse && !reuse && s.videos?.includes(target.reuse.draftId)) rec.notes.push("preview: Draft " + target.reuse.draftId + " is a video, not refilled");
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");

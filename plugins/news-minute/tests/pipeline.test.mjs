@@ -465,3 +465,41 @@ test("preview strings exist in both languages", async () => {
   }
   assert.ok(!MESSAGES.planReviewHint[1].includes("\uc544\ubb34\uac83\ub3c4 \ucd94\uac00\ub418\uc9c0 \uc54a\uc544\uc694"));
 });
+
+test("a Draft that became the video is never refilled; a new article's refill takes the new title", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const prev = { draftId: "d-old", name: "Preview · Title", projectId: "p", planRev: "x", presetId: preset.id, narrationId: "n0", plateSeconds: 40.6, plateId: "plate0", plateImage: false, bandsId: null, frames: 1230, scenes: [], at: "" };
+  // the video: no refill call at all, a new Draft instead
+  const h = fakeHost(DRAFT_ANSWERS);
+  const rec = F.newRunRecord("chosun", "u");
+  const r = await F.buildPreview(h.sdk, HOST_ENV, { ...s, preview: prev, videos: ["d-old"] }, preset, "Preview", () => {}, rec);
+  assert.equal(r.preview.draftId, "d-new");
+  assert.ok(!h.calls.some((c) => c.summary === "Refill the preview Draft" || c.script.includes('"d-old"')));
+  assert.ok(rec.notes.includes("preview: Draft d-old is a video, not refilled"));
+  assert.ok(!F.previewFresh({ ...s, preview: { ...prev, planRev: F.previewRev(s) }, videos: ["d-old"] }));
+  // after "start over" with another article: the same Draft, renamed for the new article
+  const h2 = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230 } });
+  const next = await F.buildPreview(h2.sdk, HOST_ENV, { ...s, article: { ...s.article, title: "Second" }, preview: prev, videos: ["d-other"] }, preset, "Preview", () => {}, F.newRunRecord("chosun", "u"));
+  assert.equal(next.preview.draftId, "d-old");
+  assert.equal(next.preview.name, "Preview · Second");
+  assert.ok(h2.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Preview · Second")'));
+});
+
+test("calls on the preview Draft run one at a time, in order, past a failure", async () => {
+  const { draftQueue } = await import("../src/pipeline/flow.ts");
+  const q = draftQueue();
+  const log = [];
+  let running = 0, most = 0;
+  const job = (name, ms, fail) => q(async () => {
+    running++; most = Math.max(most, running); log.push(name + ">");
+    await new Promise((r) => setTimeout(r, ms));
+    running--; log.push("<" + name);
+    if (fail) throw new Error(name);
+    return name;
+  });
+  const results = await Promise.allSettled([job("rename", 20, true), job("refill", 5), job("open", 1)]);
+  assert.equal(most, 1);
+  assert.deepEqual(log, ["rename>", "<rename", "refill>", "<refill", "open>", "<open"]);
+  assert.deepEqual(results.map((x) => x.status), ["rejected", "fulfilled", "fulfilled"]);
+});
