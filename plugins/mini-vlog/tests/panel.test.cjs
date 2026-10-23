@@ -1,7 +1,7 @@
 // plugins/mini-vlog/tests/panel.test.cjs
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const panel = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
+const panel = fs.readFileSync(process.env.MINI_VLOG_PANEL || path.join(root, 'panel.tsx'), 'utf8');
 const planner = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const lockupTsx = fs.readFileSync(path.join(root, 'assets', 'title-lockup.tsx'), 'utf8');
 const presets = JSON.parse(fs.readFileSync(path.join(root, 'assets', 'fonts', 'presets.json'), 'utf8'));
@@ -629,3 +629,16 @@ assert.equal(extractStrings(panel).strings.ja.gap, ''); assert.equal(extractStri
 // decorate.js refuses a config without videoEnd.
 assert.ok(fs.readFileSync(path.join(root, 'scripts', 'decorate.js'), 'utf8').includes("if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');"));
 console.log(JSON.stringify({ panel: 'ok' }));
+
+// A rejected source must preserve the actual SDK reason in the message seen by TemplateRun.
+{
+  const start=panel.indexOf('  if (failures.length) console.warn("[mini-vlog]'), end=panel.indexOf('  // The panel\'s inventory limited',start);
+  assert.ok(start>0&&end>start);
+  const check=new Function('aliases','failures','console','templateIssue','t','bl',panel.slice(start,end));
+  const issue=message=>Object.assign(new Error(message),{forPerson:true});
+  for(const detail of ['Resource \"absent\" is not part of project \"owned\"','sequence_settings_mismatch: incompatible settings','Permission denied while reading source']) {
+    assert.throws(()=>check([], [{error:detail}], {warn(){}},issue,()=> 'Selects could not complete this step.','en'), error=>error.message===detail&&error.code==='source-resolution-failed'&&error.forPerson===true);
+  }
+  check(['r0'],[{error:'one failed input'}],{warn(){}},issue,()=> 'generic','en');
+  assert.throws(()=>check([],[],{warn(){}},issue,()=> 'generic','en'),error=>error.message==='generic');
+}

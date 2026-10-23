@@ -7021,7 +7021,10 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   if (failures.length) console.warn("[mini-vlog] chosen files that could not be placed:", JSON.stringify(failures));
-  if (!aliases.length) throw Object.assign(templateIssue(t(bl, "stepFailed")), { code: "source-resolution-failed", failures });
+  if (!aliases.length) {
+    const detail = failures.find(row => typeof row.error === "string" && row.error.trim())?.error;
+    throw Object.assign(templateIssue(detail ? String(detail).slice(0, 500) : t(bl, "stepFailed")), { code: "source-resolution-failed", failures });
+  }
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
   // Selected-file builds use the same bounded, reobserved catalog as the panel.
   // A display may retain a partial list; a new build requires complete facts.
