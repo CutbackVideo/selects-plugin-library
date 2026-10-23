@@ -76,3 +76,29 @@ test('every prompt ends with the JSON-only instruction', () => {
     P.repairPrompt('BASE', {}, ['e']),
   ]) assert.ok(p.includes('no code fence'));
 });
+
+test('number_callout needs digits in from/to and demotes to text_card', () => {
+  const sents = [{id: 's1', text: '\uC218\uC775\uC774 \uB450 \uBC30 \uAC00\uAE5D\uAC8C \uB298\uC5C8\uB2E4. 6.0%\uC600\uB2E4.', startSec: 0, endSec: 6}];
+  const plan = {scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {label: '\uC218\uC775', from: '6.0%', to: '\uB450 \uBC30 \uAC00\uAE5D\uAC8C'}, hideCaption: true, disclaimer: false}]};
+  assert.ok(P.validatePlan(plan, sents, []).errors.some((e) => e.includes('must each contain a digit')));
+  const {plan: fixed, demoted} = P.demoteNumberlessCallouts(plan, sents);
+  assert.equal(demoted, 1);
+  assert.equal(fixed.scenes[0].type, 'text_card');
+  assert.equal(fixed.scenes[0].hideCaption, false);
+  assert.equal(P.validatePlan(fixed, sents, []).ok, true);
+});
+
+test('scene length limit is 12 s for data scenes and 10.5 s otherwise', () => {
+  const sents = [{id: 's1', text: '6.0%', startSec: 0, endSec: 11.5}];
+  const mkPlan = (type, params) => ({scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});
+  const stat = mkPlan('stat_cards', {title: 't', cards: [{header: 'h', rows: [{label: 'l', value: 6.0}]}, {header: 'h2', rows: [{label: 'l', value: 6.0}]}]});
+  assert.ok(!P.validatePlan(stat, sents, []).errors.some((e) => e.includes('lasts')));
+  assert.ok(P.validatePlan(mkPlan('text_card', {text: '6.0%'}), sents, []).errors.some((e) => e.includes('lasts 11.5 s')));
+  const plannerText = P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets: []});
+  assert.ok(plannerText.includes('up to 12 s'));
+});
+
+test('fidelity prompt asks for issue notes in the output language', () => {
+  const text = P.fidelityPrompt(art, {headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x', sourceQuote: 'y'}]});
+  assert.ok(text.includes('note written in Korean'));
+});
