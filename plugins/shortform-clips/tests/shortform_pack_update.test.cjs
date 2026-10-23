@@ -105,11 +105,11 @@ test('template pack update button follows the published catalog without the GitH
   assert.equal((await api.makeTemplateRepository(store).load()).packs[0].installSource,null,'a template without a link makes it ambiguous');
  });
 
- await t.test('only catalog installs and official main links follow the catalog; commit links stay pinned',()=>{
+ await t.test('only catalog installs and official main or commit links follow the catalog',()=>{
   const e=(installSource,id='sbs-radio')=>api.packUpdateEligibility({id,installSource});
   assert.equal(e({kind:'catalog',url:official(commit)}),'catalog');
   assert.equal(e({kind:'link',url:official('main')}),'catalog');
-  assert.equal(e({kind:'link',url:official(commit)}),'pinned');
+  assert.equal(e({kind:'link',url:official(commit)}),'catalog');
   assert.equal(e({kind:'link',url:official('codex/feature')}),'none');
   assert.equal(e({kind:'link',url:official(commit).replace('CutbackVideo/selects-plugin-library','someone/fork')}),'none');
   assert.equal(e({kind:'catalog',url:official(commit)},'hankook-ilbo'),'none');
@@ -149,6 +149,12 @@ test('template pack update button follows the published catalog without the GitH
   assert.match(h.state.messages.at(-1),/v2\.0\.0/);
  });
 
+ await t.test('a pack recorded as a commit-pinned link updates from the catalog and is recorded as a catalog install',async()=>{
+  const h=harness({installSource:{kind:'link',url:official(commit)}});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.registrations,1);assert.deepEqual(h.state.installs,[official(commit)]);assert.equal(h.state.origin,'catalog');
+  assert.match(h.state.messages.at(-1),/v2\.0\.0/);
+ });
+
  await t.test('same or older catalog version reports up to date without installing',async()=>{
   for(const catalogVersion of ['1.0.0','0.9.0']){
    const h=harness({catalogVersion});await h.handlers.updatePack(h.pack);
@@ -156,20 +162,21 @@ test('template pack update button follows the published catalog without the GitH
   }
  });
 
- await t.test('a silent host, missing catalog entry or unsupported host never claims up to date',async()=>{
+ await t.test('a silent host or missing catalog entry never claims up to date',async()=>{
   let h=harness({hostAnswers:false});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.tone,'error');assert.equal(h.state.status.message,api.PACK_STRINGS.ko.checkFailed);assert.deepEqual(h.state.installs,[]);
   h=harness({latest:null});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.tone,'error');assert.deepEqual(h.state.installs,[]);
-  h=harness({registers:false});await h.handlers.updatePack(h.pack);
-  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.unsupported);assert.equal(h.state.registrations,0);
+  const started=Date.now();h=harness({registers:false});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.checkFailed);assert.equal(h.state.registrations,0);assert.deepEqual(h.state.installs,[]);
+  assert.ok(Date.now()-started<40,'a host without the update API fails immediately instead of waiting for the timeout');
  });
 
  await t.test('non-official packs and unsaved edits do not start a check',async()=>{
   let h=harness({installSource:null});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.message,api.PACK_STRINGS.ko.notUpdatable);assert.equal(h.state.registrations,0);
-  h=harness({installSource:{kind:'link',url:official(commit)}});await h.handlers.updatePack(h.pack);
-  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.pinned);assert.equal(h.state.registrations,0);
+  h=harness({installSource:{kind:'link',url:official('codex/feature')}});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.notUpdatable);assert.equal(h.state.registrations,0);
   h=harness({becomesBusy:true});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.message,api.PACK_STRINGS.ko.blocked,'edits or a job started while waiting stop the install');assert.deepEqual(h.state.installs,[]);
   h=harness({dirty:true});await h.handlers.updatePack(h.pack);

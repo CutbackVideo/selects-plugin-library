@@ -49,10 +49,10 @@ links (with the URL and resolved commit), or `folder`. Template history, deletio
 copies do not change it. These packs update to the latest published catalog:
 
 - `catalog` installs of this repository's `plugins/shortform-clips/template-packs/<pack-id>`.
-- Pasted links to that folder on `main`, which is what the catalog publishes.
+- Pasted links to that folder on `main` or on a commit, including the commit-pinned
+  links older host versions recorded at install time.
 
-A pasted link pinned to a commit stays on that version, and other branches or
-repositories are updated by adding their link again. Packs installed before
+Links to other branches or repositories are updated by adding their link again. Packs installed before
 `installSource` existed keep their link as `link` only when every template from the
 pack recorded the same one; otherwise adding the link once records it. A shared
 official URL alone is never treated as a catalog install.
