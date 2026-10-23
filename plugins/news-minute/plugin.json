@@ -16,6 +16,8 @@
     "fonts/OFL-pretendard.txt",
     "fonts/LICENSE-harfbuzzjs.txt",
     "fonts/COPYING-harfbuzz.txt",
+    "template-packs/chosun/assets/t1m_bands.png",
+    "template-packs/chosun/assets/t1m_background.png",
     "THIRD_PARTY.md"
   ],
   "compatibility": {

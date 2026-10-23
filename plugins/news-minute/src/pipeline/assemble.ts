@@ -28,6 +28,8 @@ export type AssemblyInput = {
   captions: TextClip[];
   // Adds per-graphic parameters such as the embedded font (fontFamily, fontCss, fontLoads).
   decorate?: (params: Record<string, unknown>) => Record<string, unknown>;
+  // Font parameters for the headline in place of decorate (an installed headline face).
+  headlineFont?: Record<string, unknown>;
 };
 
 const J = (v: unknown) => JSON.stringify(v);
@@ -140,12 +142,13 @@ return { added: 1 };`,
 
 // Headline, captions and disclaimers on top of the scenes, in size-bounded batches (each caption may carry its
 // own embedded font subset, so one call for all of them would pass the script limit).
-export function overlayTextScripts(draftId: string, x: Pick<AssemblyInput, "headline" | "preset" | "scenes" | "captions" | "decorate">): ScriptCall[] {
+export function overlayTextScripts(draftId: string, x: Pick<AssemblyInput, "headline" | "preset" | "scenes" | "captions" | "decorate" | "headlineFont">): ScriptCall[] {
   const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
   const items: Array<{ type: string; label: string; params: Record<string, unknown>; a: number; b: number }> = [];
-  items.push({ type: "headline", label: tpl("headline").label, params: deco({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" }), a: 0, b: 1e9 });
+  const head = { line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" };
+  items.push({ type: "headline", label: tpl("headline").label, params: x.headlineFont ? { ...head, ...x.headlineFont } : deco(head), a: 0, b: 1e9 });
   const L = x.preset.layout;
-  const look = { bottom: L.captionBottom, boxHeight: L.captionHeight, maxWidth: L.captionMaxWidth, fontWeight: L.captionWeight, textColor: L.captionColor, boxColor: L.captionBox };
+  const look = { bottom: L.captionBottom, boxHeight: L.captionHeight, maxWidth: L.captionMaxWidth, fontWeight: L.captionWeight, textColor: L.captionColor, boxColor: L.captionBox, ...(L.captionPad === undefined ? {} : { padX: L.captionPad }) };
   x.captions.forEach((c, i) => items.push({ type: "caption", label: tpl("caption").label + " " + String(i + 1).padStart(2, "0"), params: deco({ text: c.text, ...look, fontFamily: "" }), a: c.startSec, b: c.endSec }));
   for (const s of x.scenes.filter((s) => s.disclaimer)) items.push({ type: "disclaimer", label: tpl("disclaimer").label, params: deco({ text: x.preset.disclaimer, fontFamily: "" }), a: s.startSec, b: s.endSec });
   const batches: typeof items[] = [];

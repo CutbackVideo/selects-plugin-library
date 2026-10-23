@@ -14,6 +14,7 @@ import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRec
 import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
 import { bandsScript, baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
+import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
 
 export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
@@ -57,6 +58,8 @@ export const emptySession = (presetId = "chosun"): Session => ({ presetId, voice
 export type Log = (key: string, vars?: Record<string, string | number>) => void;
 
 const join = (env: Env, ...parts: string[]) => [env.dir, ...parts].join(env.sep);
+// A file the plug-in ships, by its path in the plug-in folder ("fonts/x.b64").
+const bundled = (env: Env, rel: string) => [env.skills, ...rel.split("/")].join(env.sep);
 // Downloads and intermediate files go to the system temp folder (the host only removes files there).
 const tmpPath = (env: Env, name: string) => [env.tmp.replace(/[\\/]+$/, ""), "news-minute-" + name].join(env.sep);
 const promptArticle = (a: Article): PromptArticle => ({ title: a.title, source: a.source, date: a.date, body: a.body });
@@ -190,7 +193,7 @@ export { ttsNext };
 let fontLoad: Promise<EmbeddedFont> | null = null;
 async function embeddedFont(sdk: PanelSdk, env: Env): Promise<EmbeddedFont> {
   if (!fontLoad) {
-    const read = async (rel: string) => new TextDecoder().decode(await readFileBytes(sdk, [env.skills, ...rel.split("/")].join(env.sep), 12 * 1024 * 1024));
+    const read = async (rel: string) => new TextDecoder().decode(await readFileBytes(sdk, bundled(env, rel), 12 * 1024 * 1024));
     fontLoad = loadEmbeddedFont(read).catch((e) => { fontLoad = null; throw e; });
   }
   return fontLoad;
@@ -249,10 +252,10 @@ export function plannerImages(photos: PhotoAsset[]): AskImage[] {
 // Scene window fill over a background image: the heritage templates leave a zero-alpha colour clear.
 export const CLEAR_PAPER = "#F6F1E400";
 
-// A layout image in <plug-in data>/assets, or null when the preset names none or the file is not there.
+// A layout image the plug-in ships, or null when the preset names none or the file is not there.
 async function layoutImage(sdk: PanelSdk, env: Env, name: string | undefined): Promise<string | null> {
   if (!name) return null;
-  const path = join(env, "assets", name);
+  const path = bundled(env, name);
   const st = await run<{ exists: boolean; size: number }>(sdk, existsScript(path));
   return st.exists && st.size > 1000 ? path : null;
 }
@@ -261,7 +264,7 @@ async function layoutImage(sdk: PanelSdk, env: Env, name: string | undefined): P
 async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number, preset: Preset, log: Log, rec: RunRecord): Promise<{ id: string; image: boolean }> {
   log("plate");
   const image = await layoutImage(sdk, env, preset.layout.backgroundImage);
-  const name = image ? preset.layout.backgroundImage!.replace(/\.[^.]+$/, "") : preset.background.replace("#", "");
+  const name = image ? preset.layout.backgroundImage!.split("/").pop()!.replace(/\.[^.]+$/, "") : preset.background.replace("#", "");
   const path = join(env, `plate-${name}-${seconds.toFixed(1)}.mp4`);
   rec.notes.push("plate: " + (image ? "image " + preset.layout.backgroundImage : "colour " + preset.background));
   const st = await run<{ exists: boolean; size: number }>(sdk, existsScript(path));
@@ -433,8 +436,11 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: CLEAR_PAPER } : {}) };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const bandsId = await bands(sdk, env, projectId, preset, rec);
+  const headFont = await findHeadlineFont(preset.headlineFonts);
+  rec.notes.push(headlineFontNote(headFont));
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate };
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
+    headlineFont: headFont?.kind === "installed" ? headFont.params : undefined };
   let draftId: string | null = null;
   try {
     const baseCall = baseDraftScript(x);

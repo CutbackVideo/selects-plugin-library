@@ -152,20 +152,26 @@ var PRESETS = {
     // "this image is unrelated to the report"
     scriptLanguage: "Korean",
     ttsLanguage: "ko",
-    // The customer's heritage style sheet (2026-10-21): graphics in y 481-1290, one caption line in y 1310-1380
-    // (Pretendard Medium, about 720 px wide) on the ivory background, bands with the logo above and below.
+    // The customer's note with the style sheet: headline "210 \uC634\uB2C8\uACE0\uB515 050" ("210 OmniGothic 050";
+    // the Premiere project's headline layers name TTOmniGothicH).
+    headlineFonts: ["210 \uC634\uB2C8\uACE0\uB515 050", "210 OmniGothic 050", "210OmniGothic050", "210OmniGothic-050", "TTOmniGothicH"],
+    // The customer's heritage style sheet (2026-10-21): graphics in y 481-1290, damask background, bands with the
+    // logo above and below, one caption line about 720 px wide (Pretendard Medium). The caption box and colours come
+    // from the broadcast episodes (CHOSUN_TODAY1MIN_FORMAT_SPEC): white text on translucent black (alpha 0.44),
+    // box 70 tall at y 1315-1385 hugging the text with 10 px each side, centred.
     layout: {
       windowTop: 481,
       windowHeight: 809,
       frameWindowBottom: 1399,
-      captionBottom: 1380,
+      captionBottom: 1385,
       captionHeight: 70,
       captionMaxWidth: 720,
       captionWeight: 500,
-      captionColor: "#1E2422",
-      captionBox: "transparent",
-      bandsImage: "t1m_bands.png",
-      backgroundImage: "t1m_background.png"
+      captionColor: "#FFFFFF",
+      captionBox: "rgba(0,0,0,0.44)",
+      captionPad: 10,
+      bandsImage: "template-packs/chosun/assets/t1m_bands.png",
+      backgroundImage: "template-packs/chosun/assets/t1m_background.png"
     }
   },
   generic: {
@@ -1871,7 +1877,7 @@ export default function BarCompareH({ data }) {
   );
 }
 `, editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
-  "caption": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// One caption chunk (2-4 words of the approved script), one line, centred under the graphics on a box that\n// hugs the text (translucent black unless the preset gives a colour). The line shrinks to fit maxWidth.\n// Chunks switch with a hard cut, so no animation.\nexport default function Caption({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);\n  const size = Math.min(Number(data?.fontSize ?? 54), Number(data?.maxWidth ?? 980) / Math.max(1, em));\n  const bottom = Number(data?.bottom ?? 1385);\n  const boxHeight = Number(data?.boxHeight ?? 70);\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: Number(data?.fontWeight ?? 600), fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + 12 * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
+  "caption": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// One caption chunk (2-4 words of the approved script), one line, centred under the graphics on a box that\n// hugs the text with padX each side (translucent black unless the preset gives a colour). The line shrinks to\n// fit maxWidth.\n// Chunks switch with a hard cut, so no animation.\nexport default function Caption({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);\n  const size = Math.min(Number(data?.fontSize ?? 54), Number(data?.maxWidth ?? 980) / Math.max(1, em));\n  const bottom = Number(data?.bottom ?? 1385);\n  const boxHeight = Number(data?.boxHeight ?? 70);\n  const padX = Number(data?.padX ?? 12);\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: Number(data?.fontWeight ?? 600), fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + padX * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
   "disclaimer": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.\n// The sentence itself comes from the preset.\nexport default function Disclaimer({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
   "donut_ratio": { tsxCode: `import React from 'react';
 import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
@@ -5361,9 +5367,10 @@ return { added: 1 };`
 function overlayTextScripts(draftId, x) {
   const deco = x.decorate ?? ((p) => p);
   const items = [];
-  items.push({ type: "headline", label: tpl("headline").label, params: deco({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" }), a: 0, b: 1e9 });
+  const head = { line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" };
+  items.push({ type: "headline", label: tpl("headline").label, params: x.headlineFont ? { ...head, ...x.headlineFont } : deco(head), a: 0, b: 1e9 });
   const L = x.preset.layout;
-  const look = { bottom: L.captionBottom, boxHeight: L.captionHeight, maxWidth: L.captionMaxWidth, fontWeight: L.captionWeight, textColor: L.captionColor, boxColor: L.captionBox };
+  const look = { bottom: L.captionBottom, boxHeight: L.captionHeight, maxWidth: L.captionMaxWidth, fontWeight: L.captionWeight, textColor: L.captionColor, boxColor: L.captionBox, ...L.captionPad === void 0 ? {} : { padX: L.captionPad } };
   x.captions.forEach((c, i) => items.push({ type: "caption", label: tpl("caption").label + " " + String(i + 1).padStart(2, "0"), params: deco({ text: c.text, ...look, fontFamily: "" }), a: c.startSec, b: c.endSec }));
   for (const s of x.scenes.filter((s2) => s2.disclaimer)) items.push({ type: "disclaimer", label: tpl("disclaimer").label, params: deco({ text: x.preset.disclaimer, fontFamily: "" }), a: s.startSec, b: s.endSec });
   const batches = [];
@@ -5749,10 +5756,49 @@ function sceneFont(font, text) {
   };
 }
 
+// src/fonts/headlineFont.ts
+var HEADLINE_FAMILY = "NM Headline";
+var CONTROLS = ["AppleSDGothicNeo-Bold", "Apple SD Gothic Neo Bold", "MalgunGothicBold", "Malgun Gothic Bold", "Arial"];
+var cssString = (s) => '"' + s.replace(/[\\"]/g, (c) => "\\" + c) + '"';
+function headlineFontParams(name) {
+  return {
+    fontFamily: HEADLINE_FAMILY,
+    // One weight range so the template's 900 uses the face as it is, with no synthetic bold.
+    fontCss: "@font-face{font-family:" + cssString(HEADLINE_FAMILY) + ";src:local(" + cssString(name) + ");font-weight:100 900;}",
+    fontLoads: ['900 96px "' + HEADLINE_FAMILY + '"']
+  };
+}
+var browserProbe = async (name) => {
+  const face = new FontFace("NM Headline Probe", "local(" + cssString(name) + ")");
+  try {
+    await face.load();
+    return true;
+  } catch {
+    return false;
+  }
+};
+async function findHeadlineFont(names, probe = browserProbe) {
+  if (!names?.length) return null;
+  try {
+    for (const name of names) if (await probe(name)) return { kind: "installed", name, params: headlineFontParams(name) };
+    for (const name of CONTROLS) if (await probe(name)) return { kind: "missing", tried: names };
+    return { kind: "unavailable", tried: names, reason: "no system face found either" };
+  } catch (e) {
+    return { kind: "unavailable", tried: names, reason: String(e?.message || e) };
+  }
+}
+function headlineFontNote(f) {
+  if (!f) return "headline font: embedded Pretendard (preset names none)";
+  if (f.kind === "installed") return "headline font: installed " + f.name;
+  if (f.kind === "missing") return "headline font: embedded Pretendard (not installed: " + f.tried.join(", ") + ")";
+  return "headline font: embedded Pretendard (could not check installed fonts: " + f.reason + ")";
+}
+
 // src/pipeline/flow.ts
 var sessionKey = (projectId) => "session:" + (projectId ?? "none");
 var emptySession = (presetId = "chosun") => ({ presetId, voiceId: DEFAULT_VOICE, article: null, script: null, scriptErrors: [], approved: null, projectId: null, draftId: null });
 var join = (env, ...parts) => [env.dir, ...parts].join(env.sep);
+var bundled = (env, rel) => [env.skills, ...rel.split("/")].join(env.sep);
 var tmpPath = (env, name) => [env.tmp.replace(/[\\/]+$/, ""), "news-minute-" + name].join(env.sep);
 var promptArticle = (a) => ({ title: a.title, source: a.source, date: a.date, body: a.body });
 var getEnv = (sdk) => run(sdk, envScript());
@@ -5880,7 +5926,7 @@ async function pollNarration(sdk, rec) {
 var fontLoad = null;
 async function embeddedFont(sdk, env) {
   if (!fontLoad) {
-    const read = async (rel) => new TextDecoder().decode(await readFileBytes(sdk, [env.skills, ...rel.split("/")].join(env.sep), 12 * 1024 * 1024));
+    const read = async (rel) => new TextDecoder().decode(await readFileBytes(sdk, bundled(env, rel), 12 * 1024 * 1024));
     fontLoad = loadEmbeddedFont(read).catch((e) => {
       fontLoad = null;
       throw e;
@@ -5935,14 +5981,14 @@ function plannerImages(photos) {
 var CLEAR_PAPER = "#F6F1E400";
 async function layoutImage(sdk, env, name) {
   if (!name) return null;
-  const path = join(env, "assets", name);
+  const path = bundled(env, name);
   const st = await run(sdk, existsScript(path));
   return st.exists && st.size > 1e3 ? path : null;
 }
 async function plate(sdk, env, projectId, seconds, preset, log, rec) {
   log("plate");
   const image = await layoutImage(sdk, env, preset.layout.backgroundImage);
-  const name = image ? preset.layout.backgroundImage.replace(/\.[^.]+$/, "") : preset.background.replace("#", "");
+  const name = image ? preset.layout.backgroundImage.split("/").pop().replace(/\.[^.]+$/, "") : preset.background.replace("#", "");
   const path = join(env, `plate-${name}-${seconds.toFixed(1)}.mp4`);
   rec.notes.push("plate: " + (image ? "image " + preset.layout.backgroundImage : "colour " + preset.background));
   const st = await run(sdk, existsScript(path));
@@ -6095,8 +6141,24 @@ async function assemble(sdk, env, s, preset, log, rec) {
   const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...bg.image ? { background: CLEAR_PAPER } : {} };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const bandsId = await bands(sdk, env, projectId, preset, rec);
+  const headFont = await findHeadlineFont(preset.headlineFonts);
+  rec.notes.push(headlineFontNote(headFont));
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate };
+  const x = {
+    projectId,
+    draftName: script.headline.line1 || article.title || "News short",
+    plateId,
+    plateSeconds: plateLen,
+    narrationId: sp.narrationId,
+    narrationSeconds: total,
+    bandsId,
+    headline: script.headline,
+    preset,
+    scenes,
+    captions,
+    decorate,
+    headlineFont: headFont?.kind === "installed" ? headFont.params : void 0
+  };
   let draftId = null;
   try {
     const baseCall = baseDraftScript(x);

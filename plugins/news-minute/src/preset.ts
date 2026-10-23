@@ -1,8 +1,8 @@
 // Presets: brand text and colours handed to the templates. Hangul is written as \uXXXX (public-source check).
 
 // Screen layout in 1080x1920 px. Scenes draw in the graphic window; one caption line sits under it. When the
-// band and background images exist in <plug-in data>/assets, the background becomes the Main plate and the
-// bands go on the Draft as an image clip over the scenes; otherwise the frame graphic and a colour plate stand in.
+// preset names band and background images (shipped with the plug-in), the background becomes the Main plate and
+// the bands go on the Draft as an image clip over the scenes; otherwise the frame graphic and a colour plate stand in.
 export type Layout = {
   windowTop: number;
   windowHeight: number;
@@ -13,8 +13,9 @@ export type Layout = {
   captionWeight: number;
   captionColor: string;
   captionBox: string;
-  bandsImage?: string; // file name in <plug-in data>/assets, 1080x1920 PNG with a transparent middle
-  backgroundImage?: string; // file name in <plug-in data>/assets, opaque 1080x1920 PNG
+  captionPad?: number; // caption box padding left and right
+  bandsImage?: string; // path in the plug-in folder, 1080x1920 PNG with a transparent middle
+  backgroundImage?: string; // path in the plug-in folder, opaque 1080x1920 PNG
 };
 
 export type Preset = {
@@ -28,6 +29,9 @@ export type Preset = {
   disclaimer: string;
   scriptLanguage: string; // prompt output language
   ttsLanguage: string; // narration language code
+  // Headline faces to use when installed on this computer, tried in order by full or PostScript name (CSS
+  // local()). None installed, or none listed: the embedded Pretendard.
+  headlineFonts?: string[];
   layout: Layout;
 };
 
@@ -48,12 +52,17 @@ export const PRESETS: Record<string, Preset> = {
     disclaimer: "\u203B\uC704 \uC0AC\uC9C4\uC740 \uD574\uB2F9 \uBCF4\uB3C4\uC640 \uAD00\uB828 \uC5C6\uC2B5\uB2C8\uB2E4", // "this image is unrelated to the report"
     scriptLanguage: "Korean",
     ttsLanguage: "ko",
-    // The customer's heritage style sheet (2026-10-21): graphics in y 481-1290, one caption line in y 1310-1380
-    // (Pretendard Medium, about 720 px wide) on the ivory background, bands with the logo above and below.
+    // The customer's note with the style sheet: headline "210 \uC634\uB2C8\uACE0\uB515 050" ("210 OmniGothic 050";
+    // the Premiere project's headline layers name TTOmniGothicH).
+    headlineFonts: ["210 \uC634\uB2C8\uACE0\uB515 050", "210 OmniGothic 050", "210OmniGothic050", "210OmniGothic-050", "TTOmniGothicH"],
+    // The customer's heritage style sheet (2026-10-21): graphics in y 481-1290, damask background, bands with the
+    // logo above and below, one caption line about 720 px wide (Pretendard Medium). The caption box and colours come
+    // from the broadcast episodes (CHOSUN_TODAY1MIN_FORMAT_SPEC): white text on translucent black (alpha 0.44),
+    // box 70 tall at y 1315-1385 hugging the text with 10 px each side, centred.
     layout: {
       windowTop: 481, windowHeight: 809, frameWindowBottom: 1399,
-      captionBottom: 1380, captionHeight: 70, captionMaxWidth: 720, captionWeight: 500, captionColor: "#1E2422", captionBox: "transparent",
-      bandsImage: "t1m_bands.png", backgroundImage: "t1m_background.png",
+      captionBottom: 1385, captionHeight: 70, captionMaxWidth: 720, captionWeight: 500, captionColor: "#FFFFFF", captionBox: "rgba(0,0,0,0.44)", captionPad: 10,
+      bandsImage: "template-packs/chosun/assets/t1m_bands.png", backgroundImage: "template-packs/chosun/assets/t1m_background.png",
     },
   },
   generic: {

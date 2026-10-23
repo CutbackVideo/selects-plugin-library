@@ -17,7 +17,8 @@ function useEmbeddedFont(data) {
 }
 
 // One caption chunk (2-4 words of the approved script), one line, centred under the graphics on a box that
-// hugs the text (translucent black unless the preset gives a colour). The line shrinks to fit maxWidth.
+// hugs the text with padX each side (translucent black unless the preset gives a colour). The line shrinks to
+// fit maxWidth.
 // Chunks switch with a hard cut, so no animation.
 export default function Caption({ data }) {
   const fontFace = useEmbeddedFont(data);
@@ -30,11 +31,12 @@ export default function Caption({ data }) {
   const size = Math.min(Number(data?.fontSize ?? 54), Number(data?.maxWidth ?? 980) / Math.max(1, em));
   const bottom = Number(data?.bottom ?? 1385);
   const boxHeight = Number(data?.boxHeight ?? 70);
+  const padX = Number(data?.padX ?? 12);
   if (!text) return null;
   return (
     <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
       {fontFace}
-      <div style={{ fontFamily, fontWeight: Number(data?.fontWeight ?? 600), fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + 12 * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>
+      <div style={{ fontFamily, fontWeight: Number(data?.fontWeight ?? 600), fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + padX * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>
     </div>
   );
 }

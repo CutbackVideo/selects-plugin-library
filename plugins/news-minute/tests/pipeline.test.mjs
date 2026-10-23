@@ -116,13 +116,13 @@ test("background image plate holds the image for the plate length", () => {
   assert.equal(args[args.length - 1], "/tmp/p.mp4");
 });
 
-test("heritage layout: graphics y 481-1290, one dark caption line y 1310-1380, bands as an image clip", async () => {
+test("heritage layout: graphics y 481-1290, white caption on a translucent box y 1315-1385, bands as an image clip", async () => {
   const { PRESETS } = await import("../src/preset.ts");
   const { baseDraftScript, bandsScript, overlayTextScripts } = await import("../src/pipeline/assemble.ts");
   const L = PRESETS.chosun.layout;
   assert.equal(L.windowTop, 481);
   assert.equal(L.windowTop + L.windowHeight, 1290);
-  assert.deepEqual([L.captionBottom - L.captionHeight, L.captionBottom, L.captionMaxWidth, L.captionWeight], [1310, 1380, 720, 500]);
+  assert.deepEqual([L.captionBottom - L.captionHeight, L.captionBottom, L.captionMaxWidth, L.captionWeight, L.captionPad], [1315, 1385, 720, 500, 10]);
   const x = { projectId: "p", draftName: "n", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [{ text: "c", startSec: 0, endSec: 1 }] };
   // with a bands image the frame graphic is left out; without one it opens the same window as the image
   assert.ok(!baseDraftScript({ ...x, bandsId: "r3" }).script.includes('"News frame"'));
@@ -131,11 +131,49 @@ test("heritage layout: graphics y 481-1290, one dark caption line y 1310-1380, b
   const b = bandsScript("d", "p", "r3").script;
   assert.ok(b.includes('overlayResource({ resource: selects.project("p").resource("r3")') && b.includes("commitAll"));
   const t = overlayTextScripts("d", x).map((c) => c.script).join("\n");
-  for (const kv of ['"bottom":1380', '"boxHeight":70', '"maxWidth":720', '"fontWeight":500', '"textColor":"#1E2422"', '"boxColor":"transparent"']) assert.ok(t.includes(kv), kv);
+  for (const kv of ['"bottom":1385', '"boxHeight":70', '"maxWidth":720', '"fontWeight":500', '"textColor":"#FFFFFF"', '"boxColor":"rgba(0,0,0,0.44)"', '"padX":10']) assert.ok(t.includes(kv), kv);
   // the generic preset keeps the old look
   const g = overlayTextScripts("d", { ...x, preset: PRESETS.generic }).map((c) => c.script).join("\n");
-  assert.ok(g.includes('"maxWidth":980') && g.includes('"boxColor":"rgba(0,0,0,0.44)"'));
+  assert.ok(g.includes('"maxWidth":980') && g.includes('"boxColor":"rgba(0,0,0,0.44)"') && !g.includes('"padX"'));
   assert.equal(PRESETS.generic.layout.bandsImage, undefined);
+});
+
+test("chosun layout images ship with the plug-in and are listed in plugin.json", async () => {
+  const { PRESETS } = await import("../src/preset.ts");
+  const { readFileSync } = await import("node:fs");
+  const files = JSON.parse(readFileSync(new URL("../plugin.json", import.meta.url), "utf8")).files;
+  for (const rel of [PRESETS.chosun.layout.bandsImage, PRESETS.chosun.layout.backgroundImage]) {
+    assert.ok(files.includes(rel), rel);
+    const png = readFileSync(new URL("../" + rel, import.meta.url));
+    assert.equal(png.subarray(1, 4).toString(), "PNG");
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1080, 1920]);
+  }
+});
+
+test("headline font: an installed preset face replaces the embedded font, else the run record says why not", async () => {
+  const { findHeadlineFont, headlineFontNote, HEADLINE_FAMILY } = await import("../src/fonts/headlineFont.ts");
+  const { PRESETS } = await import("../src/preset.ts");
+  const { overlayTextScripts } = await import("../src/pipeline/assemble.ts");
+  const names = PRESETS.chosun.headlineFonts;
+  assert.equal(names[0], "210 \uC634\uB2C8\uACE0\uB515 050");
+  const installed = await findHeadlineFont(names, async (n) => n === "210 OmniGothic 050");
+  assert.equal(installed.kind, "installed");
+  assert.equal(installed.params.fontFamily, HEADLINE_FAMILY);
+  assert.ok(installed.params.fontCss.includes('src:local("210 OmniGothic 050")'));
+  assert.equal(headlineFontNote(installed), "headline font: installed 210 OmniGothic 050");
+  const missing = await findHeadlineFont(names, async (n) => n === "Arial");
+  assert.equal(missing.kind, "missing");
+  assert.match(headlineFontNote(missing), /^headline font: embedded Pretendard \(not installed: 210 /);
+  assert.equal((await findHeadlineFont(names, async () => false)).kind, "unavailable");
+  assert.equal((await findHeadlineFont(names, async () => { throw new Error("no FontFace"); })).kind, "unavailable");
+  assert.equal(await findHeadlineFont(PRESETS.generic.headlineFonts, async () => true), null);
+  // only the headline takes the installed face; captions keep the embedded font
+  const deco = (p) => ({ ...p, fontFamily: "NM Sans 1" });
+  const x = { headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [{ text: "c", startSec: 0, endSec: 1 }], decorate: deco, headlineFont: installed.params };
+  const t = overlayTextScripts("d", x).map((c) => c.script).join("\n");
+  assert.ok(t.includes('"fontFamily":"' + HEADLINE_FAMILY + '"') && t.includes('"fontFamily":"NM Sans 1"'));
+  const plain = overlayTextScripts("d", { ...x, headlineFont: undefined }).map((c) => c.script).join("\n");
+  assert.ok(!plain.includes(HEADLINE_FAMILY));
 });
 
 test("scene params match their control types (the planner may send a number for a text control)", async () => {
