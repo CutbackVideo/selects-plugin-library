@@ -18,6 +18,7 @@ import React from 'react';
 // draft-observation:start
 // draft-observation:end
 /*__SHARED_SCRIPT_BUILDER__*/
+const galleryFaceFocus=sharedCoverFocus.faceSafeCoverFocus;
 
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
@@ -304,6 +305,7 @@ const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, foc
 const preparing = { say: null };
 const STRINGS = {
   "ko": {
+    "focusHint": "자동 초점이 얼굴을 놓칠 수 있습니다. 각 칸을 확인하고 필요하면 초점 슬라이더로 조정하세요. 멀리 떨어진 여러 사람은 한 칸에 모두 담기 어려울 수 있습니다.",
     "title": "Photo Grid Reveal",
     "description": "3\uc5f4 \u00d7 7\ud589\uc774 \ucc28\ub840\ub85c \ucc44\uc6cc\uc9c0\uace0 \uc804\uccb4\uac00 \ud751\ubc31\uc5d0\uc11c \uceec\ub7ec\ub85c \ubc14\ub01d\ub2c8\ub2e4. \uc0c8 \ud3b8\uc9d1\ubcf8\uc758 21\uce78\uc5d0 \uc0ac\uc9c4\uacfc \uc601\uc0c1\uc744 \uac01\uac01 \uc9c0\uc815\ud569\ub2c8\ub2e4.",
     "noProject": "\uba3c\uc800 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
@@ -346,6 +348,7 @@ const STRINGS = {
     "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c."
   },
   "en": {
+    "focusHint": "Automatic face focus can miss faces. Inspect each tile and use the focus sliders when needed; widely separated people may not fit one tile.",
     "title": "Photo Grid Reveal",
     "description": "A 3 \u00d7 7 gallery fills in order, then all tiles switch from monochrome to color. Assign a photo or video to each tile when creating a Draft.",
     "noProject": "Open a project first.",
@@ -773,7 +776,64 @@ async function verifyGalleryInputs(sdk, t, input, isCurrent) {
     else if (['image-source-missing', 'image-source-unreadable', 'image-source-unknown', 'image-source-changed'].includes(result?.code)) error.publicMessage = result.message + '. Check the original file in the Project, then try again.';
     throw error;
   }
-  return { ...input, media: reply.result.media, music: reply.result.music };
+  return { ...input, media: reply.result.media.map((row,i)=>({...row,manualFocus:input.media[i].manualFocus===true})), music: reply.result.music };
+}
+
+// Only original still Images are analyzed here. Video motion needs its own source-window contract.
+async function galleryFaceScript(sdk,script,summary,allowCommit=false) {
+  const response=await sdk.runScript({script,summary,allowCommit});
+  if(response?.isError||response?.result==null)throw Error(response?.output||'Face analysis could not be read.');
+  return response.result;
+}
+async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
+  const current=()=>{if(!isCurrent())throw Object.assign(Error('Gallery context changed during face analysis.'),{contextChanged:true,safeNotSaved:true});};
+  current();
+  const diagnostics=[],faceFingerprints=[],media=input.media.map(item=>({...item}));
+  const candidates=media.filter(item=>item.kind==='image'&&!item.manualFocus&&item.focusX===0.5&&item.focusY===0.5);
+  if(!candidates.length)return {...input,media,faceFocus:diagnostics,faceFingerprints};
+  let capability;
+  try{capability=await galleryFaceScript(sdk,"return {supported:selects.ai?.imageSourceSupported===true&&typeof selects.ai?.submit==='function'};",'Check original-photo face analysis');}catch{}
+  current();
+  if(!capability?.supported||!sdk.storage?.getItem||!sdk.storage?.setItem)return {...input,media,faceFocus:[{status:'unavailable',reason:'host-support'}],faceFingerprints};
+  const aliases=await sharedAiResources.resolveSharedAiResources(sdk,input.projectId,candidates.map(item=>item.resourceId));current();
+  const storageKey='photo-gallery-no2:face-focus-v1:'+input.projectId,scope='photo-gallery-no2:face-focus-v1';
+  const jobs=sharedAiJobs.createSharedAiJobClient({projectId:input.projectId,scope,
+    runScript:(code,summary,write)=>{current();return galleryFaceScript(sdk,code,summary,write)},
+    load:async()=>{const value=await sdk.storage.getItem(storageKey);return value==null?null:JSON.parse(value)},
+    save:journal=>sdk.storage.setItem(storageKey,JSON.stringify(journal)),maxWaitMs:120000,readTimeoutMs:10000,pollMs:500});
+  const observations=new Map(),failures=new Map(),deadline=Date.now()+120000;
+  for(let index=0;index<media.length;index++){
+    const item=media[index];
+    if(item.kind!=='image'||item.manualFocus||item.focusX!==0.5||item.focusY!==0.5)continue;
+    current();const rawId=aliases.get(item.resourceId);
+    if(Date.now()>=deadline){diagnostics.push({slot:index+1,resourceId:rawId,status:'unavailable',reason:'observation-budget'});continue;}
+    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+    if(!fingerprint)throw Object.assign(Error('The original photo is missing.'),{safeNotSaved:true});
+    faceFingerprints.push({path:item.path,...fingerprint});
+    const identity=JSON.stringify({resourceId:rawId,path:item.path,...fingerprint,width:item.width,height:item.height});
+    let observed=observations.get(identity),workflowId;
+    if(failures.has(identity)){diagnostics.push({slot:index+1,resourceId:rawId,...failures.get(identity)});continue;}
+    if(!observed){
+      try{
+        const result=await jobs.run({task:'faces.detect',resourceId:rawId,options:{provider:'cpu',scoreThreshold:0.8}},{identity,maxWaitMs:Math.max(1,deadline-Date.now())});current();
+        workflowId=result.workflowId;const artifact=result.result?.files?.detections;
+        if(!artifact)throw Error('Photo face analysis returned no coordinates.');
+        observed=await galleryFaceScript(sdk,`return await selects.ai.readJSON(${JSON.stringify(artifact)},${JSON.stringify(input.projectId)});`,'Read original-photo face coordinates');current();
+        if(observed?.contractVersion!==1||observed.task!=='faces.detect'||observed.sourceKind!=='image'||observed.samples?.length!==1||observed.samples[0]?.sourceTimeSeconds!==0)throw Error('Original-photo face coordinates do not match the Image contract.');
+      }catch(error){
+        current();const failure={status:'unavailable',reason:error.code||'face-analysis',message:String(error.message||error).slice(0,160)};
+        failures.set(identity,failure);diagnostics.push({slot:index+1,resourceId:rawId,...failure});continue;
+      }
+      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+      if(JSON.stringify(after)!==JSON.stringify(fingerprint))throw Object.assign(Error('Original photo changed during face analysis.'),{safeNotSaved:true});
+      observations.set(identity,observed);
+    }
+    const row=Math.floor(index/3),height=Math.round((row+1)*1920/7)-Math.round(row*1920/7)-4;
+    const focus=galleryFaceFocus(item,{width:356,height},observed);
+    diagnostics.push({slot:index+1,resourceId:rawId,...workflowId?{workflowId}:{},...focus});
+    if(focus.status==='focused')Object.assign(item,{focusX:focus.focusX,focusY:focus.focusY});
+  }
+  current();return {...input,media,faceFocus:diagnostics,faceFingerprints};
 }
 
 async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, isCurrent) {
@@ -1006,6 +1066,7 @@ function GalleryPanel({ sdk, context, ui }) {
   }, [sdk, resourceRevision, busy, ready, key]);
 
   function updateSlot(patch) {
+    if ('focusX' in patch || 'focusY' in patch) patch={...patch,manualFocus:true};
     setSlots(previous => previous.map((item, i) => i === slotIndex ? { ...item, ...patch } : item));
   }
 
@@ -1095,7 +1156,7 @@ function GalleryPanel({ sdk, context, ui }) {
     try {
       if (assigned !== 21) throw new Error(t.missing);
       input = { operation: 'create', projectId, name: name.trim(), durationFrames,
-        media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY })),
+        media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY, manualFocus:item.manualFocus===true })),
         music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
           durationFrames: selectedMusic.durationFrames, durationSeconds: selectedMusic.durationSeconds, startFrame: 0 } : null,
         ...(manualEnabled?{manualBpm}:{}) };
@@ -1108,6 +1169,7 @@ function GalleryPanel({ sdk, context, ui }) {
     const isCurrent = () => sameContext(projectId, sequenceId) && requestedKey === key;
     try {
       input = await verifyGalleryInputs(sdk, t, input, isCurrent);
+      input = await focusGalleryPhotos(sdk,input,isCurrent);
       await planGalleryPreparation(sdk,input,isCurrent,!manualEnabled,musicChoice==='bundled'&&!durationEdited.current);
       if(input.durationFrames!==durationFrames)setDurationFrames(input.durationFrames);
       const audio = musicChoice === 'bundled' ? await prepareBundledMusic(sdk, t, { projectId,
@@ -1160,6 +1222,7 @@ function GalleryPanel({ sdk, context, ui }) {
       {inventory.media.length === 0 && <ui.Message tone="error">{t.noMedia}</ui.Message>}
       <ui.Select label={t.slot} value={selectedSlot} onChange={setSelectedSlot} options={SLOT_KEYS.map((value, i) => ({ value: String(i), label: String(i + 1).padStart(2, '0') + ' · ' + (slots[i].resourceId ? (inventory.media.find(media => media.resourceId === slots[i].resourceId)?.name || slots[i].resourceId) : t.choose) }))}/>
       <ui.Select label={t.media} value={slot.resourceId || null} onChange={resourceId => updateSlot({ resourceId })} options={inventory.media.map(item => ({ value: item.resourceId, label: item.name + ' · ' + item.kind }))} placeholder={t.choose} disabled={busy}/>
+      <small>{t.focusHint || STRINGS.en.focusHint}</small>
       <ui.Slider label={t.focusX} value={slot.focusX} onChange={focusX => updateSlot({ focusX })} min={0} max={1} step={0.01} disabled={busy || !slot.resourceId}/>
       <ui.Slider label={t.focusY} value={slot.focusY} onChange={focusY => updateSlot({ focusY })} min={0} max={1} step={0.01} disabled={busy || !slot.resourceId}/>
     </ui.Section>}
@@ -1344,6 +1407,7 @@ function GalleryTemplateRun({ sdk, context }) {
           if(!live())throw templateIssue('The template run ended before the Draft was made.');
           const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
           Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          Object.assign(input,await focusGalleryPhotos(sdk,input,live));
           await planGalleryPreparation(sdk,input,live,false,request.music==='bundled');
           if(request.music!=='none'){
             say('Adding the music…');

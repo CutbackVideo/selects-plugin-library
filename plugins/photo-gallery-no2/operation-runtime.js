@@ -339,6 +339,10 @@ async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
   requireSourceFileSupport(selects.files);
   const {plan,chosen,music}=await galleryPreflight(selects,project,input,inventory);
   const files=await observeSourceFiles(selects.files,[...chosen.map(item=>item.path),...music?[music.path]:[]]);
+  for(const expected of input.faceFingerprints||[]){
+    const actual=files.find(file=>gallerySamePath(file.path,expected.path));
+    if(!actual||actual.size!==expected.size||actual.sha256!==expected.sha256)galleryFail('An original photo changed after face analysis; no Draft was saved');
+  }
   const sourceGuard={media:chosen,music,files,signature:gallerySourceSignature(chosen,music)};
   await galleryCheckSourceMetadata(selects,input.projectId,sourceGuard);
   if(input.musicFingerprint){

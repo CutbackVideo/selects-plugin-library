@@ -32,7 +32,7 @@ const formatSource=fs.readFileSync(new URL('./format.mjs',import.meta.url),'utf8
 // These tests own Gallery interactions; source verification endpoints and native
 // authoring are explicit mocks. Their real byte/source contracts have separate suites.
 const source = template.replace(/\/\/ local-sdk:start[\s\S]*?\/\/ local-sdk:end/, 'function panelLocalClient(sdk) { return sdk; }\nexport default Panel;').replace('/*__SHARED_SCRIPT_BUILDER__*/',
-  'const buildScript = input => JSON.stringify(input);' + nativeMock + '\n' + assetSource + '\n' + formatSource);
+  'const sharedCoverFocus=(()=>{const module={exports:{}};'+fs.readFileSync(new URL('../../shared/cover-focus.cjs',import.meta.url),'utf8')+';return module.exports;})();const buildScript = input => JSON.stringify(input);' + nativeMock + '\n' + assetSource + '\n' + formatSource);
 assert.notEqual(source, template);
 const compiled = esbuild.transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code;
 const compiledModule = new Module(path.join(appRoot, '__photo_gallery_panel_test__.cjs'));

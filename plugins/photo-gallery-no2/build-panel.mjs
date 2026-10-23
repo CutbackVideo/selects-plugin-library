@@ -8,6 +8,11 @@ const marker = '/*__SHARED_SCRIPT_BUILDER__*/';
 if (template.split(marker).length !== 2) throw new Error('Panel must have exactly one shared builder marker');
 const nativeSource = readFileSync(new URL('./native-image-runtime.js', import.meta.url), 'utf8');
 const originalImageSource = nativeImageSources.toString();
+const faceModules = [
+  ['sharedAiJobs','ai-job-client',readFileSync(new URL('../../shared/ai-job-client.cjs',import.meta.url),'utf8')],
+  ['sharedAiResources','ai-resources',readFileSync(new URL('../../shared/ai-resources.cjs',import.meta.url),'utf8')],
+  ['sharedCoverFocus','cover-focus',readFileSync(new URL('../../shared/cover-focus.cjs',import.meta.url),'utf8')],
+].map(([name,id,source]) => `const ${name}=(()=>{const module={exports:{}};\n// ${id}:start\n${source.trimEnd()}\n// ${id}:end\nreturn module.exports;})();`).join('\n');
 const inputSupportSource = fingerprintTemplateFile.toString()+'\n'+requireSourceFileSupport.toString()+'\n'+observeSourceFiles.toString();
 const standaloneModule=(id)=>'// '+id+':start\n'+readFileSync(new URL('../../shared/'+id+'.js',import.meta.url),'utf8').replace(/^export (async function|function)/gm,'$1').replace(/^export \{[^\n]+\};?\s*$/m,'').trimEnd()+'\n// '+id+':end';
 const observationSource=standaloneModule('file-observation')+'\n'+standaloneModule('draft-observation');
@@ -38,7 +43,7 @@ if (!stdout) writeFileSync(new URL('./authoring.generated.mjs', import.meta.url)
 const { createScriptPrefix, FORMAT_SOURCE } = await import('./operation-builder.mjs');
 const prefix = createScriptPrefix(originalImageSource, sdkAuthoringSource, sdkRunSource, assetResourceSource, inputSupportSource);
 const withObservations=template.replace(/\/\/ file-observation:start\n[\s\S]*?\/\/ file-observation:end\n\/\/ draft-observation:start\n[\s\S]*?\/\/ draft-observation:end/,observationSource);
-const generated = withObservations.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\n${FORMAT_SOURCE}\nconst gallerySourceFacts = ${originalImageSource};\n${panelAuthoringSource}\n${panelRunSource}\n${panelAssetSource}\n${nativeSource}`);
+const generated = withObservations.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\n${FORMAT_SOURCE}\n${faceModules}\nconst gallerySourceFacts = ${originalImageSource};\n${panelAuthoringSource}\n${panelRunSource}\n${panelAssetSource}\n${nativeSource}`);
 // `--stdout` prints the panel instead (tests compare it with the checked-in panel.tsx).
 if (stdout) process.stdout.write(generated);
 else writeFileSync(new URL('./panel.tsx', import.meta.url), generated);
