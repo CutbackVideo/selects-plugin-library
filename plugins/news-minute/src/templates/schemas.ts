@@ -11,9 +11,23 @@ export type EditableParameterDefinition =
   | { key: string; label: string; type: "boolean"; defaultValue: boolean }
   | { key: string; label: string; type: "select"; defaultValue: string; options: Array<{ label: string; value: string }> };
 
-export type TemplateType = "frame" | "headline" | "caption" | "disclaimer" | "news_photo" | "text_card";
+export type TemplateType =
+  | "frame"
+  | "headline"
+  | "caption"
+  | "disclaimer"
+  | "news_photo"
+  | "text_card"
+  | "number_callout"
+  | "bar_compare_h"
+  | "line_trend_callout"
+  | "stat_cards"
+  | "quote_card";
 
 const FONT: EditableParameterDefinition = { key: "fontFamily", label: "Font", type: "text", defaultValue: "" };
+const ACCENT: EditableParameterDefinition = { key: "accentColor", label: "Accent", type: "color", defaultValue: "#E8502F" };
+const TITLE: EditableParameterDefinition = { key: "title", label: "Title", type: "text", defaultValue: "" };
+const SOURCE: EditableParameterDefinition = { key: "source", label: "Source", type: "text", defaultValue: "" };
 
 export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> = {
   frame: [
@@ -78,6 +92,37 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "source", label: "Source", type: "text", defaultValue: "" },
     { key: "fontSize", label: "Size", type: "number", defaultValue: 84, min: 40, max: 120, step: 1 },
   ],
+  number_callout: [
+    FONT,
+    { key: "label", label: "Label", type: "text", defaultValue: "" },
+    { key: "unit", label: "Unit", type: "text", defaultValue: "" },
+    { key: "dim", label: "Photo dim", type: "number", defaultValue: 0.45, min: 0, max: 0.9, step: 0.05 },
+    { key: "revealSec", label: "New value delay (s)", type: "number", defaultValue: 0.75, min: 0, max: 5, step: 0.05 },
+    { key: "boxColor", label: "Box", type: "color", defaultValue: "#FFD700" },
+  ],
+  bar_compare_h: [FONT, TITLE, SOURCE, { key: "unit", label: "Unit", type: "text", defaultValue: "" }, ACCENT],
+  line_trend_callout: [
+    FONT,
+    TITLE,
+    { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" },
+    SOURCE,
+    { key: "unit", label: "Unit", type: "text", defaultValue: "" },
+    ACCENT,
+  ],
+  stat_cards: [
+    FONT,
+    TITLE,
+    { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" },
+    SOURCE,
+    ACCENT,
+    { key: "headerColor", label: "Card header", type: "color", defaultValue: "#D9705A" },
+  ],
+  quote_card: [
+    FONT,
+    { key: "name", label: "Name", type: "text", defaultValue: "" },
+    { key: "affiliation", label: "Affiliation", type: "text", defaultValue: "" },
+    ACCENT,
+  ],
 };
 
 // Static graphics whose output does not depend on time: pass as addMotionGraphic `timeIndependent`.
@@ -88,6 +133,11 @@ export const TIME_INDEPENDENT: Record<TemplateType, boolean> = {
   disclaimer: true,
   news_photo: false,
   text_card: false,
+  number_callout: false,
+  bar_compare_h: false,
+  line_trend_callout: false,
+  stat_cards: false,
+  quote_card: false,
 };
 
 // Clip labels shown in the timeline.
@@ -98,4 +148,9 @@ export const LABELS: Record<TemplateType, string> = {
   disclaimer: "Disclaimer",
   news_photo: "Photo",
   text_card: "Text card",
+  number_callout: "Number callout",
+  bar_compare_h: "Bar comparison",
+  line_trend_callout: "Trend line",
+  stat_cards: "Stat cards",
+  quote_card: "Quote",
 };

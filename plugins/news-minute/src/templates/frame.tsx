@@ -20,11 +20,13 @@ export default function Frame({ data }) {
   const logoMain = String(data?.logoMain ?? '');
   const logoAccent = String(data?.logoAccent ?? '');
   const tagline = String(data?.tagline ?? '');
-  const band = { position: 'absolute', left: 0, width: '100%', background: bg };
+  // `backgroundImage` (data URL of a clean full 1080x1920 frame, e.g. with the damask pattern) replaces the flat colour.
+  const art = typeof data?.backgroundImage === 'string' ? data.backgroundImage : '';
+  const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
       <div style={{ ...band, top: 0, height: top * k }} />
-      <div style={{ ...band, top: bottom * k, bottom: 0 }} />
+      <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />
       {logo ? (
         <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 20) * k, height: 240 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />
