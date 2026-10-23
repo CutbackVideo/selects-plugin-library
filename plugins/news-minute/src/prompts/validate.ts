@@ -370,7 +370,7 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     const asset = sc.assetRef ? assetByRef.get(sc.assetRef) : undefined;
     if (sc.assetRef && !asset) errors.push(`${where}: assetRef "${sc.assetRef}" is not in the asset list`);
     if (sc.type === "news_photo" && !asset) errors.push(`${where}: news_photo needs an assetRef`);
-    if (sc.type !== "news_photo" && sc.type !== "number_callout" && sc.type !== "quote_card" && sc.assetRef) {
+    if (sc.type !== "news_photo" && sc.type !== "quote_card" && sc.assetRef) {
       errors.push(`${where}: ${sc.type} must not carry an assetRef`);
     }
     if (asset) assetUses.set(asset.ref, (assetUses.get(asset.ref) ?? 0) + 1);

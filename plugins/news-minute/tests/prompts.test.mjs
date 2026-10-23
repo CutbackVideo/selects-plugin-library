@@ -179,3 +179,12 @@ test('planner prompt lists the heritage types and the no-calculation rule', () =
   for (const type of ['highlight_card', 'donut_ratio', 'verdict_card', 'flow_cause_effect']) assert.ok(t.includes(type));
   assert.ok(t.includes('calculated') && t.includes('order the narration says'));
 });
+
+test('number_callout must not carry an assetRef', () => {
+  const sents = [{id: 's1', text: '6.0 to 7.0', startSec: 0, endSec: 6}];
+  const assets = [{ref: 'photo-1', kind: 'photo'}];
+  const plan = {assetSummaries: [{ref: 'photo-1', summary: 'x'}], scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {title: 't', label: 'l', from: 6.0, to: 7.0}, hideCaption: true, disclaimer: false, assetRef: 'photo-1'}]};
+  assert.ok(P.validatePlan(plan, sents, assets).errors.some((e) => e.includes('must not carry an assetRef')));
+  delete plan.scenes[0].assetRef;
+  assert.equal(P.validatePlan(plan, sents, assets).ok, true);
+});
