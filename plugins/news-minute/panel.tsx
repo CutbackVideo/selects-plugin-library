@@ -111,7 +111,11 @@ var MESSAGES = {
   type_bar_compare_h: ["Bar comparison", "\uB9C9\uB300 \uBE44\uAD50"],
   type_line_trend_callout: ["Trend chart", "\uCD94\uC774 \uADF8\uB798\uD504"],
   type_stat_cards: ["Stat cards", "\uC218\uCE58 \uCE74\uB4DC"],
-  type_quote_card: ["Quote", "\uC778\uC6A9"]
+  type_quote_card: ["Quote", "\uC778\uC6A9"],
+  type_highlight_card: ["Highlight card", "\uAC15\uC870 \uCE74\uB4DC"],
+  type_donut_ratio: ["Share donut", "\uBE44\uC728 \uB3C4\uB11B"],
+  type_verdict_card: ["Verdict cards", "\uD310\uC815 \uCE74\uB4DC"],
+  type_flow_cause_effect: ["Cause and effect", "\uD750\uB984"]
 };
 function t(lang, key, vars = {}) {
   const pair = MESSAGES[key];
@@ -1390,7 +1394,10 @@ var TIME_INDEPENDENT = {
   line_trend_callout: false,
   stat_cards: false,
   quote_card: false,
-  highlight_card: false
+  highlight_card: false,
+  donut_ratio: false,
+  verdict_card: false,
+  flow_cause_effect: false
 };
 var LABELS = {
   frame: "News frame",
@@ -1404,7 +1411,10 @@ var LABELS = {
   line_trend_callout: "Trend line",
   stat_cards: "Stat cards",
   quote_card: "Quote",
-  highlight_card: "Highlight card"
+  highlight_card: "Highlight card",
+  donut_ratio: "Share donut",
+  verdict_card: "Verdict cards",
+  flow_cause_effect: "Cause and effect"
 };
 
 // src/templates/generated.ts
@@ -1412,6 +1422,655 @@ var TEMPLATES = {
   "bar_compare_h": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Horizontal bar comparison on the white data window (2-3 bars). Each bar has a bold label, an\n// optional grey `sub` (period), grows from the left with a count-up value, and starts after the\n// previous one so the scene builds across `within`; the value fades in once the bar can hold it.\n// A dashed marker holds the first bar's end.\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\nconst decimals = (v) => {\n  const s = String(v);\n  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;\n};\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\nexport default function BarCompareH({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const unit = String(data?.unit ?? '');\n  const title = String(data?.title ?? '');\n  const source = String(data?.source ?? '');\n  const max = Math.max(1e-9, ...bars.map((b) => Math.abs(Number(b?.value) || 0)));\n  const step = bars.length > 1 ? Math.min(fps * 2, (dur * 0.45) / (bars.length - 1)) : 0;\n  const grow = Math.round(fps * 1.1);\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const trackL = 60, trackW = 960, barH = 148, rowH = 300;\n  const y0 = (title ? 230 : 70) + (bars.length < 3 ? 0 : -40);\n  const first = bars.length ? (Math.abs(Number(bars[0].value) || 0) / max) * 0.89 * trackW : 0;\n  const markerIn = interpolate(frame, [grow, grow + 6], [0, 1], ease);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {fontFace}\n      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}\n      {bars.map((b, i) => {\n        const v = Number(b?.value) || 0;\n        const start = Math.round(i * step);\n        const t = interpolate(frame, [start, start + grow], [0, 1], ease);\n        const appear = interpolate(frame, [start, start + Math.round(fps * 0.25)], [0, 1], ease);\n        const hot = b?.tone === 'accent';\n        const w = (Math.abs(v) / max) * 0.89 * trackW * t;\n        const d = decimals(v);\n        const y = y0 + i * rowH;\n        return (\n          <div key={i} style={{ opacity: appear }}>\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + (1 - appear) * 12) * k, display: 'flex', alignItems: 'baseline', gap: 22 * k, whiteSpace: 'nowrap' }}>\n              <div style={{ fontWeight: 900, fontSize: 56 * k, color: hot ? '#B83A22' : '#222222', letterSpacing: -1 * k }}>{String(b?.label ?? '')}</div>\n              {b?.sub ? <div style={{ fontWeight: 500, fontSize: 32 * k, color: '#8A8A8A' }}>{String(b.sub)}</div> : null}\n            </div>\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: trackW * k, height: barH * k, borderRadius: 16 * k, background: '#F2F2F0' }} />\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: w * k, height: barH * k, borderRadius: 16 * k, background: hot ? accent : '#AAB0AC', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' }}>\n              <div style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 84 * k, letterSpacing: -1 * k, paddingRight: 26 * k, whiteSpace: 'nowrap', opacity: interpolate(w, [200, 300], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>\n                {fmt(v * t, d)}<span style={{ fontSize: 44 * k, marginLeft: 4 * k }}>{unit}</span>\n              </div>\n            </div>\n          </div>\n        );\n      })}\n      {bars.length > 1 ? (\n        <div style={{ position: 'absolute', left: (trackL + first) * k, top: (y0 + 60) * k, height: (rowH * (bars.length - 1) + barH + 80) * k, borderLeft: 3 * k + 'px dashed #555555', opacity: markerIn }} />\n      ) : null}\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
   "caption": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// One caption chunk (2-4 words of the approved script), one line, centred at the bottom of the media\n// window on a translucent black box that hugs the text. Chunks switch with a hard cut, so no animation.\nexport default function Caption({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);\n  const size = Math.min(Number(data?.fontSize ?? 54), 980 / Math.max(1, em));\n  const bottom = Number(data?.bottom ?? 1385);\n  const boxHeight = Number(data?.boxHeight ?? 70);\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 600, fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + 12 * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
   "disclaimer": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.\n// The sentence itself comes from the preset.\nexport default function Disclaimer({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
+  "donut_ratio": { tsxCode: `import React from 'react';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+
+// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
+// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
+// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
+// delayRender, continueRender and cancelRender imported by the template.
+//
+// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
+// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
+const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+const C = {
+  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
+  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
+  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
+};
+const X0 = 60, X1 = 1020;
+
+// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
+// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
+const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
+const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
+// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
+// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
+// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
+// whole timeline faster instead of cutting entrances off.
+const HOLD = 1.5;
+function useScene(data, natural = 0) {
+  const fontFace = useEmbeddedFont(data);
+  const frame = useCurrentFrame();
+  const { width, fps, durationInFrames } = useVideoConfig();
+  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
+  return {
+    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
+    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
+    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
+  };
+}
+
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
+// it clear for a damask plate laid underneath.
+function Win({ s, data, children }) {
+  const bg = String(data?.background ?? C.ivory);
+  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
+  return (
+    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
+      {s.fontFace}
+      {children}
+    </div>
+  );
+}
+
+// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
+// b (centre-bottom). The box takes its content's size.
+const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
+function At({ s, x, y, anchor = 'c', style, children }) {
+  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
+}
+
+// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
+function rise(s, t0, dur = 0.8, dy = 20) {
+  const p = prog(s.t, t0, t0 + dur);
+  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
+}
+function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor} style={style}>
+      <div style={rise(s, t0, dur, dy)}>{children}</div>
+    </At>
+  );
+}
+// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
+function pop(s, t0, dur = 0.8) {
+  const p = prog(s.t, t0, t0 + dur);
+  const sc = lerp(0.9, 1, settle(p, 0.3));
+  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
+  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
+}
+function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor}>
+      <div style={pop(s, t0, dur)}>{children}</div>
+    </At>
+  );
+}
+
+// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
+// the centre outwards over \`dur\`.
+function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
+  const p = smooth(prog(s.t, t0, t0 + dur));
+  if (p <= 0) return null;
+  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
+  const seg = (yy, lw) => (
+    <g key={yy} stroke={C.gold} strokeWidth={lw}>
+      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
+      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
+    </g>
+  );
+  return (
+    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
+      {seg(6, 2.2)}
+      {seg(12, 1.2)}
+      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
+    </svg>
+  );
+}
+
+// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule.
+// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
+function Header({ s, title, subtitle, t0 = 0 }) {
+  return (
+    <>
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
+      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+    </>
+  );
+}
+
+// Source line, always bottom-right (26/500).
+function Source({ s, text, t0 = 0.3 }) {
+  if (!text) return null;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+}
+
+// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
+function parseMarks(text) {
+  const out = [];
+  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
+    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
+    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
+    else out.push({ text: m[3], mark: '' });
+  }
+  return out.filter((p) => p.text);
+}
+const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
+
+// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
+// swept in left to right by p (0..1).
+function Brush({ p, seed = 0 }) {
+  const id = 'nmb' + seed + Math.round(p * 1000);
+  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const top = [], bot = [];
+  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
+  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
+      <defs>
+        <linearGradient id={id}>
+          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
+          <stop offset={p * 1.15} stopColor="#000" />
+        </linearGradient>
+        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
+      </defs>
+      <g mask={'url(#' + id + 'm)'}>
+        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
+        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
+      </g>
+    </svg>
+  );
+}
+
+// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
+function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
+  return (
+    <>
+      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
+        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
+          {p.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
+// settled (t0 + 0.55 s), riding with the line.
+function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
+  return (
+    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
+      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
+    </Rise>
+  );
+}
+
+// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
+  const k = s.k, n = 14 * k;
+  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
+  return (
+    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
+      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
+      <div style={{ ...line, top: 4.25 * k }} />
+      <div style={{ ...line, bottom: 4.25 * k }} />
+      <span style={{ position: 'relative' }}>{text}</span>
+    </div>
+  );
+}
+
+// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
+function cardStyle(s, hero = false) {
+  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
+}
+
+// Count-up: split a value into fixed text around one number so it can count from 0.
+// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
+const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
+function countable(v) {
+  const text = typeof v === 'number' ? String(v) : String(v ?? '');
+  const hits = text.match(NUM) || [];
+  if (hits.length !== 1) return null;
+  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
+  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
+}
+// Rounded first so a negative value starts at 0, not -0.
+const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
+
+// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
+const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// A share as a donut (style spec 6-5): outer radius 225, inner 138, on the left. The hero slice
+// (tone "accent", crimson) sweeps alone from 12 o'clock, then the other slices follow in one
+// continuous sweep with no stop between them, split by 5 px paper gaps. The hero value counts up in
+// the middle with the hero label under it. The legend on the right lists the slices in their given
+// (narration) order; each row arrives as its slice is drawn. Values are shown as given, never as a
+// computed percentage.
+const GREYS = ['#968E7E', '#BAB2A0', '#D6CEBC'];
+const DCX = 300, DCY = 472, R = 225, RI = 138;
+const HERO = [0.5, 1.5], REST = [1.9, 3.1];
+
+const pt = (a, r) => [DCX + r * Math.cos((a * Math.PI) / 180), DCY + r * Math.sin((a * Math.PI) / 180)];
+function sector(a0, a1) {
+  const big = a1 - a0 > 180 ? 1 : 0;
+  const [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R), [x2, y2] = pt(a1, RI), [x3, y3] = pt(a0, RI);
+  return 'M' + x0 + ' ' + y0 + 'A' + R + ' ' + R + ' 0 ' + big + ' 1 ' + x1 + ' ' + y1 + 'L' + x2 + ' ' + y2 + 'A' + RI + ' ' + RI + ' 0 ' + big + ' 0 ' + x3 + ' ' + y3 + 'Z';
+}
+const fmt = (v) => { const s = String(v); const d = s.includes('.') ? s.split('.')[1].length : 0; return Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+
+export default function DonutRatio({ data }) {
+  const all = (Array.isArray(data?.slices) ? data.slices : []).slice(0, 4).map((x) => ({ label: String(x?.label ?? ''), value: Math.max(0, Number(x?.value) || 0), hero: x?.tone === 'accent' }));
+  let hi = all.findIndex((x) => x.hero);
+  if (hi < 0) hi = 0;
+  // Draw order: the hero first from 12 o'clock, then the rest in their given order.
+  const order = [hi, ...all.map((_, i) => i).filter((i) => i !== hi)];
+  const total = Math.max(1e-9, all.reduce((n, x) => n + x.value, 0));
+  const span = (i) => (360 * all[i].value) / total;
+  const restSpan = 360 - span(hi);
+  // Time at which the continuous sweep reaches \`deg\` past the hero slice (inverse of smooth()).
+  const tRest = (deg) => {
+    let lo = 0, hiP = 1;
+    for (let n = 0; n < 30; n += 1) { const m = (lo + hiP) / 2; if (smooth(m) * restSpan < deg) lo = m; else hiP = m; }
+    return lerp(REST[0], REST[1], hiP);
+  };
+  const rowAt = all.map((_, i) => {
+    if (i === hi) return 0.9;
+    let before = 0;
+    for (const j of order.slice(1)) { if (j === i) break; before += span(j); }
+    return tRest(before + span(i) / 2);
+  });
+  // Last entrance: the legend row that arrives last (0.8 s), or the count-up.
+  const s = useScene(data, Math.max(2.6, ...rowAt.map((x) => x + 0.8)));
+  const k = s.k;
+  const unit = String(data?.unit ?? '');
+  const reach = span(hi) * smooth(prog(s.t, HERO[0], HERO[1])) + restSpan * smooth(prog(s.t, REST[0], REST[1]));
+  const arcs = [];
+  const gaps = [];
+  let a = 0;
+  let grey = 0;
+  for (const i of order) {
+    const col = i === hi ? C.acc : GREYS[Math.min(GREYS.length - 1, grey++)];
+    all[i].color = col;
+    const end = Math.min(a + span(i), reach);
+    if (end > a + 0.05) {
+      arcs.push(<path key={i} d={sector(a - 90, Math.min(end, a + 359.99) - 90)} fill={col} />);
+      if (a > 0) gaps.push(a);
+    }
+    a += span(i);
+  }
+  const ring = smooth(prog(s.t, 0.2, 0.8));
+  const hero = all[hi] ?? { label: '', value: 0 };
+  const count = countable(fmt(hero.value));
+  const cp = prog(s.t, 1.3, 2.6);
+  const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
+  const rowY = (i) => 300 + (i === 0 ? 0 : 82 + (i - 1) * 58);
+  // Legend rows in narration order, the hero row larger.
+  let slot = 0;
+  return (
+    <Win s={s} data={data}>
+      <Header s={s} title={String(data?.title ?? '')} subtitle={String(data?.subtitle ?? '')} />
+      <svg width={1080 * k} height={809 * k} viewBox="0 0 1080 809" style={{ position: 'absolute', left: 0, top: 0 }}>
+        <circle cx={DCX} cy={DCY} r={(R + RI) / 2} fill="none" stroke={C.line} strokeWidth={R - RI} opacity={0.7 * ring} />
+        {arcs}
+        {gaps.map((g) => { const [x0, y0] = pt(g - 90, RI - 2), [x1, y1] = pt(g - 90, R + 2); return <line key={g} x1={x0} y1={y0} x2={x1} y2={y1} stroke={C.ivory} strokeWidth="5" />; })}
+      </svg>
+      {cp > 0 ? (
+        <At s={s} x={DCX + 4} y={DCY - 14}>
+          <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')', display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800 }}>
+            <span style={{ ...tnum, fontSize: fitSize(fmt(hero.value), 76, 220 - ems(unit) * 42) * k }}>{count ? counted(count, smooth(cp)) : fmt(hero.value)}</span>
+            {unit ? <span style={{ ...tnum, fontSize: 42 * k, fontWeight: 700 }}>{unit}</span> : null}
+          </div>
+        </At>
+      ) : null}
+      <Rise s={s} t0={2.1} dy={8} x={DCX} y={DCY + 50}>
+        <div style={{ fontSize: fitSize(hero.label, 28, 230) * k, fontWeight: 700, color: C.ink2 }}>{hero.label}</div>
+      </Rise>
+      {all.map((x, i) => {
+        const big = i === hi;
+        const y = rowY(big ? 0 : ++slot);
+        const sz = big ? 38 : 28;
+        return (
+          <React.Fragment key={i}>
+            <Rise s={s} t0={rowAt[i]} dy={14} x={592} y={y} anchor="l">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 * k }}>
+                <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
+                <div style={{ fontSize: fitSize(x.label, sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}>{x.label}</div>
+              </div>
+            </Rise>
+            <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={y} anchor="r">
+              <div style={{ display: 'flex', alignItems: 'baseline', color: big ? C.acc : C.ink2, fontWeight: 800 }}>
+                <span style={{ ...tnum, fontSize: (big ? 40 : 32) * k }}>{fmt(x.value)}</span>
+                {unit ? <span style={{ ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 }}>{unit}</span> : null}
+              </div>
+            </Rise>
+          </React.Fragment>
+        );
+      })}
+      <Source s={s} text={String(data?.source ?? '')} />
+    </Win>
+  );
+}
+`, editableParameters: PARAM_SCHEMAS["donut_ratio"] ?? [], timeIndependent: !!TIME_INDEPENDENT["donut_ratio"], label: LABELS["donut_ratio"] ?? "donut_ratio" },
+  "flow_cause_effect": { tsxCode: `import React from 'react';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+
+// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
+// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
+// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
+// delayRender, continueRender and cancelRender imported by the template.
+//
+// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
+// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
+const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+const C = {
+  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
+  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
+  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
+};
+const X0 = 60, X1 = 1020;
+
+// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
+// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
+const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
+const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
+// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
+// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
+// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
+// whole timeline faster instead of cutting entrances off.
+const HOLD = 1.5;
+function useScene(data, natural = 0) {
+  const fontFace = useEmbeddedFont(data);
+  const frame = useCurrentFrame();
+  const { width, fps, durationInFrames } = useVideoConfig();
+  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
+  return {
+    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
+    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
+    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
+  };
+}
+
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
+// it clear for a damask plate laid underneath.
+function Win({ s, data, children }) {
+  const bg = String(data?.background ?? C.ivory);
+  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
+  return (
+    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
+      {s.fontFace}
+      {children}
+    </div>
+  );
+}
+
+// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
+// b (centre-bottom). The box takes its content's size.
+const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
+function At({ s, x, y, anchor = 'c', style, children }) {
+  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
+}
+
+// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
+function rise(s, t0, dur = 0.8, dy = 20) {
+  const p = prog(s.t, t0, t0 + dur);
+  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
+}
+function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor} style={style}>
+      <div style={rise(s, t0, dur, dy)}>{children}</div>
+    </At>
+  );
+}
+// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
+function pop(s, t0, dur = 0.8) {
+  const p = prog(s.t, t0, t0 + dur);
+  const sc = lerp(0.9, 1, settle(p, 0.3));
+  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
+  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
+}
+function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor}>
+      <div style={pop(s, t0, dur)}>{children}</div>
+    </At>
+  );
+}
+
+// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
+// the centre outwards over \`dur\`.
+function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
+  const p = smooth(prog(s.t, t0, t0 + dur));
+  if (p <= 0) return null;
+  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
+  const seg = (yy, lw) => (
+    <g key={yy} stroke={C.gold} strokeWidth={lw}>
+      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
+      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
+    </g>
+  );
+  return (
+    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
+      {seg(6, 2.2)}
+      {seg(12, 1.2)}
+      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
+    </svg>
+  );
+}
+
+// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule.
+// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
+function Header({ s, title, subtitle, t0 = 0 }) {
+  return (
+    <>
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
+      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+    </>
+  );
+}
+
+// Source line, always bottom-right (26/500).
+function Source({ s, text, t0 = 0.3 }) {
+  if (!text) return null;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+}
+
+// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
+function parseMarks(text) {
+  const out = [];
+  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
+    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
+    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
+    else out.push({ text: m[3], mark: '' });
+  }
+  return out.filter((p) => p.text);
+}
+const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
+
+// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
+// swept in left to right by p (0..1).
+function Brush({ p, seed = 0 }) {
+  const id = 'nmb' + seed + Math.round(p * 1000);
+  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const top = [], bot = [];
+  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
+  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
+      <defs>
+        <linearGradient id={id}>
+          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
+          <stop offset={p * 1.15} stopColor="#000" />
+        </linearGradient>
+        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
+      </defs>
+      <g mask={'url(#' + id + 'm)'}>
+        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
+        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
+      </g>
+    </svg>
+  );
+}
+
+// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
+function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
+  return (
+    <>
+      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
+        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
+          {p.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
+// settled (t0 + 0.55 s), riding with the line.
+function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
+  return (
+    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
+      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
+    </Rise>
+  );
+}
+
+// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
+  const k = s.k, n = 14 * k;
+  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
+  return (
+    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
+      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
+      <div style={{ ...line, top: 4.25 * k }} />
+      <div style={{ ...line, bottom: 4.25 * k }} />
+      <span style={{ position: 'relative' }}>{text}</span>
+    </div>
+  );
+}
+
+// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
+function cardStyle(s, hero = false) {
+  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
+}
+
+// Count-up: split a value into fixed text around one number so it can count from 0.
+// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
+const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
+function countable(v) {
+  const text = typeof v === 'number' ? String(v) : String(v ?? '');
+  const hits = text.match(NUM) || [];
+  if (hits.length !== 1) return null;
+  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
+  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
+}
+// Rounded first so a negative value starts at 0, not -0.
+const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
+
+// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
+const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// "Because of A, B happens" (style spec 6-7, bottom row): the cause card (400 x 330, gold edge) rises
+// in, a gold arrow grows to the right, then the effect card (crimson 3 px edge) follows. Each card
+// shows an optional small \`caption\` (green) over its big \`word\`; the effect word is crimson. Under
+// the scene title and rule. No pictograms: the cards carry words only until a shared icon set exists.
+const FW = 400, FH = 330, LCX = 290, RCX = 790;
+
+function Card({ s, cx, cy, t0, hero, caption, word }) {
+  const k = s.k;
+  const size = fitSize(word, 64, FW - 60);
+  return (
+    <>
+      <Rise s={s} t0={t0} dur={0.9} dy={22} x={cx} y={cy}>
+        <div style={{ ...cardStyle(s, hero), width: FW * k, height: FH * k }} />
+      </Rise>
+      {caption ? (
+        <Rise s={s} t0={t0 + 0.25} dy={10} x={cx} y={cy - 56}>
+          <div style={{ fontSize: fitSize(caption, 40, FW - 60) * k, fontWeight: 800, color: C.green }}>{caption}</div>
+        </Rise>
+      ) : null}
+      <Rise s={s} t0={t0 + (caption ? 0.45 : 0.3)} dy={12} x={cx} y={cy + (caption ? 26 : 0)}>
+        <div style={{ fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}>{word}</div>
+      </Rise>
+    </>
+  );
+}
+
+export default function FlowCauseEffect({ data }) {
+  const cause = { word: String(data?.cause?.word ?? ''), caption: String(data?.cause?.caption ?? '') };
+  const effect = { word: String(data?.effect?.word ?? ''), caption: String(data?.effect?.caption ?? '') };
+  const tCause = 0.5, tArrow = 1.6, tEffect = 2.2;
+  // Last entrance: the effect word, 0.45 + 0.8 s after its card.
+  const s = useScene(data, tEffect + 1.25);
+  const subtitle = String(data?.subtitle ?? '');
+  const cy = (subtitle ? 190 : 150) + (794 - (subtitle ? 190 : 150)) / 2;
+  const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
+  const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
+  const L = (ax1 - ax0) * ap, head = 26;
+  return (
+    <Win s={s} data={data}>
+      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
+      <Card s={s} cx={LCX} cy={cy} t0={tCause} hero={false} {...cause} />
+      {ap > 0 ? (
+        <svg width={1080 * s.k} height={809 * s.k} viewBox="0 0 1080 809" style={{ position: 'absolute', left: 0, top: 0 }}>
+          {L > head ? <line x1={ax0} y1={cy} x2={ax0 + L - head + 2} y2={cy} stroke={C.gold} strokeWidth="9" strokeLinecap="round" /> : null}
+          <polygon points={(ax0 + L) + ',' + cy + ' ' + (ax0 + L - head) + ',' + (cy - head * 0.62 * Math.min(1, L / head)) + ' ' + (ax0 + L - head) + ',' + (cy + head * 0.62 * Math.min(1, L / head))} fill={C.gold} />
+        </svg>
+      ) : null}
+      <Card s={s} cx={RCX} cy={cy} t0={tEffect} hero {...effect} />
+    </Win>
+  );
+}
+`, editableParameters: PARAM_SCHEMAS["flow_cause_effect"] ?? [], timeIndependent: !!TIME_INDEPENDENT["flow_cause_effect"], label: LABELS["flow_cause_effect"] ?? "flow_cause_effect" },
   "frame": { tsxCode: "import React from 'react';\nimport { Img, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst SERIF = \"'Noto Serif KR','AppleMyungjo','Batang','Times New Roman',serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Persistent frame: brand background above and below the 1080x920 media window (y 480-1400), plus the\n// logo block under the window. The window itself stays transparent so the scene clips show through\n// whatever the track order is. Brand text comes in as parameters (the preset supplies it).\nexport default function Frame({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const bg = String(data?.background ?? '#21302A');\n  const top = Number(data?.windowTop ?? 480);\n  const bottom = Number(data?.windowBottom ?? 1400);\n  const gold = String(data?.accentColor ?? '#D8B66A');\n  const logo = typeof data?.logo === 'string' ? data.logo : '';\n  const logoMain = String(data?.logoMain ?? '');\n  const logoAccent = String(data?.logoAccent ?? '');\n  const tagline = String(data?.tagline ?? '');\n  // `backgroundImage` (data URL of a clean full 1080x1920 frame, e.g. with the damask pattern) replaces the flat colour.\n  const art = typeof data?.backgroundImage === 'string' ? data.backgroundImage : '';\n  const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ ...band, top: 0, height: top * k }} />\n      <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />\n      {logo ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 20) * k, height: 240 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />\n        </div>\n      ) : (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 12) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 150 * k }}>\n            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 100 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}\n            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 134 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}\n          </div>\n          {logoMain || logoAccent ? <div style={{ width: 486 * k, height: 3 * k, marginTop: 8 * k, background: gold }} /> : null}\n          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 52 * k, color: '#FFFFFF', marginTop: 16 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}\n        </div>\n      )}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["frame"] ?? [], timeIndependent: !!TIME_INDEPENDENT["frame"], label: LABELS["frame"] ?? "frame" },
   "headline": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Fixed two-line headline above the media window, on screen for the whole video with no animation.\n// Line 1: white text (an optional accent substring in the box colour). Line 2: black text on a box\n// that hugs the text width. Both lines shrink to fit when they run long.\nexport default function Headline({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const size = Number(data?.fontSize ?? 96);\n  const boxColor = String(data?.boxColor ?? '#FFD700');\n  const line1 = String(data?.line1 ?? '');\n  const line2 = String(data?.line2 ?? '');\n  const accent = String(data?.accent ?? '');\n  // Hangul glyphs at this weight run close to 0.95em; digits and spaces are narrower.\n  const em = (s) => [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.58 : 0.95), 0);\n  const fit = (s, max) => Math.min(size, max / Math.max(1, em(s)));\n  const size1 = fit(line1, 1010);\n  const size2 = fit(line2, 1030);\n  const at = accent && line1.includes(accent) ? line1.indexOf(accent) : -1;\n  const text1 = at < 0 ? line1 : (\n    <>\n      {line1.slice(0, at)}\n      <span style={{ color: boxColor }}>{accent}</span>\n      {line1.slice(at + accent.length)}\n    </>\n  );\n  const type = { fontFamily, fontWeight: 900, letterSpacing: -2 * k, whiteSpace: 'nowrap' };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      {line1 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line1Top ?? 228) * k, height: 110 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <div style={{ ...type, fontSize: size1 * k, lineHeight: 1, color: String(data?.line1Color ?? '#FFFFFF') }}>{text1}</div>\n        </div>\n      ) : null}\n      {line2 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line2Top ?? 343) * k, height: 114 * k, display: 'flex', justifyContent: 'center' }}>\n          <div style={{ ...type, fontSize: size2 * k, lineHeight: 114 * k + 'px', height: 114 * k, padding: '0 ' + 18 * k + 'px', maxWidth: 1050 * k, background: boxColor, color: String(data?.line2Color ?? '#000000') }}>{line2}</div>\n        </div>\n      ) : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["headline"] ?? [], timeIndependent: !!TIME_INDEPENDENT["headline"], label: LABELS["headline"] ?? "headline" },
   "highlight_card": { tsxCode: `import React from 'react';
@@ -2708,7 +3367,340 @@ export default function TextCard({ data }) {
     </Win>
   );
 }
-`, editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" }
+`, editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" },
+  "verdict_card": { tsxCode: `import React from 'react';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+
+// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
+// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
+// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
+// delayRender, continueRender and cancelRender imported by the template.
+//
+// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
+// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
+const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+const C = {
+  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
+  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
+  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
+};
+const X0 = 60, X1 = 1020;
+
+// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
+// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
+const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
+const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
+// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
+// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
+// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
+// whole timeline faster instead of cutting entrances off.
+const HOLD = 1.5;
+function useScene(data, natural = 0) {
+  const fontFace = useEmbeddedFont(data);
+  const frame = useCurrentFrame();
+  const { width, fps, durationInFrames } = useVideoConfig();
+  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
+  return {
+    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
+    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
+    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
+  };
+}
+
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
+// it clear for a damask plate laid underneath.
+function Win({ s, data, children }) {
+  const bg = String(data?.background ?? C.ivory);
+  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
+  return (
+    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
+      {s.fontFace}
+      {children}
+    </div>
+  );
+}
+
+// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
+// b (centre-bottom). The box takes its content's size.
+const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
+function At({ s, x, y, anchor = 'c', style, children }) {
+  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
+}
+
+// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
+function rise(s, t0, dur = 0.8, dy = 20) {
+  const p = prog(s.t, t0, t0 + dur);
+  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
+}
+function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor} style={style}>
+      <div style={rise(s, t0, dur, dy)}>{children}</div>
+    </At>
+  );
+}
+// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
+function pop(s, t0, dur = 0.8) {
+  const p = prog(s.t, t0, t0 + dur);
+  const sc = lerp(0.9, 1, settle(p, 0.3));
+  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
+  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
+}
+function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor}>
+      <div style={pop(s, t0, dur)}>{children}</div>
+    </At>
+  );
+}
+
+// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
+// the centre outwards over \`dur\`.
+function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
+  const p = smooth(prog(s.t, t0, t0 + dur));
+  if (p <= 0) return null;
+  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
+  const seg = (yy, lw) => (
+    <g key={yy} stroke={C.gold} strokeWidth={lw}>
+      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
+      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
+    </g>
+  );
+  return (
+    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
+      {seg(6, 2.2)}
+      {seg(12, 1.2)}
+      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
+    </svg>
+  );
+}
+
+// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule.
+// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
+function Header({ s, title, subtitle, t0 = 0 }) {
+  return (
+    <>
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
+      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+    </>
+  );
+}
+
+// Source line, always bottom-right (26/500).
+function Source({ s, text, t0 = 0.3 }) {
+  if (!text) return null;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+}
+
+// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
+function parseMarks(text) {
+  const out = [];
+  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
+    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
+    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
+    else out.push({ text: m[3], mark: '' });
+  }
+  return out.filter((p) => p.text);
+}
+const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
+
+// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
+// swept in left to right by p (0..1).
+function Brush({ p, seed = 0 }) {
+  const id = 'nmb' + seed + Math.round(p * 1000);
+  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const top = [], bot = [];
+  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
+  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
+      <defs>
+        <linearGradient id={id}>
+          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
+          <stop offset={p * 1.15} stopColor="#000" />
+        </linearGradient>
+        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
+      </defs>
+      <g mask={'url(#' + id + 'm)'}>
+        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
+        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
+      </g>
+    </svg>
+  );
+}
+
+// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
+function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
+  return (
+    <>
+      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
+        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
+          {p.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
+// settled (t0 + 0.55 s), riding with the line.
+function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
+  return (
+    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
+      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
+    </Rise>
+  );
+}
+
+// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
+  const k = s.k, n = 14 * k;
+  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
+  return (
+    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
+      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
+      <div style={{ ...line, top: 4.25 * k }} />
+      <div style={{ ...line, bottom: 4.25 * k }} />
+      <span style={{ position: 'relative' }}>{text}</span>
+    </div>
+  );
+}
+
+// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
+function cardStyle(s, hero = false) {
+  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
+}
+
+// Count-up: split a value into fixed text around one number so it can count from 0.
+// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
+const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
+function countable(v) {
+  const text = typeof v === 'number' ? String(v) : String(v ?? '');
+  const hits = text.match(NUM) || [];
+  if (hits.length !== 1) return null;
+  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
+  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
+}
+// Rounded first so a negative value starts at 0, not -0.
+const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
+
+// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
+const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Applies or not, target or exempt (style spec 6-6). A plain gold rule draws across the top and the
+// \`title\` ribbon pops on it; then one or two full-width cards (960 x 270) rise in, each with an icon
+// disc on the left and a two-line sentence on the right ('\\n' splits it; [word] crimson). A card of
+// tone "accent" is the hero side: crimson target mark drawn ring by ring. Tone "contrast" is the
+// opposite side (excluded, allowed): a green check drawn stroke by stroke. \`subtitle\` is an optional
+// grey line under the ribbon. The second card waits until the first one has settled.
+const CW = X1 - X0, CH = 270, D = 196;
+
+function Mark({ s, tone, t0 }) {
+  const p = smooth(prog(s.t, t0, t0 + 0.9));
+  if (tone === 'contrast') {
+    // Check: short stroke then long stroke.
+    const a = clamp(p * 2), b = clamp(p * 2 - 1);
+    return (
+      <svg width={D * s.k} height={D * s.k} viewBox="0 0 196 196">
+        <circle cx="98" cy="98" r="98" fill="#DCE9DF" />
+        {a > 0 ? <line x1="58" y1="102" x2={lerp(58, 86, a)} y2={lerp(102, 130, a)} stroke={C.good} strokeWidth="16" strokeLinecap="round" /> : null}
+        {b > 0 ? <line x1="86" y1="130" x2={lerp(86, 142, b)} y2={lerp(130, 70, b)} stroke={C.good} strokeWidth="16" strokeLinecap="round" /> : null}
+      </svg>
+    );
+  }
+  // Target: rings close one after another, then the centre dot settles in.
+  const r1 = clamp(p * 2), r2 = clamp(p * 2 - 0.6), dot = settle(clamp(p * 2 - 1), 0.12);
+  const arc = (r, q) => <circle cx="98" cy="98" r={r} fill="none" stroke={C.acc} strokeWidth="12" strokeDasharray={2 * Math.PI * r} strokeDashoffset={2 * Math.PI * r * (1 - q)} transform="rotate(-90 98 98)" strokeLinecap="round" />;
+  return (
+    <svg width={D * s.k} height={D * s.k} viewBox="0 0 196 196">
+      <circle cx="98" cy="98" r="98" fill={C.accL} />
+      {r1 > 0 ? arc(62, r1) : null}
+      {r2 > 0 ? arc(36, r2) : null}
+      {dot > 0 ? <circle cx="98" cy="98" r={13 * dot} fill={C.acc} /> : null}
+    </svg>
+  );
+}
+
+// The sentence as given when it has a '\\n'; otherwise split at the space nearest the middle (outside
+// any [ ] or { } mark) so it reads as the spec's two-line card.
+function twoLines(text) {
+  const given = text.split('\\n').filter((l) => l.trim() !== '');
+  if (given.length !== 1) return given.slice(0, 2);
+  const one = given[0];
+  let best = -1, depth = 0;
+  for (let i = 0; i < one.length; i += 1) {
+    const ch = one[i];
+    if (ch === '[' || ch === '{') depth += 1;
+    else if (ch === ']' || ch === '}') depth -= 1;
+    else if (ch === ' ' && depth === 0 && (best < 0 || Math.abs(i - one.length / 2) < Math.abs(best - one.length / 2))) best = i;
+  }
+  return best < 0 || ems(plainText(one)) < 11 ? [one] : [one.slice(0, best), one.slice(best + 1)];
+}
+
+export default function VerdictCard({ data }) {
+  const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ''), tone: c?.tone === 'contrast' ? 'contrast' : 'accent' }));
+  const subtitle = String(data?.subtitle ?? '');
+  const starts = cards.map((_, i) => (i === 0 ? 0.35 : 2.0));
+  // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card) or its second line.
+  const s = useScene(data, cards.length ? starts[cards.length - 1] + 1.9 : 1.1);
+  const k = s.k;
+  const top = subtitle ? 200 : 150;
+  const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;
+  return (
+    <Win s={s} data={data}>
+      <GoldRule s={s} y={78} t0={0} ornament={false} />
+      <Pop s={s} t0={0.3} x={540} y={78}><Ribbon s={s} text={String(data?.title ?? '')} size={44} /></Pop>
+      {subtitle ? <Rise s={s} t0={0.5} dy={10} x={540} y={152}><div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+      {cards.map((c, i) => {
+        const t0 = starts[i];
+        const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;
+        const lines = twoLines(c.text);
+        const tx = X0 + 36 + D + 44;
+        const size = Math.min(64, ...lines.map((l) => (X1 - 36 - tx) / Math.max(0.01, ems(plainText(l)))));
+        const lh = size * 1.25;
+        const iconIn = prog(s.t, t0 + 0.25, t0 + 1.05);
+        return (
+          <React.Fragment key={i}>
+            <Rise s={s} t0={t0} dur={0.9} dy={22} x={X0} y={y0} anchor="lt">
+              <div style={{ ...cardStyle(s, false), width: CW * k, height: CH * k, borderColor: c.tone === 'contrast' ? C.good : C.gold }} />
+            </Rise>
+            <At s={s} x={X0 + 36 + D / 2} y={cy}>
+              <div style={{ opacity: smooth(iconIn / 0.5), transform: 'scale(' + lerp(0.9, 1, settle(iconIn, 0.3)) + ')' }}><Mark s={s} tone={c.tone} t0={t0 + 1.0} /></div>
+            </At>
+            {lines.map((l, j) => (
+              <Say key={j} s={s} text={l} x={tx} y={cy + (j - (lines.length - 1) / 2) * lh} t0={t0 + 0.4 + 0.2 * j} size={size} dy={14} />
+            ))}
+          </React.Fragment>
+        );
+      })}
+    </Win>
+  );
+}
+`, editableParameters: PARAM_SCHEMAS["verdict_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["verdict_card"], label: LABELS["verdict_card"] ?? "verdict_card" }
 };
 
 // src/pipeline/plan.ts
@@ -3668,7 +4660,11 @@ function thumbOf(dataUrl) {
 }
 var SCENE_FIELDS = {
   text_card: ["text", "sub"],
-  number_callout: ["label", "from", "to", "unit"],
+  number_callout: ["title", "from", "to", "unit"],
+  highlight_card: ["title", "value", "unit"],
+  donut_ratio: ["title"],
+  verdict_card: ["title"],
+  flow_cause_effect: ["title"],
   quote_card: ["name", "lines"],
   bar_compare_h: ["title"],
   line_trend_callout: ["title"],

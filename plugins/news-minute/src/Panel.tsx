@@ -44,7 +44,11 @@ function thumbOf(dataUrl: string): Promise<string> {
 // Fields a reviewer edits directly for each scene type; everything else stays in the JSON editor.
 const SCENE_FIELDS: Record<string, string[]> = {
   text_card: ["text", "sub"],
-  number_callout: ["label", "from", "to", "unit"],
+  number_callout: ["title", "from", "to", "unit"],
+  highlight_card: ["title", "value", "unit"],
+  donut_ratio: ["title"],
+  verdict_card: ["title"],
+  flow_cause_effect: ["title"],
   quote_card: ["name", "lines"],
   bar_compare_h: ["title"],
   line_trend_callout: ["title"],
