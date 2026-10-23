@@ -1,70 +1,52 @@
 import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+import { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+// @heritage
 
-// Article photo cover-filling the 1080x920 media window with a slow Ken Burns move over the scene:
-// push-in by `zoom` (default 9 %) plus a slight drift, or a pan. `image` is a data URL. Optional
-// source credit sits top-right inside the window.
-// `fit: "contain"` (graphics, charts, tall images) shows the whole image centred on the brand
-// `background` instead, inside a box clear of the credit and the caption band, with a third of the
-// move so axes and titles never leave the window.
+// Article photo in a gold-edged frame (radius 12, 2 px gold) on the paper, zooming slowly over the
+// whole clip (100 -> 106 % by default, or a pan). `image` is a data URL; `credit` sits bottom-right
+// like a source line. `fit: "contain"` (graphics, charts, tall images) shows the whole image on the
+// card colour inside the frame with a third of the move, so axes and titles never leave it.
 const MOVES = {
   push_in: { s: [0, 1], x: [0, -0.012], y: [0, -0.008] },
   pull_out: { s: [1, 0], x: [0, 0], y: [0, 0] },
   pan_left: { s: [0.6, 0.6], x: [0.03, -0.03], y: [0, 0] },
   pan_right: { s: [0.6, 0.6], x: [-0.03, 0.03], y: [0, 0] },
-  pan_up: { s: [0.6, 0.6], x: [0, 0], y: [0.035, -0.035] },
-  pan_down: { s: [0.6, 0.6], x: [0, 0], y: [-0.035, 0.035] },
+  pan_up: { s: [0.6, 0.6], x: [0, 0], y: [0.03, -0.03] },
+  pan_down: { s: [0.6, 0.6], x: [0, 0], y: [-0.03, 0.03] },
 };
-const FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '25% 50%', right: '75% 50%' };
-
-// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
-// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
+const FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '20% 50%', right: '80% 50%' };
 
 export default function NewsPhoto({ data }) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;
-  const t = interpolate(frame, [0, Math.max(1, dur - 1)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(0.33, 0, 0.67, 1) });
+  // Last entrance: the credit line, 0.3 + 0.8 s.
+  const s = useScene(data, 1.1);
+  const k = s.k;
+  // The move runs over the real clip length, not the entrance clock.
+  const p = smooth(s.frame / s.fps / Math.max(0.1, s.end));
   const move = MOVES[String(data?.motion ?? 'push_in')] ?? MOVES.push_in;
   const contain = data?.fit === 'contain';
   const gentle = contain ? 1 / 3 : 1;
-  const zoom = Number(data?.zoom ?? 0.09) * gentle;
-  const scale = 1 + zoom * (move.s[0] + (move.s[1] - move.s[0]) * t);
-  const dx = (move.x[0] + (move.x[1] - move.x[0]) * t) * 1080 * gentle;
-  const dy = (move.y[0] + (move.y[1] - move.y[0]) * t) * 920 * gentle;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const image = typeof data?.image === 'string' ? data.image : '';
+  const zoom = Number(data?.zoom ?? 0.06) * gentle;
+  const scale = 1 + zoom * lerp(move.s[0], move.s[1], p);
   const credit = String(data?.credit ?? '');
-  // contain box: 40 px sides, below the credit line, 20 px above the caption band (frame y 1315-1385).
-  const box = contain ? { side: 40, top: credit ? 100 : 40, bottom: Math.max(40, top + height - 1295) } : { side: 0, top: 0, bottom: 0 };
+  // Frame x 60..1020; from y 40 down to 40 px above the credit line (or the content floor).
+  const fx = X0, fy = 40, fw = X1 - X0, fh = (credit ? 740 : 794) - fy;
+  const dx = lerp(move.x[0], move.x[1], p) * fw * gentle;
+  const dy = lerp(move.y[0], move.y[1], p) * fh * gentle;
+  const image = typeof data?.image === 'string' ? data.image : '';
+  const pad = contain ? 16 : 0;
   return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: contain ? String(data?.background ?? '#2B3D34') : '#000000', pointerEvents: 'none' }}>
-      {fontFace}
-      {contain ? <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 55%, rgba(0,0,0,0.30) 100%)' }} /> : null}
-      {image ? (
-        <Img src={image} style={{ position: 'absolute', left: box.side * k, top: box.top * k, width: (1080 - 2 * box.side) * k, height: (height - box.top - box.bottom) * k, objectFit: contain ? 'contain' : 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />
-      ) : null}
-      {data?.dim ? <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data.dim) + ')' }} /> : null}
-      {credit ? (
-        <div style={{ position: 'absolute', right: 38 * k, top: 46 * k, fontFamily, fontWeight: 300, fontSize: 35 * k, color: '#FFFFFF', whiteSpace: 'nowrap', textShadow: '0 ' + 2 * k + 'px ' + 6 * k + 'px rgba(0,0,0,0.7)' }}>{credit}</div>
-      ) : null}
-    </div>
+    <Win s={s} data={data}>
+      <Rise s={s} t0={0} dur={0.8} dy={20} x={fx} y={fy} anchor="lt">
+        <div style={{ position: 'relative', width: fw * k, height: fh * k, borderRadius: 12 * k, overflow: 'hidden', background: contain ? C.card : C.line }}>
+          {image ? (
+            <Img src={image} style={{ position: 'absolute', left: pad * k, top: pad * k, width: (fw - 2 * pad) * k, height: (fh - 2 * pad) * k, objectFit: contain ? 'contain' : 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />
+          ) : null}
+          {data?.dim ? <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data.dim) + ')' }} /> : null}
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 12 * k, border: 2 * k + 'px solid ' + C.gold, boxSizing: 'border-box' }} />
+        </div>
+      </Rise>
+      <Source s={s} text={credit} />
+    </Win>
   );
 }
