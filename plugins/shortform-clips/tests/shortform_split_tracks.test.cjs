@@ -11,10 +11,26 @@ test('split source clips occupy reusable silent lanes with exact retimed source 
   const sources=[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}],layout={windowTop:300,windowBottom:1100,allowedLayouts:[style]};
   const shots=[{startFrame:0,endFrame:60,resourceId:'r',compositionId:'split',style,regions:Array.from({length:count},()=>({x:0,y:0,width:1,height:1,letterbox:true}))}];
   const snapshot={fps:30,clips:[{...clips[0],sourceStartSeconds:10,playbackSpeed:2},{...clips[1],sourceStartSeconds:40,playbackSpeed:.5}]};
+  // Check the actual generated timing block, not just its JavaScript execution.
+  // Literal numeric snapshots previously narrowed the object branch to `never`.
+  const ts=dep('typescript'),os=require('node:os');
+  const checkTiming=snap=>{
+   const script=m.exports.sourceCropApplyScript('p','d',layout,sources,60,snap).replace('__SHOTS__',JSON.stringify(shots));
+   const timing=script.slice(script.indexOf('const normalizeSpeed=')>=0?script.indexOf('const normalizeSpeed='):script.indexOf('const snapshot='),script.indexOf('// Only remove generated panel clips'));
+   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'split-timing-')),file=path.join(dir,'check.ts');
+   try {
+    fs.writeFileSync(file,'declare const plan:any,d:any,aliases:any;\nasync function check(){\n'+timing+'\n}');
+    const program=ts.createProgram([file],{noEmit:true,skipLibCheck:true,target:ts.ScriptTarget.ES2022,types:[]});
+    const errors=ts.getPreEmitDiagnostics(program);
+    assert.deepEqual(errors.map(d=>ts.flattenDiagnosticMessageText(d.messageText,'\n')),[]);
+   } finally {fs.rmSync(dir,{recursive:true,force:true});}
+  };
+  checkTiming(snapshot);
+  checkTiming({...snapshot,clips:snapshot.clips.map(c=>({...c,playbackSpeed:{numerator:c.playbackSpeed,denominator:1}}))});
   const execute=snap=>new Function('selects','return (async()=>{'+m.exports.sourceCropApplyScript('p','d',layout,sources,60,snap).replace('__SHOTS__',JSON.stringify(shots))+'})()')({project:()=>p,draft:()=>d});
   await assert.rejects(()=>execute(null),/timing is unavailable/);assert.equal(commits,0);
   for(let retry=0;retry<2;retry++){
-   placements=[];await execute(snapshot);
+   placements=[];await execute(retry===0?snapshot:{...snapshot,clips:snapshot.clips.map(c=>({...c,playbackSpeed:{numerator:c.playbackSpeed,denominator:1}}))});
    assert.equal(tracks.length,count+1); // includes unrelated user lane
    assert.equal(clips.filter(c=>c.trackKind==='main').length,2);
    assert.ok(clips.some(c=>c.resourceId==='broll'));
@@ -26,5 +42,9 @@ test('split source clips occupy reusable silent lanes with exact retimed source 
    for(const c of clips.filter(c=>c.resourceId==='r')){const e=effects.get(key(c))[0];assert.equal(e.name,'Shape mask');assert.equal(e.parameters.shortformSourceCrop,true);assert.equal(e.parameters.shape,'rectangle');assert.ok(e.parameters.width>0&&e.parameters.height>0);};
   }
   assert.equal(commits,2);
+  for(const bad of [0,-1,null,{numerator:1,denominator:0},{numerator:0,denominator:1}]){
+   await assert.rejects(()=>execute({...snapshot,clips:snapshot.clips.map(c=>({...c,playbackSpeed:bad}))}),/Invalid split source timing/);
+   assert.equal(commits,2);
+  }
  });
 });

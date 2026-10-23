@@ -4280,6 +4280,12 @@ function nativeSourceCrop(panel:any,W:number,H:number,windowTop:number,windowH:n
   mask:{shape:'rectangle',x:(box.x+box.width/2-W/2)/maskScale,y:(box.y+box.height/2-H/2)/maskScale,width:box.width/maskScale,height:box.height/maskScale,rotation:0,roundness:0,feather:0,inverse:false}};
 }
 
+function normalizeSourcePlaybackSpeed(value:unknown) {
+ const speed=typeof value==='number'?{numerator:Math.round(value*1000000),denominator:1000000}:value as {numerator:number,denominator:number};
+ if(!speed||!Number.isFinite(speed.numerator)||!Number.isFinite(speed.denominator)||speed.numerator<=0||speed.denominator<=0)throw Error("Invalid split source timing");
+ return {numerator:speed.numerator,denominator:speed.denominator};
+}
+
 function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number,snapshot:any=null) {
   return `const shots = __SHOTS__;
 const compositionRects=${compositionRects.toString()},permittedSplits=${permittedSplits.toString()},assertCompositionLayout=${assertCompositionLayout.toString()};
@@ -4331,6 +4337,7 @@ for (const s of plan.slice(1)) {
  if (clips.some(c=>c.startFrame<s.startFrame&&c.endFrame>s.startFrame)) await d.splitAt({frame:s.startFrame});
 }
 // Snapshot timing is measured before mutation, including silence cuts and retiming.
+const normalizeSpeed=${normalizeSourcePlaybackSpeed.toString()};
 const snapshot=${JSON.stringify(snapshot)},overlays=[];
 const splitPlan=plan.filter(s=>s.panels.length>1);
 if(splitPlan.length){
@@ -4338,7 +4345,7 @@ if(splitPlan.length){
  for(const s of splitPlan)for(const c of (await d.clips({trackScope:"main"})).filter(c=>c.resourceId&&c.startFrame>=s.startFrame&&c.endFrame<=s.endFrame)){
   const matches=snapshot.clips.filter(x=>x.trackKind==="main"&&(aliases.get(x.resourceId)||x.resourceId)===c.resourceId&&x.startFrame<=c.startFrame&&x.endFrame>=c.endFrame);
   if(matches.length!==1)throw Error("Split source timing changed");
-  const x=matches[0],observedRate=typeof x.playbackSpeed==="number"?x.playbackSpeed:x.playbackSpeed?.numerator/x.playbackSpeed?.denominator||1,speed=c.playbackSpeed||(typeof x.playbackSpeed==="object"?x.playbackSpeed:{numerator:Math.round(observedRate*1000000),denominator:1000000}),rate=speed.numerator/speed.denominator;
+  const x=matches[0],observedSpeed=normalizeSpeed(x.playbackSpeed),observedRate=observedSpeed.numerator/observedSpeed.denominator,speed=normalizeSpeed(c.playbackSpeed??observedSpeed),rate=speed.numerator/speed.denominator;
   if(!Number.isFinite(x.sourceStartSeconds)||!Number.isFinite(rate)||rate<=0||Math.abs(rate-observedRate)>1e-6)throw Error("Invalid split source timing");
   for(const panel of s.panels.slice(1))overlays.push({s,panel,startFrame:c.startFrame,endFrame:c.endFrame,sourceStartSeconds:x.sourceStartSeconds+(c.startFrame-x.startFrame)/snapshot.fps*rate,playbackSpeed:speed});
  }
