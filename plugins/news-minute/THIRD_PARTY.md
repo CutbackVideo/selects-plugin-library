@@ -23,7 +23,9 @@ carries the family name); the packaged file itself keeps its name.
 (SHA-256 `5fc12cf6a843a703cbab360169c681704416f330d3979e7e5a3f4b050efbb720`).
 harfbuzzjs is under the MIT licence (`fonts/LICENSE-harfbuzzjs.txt`); HarfBuzz
 itself is under its Old MIT licence (`fonts/COPYING-harfbuzz.txt`). The panel
-checks the decoded bytes against that hash before use.
+checks the decoded bytes against that hash before use. It is gzip-compressed
+because the plain base64 of these bytes happens to contain an `AKIA...` run that
+`tools/check_public.py` flags as an access token.
 
 ## Code
 

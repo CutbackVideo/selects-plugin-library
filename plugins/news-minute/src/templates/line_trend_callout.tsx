@@ -1,5 +1,5 @@
 import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 
@@ -14,7 +14,21 @@ const decimals = (v) => {
 // Korean graphics write 5000 but 12,500: group thousands only from five digits up.
 const fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });
 
+// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
+// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
 export default function LineTrendCallout({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   // Unique per placement so two trend lines in one document never share a clip path.
   const clipId = 'ltc-' + String(React.useId ? React.useId() : 'reveal').replace(/[^A-Za-z0-9_-]/g, '');
@@ -55,6 +69,7 @@ export default function LineTrendCallout({ data }) {
   const labelEvery = Math.max(1, Math.ceil(n / 5));
   return (
     <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>
+      {fontFace}
       <div style={{ opacity: headIn }}>
         <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{String(data?.title ?? '')}</div>
         {data?.subtitle ? <div style={{ position: 'absolute', left: 65 * k, top: 124 * k, fontWeight: 500, fontSize: 28 * k, color: '#8A8A8A' }}>{String(data.subtitle)}</div> : null}
