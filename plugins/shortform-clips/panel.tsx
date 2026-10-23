@@ -4119,7 +4119,7 @@ function validateCompositionGeometry(rows:any[],layout:any) {
 }
 function checkSourceCompositionGeometry(compiled:any[],layout:any) {
   validateCompositionGeometry(compiled.flatMap(s=>s.panels.map((p:any,i:number)=>{
-    const dst=compositionDestination(s.style,i,layout),h=p.w*dst.height/dst.width,r=s.regions[i],focus=r.focus;
+    const cell=p.destination||compositionRects(s.style)[i],windowTop=layout.windowTop??0,windowHeight=(layout.windowBottom??1920)-windowTop,dst={x:cell.x*1080,y:windowTop+cell.y*windowHeight,width:cell.width*1080,height:cell.height*windowHeight},h=p.w*dst.height/dst.width,r=s.regions[i],focus=r.focus;
     const crop=p.fit==='region'?p.rect:p.fit==='contain'?{x:0,y:0,width:s.sourceW,height:s.sourceH}:{x:p.cx-p.w/2,y:p.cy-h*.4,width:p.w,height:h};
     return {startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,slot:i,sourceKey:s.resourceId,sourcePane:(s.subjectGroups?.[i]?.[0]||s.subjects?.[i])&&s.style!=='two-shot'?sourcePaneRect(s.subjectGroups?.[i]?.[0]||s.subjects[i]):null,sourceWidth:s.sourceW,sourceHeight:s.sourceH,crop,protectedRegions:focus?[{x:focus.x*s.sourceW,y:focus.y*s.sourceH,width:focus.width*s.sourceW,height:focus.height*s.sourceH}]:[],destination:p.fit?containedDestination(dst,crop):dst};
   })),layout);
@@ -4150,13 +4150,14 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
       const f=r.focus;
       if(f && (![f.x,f.y,f.width,f.height].every(Number.isFinite)||f.width<=0||f.height<=0||f.x<r.x-1e-6||f.y<r.y-1e-6||f.x+f.width>r.x+r.width+1e-6||f.y+f.height>r.y+r.height+1e-6)) throw new Error('Head bounds must be inside the selected source region');
       if(r.anchor&&(!f||![r.anchor.x,r.anchor.y].every(Number.isFinite)||r.anchor.x<f.x||r.anchor.x>f.x+f.width||r.anchor.y<f.y||r.anchor.y>f.y+f.height)) throw new Error('Invalid measured face anchor');
-      return {x:r.x,y:r.y,width:r.width,height:r.height,exact:r.exact,letterbox:r.letterbox,...(f?{focus:{x:f.x,y:f.y,width:f.width,height:f.height}}:{}),...(r.anchor?{anchor:r.anchor}:{})};
+      if(r.destination){const d=r.destination;if(shot.style!=='columns-3'||!r.letterbox||![d.x,d.y,d.width,d.height].every(Number.isFinite)||d.x<0||d.y<0||d.width<=0||d.height<=0||d.x+d.width>1+1e-6||d.y+d.height>1+1e-6)throw Error('Invalid aligned row destination');}
+      return {x:r.x,y:r.y,width:r.width,height:r.height,exact:r.exact,letterbox:r.letterbox,...(r.destination?{destination:r.destination}:{}),...(f?{focus:{x:f.x,y:f.y,width:f.width,height:f.height}}:{}),...(r.anchor?{anchor:r.anchor}:{})};
     });
     const key=JSON.stringify([shot.resourceId,shot.style,shot.compositionId]);
     // A silence edit cannot introduce tiny independent zoom/position estimates.
     const regions=fixed.get(key)||proposed;fixed.set(key,regions);
     const panels=regions.map((r:any,slot:number)=>{
-      const destination=compositionRects(shot.style)[slot],outH=windowH*destination.height,aspect=1080*destination.width/outH;
+      const destination=r.destination||compositionRects(shot.style)[slot],outH=windowH*destination.height,aspect=1080*destination.width/outH;
       if(r.letterbox)return applyManualCrop({w:r.width*W,cx:(r.x+r.width/2)*W,cy:(r.y+r.height*.4)*H,slot,count,destination,fit:'region',rect:{x:r.x*W,y:r.y*H,width:r.width*W,height:r.height*H}},shot.adjustments?.[slot],W,H,windowH);
       const w=Math.min(r.width*W,r.height*H*aspect),h=w/aspect;
       let x=r.x*W+(r.width*W-w)/2,y=r.y*H+(r.height*H-h)/2;
@@ -4458,6 +4459,22 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
           regions=regions.map((r,i)=>({...r,x:padded[i].x/W,y:padded[i].y/H,width:padded[i].width/W,height:padded[i].height/H,letterbox:true}));
         }catch(error:any){if(!/cannot fit/.test(String(error?.message)))throw error;}
       }
+    }
+    // A continuous row that cannot fill equal cells safely is one fitted band,
+    // not independently letterboxed portraits. Allocate width in proportion to
+    // each protected crop, preserving one scale and source Y across the row.
+    // This avoids trading shoulder safety for mismatched tops, bottoms or zoom.
+    if(first.style==='columns-3'&&fits.every(f=>f.pane.every((n:number,i:number)=>n===fits[0].pane[i]))&&
+       !layout.reservedAreas?.length&&regions.some(r=>r.letterbox)){
+      const top=Math.min(...regions.map(r=>r.y*H)),bottom=Math.max(...regions.map(r=>(r.y+r.height)*H));
+      const widths=regions.map(r=>r.width*W),total=widths.reduce((a,b)=>a+b,0),height=bottom-top;
+      const windowH=layout.windowBottom-layout.windowTop,scale=Math.min(1080/total,windowH/height);
+      const bandWidth=total*scale/1080,bandHeight=height*scale/windowH;
+      let x=(1-bandWidth)/2;
+      regions=regions.map((r,i)=>{
+        const width=widths[i]*scale/1080,destination={x,y:(1-bandHeight)/2,width,height:bandHeight};x+=width;
+        return {...r,y:top/H,height:height/H,letterbox:true,destination};
+      });
     }
     for(const shot of group)out.set(shot,{...shot,regions,...(adjustments.length?{geometryAdjustments:[...(shot.geometryAdjustments||[]),...adjustments]}:{})});
   }
