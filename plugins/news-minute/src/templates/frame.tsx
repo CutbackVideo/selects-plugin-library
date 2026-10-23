@@ -1,13 +1,27 @@
 import React from 'react';
-import { Img, useVideoConfig } from 'remotion';
+import { Img, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 const SERIF = "'Noto Serif KR','AppleMyungjo','Batang','Times New Roman',serif";
+
+// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
+// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
 
 // Persistent frame: brand background above and below the 1080x920 media window (y 480-1400), plus the
 // logo block under the window. The window itself stays transparent so the scene clips show through
 // whatever the track order is. Brand text comes in as parameters (the preset supplies it).
 export default function Frame({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const { width } = useVideoConfig();
   const k = width / 1080;
   const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
@@ -25,6 +39,7 @@ export default function Frame({ data }) {
   const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {fontFace}
       <div style={{ ...band, top: 0, height: top * k }} />
       <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />
       {logo ? (

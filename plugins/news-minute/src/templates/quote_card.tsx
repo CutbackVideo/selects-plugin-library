@@ -1,12 +1,26 @@
 import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+
+// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
+// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
 
 // Expert or official quote on the white data window: round headshot (optional data URL), name,
 // affiliation and a divider pop in first, then the quote lines are revealed one by one across the
 // scene. Lines listed in `accentLines` (indexes) are red with a yellow highlighter sweep.
 export default function QuoteCard({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps, durationInFrames } = useVideoConfig();
   const k = width / 1080;
@@ -29,6 +43,7 @@ export default function QuoteCard({ data }) {
   const x = headshot ? 230 : 65;
   return (
     <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>
+      {fontFace}
       <div style={{ opacity: head, transform: 'scale(' + (0.94 + 0.06 * head) + ')', transformOrigin: '65px 120px' }}>
         {headshot ? (
           <div style={{ position: 'absolute', left: 60 * k, top: 50 * k, width: 150 * k, height: 150 * k, borderRadius: '50%', overflow: 'hidden', background: '#DDDDDD' }}>

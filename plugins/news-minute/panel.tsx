@@ -1200,6 +1200,7 @@ var PARAM_SCHEMAS = {
     { key: "label", label: "Label", type: "text", defaultValue: "" },
     { key: "unit", label: "Unit", type: "text", defaultValue: "" },
     { key: "dim", label: "Photo dim", type: "number", defaultValue: 0.45, min: 0, max: 0.9, step: 0.05 },
+    { key: "background", label: "Background (no photo)", type: "color", defaultValue: "#2B3D34" },
     { key: "revealSec", label: "New value delay (s)", type: "number", defaultValue: 0.75, min: 0, max: 5, step: 0.05 },
     { key: "boxColor", label: "Box", type: "color", defaultValue: "#FFD700" }
   ],
@@ -1256,150 +1257,13 @@ var LABELS = {
 
 // src/templates/generated.ts
 var TEMPLATES = {
-  "bar_compare_h": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Horizontal bar comparison on the white data window (2-3 bars). Each bar has a bold label, an\n// optional grey `sub` (period), grows from the left with a count-up value, and starts after the\n// previous one so the scene builds across `within`; the value fades in once the bar can hold it.\n// A dashed marker holds the first bar's end.\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\nconst decimals = (v) => {\n  const s = String(v);\n  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;\n};\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\nexport default function BarCompareH({ data }) {\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const unit = String(data?.unit ?? '');\n  const title = String(data?.title ?? '');\n  const source = String(data?.source ?? '');\n  const max = Math.max(1e-9, ...bars.map((b) => Math.abs(Number(b?.value) || 0)));\n  const step = bars.length > 1 ? Math.min(fps * 2, (dur * 0.45) / (bars.length - 1)) : 0;\n  const grow = Math.round(fps * 1.1);\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const trackL = 60, trackW = 960, barH = 148, rowH = 300;\n  const y0 = (title ? 230 : 70) + (bars.length < 3 ? 0 : -40);\n  const first = bars.length ? (Math.abs(Number(bars[0].value) || 0) / max) * 0.89 * trackW : 0;\n  const markerIn = interpolate(frame, [grow, grow + 6], [0, 1], ease);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}\n      {bars.map((b, i) => {\n        const v = Number(b?.value) || 0;\n        const start = Math.round(i * step);\n        const t = interpolate(frame, [start, start + grow], [0, 1], ease);\n        const appear = interpolate(frame, [start, start + Math.round(fps * 0.25)], [0, 1], ease);\n        const hot = b?.tone === 'accent';\n        const w = (Math.abs(v) / max) * 0.89 * trackW * t;\n        const d = decimals(v);\n        const y = y0 + i * rowH;\n        return (\n          <div key={i} style={{ opacity: appear }}>\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + (1 - appear) * 12) * k, display: 'flex', alignItems: 'baseline', gap: 22 * k, whiteSpace: 'nowrap' }}>\n              <div style={{ fontWeight: 900, fontSize: 56 * k, color: hot ? '#B83A22' : '#222222', letterSpacing: -1 * k }}>{String(b?.label ?? '')}</div>\n              {b?.sub ? <div style={{ fontWeight: 500, fontSize: 32 * k, color: '#8A8A8A' }}>{String(b.sub)}</div> : null}\n            </div>\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: trackW * k, height: barH * k, borderRadius: 16 * k, background: '#F2F2F0' }} />\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: w * k, height: barH * k, borderRadius: 16 * k, background: hot ? accent : '#AAB0AC', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' }}>\n              <div style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 84 * k, letterSpacing: -1 * k, paddingRight: 26 * k, whiteSpace: 'nowrap', opacity: interpolate(w, [200, 300], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>\n                {fmt(v * t, d)}<span style={{ fontSize: 44 * k, marginLeft: 4 * k }}>{unit}</span>\n              </div>\n            </div>\n          </div>\n        );\n      })}\n      {bars.length > 1 ? (\n        <div style={{ position: 'absolute', left: (trackL + first) * k, top: (y0 + 60) * k, height: (rowH * (bars.length - 1) + barH + 80) * k, borderLeft: 3 * k + 'px dashed #555555', opacity: markerIn }} />\n      ) : null}\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
-  "caption": { tsxCode: `import React from 'react';
-import { useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-
-// One caption chunk (2-4 words of the approved script), one line, centred at the bottom of the media
-// window on a translucent black box that hugs the text. Chunks switch with a hard cut, so no animation.
-export default function Caption({ data }) {
-  const { width } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const text = String(data?.text ?? '');
-  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);
-  const size = Math.min(Number(data?.fontSize ?? 54), 980 / Math.max(1, em));
-  const bottom = Number(data?.bottom ?? 1385);
-  const boxHeight = Number(data?.boxHeight ?? 70);
-  if (!text) return null;
-  return (
-    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-      <div style={{ fontFamily, fontWeight: 600, fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + 12 * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
-  "disclaimer": { tsxCode: `import React from 'react';
-import { useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-
-// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.
-// The sentence itself comes from the preset.
-export default function Disclaimer({ data }) {
-  const { width } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const text = String(data?.text ?? '');
-  if (!text) return null;
-  return (
-    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>
-      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
-  "frame": { tsxCode: `import React from 'react';
-import { Img, useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-const SERIF = "'Noto Serif KR','AppleMyungjo','Batang','Times New Roman',serif";
-
-// Persistent frame: brand background above and below the 1080x920 media window (y 480-1400), plus the
-// logo block under the window. The window itself stays transparent so the scene clips show through
-// whatever the track order is. Brand text comes in as parameters (the preset supplies it).
-export default function Frame({ data }) {
-  const { width } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const bg = String(data?.background ?? '#21302A');
-  const top = Number(data?.windowTop ?? 480);
-  const bottom = Number(data?.windowBottom ?? 1400);
-  const gold = String(data?.accentColor ?? '#D8B66A');
-  const logo = typeof data?.logo === 'string' ? data.logo : '';
-  const logoMain = String(data?.logoMain ?? '');
-  const logoAccent = String(data?.logoAccent ?? '');
-  const tagline = String(data?.tagline ?? '');
-  // \`backgroundImage\` (data URL of a clean full 1080x1920 frame, e.g. with the damask pattern) replaces the flat colour.
-  const art = typeof data?.backgroundImage === 'string' ? data.backgroundImage : '';
-  const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };
-  return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      <div style={{ ...band, top: 0, height: top * k }} />
-      <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />
-      {logo ? (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 20) * k, height: 240 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />
-        </div>
-      ) : (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 12) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 150 * k }}>
-            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 100 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}
-            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 134 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}
-          </div>
-          {logoMain || logoAccent ? <div style={{ width: 486 * k, height: 3 * k, marginTop: 8 * k, background: gold }} /> : null}
-          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 52 * k, color: '#FFFFFF', marginTop: 16 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}
-        </div>
-      )}
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["frame"] ?? [], timeIndependent: !!TIME_INDEPENDENT["frame"], label: LABELS["frame"] ?? "frame" },
-  "headline": { tsxCode: `import React from 'react';
-import { useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-
-// Fixed two-line headline above the media window, on screen for the whole video with no animation.
-// Line 1: white text (an optional accent substring in the box colour). Line 2: black text on a box
-// that hugs the text width. Both lines shrink to fit when they run long.
-export default function Headline({ data }) {
-  const { width } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const size = Number(data?.fontSize ?? 96);
-  const boxColor = String(data?.boxColor ?? '#FFD700');
-  const line1 = String(data?.line1 ?? '');
-  const line2 = String(data?.line2 ?? '');
-  const accent = String(data?.accent ?? '');
-  // Hangul glyphs at this weight run close to 0.95em; digits and spaces are narrower.
-  const em = (s) => [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.58 : 0.95), 0);
-  const fit = (s, max) => Math.min(size, max / Math.max(1, em(s)));
-  const size1 = fit(line1, 1010);
-  const size2 = fit(line2, 1030);
-  const at = accent && line1.includes(accent) ? line1.indexOf(accent) : -1;
-  const text1 = at < 0 ? line1 : (
-    <>
-      {line1.slice(0, at)}
-      <span style={{ color: boxColor }}>{accent}</span>
-      {line1.slice(at + accent.length)}
-    </>
-  );
-  const type = { fontFamily, fontWeight: 900, letterSpacing: -2 * k, whiteSpace: 'nowrap' };
-  return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      {line1 ? (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line1Top ?? 228) * k, height: 110 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ ...type, fontSize: size1 * k, lineHeight: 1, color: String(data?.line1Color ?? '#FFFFFF') }}>{text1}</div>
-        </div>
-      ) : null}
-      {line2 ? (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line2Top ?? 343) * k, height: 114 * k, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ ...type, fontSize: size2 * k, lineHeight: 114 * k + 'px', height: 114 * k, padding: '0 ' + 18 * k + 'px', maxWidth: 1050 * k, background: boxColor, color: String(data?.line2Color ?? '#000000') }}>{line2}</div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["headline"] ?? [], timeIndependent: !!TIME_INDEPENDENT["headline"], label: LABELS["headline"] ?? "headline" },
+  "bar_compare_h": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Horizontal bar comparison on the white data window (2-3 bars). Each bar has a bold label, an\n// optional grey `sub` (period), grows from the left with a count-up value, and starts after the\n// previous one so the scene builds across `within`; the value fades in once the bar can hold it.\n// A dashed marker holds the first bar's end.\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\nconst decimals = (v) => {\n  const s = String(v);\n  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;\n};\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\nexport default function BarCompareH({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const unit = String(data?.unit ?? '');\n  const title = String(data?.title ?? '');\n  const source = String(data?.source ?? '');\n  const max = Math.max(1e-9, ...bars.map((b) => Math.abs(Number(b?.value) || 0)));\n  const step = bars.length > 1 ? Math.min(fps * 2, (dur * 0.45) / (bars.length - 1)) : 0;\n  const grow = Math.round(fps * 1.1);\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const trackL = 60, trackW = 960, barH = 148, rowH = 300;\n  const y0 = (title ? 230 : 70) + (bars.length < 3 ? 0 : -40);\n  const first = bars.length ? (Math.abs(Number(bars[0].value) || 0) / max) * 0.89 * trackW : 0;\n  const markerIn = interpolate(frame, [grow, grow + 6], [0, 1], ease);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {fontFace}\n      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}\n      {bars.map((b, i) => {\n        const v = Number(b?.value) || 0;\n        const start = Math.round(i * step);\n        const t = interpolate(frame, [start, start + grow], [0, 1], ease);\n        const appear = interpolate(frame, [start, start + Math.round(fps * 0.25)], [0, 1], ease);\n        const hot = b?.tone === 'accent';\n        const w = (Math.abs(v) / max) * 0.89 * trackW * t;\n        const d = decimals(v);\n        const y = y0 + i * rowH;\n        return (\n          <div key={i} style={{ opacity: appear }}>\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + (1 - appear) * 12) * k, display: 'flex', alignItems: 'baseline', gap: 22 * k, whiteSpace: 'nowrap' }}>\n              <div style={{ fontWeight: 900, fontSize: 56 * k, color: hot ? '#B83A22' : '#222222', letterSpacing: -1 * k }}>{String(b?.label ?? '')}</div>\n              {b?.sub ? <div style={{ fontWeight: 500, fontSize: 32 * k, color: '#8A8A8A' }}>{String(b.sub)}</div> : null}\n            </div>\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: trackW * k, height: barH * k, borderRadius: 16 * k, background: '#F2F2F0' }} />\n            <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: w * k, height: barH * k, borderRadius: 16 * k, background: hot ? accent : '#AAB0AC', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' }}>\n              <div style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 84 * k, letterSpacing: -1 * k, paddingRight: 26 * k, whiteSpace: 'nowrap', opacity: interpolate(w, [200, 300], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>\n                {fmt(v * t, d)}<span style={{ fontSize: 44 * k, marginLeft: 4 * k }}>{unit}</span>\n              </div>\n            </div>\n          </div>\n        );\n      })}\n      {bars.length > 1 ? (\n        <div style={{ position: 'absolute', left: (trackL + first) * k, top: (y0 + 60) * k, height: (rowH * (bars.length - 1) + barH + 80) * k, borderLeft: 3 * k + 'px dashed #555555', opacity: markerIn }} />\n      ) : null}\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
+  "caption": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// One caption chunk (2-4 words of the approved script), one line, centred at the bottom of the media\n// window on a translucent black box that hugs the text. Chunks switch with a hard cut, so no animation.\nexport default function Caption({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);\n  const size = Math.min(Number(data?.fontSize ?? 54), 980 / Math.max(1, em));\n  const bottom = Number(data?.bottom ?? 1385);\n  const boxHeight = Number(data?.boxHeight ?? 70);\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 600, fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + 12 * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
+  "disclaimer": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.\n// The sentence itself comes from the preset.\nexport default function Disclaimer({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
+  "frame": { tsxCode: "import React from 'react';\nimport { Img, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst SERIF = \"'Noto Serif KR','AppleMyungjo','Batang','Times New Roman',serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Persistent frame: brand background above and below the 1080x920 media window (y 480-1400), plus the\n// logo block under the window. The window itself stays transparent so the scene clips show through\n// whatever the track order is. Brand text comes in as parameters (the preset supplies it).\nexport default function Frame({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const bg = String(data?.background ?? '#21302A');\n  const top = Number(data?.windowTop ?? 480);\n  const bottom = Number(data?.windowBottom ?? 1400);\n  const gold = String(data?.accentColor ?? '#D8B66A');\n  const logo = typeof data?.logo === 'string' ? data.logo : '';\n  const logoMain = String(data?.logoMain ?? '');\n  const logoAccent = String(data?.logoAccent ?? '');\n  const tagline = String(data?.tagline ?? '');\n  // `backgroundImage` (data URL of a clean full 1080x1920 frame, e.g. with the damask pattern) replaces the flat colour.\n  const art = typeof data?.backgroundImage === 'string' ? data.backgroundImage : '';\n  const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ ...band, top: 0, height: top * k }} />\n      <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />\n      {logo ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 20) * k, height: 240 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />\n        </div>\n      ) : (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 12) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 150 * k }}>\n            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 100 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}\n            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 134 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}\n          </div>\n          {logoMain || logoAccent ? <div style={{ width: 486 * k, height: 3 * k, marginTop: 8 * k, background: gold }} /> : null}\n          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 52 * k, color: '#FFFFFF', marginTop: 16 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}\n        </div>\n      )}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["frame"] ?? [], timeIndependent: !!TIME_INDEPENDENT["frame"], label: LABELS["frame"] ?? "frame" },
+  "headline": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Fixed two-line headline above the media window, on screen for the whole video with no animation.\n// Line 1: white text (an optional accent substring in the box colour). Line 2: black text on a box\n// that hugs the text width. Both lines shrink to fit when they run long.\nexport default function Headline({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const size = Number(data?.fontSize ?? 96);\n  const boxColor = String(data?.boxColor ?? '#FFD700');\n  const line1 = String(data?.line1 ?? '');\n  const line2 = String(data?.line2 ?? '');\n  const accent = String(data?.accent ?? '');\n  // Hangul glyphs at this weight run close to 0.95em; digits and spaces are narrower.\n  const em = (s) => [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.58 : 0.95), 0);\n  const fit = (s, max) => Math.min(size, max / Math.max(1, em(s)));\n  const size1 = fit(line1, 1010);\n  const size2 = fit(line2, 1030);\n  const at = accent && line1.includes(accent) ? line1.indexOf(accent) : -1;\n  const text1 = at < 0 ? line1 : (\n    <>\n      {line1.slice(0, at)}\n      <span style={{ color: boxColor }}>{accent}</span>\n      {line1.slice(at + accent.length)}\n    </>\n  );\n  const type = { fontFamily, fontWeight: 900, letterSpacing: -2 * k, whiteSpace: 'nowrap' };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      {line1 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line1Top ?? 228) * k, height: 110 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <div style={{ ...type, fontSize: size1 * k, lineHeight: 1, color: String(data?.line1Color ?? '#FFFFFF') }}>{text1}</div>\n        </div>\n      ) : null}\n      {line2 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line2Top ?? 343) * k, height: 114 * k, display: 'flex', justifyContent: 'center' }}>\n          <div style={{ ...type, fontSize: size2 * k, lineHeight: 114 * k + 'px', height: 114 * k, padding: '0 ' + 18 * k + 'px', maxWidth: 1050 * k, background: boxColor, color: String(data?.line2Color ?? '#000000') }}>{line2}</div>\n        </div>\n      ) : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["headline"] ?? [], timeIndependent: !!TIME_INDEPENDENT["headline"], label: LABELS["headline"] ?? "headline" },
   "line_trend_callout": { tsxCode: `import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 
@@ -1414,7 +1278,21 @@ const decimals = (v) => {
 // Korean graphics write 5000 but 12,500: group thousands only from five digits up.
 const fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });
 
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
 export default function LineTrendCallout({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   // Unique per placement so two trend lines in one document never share a clip path.
   const clipId = 'ltc-' + String(React.useId ? React.useId() : 'reveal').replace(/[^A-Za-z0-9_-]/g, '');
@@ -1455,6 +1333,7 @@ export default function LineTrendCallout({ data }) {
   const labelEvery = Math.max(1, Math.ceil(n / 5));
   return (
     <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>
+      {fontFace}
       <div style={{ opacity: headIn }}>
         <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{String(data?.title ?? '')}</div>
         {data?.subtitle ? <div style={{ position: 'absolute', left: 65 * k, top: 124 * k, fontWeight: 500, fontSize: 28 * k, color: '#8A8A8A' }}>{String(data.subtitle)}</div> : null}
@@ -1500,9 +1379,9 @@ export default function LineTrendCallout({ data }) {
   );
 }
 `, editableParameters: PARAM_SCHEMAS["line_trend_callout"] ?? [], timeIndependent: !!TIME_INDEPENDENT["line_trend_callout"], label: LABELS["line_trend_callout"] ?? "line_trend_callout" },
-  "news_photo": { tsxCode: "import React from 'react';\nimport { Img, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Article photo cover-filling the 1080x920 media window with a slow Ken Burns move over the scene:\n// push-in by `zoom` (default 9 %) plus a slight drift, or a pan. `image` is a data URL. Optional\n// source credit sits top-right inside the window.\nconst MOVES = {\n  push_in: { s: [0, 1], x: [0, -0.012], y: [0, -0.008] },\n  pull_out: { s: [1, 0], x: [0, 0], y: [0, 0] },\n  pan_left: { s: [0.6, 0.6], x: [0.03, -0.03], y: [0, 0] },\n  pan_right: { s: [0.6, 0.6], x: [-0.03, 0.03], y: [0, 0] },\n  pan_up: { s: [0.6, 0.6], x: [0, 0], y: [0.035, -0.035] },\n  pan_down: { s: [0.6, 0.6], x: [0, 0], y: [-0.035, 0.035] },\n};\nconst FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '25% 50%', right: '75% 50%' };\n\nexport default function NewsPhoto({ data }) {\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const t = interpolate(frame, [0, Math.max(1, dur - 1)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(0.33, 0, 0.67, 1) });\n  const move = MOVES[String(data?.motion ?? 'push_in')] ?? MOVES.push_in;\n  const zoom = Number(data?.zoom ?? 0.09);\n  const scale = 1 + zoom * (move.s[0] + (move.s[1] - move.s[0]) * t);\n  const dx = (move.x[0] + (move.x[1] - move.x[0]) * t) * 1080;\n  const dy = (move.y[0] + (move.y[1] - move.y[0]) * t) * 920;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const image = typeof data?.image === 'string' ? data.image : '';\n  const credit = String(data?.credit ?? '');\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: '#000000', pointerEvents: 'none' }}>\n      {image ? (\n        <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />\n      ) : null}\n      {data?.dim ? <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data.dim) + ')' }} /> : null}\n      {credit ? (\n        <div style={{ position: 'absolute', right: 38 * k, top: 46 * k, fontFamily, fontWeight: 300, fontSize: 35 * k, color: '#FFFFFF', whiteSpace: 'nowrap', textShadow: '0 ' + 2 * k + 'px ' + 6 * k + 'px rgba(0,0,0,0.7)' }}>{credit}</div>\n      ) : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["news_photo"] ?? [], timeIndependent: !!TIME_INDEPENDENT["news_photo"], label: LABELS["news_photo"] ?? "news_photo" },
+  "news_photo": { tsxCode: "import React from 'react';\nimport { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Article photo cover-filling the 1080x920 media window with a slow Ken Burns move over the scene:\n// push-in by `zoom` (default 9 %) plus a slight drift, or a pan. `image` is a data URL. Optional\n// source credit sits top-right inside the window.\nconst MOVES = {\n  push_in: { s: [0, 1], x: [0, -0.012], y: [0, -0.008] },\n  pull_out: { s: [1, 0], x: [0, 0], y: [0, 0] },\n  pan_left: { s: [0.6, 0.6], x: [0.03, -0.03], y: [0, 0] },\n  pan_right: { s: [0.6, 0.6], x: [-0.03, 0.03], y: [0, 0] },\n  pan_up: { s: [0.6, 0.6], x: [0, 0], y: [0.035, -0.035] },\n  pan_down: { s: [0.6, 0.6], x: [0, 0], y: [-0.035, 0.035] },\n};\nconst FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '25% 50%', right: '75% 50%' };\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\nexport default function NewsPhoto({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const t = interpolate(frame, [0, Math.max(1, dur - 1)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.bezier(0.33, 0, 0.67, 1) });\n  const move = MOVES[String(data?.motion ?? 'push_in')] ?? MOVES.push_in;\n  const zoom = Number(data?.zoom ?? 0.09);\n  const scale = 1 + zoom * (move.s[0] + (move.s[1] - move.s[0]) * t);\n  const dx = (move.x[0] + (move.x[1] - move.x[0]) * t) * 1080;\n  const dy = (move.y[0] + (move.y[1] - move.y[0]) * t) * 920;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const image = typeof data?.image === 'string' ? data.image : '';\n  const credit = String(data?.credit ?? '');\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: '#000000', pointerEvents: 'none' }}>\n      {fontFace}\n      {image ? (\n        <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />\n      ) : null}\n      {data?.dim ? <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data.dim) + ')' }} /> : null}\n      {credit ? (\n        <div style={{ position: 'absolute', right: 38 * k, top: 46 * k, fontFamily, fontWeight: 300, fontSize: 35 * k, color: '#FFFFFF', whiteSpace: 'nowrap', textShadow: '0 ' + 2 * k + 'px ' + 6 * k + 'px rgba(0,0,0,0.7)' }}>{credit}</div>\n      ) : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["news_photo"] ?? [], timeIndependent: !!TIME_INDEPENDENT["news_photo"], label: LABELS["news_photo"] ?? "news_photo" },
   "number_callout": { tsxCode: `import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 
@@ -1510,6 +1389,7 @@ const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans 
 // arrow, then the new value as black text on a yellow box (the headline line-2 look). Label and old
 // value fade in first; arrow and new value follow \`revealSec\` later. \`from\`/\`to\` are numbers (shown
 // with their own decimals plus \`unit\`) or already-formatted strings. The caption is hidden here.
+// Without a photo the window is the brand green with a soft centre glow instead of plain black.
 const show = (v, unit) => {
   if (typeof v === 'number') {
     const s = String(v);
@@ -1519,7 +1399,21 @@ const show = (v, unit) => {
   return String(v ?? '') + unit;
 };
 
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
 export default function NumberCallout({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps } = useVideoConfig();
   const k = width / 1080;
@@ -1539,9 +1433,10 @@ export default function NumberCallout({ data }) {
   const fit = (s, size, max) => Math.min(size, max / Math.max(1, [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.58 : 0.95), 0)));
   const zoom = 1 + 0.04 * interpolate(frame, [0, fps * 8], [0, 1], { extrapolateRight: 'clamp' });
   return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: '#000000', pointerEvents: 'none' }}>
+    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: image ? '#000000' : String(data?.background ?? '#2B3D34'), pointerEvents: 'none' }}>
+      {fontFace}
       {image ? <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(' + zoom + ')' }} /> : null}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data?.dim ?? 0.45) + ')' }} />
+      <div style={{ position: 'absolute', inset: 0, background: image ? 'rgba(0,0,0,' + Number(data?.dim ?? 0.45) + ')' : 'radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 55%, rgba(0,0,0,0.30) 100%)' }} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily, color: '#FFFFFF', textShadow: '0 ' + 3 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.5)' }}>
         <div style={{ opacity: a, transform: 'translateY(' + (1 - a) * 16 * k + 'px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           {label ? <div style={{ fontWeight: 700, fontSize: fit(label, 92, 960) * k, letterSpacing: -2 * k, whiteSpace: 'nowrap' }}>{label}</div> : null}
@@ -1559,172 +1454,9 @@ export default function NumberCallout({ data }) {
   );
 }
 `, editableParameters: PARAM_SCHEMAS["number_callout"] ?? [], timeIndependent: !!TIME_INDEPENDENT["number_callout"], label: LABELS["number_callout"] ?? "number_callout" },
-  "quote_card": { tsxCode: `import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-
-// Expert or official quote on the white data window: round headshot (optional data URL), name,
-// affiliation and a divider pop in first, then the quote lines are revealed one by one across the
-// scene. Lines listed in \`accentLines\` (indexes) are red with a yellow highlighter sweep.
-export default function QuoteCard({ data }) {
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const headshot = typeof data?.headshot === 'string' ? data.headshot : '';
-  const lines = (Array.isArray(data?.lines) ? data.lines : []).map((l) => String(l)).slice(0, 5);
-  const accentLines = new Set((Array.isArray(data?.accentLines) ? data.accentLines : []).map(Number));
-  const accent = String(data?.accentColor ?? '#E8502F');
-  const mark = String(data?.highlightColor ?? 'rgba(255,200,40,0.75)');
-  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };
-  const head = interpolate(frame, [0, Math.round(fps * 0.3)], [0, 1], ease);
-  const first = Math.round(fps * 0.4);
-  const step = lines.length > 1 ? Math.max(Math.round(fps * 0.3), Math.round((dur * 0.7 - first) / lines.length)) : 0;
-  const longest = Math.max(1, ...lines.map((l) => l.length));
-  const size = Math.min(64, 950 / Math.max(10, longest));
-  const x = headshot ? 230 : 65;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>
-      <div style={{ opacity: head, transform: 'scale(' + (0.94 + 0.06 * head) + ')', transformOrigin: '65px 120px' }}>
-        {headshot ? (
-          <div style={{ position: 'absolute', left: 60 * k, top: 50 * k, width: 150 * k, height: 150 * k, borderRadius: '50%', overflow: 'hidden', background: '#DDDDDD' }}>
-            <Img src={headshot} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 25%' }} />
-          </div>
-        ) : null}
-        <div style={{ position: 'absolute', left: x * k, top: 70 * k, fontWeight: 900, fontSize: 68 * k, color: '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{String(data?.name ?? '')}</div>
-        <div style={{ position: 'absolute', left: x * k, top: 156 * k, fontWeight: 500, fontSize: 34 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(data?.affiliation ?? '')}</div>
-        <div style={{ position: 'absolute', left: 60 * k, right: 60 * k, top: 240 * k, height: 2 * k, background: '#E2E2E2' }} />
-      </div>
-      <div style={{ position: 'absolute', left: 65 * k, right: 65 * k, top: 290 * k }}>
-        {lines.map((l, i) => {
-          const start = first + i * step;
-          const o = interpolate(frame, [start, start + Math.round(fps * 0.25)], [0, 1], ease);
-          const sweep = interpolate(frame, [start + Math.round(fps * 0.2), start + Math.round(fps * 0.8)], [0, 100], ease);
-          const hot = accentLines.has(i);
-          return (
-            <div key={i} style={{ opacity: o, transform: 'translateY(' + (1 - o) * 14 * k + 'px)', fontWeight: 800, fontSize: size * k, lineHeight: 1.45, color: hot ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>
-              <span style={hot ? { backgroundImage: 'linear-gradient(transparent 50%, ' + mark + ' 50%, ' + mark + ' 95%, transparent 95%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', padding: '0 ' + 4 * k + 'px' } : undefined}>{l}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["quote_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["quote_card"], label: LABELS["quote_card"] ?? "quote_card" },
-  "stat_cards": { tsxCode: `import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-
-// 2-4 equal cards on the white data window, each with a coloured header and 1-2 rows of numbers.
-// The first row's value is large and in the accent colour, the rest are smaller and dark. Cards rise
-// in staggered and their numbers count up. \`cards: [{ header, rows: [{ label, value, unit? }] }]\`;
-// a string value is shown as written (no count-up).
-const decimals = (v) => {
-  const s = String(v);
-  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;
-};
-// Korean graphics write 5000 but 12,500: group thousands only from five digits up.
-const fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });
-
-export default function StatCards({ data }) {
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const accent = String(data?.accentColor ?? '#E8502F');
-  const headerColor = String(data?.headerColor ?? '#D9705A');
-  const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 4);
-  const n = Math.max(1, cards.length);
-  const title = String(data?.title ?? '');
-  const subtitle = String(data?.subtitle ?? '');
-  const source = String(data?.source ?? '');
-  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };
-  const step = Math.min(Math.round(fps * 0.6), Math.round((dur * 0.4) / n));
-  const gap = 24, left = 60, cardW = (960 - gap * (n - 1)) / n;
-  const big = n >= 4 ? 56 : n === 3 ? 70 : 84;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>
-      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}
-      {subtitle ? <div style={{ position: 'absolute', left: 65 * k, top: 124 * k, right: 65 * k, fontWeight: 500, fontSize: 30 * k, color: '#8A8A8A' }}>{subtitle}</div> : null}
-      {cards.map((c, i) => {
-        const start = i * step;
-        const p = interpolate(frame, [start, start + Math.round(fps * 0.3)], [0, 1], ease);
-        const count = interpolate(frame, [start, start + Math.round(fps * 1.1)], [0, 1], ease);
-        const rows = Array.isArray(c?.rows) ? c.rows.slice(0, 2) : [];
-        return (
-          <div key={i} style={{ position: 'absolute', left: (left + i * (cardW + gap)) * k, top: (240 + (1 - p) * 30) * k, width: cardW * k, height: 470 * k, opacity: p, borderRadius: 18 * k, background: '#F4F3F0', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', height: 96 * k, background: headerColor, color: '#FFFFFF', fontWeight: 800, fontSize: (n >= 4 ? 34 : 40) * k, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>{String(c?.header ?? '')}</div>
-            {rows.map((r, j) => {
-              const raw = r?.value;
-              const num = typeof raw === 'number';
-              const shown = num ? fmt(raw * count, decimals(raw)) : String(raw ?? '');
-              return (
-                <div key={j} style={{ marginTop: (j === 0 ? 40 : 34) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 500, fontSize: 30 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(r?.label ?? '')}</div>
-                  <div style={{ fontWeight: 900, fontSize: (j === 0 ? big : big * 0.62) * k, color: j === 0 ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap', marginTop: 6 * k }}>
-                    {shown}<span style={{ fontSize: (j === 0 ? big : big * 0.62) * 0.5 * k, marginLeft: 3 * k }}>{String(r?.unit ?? '')}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["stat_cards"] ?? [], timeIndependent: !!TIME_INDEPENDENT["stat_cards"], label: LABELS["stat_cards"] ?? "stat_cards" },
-  "text_card": { tsxCode: `import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
-
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-
-// Fallback scene when no photo or number fits: the sentence's key phrase on a white media window
-// (the data-card look), with a yellow highlighter sweeping under it and an optional grey sub line.
-// Use '\\n' in \`text\` for a manual line break.
-export default function TextCard({ data }) {
-  const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const text = String(data?.text ?? '');
-  const sub = String(data?.sub ?? '');
-  const source = String(data?.source ?? '');
-  const longest = Math.max(1, ...text.split('\\n').map((l) => l.length));
-  const size = Math.min(Number(data?.fontSize ?? 84), 900 / Math.max(6, Math.min(longest, 12)));
-  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };
-  const rise = interpolate(frame, [0, Math.round(fps * 0.25)], [0, 1], ease);
-  const sweep = interpolate(frame, [Math.round(fps * 0.3), Math.round(fps * 0.9)], [0, 100], ease);
-  const subIn = interpolate(frame, [Math.round(fps * 0.5), Math.round(fps * 0.75)], [0, 1], ease);
-  const mark = String(data?.highlightColor ?? 'rgba(255,215,0,0.8)');
-  return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: String(data?.background ?? '#FDFDFD'), pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', left: 80 * k, right: 80 * k, top: 0, bottom: 120 * k, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-        <div style={{ fontFamily, fontWeight: 900, fontSize: size * k, lineHeight: 1.3, letterSpacing: -2 * k, color: String(data?.textColor ?? '#222222'), whiteSpace: 'pre-line', opacity: rise, transform: 'translateY(' + (1 - rise) * 24 * k + 'px)' }}>
-          <span style={{ backgroundImage: 'linear-gradient(transparent 60%, ' + mark + ' 60%, ' + mark + ' 92%, transparent 92%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone', padding: '0 ' + 6 * k + 'px' }}>{text}</span>
-        </div>
-        {sub ? <div style={{ fontFamily, fontWeight: 500, fontSize: 40 * k, lineHeight: 1.35, color: '#6B6B6B', marginTop: 36 * k, opacity: subIn, whiteSpace: 'pre-line' }}>{sub}</div> : null}
-      </div>
-      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontFamily, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}
-    </div>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" }
+  "quote_card": { tsxCode: "import React from 'react';\nimport { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Expert or official quote on the white data window: round headshot (optional data URL), name,\n// affiliation and a divider pop in first, then the quote lines are revealed one by one across the\n// scene. Lines listed in `accentLines` (indexes) are red with a yellow highlighter sweep.\nexport default function QuoteCard({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const headshot = typeof data?.headshot === 'string' ? data.headshot : '';\n  const lines = (Array.isArray(data?.lines) ? data.lines : []).map((l) => String(l)).slice(0, 5);\n  const accentLines = new Set((Array.isArray(data?.accentLines) ? data.accentLines : []).map(Number));\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const mark = String(data?.highlightColor ?? 'rgba(255,200,40,0.75)');\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const head = interpolate(frame, [0, Math.round(fps * 0.3)], [0, 1], ease);\n  const first = Math.round(fps * 0.4);\n  const step = lines.length > 1 ? Math.max(Math.round(fps * 0.3), Math.round((dur * 0.7 - first) / lines.length)) : 0;\n  const longest = Math.max(1, ...lines.map((l) => l.length));\n  const size = Math.min(64, 950 / Math.max(10, longest));\n  const x = headshot ? 230 : 65;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {fontFace}\n      <div style={{ opacity: head, transform: 'scale(' + (0.94 + 0.06 * head) + ')', transformOrigin: '65px 120px' }}>\n        {headshot ? (\n          <div style={{ position: 'absolute', left: 60 * k, top: 50 * k, width: 150 * k, height: 150 * k, borderRadius: '50%', overflow: 'hidden', background: '#DDDDDD' }}>\n            <Img src={headshot} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 25%' }} />\n          </div>\n        ) : null}\n        <div style={{ position: 'absolute', left: x * k, top: 70 * k, fontWeight: 900, fontSize: 68 * k, color: '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{String(data?.name ?? '')}</div>\n        <div style={{ position: 'absolute', left: x * k, top: 156 * k, fontWeight: 500, fontSize: 34 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(data?.affiliation ?? '')}</div>\n        <div style={{ position: 'absolute', left: 60 * k, right: 60 * k, top: 240 * k, height: 2 * k, background: '#E2E2E2' }} />\n      </div>\n      <div style={{ position: 'absolute', left: 65 * k, right: 65 * k, top: 290 * k }}>\n        {lines.map((l, i) => {\n          const start = first + i * step;\n          const o = interpolate(frame, [start, start + Math.round(fps * 0.25)], [0, 1], ease);\n          const sweep = interpolate(frame, [start + Math.round(fps * 0.2), start + Math.round(fps * 0.8)], [0, 100], ease);\n          const hot = accentLines.has(i);\n          return (\n            <div key={i} style={{ opacity: o, transform: 'translateY(' + (1 - o) * 14 * k + 'px)', fontWeight: 800, fontSize: size * k, lineHeight: 1.45, color: hot ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>\n              <span style={hot ? { backgroundImage: 'linear-gradient(transparent 50%, ' + mark + ' 50%, ' + mark + ' 95%, transparent 95%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', padding: '0 ' + 4 * k + 'px' } : undefined}>{l}</span>\n            </div>\n          );\n        })}\n      </div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["quote_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["quote_card"], label: LABELS["quote_card"] ?? "quote_card" },
+  "stat_cards": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// 2-4 equal cards on the white data window, each with a coloured header and 1-2 rows of numbers.\n// The first row's value is large and in the accent colour, the rest are smaller and dark. Cards rise\n// in staggered and their numbers count up. `cards: [{ header, rows: [{ label, value, unit? }] }]`;\n// a string value is shown as written (no count-up).\nconst decimals = (v) => {\n  const s = String(v);\n  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;\n};\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\nexport default function StatCards({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const headerColor = String(data?.headerColor ?? '#D9705A');\n  const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 4);\n  const n = Math.max(1, cards.length);\n  const title = String(data?.title ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  const source = String(data?.source ?? '');\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const step = Math.min(Math.round(fps * 0.6), Math.round((dur * 0.4) / n));\n  const gap = 24, left = 60, cardW = (960 - gap * (n - 1)) / n;\n  const big = n >= 4 ? 56 : n === 3 ? 70 : 84;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {fontFace}\n      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}\n      {subtitle ? <div style={{ position: 'absolute', left: 65 * k, top: 124 * k, right: 65 * k, fontWeight: 500, fontSize: 30 * k, color: '#8A8A8A' }}>{subtitle}</div> : null}\n      {cards.map((c, i) => {\n        const start = i * step;\n        const p = interpolate(frame, [start, start + Math.round(fps * 0.3)], [0, 1], ease);\n        const count = interpolate(frame, [start, start + Math.round(fps * 1.1)], [0, 1], ease);\n        const rows = Array.isArray(c?.rows) ? c.rows.slice(0, 2) : [];\n        return (\n          <div key={i} style={{ position: 'absolute', left: (left + i * (cardW + gap)) * k, top: (240 + (1 - p) * 30) * k, width: cardW * k, height: 470 * k, opacity: p, borderRadius: 18 * k, background: '#F4F3F0', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n            <div style={{ width: '100%', height: 96 * k, background: headerColor, color: '#FFFFFF', fontWeight: 800, fontSize: (n >= 4 ? 34 : 40) * k, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>{String(c?.header ?? '')}</div>\n            {rows.map((r, j) => {\n              const raw = r?.value;\n              const num = typeof raw === 'number';\n              const shown = num ? fmt(raw * count, decimals(raw)) : String(raw ?? '');\n              return (\n                <div key={j} style={{ marginTop: (j === 0 ? 40 : 34) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n                  <div style={{ fontWeight: 500, fontSize: 30 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(r?.label ?? '')}</div>\n                  <div style={{ fontWeight: 900, fontSize: (j === 0 ? big : big * 0.62) * k, color: j === 0 ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap', marginTop: 6 * k }}>\n                    {shown}<span style={{ fontSize: (j === 0 ? big : big * 0.62) * 0.5 * k, marginLeft: 3 * k }}>{String(r?.unit ?? '')}</span>\n                  </div>\n                </div>\n              );\n            })}\n          </div>\n        );\n      })}\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["stat_cards"] ?? [], timeIndependent: !!TIME_INDEPENDENT["stat_cards"], label: LABELS["stat_cards"] ?? "stat_cards" },
+  "text_card": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Fallback scene when no photo or number fits: the sentence's key phrase on a white media window\n// (the data-card look), with a yellow highlighter sweeping under it and an optional grey sub line.\n// Use '\\n' in `text` for a manual line break.\nexport default function TextCard({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const text = String(data?.text ?? '');\n  const sub = String(data?.sub ?? '');\n  const source = String(data?.source ?? '');\n  const longest = Math.max(1, ...text.split('\\n').map((l) => l.length));\n  const size = Math.min(Number(data?.fontSize ?? 84), 900 / Math.max(6, Math.min(longest, 12)));\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const rise = interpolate(frame, [0, Math.round(fps * 0.25)], [0, 1], ease);\n  const sweep = interpolate(frame, [Math.round(fps * 0.3), Math.round(fps * 0.9)], [0, 100], ease);\n  const subIn = interpolate(frame, [Math.round(fps * 0.5), Math.round(fps * 0.75)], [0, 1], ease);\n  const mark = String(data?.highlightColor ?? 'rgba(255,215,0,0.8)');\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: String(data?.background ?? '#FDFDFD'), pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ position: 'absolute', left: 80 * k, right: 80 * k, top: 0, bottom: 120 * k, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>\n        <div style={{ fontFamily, fontWeight: 900, fontSize: size * k, lineHeight: 1.3, letterSpacing: -2 * k, color: String(data?.textColor ?? '#222222'), whiteSpace: 'pre-line', opacity: rise, transform: 'translateY(' + (1 - rise) * 24 * k + 'px)' }}>\n          <span style={{ backgroundImage: 'linear-gradient(transparent 60%, ' + mark + ' 60%, ' + mark + ' 92%, transparent 92%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone', padding: '0 ' + 6 * k + 'px' }}>{text}</span>\n        </div>\n        {sub ? <div style={{ fontFamily, fontWeight: 500, fontSize: 40 * k, lineHeight: 1.35, color: '#6B6B6B', marginTop: 36 * k, opacity: subIn, whiteSpace: 'pre-line' }}>{sub}</div> : null}\n      </div>\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontFamily, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" }
 };
 
 // src/pipeline/plan.ts
