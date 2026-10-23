@@ -44,10 +44,15 @@
         "plugins/depth-type-captions/panel.tsx",
         "plugins/travel-beat-vlog/panel.tsx",
         "plugins/jude-kinetic-style/panel.tsx",
-        "plugins/portrait-beat-montage/panel.tsx"
+        "plugins/portrait-beat-montage/panel.tsx",
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
       ],
       "compatibilityTargets": [
         "plugins/cutout-beat-gallery/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
       ]
     },
     {
@@ -182,7 +187,8 @@
         "plugins/camera-shutter-dump/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
         "plugins/photo-gallery-no2/panel.tsx",
-        "plugins/polaroid-photo-dump/panel.tsx"
+        "plugins/polaroid-photo-dump/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
       ],
       "buildTimeTargets": [
         "plugins/archive-vlog/operation-builder.mjs",
@@ -205,6 +211,28 @@
       "buildTimeTargets": [
         "plugins/archive-vlog/operation-builder.mjs",
         "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "ai-resources",
+      "source": "shared/ai-resources.cjs",
+      "targets": [
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "cover-focus",
+      "source": "shared/cover-focus.cjs",
+      "targets": [
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
+      ],
+      "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"
       ]
     }
