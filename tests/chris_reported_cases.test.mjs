@@ -46,14 +46,17 @@ test('speaker-only and resource keywords do not enter the ordinary phrase contra
  assert.equal(phraseBackdrop({...cue,kind:'keyword'},brolls,assets,30),null);
  assert.equal(phraseBackdrop(cue,brolls,assets,0),null);
 });
-test('fractional-rate phrases preserve exact half-open asset time, including a sub-0.2 second phrase',()=>{
+test('fractional-rate phrases preserve exact half-open time while existing keyword probes retain two-decimal durations',async()=>{
  const fps=30000/1001,short={...cue,start:300,end:303};
  const observed=phraseBackdrop(short,brolls,assets,fps);assert.equal(observed.startSeconds,60/fps);assert.equal(observed.seconds,3/fps);
  const begin=pipeline.indexOf('async function measureBand('),end=pipeline.indexOf('// Reuse the measured band',begin),calls=[];
  const measure=vm.runInNewContext(stripTypeScriptTypes(pipeline.slice(begin,end))+';measureBand;',{ffmpegRun:async args=>{calls.push(plain(args));return {stderr:'lavfi.signalstats.YAVG=220\nlavfi.signalstats.SATAVG=0'};}});
- return measure({},'/owned',observed.path,observed.seconds,'short',observed.startSeconds).then(()=>{
-  const args=calls[0];assert.equal(args[args.indexOf('-ss')+1],observed.startSeconds.toFixed(6));assert.equal(args[args.indexOf('-t')+1],observed.seconds.toFixed(6));
- });
+ await measure({},'/owned',observed.path,observed.seconds,'short',observed.startSeconds);
+ const args=calls[0];assert.equal(args[args.indexOf('-ss')+1],observed.startSeconds.toFixed(6));assert.equal(args[args.indexOf('-t')+1],observed.seconds.toFixed(6));
+ for(const seconds of [0.05,1.237]){
+  await measure({},'/owned','/verified/keyword.mp4',seconds,'keyword');
+  const keyword=calls.at(-1);assert.equal(keyword.includes('-ss'),false);assert.equal(keyword[keyword.indexOf('-t')+1],Math.max(.2,seconds).toFixed(2));
+ }
 });
 test('verification includes late fully revealed phrases instead of only the first phrase and keyword',()=>{
  const sample=verificationFrames([{kind:'phrase',start:0,end:80},{kind:'keyword',start:120,end:150},{kind:'phrase',start:627,end:642},{kind:'phrase',start:642,end:660}],[],714);
@@ -77,4 +80,21 @@ test('headless template result contract is unchanged and does not discard a save
 test('preserved completed phrase retains user edits without a new contrast probe or graphic write',async()=>{
  const f=cueFixture({y:220,sat:0},{items:{[cue.id]:{status:'applied',clipId:12}}});await f.run();
  assert.equal(f.measured.length,0);assert.equal(f.placed.length,0);assert.equal(f.report.warnings.length,0);
+});
+
+test('multiple saved contact sheets and an optional reference are identified by image names',async()=>{
+ const verify=vm.runInNewContext(stripTypeScriptTypes(verification.replace(/^export /gm,''))+';verifyDraft;',{hostJoin:(...parts)=>parts.join('/'),parseJsonLoose:JSON.parse,reviewIssues:()=>[]});
+ for(const withReference of [false,true]){
+  let prompt,images;
+  const env={pluginDir:'/owned',status:()=>{},imageData:async()=>{if(!withReference)throw Error('No reference');return 'controlled-reference';},
+   runScript:async(script,summary)=>summary==='Read back the saved style'?{meta:{durationFrames:300},clips:[],graphics:[]}:{frames:JSON.parse(script.match(/frames:(\[[^\]]+\])/)[1]).map(frame=>({frame,hasSourceImage:true}))},
+   capture:async(_id,frames)=>[{dataUrl:'controlled-result',name:'Original generic capture name'}],
+   askAI:async(p,_timeout,supplied)=>{prompt=p;images=supplied;return '{"ok":true,"issues":[]}';}};
+  const result=await verify(env,'project','draft',{items:{},cues:Array.from({length:12},(_,i)=>({kind:'phrase',start:i*20,end:i*20+20}))});
+  assert.equal(result.visual.status,'passed');assert.equal(images.filter(image=>image.name.startsWith('Saved Draft frames ')).length,2);
+  assert.equal(images.filter(image=>image.name.startsWith('Original reference:')).length,withReference?1:0);
+  assert.match(prompt,/Every image named "Saved Draft frames/);assert.match(prompt,/contrast.*bright B-roll/);assert.match(prompt,/including the late phrases/);
+  assert.doesNotMatch(prompt,/First image|second image/);
+  assert.match(prompt,withReference?/Only the separately named "Original reference:/ : /No original reference image is supplied/);
+ }
 });

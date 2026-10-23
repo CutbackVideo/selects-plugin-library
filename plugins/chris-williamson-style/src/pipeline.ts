@@ -36,7 +36,7 @@ async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:
     // beyond a short phrase. Existing keyword observations retain their minimum.
     const seek=startSeconds===undefined?[]:["-ss",startSeconds.toFixed(6)];
     const duration=startSeconds===undefined?Math.max(0.2,seconds):seconds;
-    const log=(await ffmpegRun(["-nostdin","-v","info","-y",...seek,"-t",duration.toFixed(6),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
+    const log=(await ffmpegRun(["-nostdin","-v","info","-y",...seek,"-t",duration.toFixed(startSeconds===undefined?2:6),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
     const mean=(key:string)=>{const v=[...log.matchAll(new RegExp("lavfi\\.signalstats\\."+key+"=([0-9.]+)","g"))].map(m=>Number(m[1]));return v.length?v.reduce((a,b)=>a+b,0)/v.length:NaN;};
     const y=mean("YAVG"),sat=mean("SATAVG");
     return Number.isFinite(y)&&Number.isFinite(sat)?{y:Math.round(y),sat:Math.round(sat)}:null;
