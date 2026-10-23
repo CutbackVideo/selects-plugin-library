@@ -6,7 +6,7 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // Applies or not, target or exempt (style spec 6-6). A plain gold rule draws across the top and the
 // `title` ribbon pops on it; then one or two full-width cards (960 x 270) rise in, each with an icon
 // disc on the left and a two-line sentence on the right ('\n' splits it; [word] crimson). A card of
-// tone "accent" is the hero side: crimson target mark drawn ring by ring. Tone "contrast" is the
+// tone "accent" is the hero side: crimson X drawn one stroke after the other. Tone "contrast" is the
 // opposite side (excluded, allowed): a green check drawn stroke by stroke. `subtitle` is an optional
 // grey line under the ribbon. The second card waits until the first one has settled.
 const CW = X1 - X0, CH = 270, D = 196;
@@ -24,15 +24,13 @@ function Mark({ s, tone, t0 }) {
       </svg>
     );
   }
-  // Target: rings close one after another, then the centre dot settles in.
-  const r1 = clamp(p * 2), r2 = clamp(p * 2 - 0.6), dot = settle(clamp(p * 2 - 1), 0.12);
-  const arc = (r, q) => <circle cx="98" cy="98" r={r} fill="none" stroke={C.acc} strokeWidth="12" strokeDasharray={2 * Math.PI * r} strokeDashoffset={2 * Math.PI * r * (1 - q)} transform="rotate(-90 98 98)" strokeLinecap="round" />;
+  // X: the two strokes are drawn in turn (spec 6-6).
+  const a = clamp(p * 2), b = clamp(p * 2 - 1);
   return (
     <svg width={D * s.k} height={D * s.k} viewBox="0 0 196 196">
       <circle cx="98" cy="98" r="98" fill={C.accL} />
-      {r1 > 0 ? arc(62, r1) : null}
-      {r2 > 0 ? arc(36, r2) : null}
-      {dot > 0 ? <circle cx="98" cy="98" r={13 * dot} fill={C.acc} /> : null}
+      {a > 0 ? <line x1="62" y1="62" x2={lerp(62, 134, a)} y2={lerp(62, 134, a)} stroke={C.acc} strokeWidth="16" strokeLinecap="round" /> : null}
+      {b > 0 ? <line x1="134" y1="62" x2={lerp(134, 62, b)} y2={lerp(62, 134, b)} stroke={C.acc} strokeWidth="16" strokeLinecap="round" /> : null}
     </svg>
   );
 }
