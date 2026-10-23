@@ -1,7 +1,7 @@
 // Injected by the portable-panel build footer from shared/app-update-guard.ts.
 declare function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean): void;
 import React, { useEffect, useRef, useState } from "react";
-import { t } from "./messages.ts";
+import { MESSAGES, t } from "./messages.ts";
 import { PRESETS } from "./preset.ts";
 import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
@@ -166,7 +166,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
               <span style={muted}>{T("source")}: {x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")}</span>
               {x.rewritten ? <span style={{ ...muted, color: "#4a90d9" }}>{T("rewritten")}</span> : null}
               {x.edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedCheck")}</span> : null}
-              {x.issues.length ? <span style={{ ...muted, color: "#d9822b" }}>{T("issues")}: {x.issues.map((v) => v.kind + (v.note ? " \u2013 " + v.note : "")).join("; ")}</span> : null}
+              {x.issues.length ? <span style={{ ...muted, color: "#d9822b" }}>{T("issues")}: {x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")}</span> : null}
             </div>
           ))}
           <span style={muted}>{T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) })}</span>

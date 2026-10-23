@@ -25,6 +25,11 @@ var MESSAGES = {
   source: ["Article", "\uC6D0\uBB38"],
   noSource: ["No matching passage in the article", "\uAE30\uC0AC\uC5D0\uC11C \uADFC\uAC70 \uBB38\uC7A5\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694"],
   issues: ["Flagged", "\uD655\uC778 \uD544\uC694"],
+  issue_meaning: ["Meaning", "\uC758\uBBF8"],
+  issue_number: ["Number", "\uC22B\uC790"],
+  issue_unsupported: ["Not in the article", "\uADFC\uAC70 \uC5C6\uC74C"],
+  issue_ai_tone: ["AI tone", "AI \uB9D0\uD22C"],
+  issue_register: ["Tone", "\uB9D0\uD22C"],
   rewritten: ["Rewritten by the check", "\uAC80\uC0AC\uC5D0\uC11C \uACE0\uCCD0 \uC4F4 \uBB38\uC7A5"],
   length: ["{chars} characters \xB7 about {sec} s", "{chars}\uC790 \xB7 \uC57D {sec}\uCD08"],
   tooLong: ["Over {max} characters: the short will run past a minute.", "{max}\uC790\uB97C \uB118\uC5B4\uC694. 1\uBD84\uC744 \uB118\uAE38 \uC218 \uC788\uC5B4\uC694."],
@@ -2496,7 +2501,7 @@ function NewsMinutePanel({ sdk, context }) {
         x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
           T("issues"),
           ": ",
-          x.issues.map((v) => v.kind + (v.note ? " \u2013 " + v.note : "")).join("; ")
+          x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
         ] }) : null
       ] }, x.id)),
       /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
