@@ -599,7 +599,7 @@
         "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
-        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
@@ -828,12 +828,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "6e74f10fe6e0a94fb3c82ccb7ea6c51669f7c97c29ffc20a3ae6435561747464",
+      "sha256": "5f0e7ebd58f0568b6576eb2175ea65bc1b49814dd84d8959946761e792fc6c76",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7745,
+          "endLine": 7748,
           "feature": "panel-ui"
         },
         {
@@ -958,27 +958,27 @@
         },
         {
           "startLine": 6968,
-          "endLine": 7134,
+          "endLine": 7137,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7135,
-          "endLine": 7177,
+          "startLine": 7138,
+          "endLine": 7180,
           "feature": "panel-ui"
         },
         {
-          "startLine": 7294,
-          "endLine": 7697,
+          "startLine": 7297,
+          "endLine": 7700,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7698,
-          "endLine": 7744,
+          "startLine": 7701,
+          "endLine": 7747,
           "feature": "app-guard"
         },
         {
-          "startLine": 7744,
-          "endLine": 7744,
+          "startLine": 7747,
+          "endLine": 7747,
           "feature": "panel-ui"
         },
         {
@@ -1037,8 +1037,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7178,
-          "endLine": 7292,
+          "startLine": 7181,
+          "endLine": 7295,
           "feature": "catalog-read"
         },
         {
@@ -1361,12 +1361,12 @@
     },
     {
       "path": "plugins/mini-vlog/tests/panel.test.cjs",
-      "sha256": "1e88c2b78a7c26067b6ca1853669b4e2e1a4502c8dd4f496f05177900971a6b0",
+      "sha256": "c48d98aaca17b5dcde290e4ca57a7ae997a2de957af744753ed54caf5ff64df4",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 632,
+          "endLine": 645,
           "feature": "test-harness"
         }
       ],
@@ -2006,7 +2006,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "f6e676e2d518b7673226096fee9b6d1ab45484b9a733ecbba9418692426ad6ab",
+      "sha256": "69a9c61a9e986e75f0eac94b5223dffc3bc1c9d12f85aac4ff3728cd516276be",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
