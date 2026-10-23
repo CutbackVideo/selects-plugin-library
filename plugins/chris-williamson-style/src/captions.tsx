@@ -9,10 +9,11 @@ export function phraseOutline(color: string, size: number) {
   return {WebkitTextStroke: Math.max(.75, size * .035) + "px " + (light ? "#111111" : "#ffffff"), paintOrder: "stroke fill"};
 }
 // Keep a small opaque contour visible over isolated highlights after downscaling.
-// Shadows do not change glyph layout, fill/reveal alpha or the keyword renderer.
-export function phraseHalo(color: string, size: number) {
+// The fallback keyword uses the same contour with a raster-scaled radius cap;
+// its separate footage-filled B-roll renderer and all glyph layout stay unchanged.
+export function phraseHalo(color: string, size: number, maxRadius = Infinity) {
   const edge = phraseOutline(color, size).WebkitTextStroke.split(" ").at(-1);
-  const radius = Math.max(.5, size * .025);
+  const radius = Math.min(maxRadius, Math.max(.5, size * .025));
   return [[-radius, 0], [radius, 0], [0, -radius], [0, radius]]
     .map(([x, y]) => `${x}px ${y}px 0 ${edge}`).join(", ");
 }
@@ -38,7 +39,7 @@ export default function Caption({data = {}}: {data?: Record<string, any>}) {
   const size = Number(data.fontSize || 53) * scale;
   return <AbsoluteFill style={{pointerEvents: "none"}}>
     {data.fontCss && <style>{String(data.fontCss)}</style>}
-    <div style={{...(data.keyword ? {} : phraseOutline(String(data.color || "#ffffff"), size)), textShadow: data.keyword ? undefined : phraseHalo(String(data.color || "#ffffff"), size), position: "absolute", left: "3%", width: "94%", top: Number(data.captionY ?? 50) + "%", transform: "translateY(-50%)", textAlign: "center", fontFamily: '"' + family + '", "Helvetica Neue", "Segoe UI", Arial, sans-serif', fontWeight: Number(data.fontWeight || 800), color: String(data.color || "#ffffff"), fontSize: size, letterSpacing: Number(data.trackingEm ?? -0.03) + "em", lineHeight: 1.1, whiteSpace: data.keyword ? "nowrap" : "pre-wrap", overflowWrap: data.keyword ? "normal" : "anywhere"}}>
+    <div style={{...(data.keyword ? {} : phraseOutline(String(data.color || "#ffffff"), size)), textShadow: phraseHalo(String(data.color || "#ffffff"), size, data.keyword ? 2 * scale : undefined), position: "absolute", left: "3%", width: "94%", top: Number(data.captionY ?? 50) + "%", transform: "translateY(-50%)", textAlign: "center", fontFamily: '"' + family + '", "Helvetica Neue", "Segoe UI", Arial, sans-serif', fontWeight: Number(data.fontWeight || 800), color: String(data.color || "#ffffff"), fontSize: size, letterSpacing: Number(data.trackingEm ?? -0.03) + "em", lineHeight: 1.1, whiteSpace: data.keyword ? "nowrap" : "pre-wrap", overflowWrap: data.keyword ? "normal" : "anywhere"}}>
       {words.map((word, i) => {
         const at = matching ? starts[i] : start + (words.length < 2 ? 0 : span * i / (words.length - 1));
         const age = frame / fps - at;
