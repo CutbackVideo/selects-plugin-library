@@ -12,7 +12,7 @@ export type SubsetOptions = {
 
 export const SCENE_SUBSET_OPTIONS: Readonly<SubsetOptions> = Object.freeze({
   keepAllFeatures: false,
-  extraFeatures: ["lnum"],
+  extraFeatures: ["lnum", "tnum"],
   nameIds: [0, 1, 2, 3, 4, 5, 6, 13, 14],
 });
 

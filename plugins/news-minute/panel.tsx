@@ -1303,6 +1303,8 @@ var FONT = { key: "fontFamily", label: "Font", type: "text", defaultValue: "" };
 var ACCENT = { key: "accentColor", label: "Accent", type: "color", defaultValue: "#E8502F" };
 var TITLE = { key: "title", label: "Title", type: "text", defaultValue: "" };
 var SOURCE = { key: "source", label: "Source", type: "text", defaultValue: "" };
+var SUBTITLE = { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" };
+var PAPER = { key: "background", label: "Paper", type: "color", defaultValue: "#F6F1E4" };
 var PARAM_SCHEMAS = {
   frame: [
     FONT,
@@ -1378,10 +1380,21 @@ var PARAM_SCHEMAS = {
   ],
   text_card: [
     FONT,
-    { key: "text", label: "Text", type: "text", defaultValue: "" },
+    TITLE,
+    { key: "text", label: "Text ([word] crimson, {phrase} highlighter)", type: "text", defaultValue: "" },
     { key: "sub", label: "Sub line", type: "text", defaultValue: "" },
-    { key: "source", label: "Source", type: "text", defaultValue: "" },
-    { key: "fontSize", label: "Size", type: "number", defaultValue: 84, min: 40, max: 120, step: 1 }
+    SOURCE,
+    { key: "fontSize", label: "Size", type: "number", defaultValue: 72, min: 40, max: 120, step: 1 },
+    PAPER
+  ],
+  highlight_card: [
+    FONT,
+    TITLE,
+    SUBTITLE,
+    { key: "value", label: "Value", type: "text", defaultValue: "" },
+    { key: "unit", label: "Unit", type: "text", defaultValue: "" },
+    SOURCE,
+    PAPER
   ],
   number_callout: [
     FONT,
@@ -1427,7 +1440,8 @@ var TIME_INDEPENDENT = {
   bar_compare_h: false,
   line_trend_callout: false,
   stat_cards: false,
-  quote_card: false
+  quote_card: false,
+  highlight_card: false
 };
 var LABELS = {
   frame: "News frame",
@@ -1440,7 +1454,8 @@ var LABELS = {
   bar_compare_h: "Bar comparison",
   line_trend_callout: "Trend line",
   stat_cards: "Stat cards",
-  quote_card: "Quote"
+  quote_card: "Quote",
+  highlight_card: "Highlight card"
 };
 
 // src/templates/generated.ts
@@ -1450,6 +1465,290 @@ var TEMPLATES = {
   "disclaimer": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.\n// The sentence itself comes from the preset.\nexport default function Disclaimer({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
   "frame": { tsxCode: "import React from 'react';\nimport { Img, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst SERIF = \"'Noto Serif KR','AppleMyungjo','Batang','Times New Roman',serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Persistent frame: brand background above and below the 1080x920 media window (y 480-1400), plus the\n// logo block under the window. The window itself stays transparent so the scene clips show through\n// whatever the track order is. Brand text comes in as parameters (the preset supplies it).\nexport default function Frame({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const bg = String(data?.background ?? '#21302A');\n  const top = Number(data?.windowTop ?? 480);\n  const bottom = Number(data?.windowBottom ?? 1400);\n  const gold = String(data?.accentColor ?? '#D8B66A');\n  const logo = typeof data?.logo === 'string' ? data.logo : '';\n  const logoMain = String(data?.logoMain ?? '');\n  const logoAccent = String(data?.logoAccent ?? '');\n  const tagline = String(data?.tagline ?? '');\n  // `backgroundImage` (data URL of a clean full 1080x1920 frame, e.g. with the damask pattern) replaces the flat colour.\n  const art = typeof data?.backgroundImage === 'string' ? data.backgroundImage : '';\n  const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ ...band, top: 0, height: top * k }} />\n      <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />\n      {logo ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 20) * k, height: 240 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />\n        </div>\n      ) : (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 12) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 150 * k }}>\n            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 100 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}\n            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 134 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}\n          </div>\n          {logoMain || logoAccent ? <div style={{ width: 486 * k, height: 3 * k, marginTop: 8 * k, background: gold }} /> : null}\n          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 52 * k, color: '#FFFFFF', marginTop: 16 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}\n        </div>\n      )}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["frame"] ?? [], timeIndependent: !!TIME_INDEPENDENT["frame"], label: LABELS["frame"] ?? "frame" },
   "headline": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Fixed two-line headline above the media window, on screen for the whole video with no animation.\n// Line 1: white text (an optional accent substring in the box colour). Line 2: black text on a box\n// that hugs the text width. Both lines shrink to fit when they run long.\nexport default function Headline({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const size = Number(data?.fontSize ?? 96);\n  const boxColor = String(data?.boxColor ?? '#FFD700');\n  const line1 = String(data?.line1 ?? '');\n  const line2 = String(data?.line2 ?? '');\n  const accent = String(data?.accent ?? '');\n  // Hangul glyphs at this weight run close to 0.95em; digits and spaces are narrower.\n  const em = (s) => [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.58 : 0.95), 0);\n  const fit = (s, max) => Math.min(size, max / Math.max(1, em(s)));\n  const size1 = fit(line1, 1010);\n  const size2 = fit(line2, 1030);\n  const at = accent && line1.includes(accent) ? line1.indexOf(accent) : -1;\n  const text1 = at < 0 ? line1 : (\n    <>\n      {line1.slice(0, at)}\n      <span style={{ color: boxColor }}>{accent}</span>\n      {line1.slice(at + accent.length)}\n    </>\n  );\n  const type = { fontFamily, fontWeight: 900, letterSpacing: -2 * k, whiteSpace: 'nowrap' };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      {line1 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line1Top ?? 228) * k, height: 110 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <div style={{ ...type, fontSize: size1 * k, lineHeight: 1, color: String(data?.line1Color ?? '#FFFFFF') }}>{text1}</div>\n        </div>\n      ) : null}\n      {line2 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line2Top ?? 343) * k, height: 114 * k, display: 'flex', justifyContent: 'center' }}>\n          <div style={{ ...type, fontSize: size2 * k, lineHeight: 114 * k + 'px', height: 114 * k, padding: '0 ' + 18 * k + 'px', maxWidth: 1050 * k, background: boxColor, color: String(data?.line2Color ?? '#000000') }}>{line2}</div>\n        </div>\n      ) : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["headline"] ?? [], timeIndependent: !!TIME_INDEPENDENT["headline"], label: LABELS["headline"] ?? "headline" },
+  "highlight_card": { tsxCode: `import React from 'react';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+
+// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
+// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
+// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
+// delayRender, continueRender and cancelRender imported by the template.
+//
+// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
+// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
+const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+const C = {
+  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
+  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
+  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
+};
+const X0 = 60, X1 = 1020;
+
+// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
+// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
+const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
+const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
+// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
+function useScene(data) {
+  const fontFace = useEmbeddedFont(data);
+  const frame = useCurrentFrame();
+  const { width, fps, durationInFrames } = useVideoConfig();
+  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  return {
+    fontFace, fps, frame, t: frame / fps, end: durationInFrames / fps, k: width / 1080,
+    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
+    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
+  };
+}
+
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
+// it clear for a damask plate laid underneath.
+function Win({ s, data, children }) {
+  const bg = String(data?.background ?? C.ivory);
+  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
+  return (
+    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
+      {s.fontFace}
+      {children}
+    </div>
+  );
+}
+
+// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
+// b (centre-bottom). The box takes its content's size.
+const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
+function At({ s, x, y, anchor = 'c', style, children }) {
+  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
+}
+
+// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
+function rise(s, t0, dur = 0.8, dy = 20) {
+  const p = prog(s.t, t0, t0 + dur);
+  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
+}
+function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor} style={style}>
+      <div style={rise(s, t0, dur, dy)}>{children}</div>
+    </At>
+  );
+}
+// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
+function pop(s, t0, dur = 0.8) {
+  const p = prog(s.t, t0, t0 + dur);
+  const sc = lerp(0.9, 1, settle(p, 0.3));
+  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
+  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
+}
+function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor}>
+      <div style={pop(s, t0, dur)}>{children}</div>
+    </At>
+  );
+}
+
+// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
+// the centre outwards over \`dur\`.
+function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
+  const p = smooth(prog(s.t, t0, t0 + dur));
+  if (p <= 0) return null;
+  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
+  const seg = (yy, lw) => (
+    <g key={yy} stroke={C.gold} strokeWidth={lw}>
+      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
+      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
+    </g>
+  );
+  return (
+    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
+      {seg(6, 2.2)}
+      {seg(12, 1.2)}
+      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
+    </svg>
+  );
+}
+
+// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule.
+// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
+function Header({ s, title, subtitle, t0 = 0 }) {
+  return (
+    <>
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
+      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+    </>
+  );
+}
+
+// Source line, always bottom-right (26/500).
+function Source({ s, text, t0 = 0.3 }) {
+  if (!text) return null;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+}
+
+// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
+function parseMarks(text) {
+  const out = [];
+  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
+    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
+    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
+    else out.push({ text: m[3], mark: '' });
+  }
+  return out.filter((p) => p.text);
+}
+const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
+
+// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
+// swept in left to right by p (0..1).
+function Brush({ p, seed = 0 }) {
+  const id = 'nmb' + seed + Math.round(p * 1000);
+  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const top = [], bot = [];
+  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
+  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
+      <defs>
+        <linearGradient id={id}>
+          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
+          <stop offset={p * 1.15} stopColor="#000" />
+        </linearGradient>
+        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
+      </defs>
+      <g mask={'url(#' + id + 'm)'}>
+        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
+        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
+      </g>
+    </svg>
+  );
+}
+
+// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
+function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
+  return (
+    <>
+      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
+        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
+          {p.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
+// settled (t0 + 0.55 s), riding with the line.
+function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
+  return (
+    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
+      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
+    </Rise>
+  );
+}
+
+// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
+  const k = s.k, n = 14 * k;
+  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
+  return (
+    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
+      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
+      <div style={{ ...line, top: 4.25 * k }} />
+      <div style={{ ...line, bottom: 4.25 * k }} />
+      <span style={{ position: 'relative' }}>{text}</span>
+    </div>
+  );
+}
+
+// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
+function cardStyle(s, hero = false) {
+  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
+}
+
+// Count-up: split a value into fixed text around one number so it can count from 0.
+// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
+const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
+function countable(v) {
+  const text = typeof v === 'number' ? String(v) : String(v ?? '');
+  const hits = text.match(NUM) || [];
+  if (hits.length !== 1) return null;
+  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
+  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
+}
+// Rounded first so a negative value starts at 0, not -0.
+const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
+
+// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
+const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// One big value (style spec 6-3, last line): a crimson-bordered card 860 x 400 holding the title (50),
+// a short gold rule and the value (150, crimson) with its unit (80). The number inside \`value\` counts
+// up from 0 and slows to a stop so its last digits read; text around it (a "$" prefix, a word before it) stays fixed.
+// \`subtitle\` sits under the card, \`source\` bottom-right.
+export default function HighlightCard({ data }) {
+  const s = useScene(data);
+  const k = s.k;
+  const title = String(data?.title ?? '');
+  const subtitle = String(data?.subtitle ?? '');
+  const value = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
+  const unit = String(data?.unit ?? '');
+  const W = 860, H = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
+  const count = countable(value);
+  const cp = prog(s.t, 0.8, 0.8 + 1.2);
+  // Value and unit shrink together only when they would overflow the card.
+  const scale = Math.min(1, (W - 100) / Math.max(1, ems(value) * 150 + ems(unit) * 80 + 8));
+  const num = { fontSize: 150 * scale * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * scale * k, fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
+  return (
+    <Win s={s} data={data}>
+      <Rise s={s} t0={0} dur={0.9} dy={22} x={x0} y={y0} anchor="lt">
+        <div style={{ ...cardStyle(s, true), width: W * k, height: H * k }} />
+      </Rise>
+      {title ? (
+        <Rise s={s} t0={0.3} dy={14} x={540} y={y0 + 78}>
+          <div style={{ fontSize: fitSize(title, 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k }}>{title}</div>
+        </Rise>
+      ) : null}
+      <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136} t0={0.5} />
+      <Pop s={s} t0={0.8} x={540} y={y0 + (title ? 262 : 200)}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline' }}>
+          {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
+          <span style={{ position: 'relative' }}>
+            <span style={{ ...num, visibility: count ? 'hidden' : 'visible' }}>{value}</span>
+            {count ? <span style={{ ...num, position: 'absolute', right: 0, bottom: 0 }}>{counted(count, smooth(cp))}</span> : null}
+          </span>
+          {unit ? <span style={{ fontSize: 80 * scale * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 }}>{unit}</span> : null}
+        </div>
+      </Pop>
+      {subtitle ? (
+        <Rise s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58}>
+          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}>{subtitle}</div>
+        </Rise>
+      ) : null}
+      <Source s={s} text={String(data?.source ?? '')} />
+    </Win>
+  );
+}
+`, editableParameters: PARAM_SCHEMAS["highlight_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["highlight_card"], label: LABELS["highlight_card"] ?? "highlight_card" },
   "line_trend_callout": { tsxCode: `import React from 'react';
 import { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
@@ -1644,7 +1943,274 @@ export default function NumberCallout({ data }) {
 `, editableParameters: PARAM_SCHEMAS["number_callout"] ?? [], timeIndependent: !!TIME_INDEPENDENT["number_callout"], label: LABELS["number_callout"] ?? "number_callout" },
   "quote_card": { tsxCode: "import React from 'react';\nimport { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Expert or official quote on the white data window: round headshot (optional data URL), name,\n// affiliation and a divider pop in first, then the quote lines are revealed one by one across the\n// scene. Lines listed in `accentLines` (indexes) are red with a yellow highlighter sweep.\nexport default function QuoteCard({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const headshot = typeof data?.headshot === 'string' ? data.headshot : '';\n  const lines = (Array.isArray(data?.lines) ? data.lines : []).map((l) => String(l)).slice(0, 5);\n  const accentLines = new Set((Array.isArray(data?.accentLines) ? data.accentLines : []).map(Number));\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const mark = String(data?.highlightColor ?? 'rgba(255,200,40,0.75)');\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const head = interpolate(frame, [0, Math.round(fps * 0.3)], [0, 1], ease);\n  const first = Math.round(fps * 0.4);\n  const step = lines.length > 1 ? Math.max(Math.round(fps * 0.3), Math.round((dur * 0.7 - first) / lines.length)) : 0;\n  const longest = Math.max(1, ...lines.map((l) => l.length));\n  const size = Math.min(64, 950 / Math.max(10, longest));\n  const x = headshot ? 230 : 65;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {fontFace}\n      <div style={{ opacity: head, transform: 'scale(' + (0.94 + 0.06 * head) + ')', transformOrigin: '65px 120px' }}>\n        {headshot ? (\n          <div style={{ position: 'absolute', left: 60 * k, top: 50 * k, width: 150 * k, height: 150 * k, borderRadius: '50%', overflow: 'hidden', background: '#DDDDDD' }}>\n            <Img src={headshot} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 25%' }} />\n          </div>\n        ) : null}\n        <div style={{ position: 'absolute', left: x * k, top: 70 * k, fontWeight: 900, fontSize: 68 * k, color: '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{String(data?.name ?? '')}</div>\n        <div style={{ position: 'absolute', left: x * k, top: 156 * k, fontWeight: 500, fontSize: 34 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(data?.affiliation ?? '')}</div>\n        <div style={{ position: 'absolute', left: 60 * k, right: 60 * k, top: 240 * k, height: 2 * k, background: '#E2E2E2' }} />\n      </div>\n      <div style={{ position: 'absolute', left: 65 * k, right: 65 * k, top: 290 * k }}>\n        {lines.map((l, i) => {\n          const start = first + i * step;\n          const o = interpolate(frame, [start, start + Math.round(fps * 0.25)], [0, 1], ease);\n          const sweep = interpolate(frame, [start + Math.round(fps * 0.2), start + Math.round(fps * 0.8)], [0, 100], ease);\n          const hot = accentLines.has(i);\n          return (\n            <div key={i} style={{ opacity: o, transform: 'translateY(' + (1 - o) * 14 * k + 'px)', fontWeight: 800, fontSize: size * k, lineHeight: 1.45, color: hot ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>\n              <span style={hot ? { backgroundImage: 'linear-gradient(transparent 50%, ' + mark + ' 50%, ' + mark + ' 95%, transparent 95%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', padding: '0 ' + 4 * k + 'px' } : undefined}>{l}</span>\n            </div>\n          );\n        })}\n      </div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["quote_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["quote_card"], label: LABELS["quote_card"] ?? "quote_card" },
   "stat_cards": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// 2-4 equal cards on the white data window, each with a coloured header and 1-2 rows of numbers.\n// The first row's value is large and in the accent colour, the rest are smaller and dark. Cards rise\n// in staggered and their numbers count up. `cards: [{ header, rows: [{ label, value, unit? }] }]`;\n// a string value is shown as written (no count-up).\nconst decimals = (v) => {\n  const s = String(v);\n  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;\n};\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\nexport default function StatCards({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const accent = String(data?.accentColor ?? '#E8502F');\n  const headerColor = String(data?.headerColor ?? '#D9705A');\n  const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 4);\n  const n = Math.max(1, cards.length);\n  const title = String(data?.title ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  const source = String(data?.source ?? '');\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const step = Math.min(Math.round(fps * 0.6), Math.round((dur * 0.4) / n));\n  const gap = 24, left = 60, cardW = (960 - gap * (n - 1)) / n;\n  const big = n >= 4 ? 56 : n === 3 ? 70 : 84;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>\n      {fontFace}\n      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}\n      {subtitle ? <div style={{ position: 'absolute', left: 65 * k, top: 124 * k, right: 65 * k, fontWeight: 500, fontSize: 30 * k, color: '#8A8A8A' }}>{subtitle}</div> : null}\n      {cards.map((c, i) => {\n        const start = i * step;\n        const p = interpolate(frame, [start, start + Math.round(fps * 0.3)], [0, 1], ease);\n        const count = interpolate(frame, [start, start + Math.round(fps * 1.1)], [0, 1], ease);\n        const rows = Array.isArray(c?.rows) ? c.rows.slice(0, 2) : [];\n        return (\n          <div key={i} style={{ position: 'absolute', left: (left + i * (cardW + gap)) * k, top: (240 + (1 - p) * 30) * k, width: cardW * k, height: 470 * k, opacity: p, borderRadius: 18 * k, background: '#F4F3F0', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n            <div style={{ width: '100%', height: 96 * k, background: headerColor, color: '#FFFFFF', fontWeight: 800, fontSize: (n >= 4 ? 34 : 40) * k, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>{String(c?.header ?? '')}</div>\n            {rows.map((r, j) => {\n              const raw = r?.value;\n              const num = typeof raw === 'number';\n              const shown = num ? fmt(raw * count, decimals(raw)) : String(raw ?? '');\n              return (\n                <div key={j} style={{ marginTop: (j === 0 ? 40 : 34) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n                  <div style={{ fontWeight: 500, fontSize: 30 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(r?.label ?? '')}</div>\n                  <div style={{ fontWeight: 900, fontSize: (j === 0 ? big : big * 0.62) * k, color: j === 0 ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap', marginTop: 6 * k }}>\n                    {shown}<span style={{ fontSize: (j === 0 ? big : big * 0.62) * 0.5 * k, marginLeft: 3 * k }}>{String(r?.unit ?? '')}</span>\n                  </div>\n                </div>\n              );\n            })}\n          </div>\n        );\n      })}\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["stat_cards"] ?? [], timeIndependent: !!TIME_INDEPENDENT["stat_cards"], label: LABELS["stat_cards"] ?? "stat_cards" },
-  "text_card": { tsxCode: "import React from 'react';\nimport { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Fallback scene when no photo or number fits: the sentence's key phrase on a white media window\n// (the data-card look), with a yellow highlighter sweeping under it and an optional grey sub line.\n// Use '\\n' in `text` for a manual line break.\nexport default function TextCard({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const top = Number(data?.windowTop ?? 480);\n  const height = Number(data?.windowHeight ?? 920);\n  const text = String(data?.text ?? '');\n  const sub = String(data?.sub ?? '');\n  const source = String(data?.source ?? '');\n  const longest = Math.max(1, ...text.split('\\n').map((l) => l.length));\n  const size = Math.min(Number(data?.fontSize ?? 84), 900 / Math.max(6, Math.min(longest, 12)));\n  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };\n  const rise = interpolate(frame, [0, Math.round(fps * 0.25)], [0, 1], ease);\n  const sweep = interpolate(frame, [Math.round(fps * 0.3), Math.round(fps * 0.9)], [0, 100], ease);\n  const subIn = interpolate(frame, [Math.round(fps * 0.5), Math.round(fps * 0.75)], [0, 1], ease);\n  const mark = String(data?.highlightColor ?? 'rgba(255,215,0,0.8)');\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: String(data?.background ?? '#FDFDFD'), pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ position: 'absolute', left: 80 * k, right: 80 * k, top: 0, bottom: 120 * k, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>\n        <div style={{ fontFamily, fontWeight: 900, fontSize: size * k, lineHeight: 1.3, letterSpacing: -2 * k, color: String(data?.textColor ?? '#222222'), whiteSpace: 'pre-line', opacity: rise, transform: 'translateY(' + (1 - rise) * 24 * k + 'px)' }}>\n          <span style={{ backgroundImage: 'linear-gradient(transparent 60%, ' + mark + ' 60%, ' + mark + ' 92%, transparent 92%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone', padding: '0 ' + 6 * k + 'px' }}>{text}</span>\n        </div>\n        {sub ? <div style={{ fontFamily, fontWeight: 500, fontSize: 40 * k, lineHeight: 1.35, color: '#6B6B6B', marginTop: 36 * k, opacity: subIn, whiteSpace: 'pre-line' }}>{sub}</div> : null}\n      </div>\n      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontFamily, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" }
+  "text_card": { tsxCode: `import React from 'react';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+
+// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
+// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
+// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
+// delayRender, continueRender and cancelRender imported by the template.
+//
+// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
+// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
+const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+const C = {
+  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
+  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
+  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
+};
+const X0 = 60, X1 = 1020;
+
+// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
+// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
+const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
+const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
+// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
+// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
+function useScene(data) {
+  const fontFace = useEmbeddedFont(data);
+  const frame = useCurrentFrame();
+  const { width, fps, durationInFrames } = useVideoConfig();
+  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
+  return {
+    fontFace, fps, frame, t: frame / fps, end: durationInFrames / fps, k: width / 1080,
+    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
+    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
+  };
+}
+
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
+// it clear for a damask plate laid underneath.
+function Win({ s, data, children }) {
+  const bg = String(data?.background ?? C.ivory);
+  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
+  return (
+    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
+      {s.fontFace}
+      {children}
+    </div>
+  );
+}
+
+// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
+// b (centre-bottom). The box takes its content's size.
+const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
+function At({ s, x, y, anchor = 'c', style, children }) {
+  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
+}
+
+// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
+function rise(s, t0, dur = 0.8, dy = 20) {
+  const p = prog(s.t, t0, t0 + dur);
+  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
+}
+function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor} style={style}>
+      <div style={rise(s, t0, dur, dy)}>{children}</div>
+    </At>
+  );
+}
+// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
+function pop(s, t0, dur = 0.8) {
+  const p = prog(s.t, t0, t0 + dur);
+  const sc = lerp(0.9, 1, settle(p, 0.3));
+  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
+  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
+}
+function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
+  return (
+    <At s={s} x={x} y={y} anchor={anchor}>
+      <div style={pop(s, t0, dur)}>{children}</div>
+    </At>
+  );
+}
+
+// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
+// the centre outwards over \`dur\`.
+function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
+  const p = smooth(prog(s.t, t0, t0 + dur));
+  if (p <= 0) return null;
+  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
+  const seg = (yy, lw) => (
+    <g key={yy} stroke={C.gold} strokeWidth={lw}>
+      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
+      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
+    </g>
+  );
+  return (
+    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
+      {seg(6, 2.2)}
+      {seg(12, 1.2)}
+      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
+    </svg>
+  );
+}
+
+// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule.
+// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
+function Header({ s, title, subtitle, t0 = 0 }) {
+  return (
+    <>
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
+      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+    </>
+  );
+}
+
+// Source line, always bottom-right (26/500).
+function Source({ s, text, t0 = 0.3 }) {
+  if (!text) return null;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+}
+
+// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
+function parseMarks(text) {
+  const out = [];
+  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
+    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
+    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
+    else out.push({ text: m[3], mark: '' });
+  }
+  return out.filter((p) => p.text);
+}
+const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
+
+// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
+// swept in left to right by p (0..1).
+function Brush({ p, seed = 0 }) {
+  const id = 'nmb' + seed + Math.round(p * 1000);
+  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const top = [], bot = [];
+  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
+  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
+      <defs>
+        <linearGradient id={id}>
+          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
+          <stop offset={p * 1.15} stopColor="#000" />
+        </linearGradient>
+        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
+      </defs>
+      <g mask={'url(#' + id + 'm)'}>
+        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
+        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
+      </g>
+    </svg>
+  );
+}
+
+// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
+function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
+  return (
+    <>
+      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
+        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
+          {p.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
+// settled (t0 + 0.55 s), riding with the line.
+function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
+  return (
+    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
+      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
+    </Rise>
+  );
+}
+
+// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
+  const k = s.k, n = 14 * k;
+  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
+  return (
+    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
+      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
+      <div style={{ ...line, top: 4.25 * k }} />
+      <div style={{ ...line, bottom: 4.25 * k }} />
+      <span style={{ position: 'relative' }}>{text}</span>
+    </div>
+  );
+}
+
+// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
+function cardStyle(s, hero = false) {
+  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
+}
+
+// Count-up: split a value into fixed text around one number so it can count from 0.
+// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
+const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
+function countable(v) {
+  const text = typeof v === 'number' ? String(v) : String(v ?? '');
+  const hits = text.match(NUM) || [];
+  if (hits.length !== 1) return null;
+  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
+  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
+}
+// Rounded first so a negative value starts at 0, not -0.
+const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
+
+// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
+const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Fallback scene when no photo or number fits: the key sentence (72/800 ink, '\\n' for a line break)
+// centred on the paper, one line after another. [word] turns crimson, {phrase} gets the ochre brush
+// once its line has settled. Optional scene \`title\` (+ double gold rule) top-left, \`sub\` as a smaller
+// grey line under the sentence, \`source\` bottom-right.
+export default function TextCard({ data }) {
+  const s = useScene(data);
+  const k = s.k;
+  const title = String(data?.title ?? '');
+  const sub = String(data?.sub ?? '');
+  const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '');
+  // One size for every line: the longest decides, between 56 and the requested size.
+  const want = Number(data?.fontSize ?? 72);
+  const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
+  const lh = size * 1.32;
+  const top = title ? 150 : 0;
+  const block = lines.length * lh + (sub ? 36 + 44 : 0);
+  const y0 = top + (794 - top - block) / 2;
+  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
+  return (
+    <Win s={s} data={data}>
+      <Header s={s} title={title} subtitle="" />
+      {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
+      {sub ? (
+        <Rise s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 22}>
+          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}>{sub}</div>
+        </Rise>
+      ) : null}
+      <Source s={s} text={String(data?.source ?? '')} />
+    </Win>
+  );
+}
+`, editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" }
 };
 
 // src/pipeline/plan.ts
@@ -2024,7 +2590,7 @@ function buildSfnt(flavor, tables) {
 // src/fonts/hbSubset.ts
 var SCENE_SUBSET_OPTIONS = Object.freeze({
   keepAllFeatures: false,
-  extraFeatures: ["lnum"],
+  extraFeatures: ["lnum", "tnum"],
   nameIds: [0, 1, 2, 3, 4, 5, 6, 13, 14]
 });
 var SETS = { UNICODE: 1, NAME_ID: 4, NAME_LANG_ID: 5, LAYOUT_FEATURE_TAG: 6 };

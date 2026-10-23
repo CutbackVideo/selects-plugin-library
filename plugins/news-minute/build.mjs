@@ -1,6 +1,7 @@
 // Builds panel.tsx from src/:
 //   1. src/templates/generated.ts  each src/templates/<type>.tsx as a tsxCode string, paired with its Inspector
-//                                  controls (PARAM_SCHEMAS), timeIndependent flag and clip label from schemas.ts
+//                                  controls (PARAM_SCHEMAS), timeIndependent flag and clip label from schemas.ts;
+//                                  a `// @heritage` line becomes the shared helpers in src/heritage/shared.jsx
 //   2. panel.tsx                   one esbuild bundle of src/Panel.tsx that imports only react, with the shared
 //                                  app-update guard appended
 // The bundle is ASCII: Hangul in src/ (written as \uXXXX) stays escaped, as the public-source check requires.
@@ -33,8 +34,9 @@ function writeIfChanged(path, text) {
     'import { PARAM_SCHEMAS, TIME_INDEPENDENT, LABELS } from "./schemas.ts";',
     "export const TEMPLATES = {",
   ];
+  const heritage = readFileSync(join(ROOT, "src", "heritage", "shared.jsx"), "utf8").trimEnd();
   for (const t of types) {
-    const code = readFileSync(join(dir, t + ".tsx"), "utf8");
+    const code = readFileSync(join(dir, t + ".tsx"), "utf8").replace(/^\/\/ @heritage$/m, () => heritage);
     lines.push(`  ${JSON.stringify(t)}: { tsxCode: ${JSON.stringify(code)}, editableParameters: (PARAM_SCHEMAS as any)[${JSON.stringify(t)}] ?? [], timeIndependent: !!(TIME_INDEPENDENT as any)[${JSON.stringify(t)}], label: (LABELS as any)[${JSON.stringify(t)}] ?? ${JSON.stringify(t)} },`);
   }
   lines.push("} as const;", "");
