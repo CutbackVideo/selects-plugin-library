@@ -254,8 +254,8 @@ async function layoutImage(sdk: PanelSdk, env: Env, name: string | undefined): P
   return st.exists && st.size > 1000 ? path : null;
 }
 
-// The Main plate: the preset's background image held still, else its flat colour.
-async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number, preset: Preset, log: Log, rec: RunRecord): Promise<string> {
+// The Main plate: the preset's background image held still, else its flat colour. image says which.
+async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number, preset: Preset, log: Log, rec: RunRecord): Promise<{ id: string; image: boolean }> {
   log("plate");
   const image = await layoutImage(sdk, env, preset.layout.backgroundImage);
   const name = image ? preset.layout.backgroundImage!.replace(/\.[^.]+$/, "") : preset.background.replace("#", "");
@@ -265,7 +265,7 @@ async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number
   if (!st.exists || st.size < 1000) await ffmpeg(sdk, "Make the background", image ? imagePlateArgs(seconds, image, path) : plateArgs(seconds, preset.background, path));
   const r = await run<{ ids: string[] }>(sdk, importScript(projectId, [path]));
   if (!r.ids?.length) throw new Error("background was not added to the Project");
-  return r.ids[0];
+  return { id: r.ids[0], image: !!image };
 }
 
 // The bands image as a Project Resource, or undefined (the frame graphic draws the bands instead).
@@ -420,12 +420,14 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     }
   };
 
-  const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight };
-  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
 
-  const plateId = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  const plateId = bg.id;
+  // Scenes draw in the layout's window; over a background image they leave their own fill off so it shows.
+  const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: "transparent" } : {}) };
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const bandsId = await bands(sdk, env, projectId, preset, rec);
   log("assembling");
   const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate };
