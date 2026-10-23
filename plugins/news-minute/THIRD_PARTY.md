@@ -27,6 +27,14 @@ checks the decoded bytes against that hash before use. It is gzip-compressed
 because the plain base64 of these bytes happens to contain an `AKIA...` run that
 `tools/check_public.py` flags as an access token.
 
+## Chosun Ilbo layout images (`template-packs/chosun/assets/`)
+
+`t1m_bands.png` (top and bottom bands with the logo, transparent middle) and
+`t1m_background.png` (ivory damask) are the customer's "Today's 1 Minute"
+template images, supplied by Chosun Ilbo with their style sheet on 2026-10-21
+and published here with Cutback's approval (2026-10-23). They are used only by
+the Chosun Ilbo preset.
+
 ## Code
 
 `src/fonts/hbSubset.ts`, `src/fonts/sfnt.ts` and `src/fonts/renameFamily.ts` are
