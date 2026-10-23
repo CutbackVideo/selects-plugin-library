@@ -1,7 +1,9 @@
 // Article text and photos from a news page (Arc XP Fusion first, which Chosun uses; then JSON-LD; then <p>).
 // Text handling follows medical-explainer's medExtractArticle; photos are new.
 
-export type ArticlePhoto = { ref: string; url: string; caption: string; credit: string; w: number; h: number };
+// context: the article paragraph right before the image (none for the lead image), so a graphic whose caption
+// is only a credit line still says what it is about.
+export type ArticlePhoto = { ref: string; url: string; caption: string; credit: string; w: number; h: number; context?: string };
 export type Article = {
   url: string;
   title: string;
@@ -41,6 +43,9 @@ function creditOf(e: any): string {
   return m ? m[1].trim() : "";
 }
 
+const CONTEXT_MAX_CHARS = 300;
+const contextOf = (p: string) => (p ? [...p].slice(0, CONTEXT_MAX_CHARS).join("") : undefined);
+
 export function extractArticle(url: string, html: string): Article {
   const s = String(html ?? "");
   const t = /<title>(.*?)<\/title>/s.exec(s);
@@ -67,10 +72,12 @@ export function extractArticle(url: string, html: string): Article {
       art.method = "arc";
     }
     const promo = asObj(asObj(d?.promo_items).basic);
+    let before = "";
     for (const e of [promo, ...els]) {
+      if (e !== promo && asObj(e).type === "text") { const t = stripTags(e.content || ""); if (t) before = t; continue; }
       if (asObj(e).type !== "image" || typeof e.url !== "string" || !/^https:\/\//.test(e.url)) continue;
       if (photos.some((p) => p.url === e.url)) continue;
-      photos.push({ url: e.url, caption: stripTags(e.caption || ""), credit: creditOf(e), w: Number(e.width) || 0, h: Number(e.height) || 0 });
+      photos.push({ url: e.url, caption: stripTags(e.caption || ""), credit: creditOf(e), w: Number(e.width) || 0, h: Number(e.height) || 0, context: contextOf(before) });
     }
   }
   if (!art.body) {
@@ -86,17 +93,21 @@ export function extractArticle(url: string, html: string): Article {
   }
   // Daum news (and other Kakao-hosted copies): paragraphs and figures carry dmcf attributes.
   if (!art.body && /dmcf-ptype=/.test(s)) {
-    const paras = [...s.matchAll(/<p[^>]*dmcf-ptype="general"[^>]*>(.*?)<\/p>/gs)].map((x) => stripTags(x[1])).filter(Boolean);
-    if (paras.length) { art.body = paras.join("\n"); art.method = "dmcf"; }
-    for (const im of s.matchAll(/<img[^>]*dmcf-mtype="image"[^>]*>/g)) {
+    const paras: string[] = [];
+    let before = "";
+    // Paragraphs and images in page order, so each image gets the paragraph right before it.
+    for (const x of s.matchAll(/<p[^>]*dmcf-ptype="general"[^>]*>(.*?)<\/p>|<img[^>]*dmcf-mtype="image"[^>]*>/gs)) {
+      if (x[1] !== undefined) { const t = stripTags(x[1]); if (t) { paras.push(t); before = t; } continue; }
+      const im = x;
       const src = /data-org-src="([^"]+)"/.exec(im[0]);
       if (!src || !/^https:\/\//.test(src[1]) || photos.some((p) => p.url === src[1])) continue;
       const alt = /alt="([^"]*)"/.exec(im[0]);
       const w = /data-org-width="(\d+)"/.exec(im[0]);
       const caption = alt ? unescapeHtml(alt[1]).trim() : "";
       const credit = /([^\s.]+(?:DB|\uB274\uC2A4|\uC81C\uACF5))\.?$/.exec(caption);
-      photos.push({ url: src[1], caption, credit: credit ? credit[1] : "", w: w ? Number(w[1]) : 0, h: 0 });
+      photos.push({ url: src[1], caption, credit: credit ? credit[1] : "", w: w ? Number(w[1]) : 0, h: 0, context: contextOf(before) });
     }
+    if (paras.length) { art.body = paras.join("\n"); art.method = "dmcf"; }
   }
   if (!art.body) {
     const sc = /<article[^>]*>(.*?)<\/article>/s.exec(s);

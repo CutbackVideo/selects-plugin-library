@@ -4,14 +4,14 @@ import * as P from "../prompts/index.ts";
 import type { Article as PromptArticle, PlanScene } from "../prompts/types.ts";
 import { DEFAULT_VOICE, type Preset } from "../preset.ts";
 import { decodeHtml, extractArticle, type Article } from "./article.ts";
-import { ask, ffmpeg, load, readFileBase64, readFileBytes, run, save, scriptBytes, writeText, type PanelSdk } from "./host.ts";
+import { ask, ASK_MAX_IMAGE_CHARS, ASK_MAX_IMAGES, ASK_MAX_TOTAL_CHARS, ffmpeg, type AskImage, load, readFileBase64, readFileBytes, run, save, scriptBytes, writeText, type PanelSdk } from "./host.ts";
 import {
   alignmentScript, createProjectScript, downloadScript, envScript, existsScript, generateScript, importScript,
   narrationStatusScript, photoArgs, PHOTO_MAX_B64, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { fallbackPlan, hiddenCaptionSentences, isGraphic, sceneClips, settlePlan, type PhotoAsset } from "./plan.ts";
+import { fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type PhotoAsset } from "./plan.ts";
 import { baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 
@@ -54,14 +54,16 @@ export async function fetchArticle(sdk: PanelSdk, env: Env, url: string): Promis
 
 // Per-step diagnostics for the run record: time, AI turns, JSON parse failures, repairs, remaining errors.
 export type StepStat = { step: string; ms: number; turns: number; parseFailures: number; repairs: number; errors: string[]; at: string };
-export type RunRecord = { startedAt: string; preset: string; url: string; steps: StepStat[]; notes: string[] };
+// plan: what the planner saw and where each asset went (asset summaries, scenes per asset, images sent).
+export type PlanRecord = { images: { count: number; chars: number; refs: string[] }; assetSummaries: Record<string, string>; placements: Record<string, number[]>; unused: string[]; fallback: boolean };
+export type RunRecord = { startedAt: string; preset: string; url: string; steps: StepStat[]; notes: string[]; plan?: PlanRecord };
 export const newRunRecord = (preset: string, url: string): RunRecord => ({ startedAt: new Date().toISOString(), preset, url, steps: [], notes: [] });
 
-async function askValid<T>(sdk: PanelSdk, step: string, prompt: string, check: (json: any) => { ok: boolean; errors: string[] }, log: Log, rec: RunRecord, maxRepairs = 2): Promise<{ json: T | null; errors: string[] }> {
+async function askValid<T>(sdk: PanelSdk, step: string, prompt: string, check: (json: any) => { ok: boolean; errors: string[] }, log: Log, rec: RunRecord, maxRepairs = 2, images?: AskImage[]): Promise<{ json: T | null; errors: string[] }> {
   const t0 = Date.now();
   const stat: StepStat = { step, ms: 0, turns: 1, parseFailures: 0, repairs: 0, errors: [], at: new Date().toISOString() };
   const retry = () => { stat.turns++; log("aiRetry"); };
-  let reply = await ask(sdk, prompt, retry);
+  let reply = await ask(sdk, prompt, retry, images);
   let json: any = null, errors: string[] = [];
   try {
     for (let attempt = 0; ; attempt++) {
@@ -70,7 +72,8 @@ async function askValid<T>(sdk: PanelSdk, step: string, prompt: string, check: (
       log("repairing");
       stat.repairs++;
       stat.turns++;
-      reply = await ask(sdk, P.repairPrompt(prompt, json ?? reply, errors), retry);
+      // The repair turn sees the same images, so it does not rewrite the asset summaries blind.
+      reply = await ask(sdk, P.repairPrompt(prompt, json ?? reply, errors), retry, images);
     }
   } finally {
     stat.ms = Date.now() - t0;
@@ -198,6 +201,21 @@ async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): 
   return out;
 }
 
+// The images the planner looks at, named by ref. The host takes at most 4: graphics go first, since their
+// captions often hold only a credit and say nothing about what they plot.
+export function plannerImages(photos: PhotoAsset[]): AskImage[] {
+  const ordered = [...photos.filter((p) => p.graphic), ...photos.filter((p) => !p.graphic)];
+  const out: AskImage[] = [];
+  let total = 0;
+  for (const p of ordered) {
+    if (out.length >= ASK_MAX_IMAGES) break;
+    if (p.dataUrl.length > ASK_MAX_IMAGE_CHARS || total + p.dataUrl.length > ASK_MAX_TOTAL_CHARS) continue;
+    out.push({ dataUrl: p.dataUrl, name: p.ref });
+    total += p.dataUrl.length;
+  }
+  return out;
+}
+
 async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number, color: string, log: Log): Promise<string> {
   log("plate");
   const path = join(env, `plate-${color.replace("#", "")}-${seconds.toFixed(1)}.mp4`);
@@ -224,21 +242,40 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
 
   const photos = await prepPhotos(sdk, env, article, log);
   const sentences = script.sentences.map((x, i) => ({ id: x.id, text: x.text, startSec: Number(times[i].startSec.toFixed(2)), endSec: Number(times[i].endSec.toFixed(2)) }));
-  const assets = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo" as const, caption: p.caption, credit: p.credit, w: p.w, h: p.h }));
+  const assets = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo" as const, caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
+  const images = plannerImages(photos);
+  const imageChars = images.reduce((n, im) => n + im.dataUrl.length, 0);
+  rec.notes.push("plan images: " + images.length + " of " + photos.length + " (" + images.map((im) => im.name).join(", ") + "), " + Math.round(imageChars / 1024) + " KB base64");
 
   log("planning");
   let plan: PlanScene[] | null = null;
+  let summaries: Array<{ ref: string; summary: string }> = [];
   try {
     const check = (j: any) => P.validatePlan(j, sentences, assets);
-    const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), check, log, rec, 1);
+    const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), check, log, rec, 1, images);
     const settled = settlePlan(r.json, r.errors, sentences, check);
     plan = settled.scenes;
+    if (plan && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a: any) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
     if (settled.demoted) { rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards"); log("planDemoted", { n: settled.demoted }); }
     if (plan && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
     if (!plan && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
   } catch { plan = null; }
   const usedFallback = !plan;
-  if (!plan) { rec.notes.push("plan: fallback"); log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
+  if (!plan) {
+    rec.notes.push("plan: fallback");
+    log("planFallback");
+    const fb = fallbackPlan(sentences, times, assets);
+    plan = fb.scenes;
+    summaries = fb.assetSummaries;
+  }
+  const placed = placements(plan);
+  rec.plan = {
+    images: { count: images.length, chars: imageChars, refs: images.map((im) => im.name ?? "") },
+    assetSummaries: Object.fromEntries(summaries.map((a) => [a.ref, a.summary])),
+    placements: placed,
+    unused: assets.map((a) => a.ref).filter((r) => !placed[r]),
+    fallback: usedFallback,
+  };
 
   // The embedded face is best effort: without it the templates use the installed fonts. Each graphic gets its
   // own subset: graphics keep separate parameters, so a shared subset would be copied into every caption

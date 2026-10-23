@@ -5,10 +5,17 @@ import { ffmpegScript, mediaJobScript, readChunksScript, writeChunkScript } from
 
 export type PanelSdk = {
   runScript(input: { summary: string; script: string; allowCommit?: boolean }): Promise<{ isError?: boolean; output?: string; result?: any }>;
-  askAI?(input: { prompt: string; timeoutMs?: number; ephemeral?: boolean }): Promise<{ text: string }>;
+  askAI?(input: { prompt: string; timeoutMs?: number; ephemeral?: boolean; images?: AskImage[] }): Promise<{ text: string }>;
   storage?: { getItem(k: string): Promise<string | null>; setItem(k: string, v: string): Promise<void>; removeItem(k: string): Promise<void> };
   updates?: unknown;
 };
+
+// A picture the model looks at. The host takes at most 4 per call, each under 1,500,000 base64 characters and
+// all under 4,000,000 (png, jpeg, gif, webp); it rejects the call before the turn starts otherwise.
+export type AskImage = { dataUrl: string; name?: string };
+export const ASK_MAX_IMAGES = 4;
+export const ASK_MAX_IMAGE_CHARS = 1_500_000;
+export const ASK_MAX_TOTAL_CHARS = 4_000_000;
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -27,11 +34,11 @@ export async function run<T = any>(sdk: PanelSdk, call: ScriptCall): Promise<T> 
 // One AI turn, at most 3 minutes; a timed-out turn is tried once more. The host keeps panel turns out of the
 // user's chat history by default (ephemeral, on models that support it), so the option is left at its default.
 export const AI_TIMEOUT_MS = 180000;
-export async function ask(sdk: PanelSdk, prompt: string, onRetry?: () => void): Promise<string> {
+export async function ask(sdk: PanelSdk, prompt: string, onRetry?: () => void, images?: AskImage[]): Promise<string> {
   if (typeof sdk.askAI !== "function") throw new Error("askAI unavailable");
   for (let attempt = 0; ; attempt++) {
     try {
-      const r = await sdk.askAI({ prompt, timeoutMs: AI_TIMEOUT_MS });
+      const r = await sdk.askAI({ prompt, timeoutMs: AI_TIMEOUT_MS, ...(images?.length ? { images } : {}) });
       return String(r?.text ?? "");
     } catch (err: any) {
       if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) { onRetry?.(); continue; }

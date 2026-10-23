@@ -118,6 +118,16 @@ test("Arc article: text paragraphs and photos with captions", () => {
   assert.equal(a.body, "First para .\nSecond.");
   assert.equal(a.photos.length, 2);
   assert.deepEqual(a.photos.map((p) => [p.ref, p.credit]), [["photo-1", "Yonhap"], ["photo-2", "Lab"]]);
+  // the lead image has no paragraph before it; the chart gets the paragraph right before it
+  assert.deepEqual(a.photos.map((p) => p.context), [undefined, "First para ."]);
+});
+
+test("Daum article: each image gets the paragraph before it", () => {
+  const html = '<p dmcf-ptype="general">One.</p><img dmcf-mtype="image" data-org-src="https://x/1.jpg" alt="a"><p dmcf-ptype="general">Two.</p><p dmcf-ptype="general">Three.</p><img dmcf-mtype="image" data-org-src="https://x/2.jpg" alt="b">';
+  const a = extractArticle("https://x/d", html);
+  assert.equal(a.method, "dmcf");
+  assert.equal(a.body, "One.\nTwo.\nThree.");
+  assert.deepEqual(a.photos.map((p) => p.context), ["One.", "Three."]);
 });
 
 test("scene scripts stay under the run_script size cap", async () => {
@@ -177,4 +187,38 @@ test("every fidelity issue kind has a localized label", async () => {
   const kinds = [.../FidelityIssue = \{ kind: ([^;]+);/.exec(types)[1].matchAll(/"(\w+)"/g)].map((m) => m[1]);
   assert.ok(kinds.length >= 5);
   for (const k of kinds) assert.ok(/[\uac00-\ud7a3]/.test(MESSAGES["issue_" + k]?.[1] ?? ""), k);
+});
+
+const CREDIT_ONLY = "/\uadf8\ub798\ud53d=\uc870\uc120\ub514\uc790\uc778\ub7a9 \uad8c\ud61c\uc778";
+
+test("captionText drops credit lines", async () => {
+  const { captionText } = await import("../src/pipeline/plan.ts");
+  assert.equal(captionText(CREDIT_ONLY), "");
+  assert.equal(captionText(CREDIT_ONLY.slice(1)), "");
+  assert.equal(captionText("cash pile " + CREDIT_ONLY), "cash pile");
+  assert.equal(captionText("Buffett (right). /AP Yonhap"), "Buffett (right).");
+  assert.equal(captionText(""), "");
+});
+
+test("fallback plan summarizes every asset and leaves out graphics it cannot describe", async () => {
+  const { fallbackPlan } = await import("../src/pipeline/plan.ts");
+  const { validatePlan } = await import("../src/prompts/validate.ts");
+  const sents = Array.from({ length: 6 }, (_, i) => ({ id: "s" + (i + 1), text: "sentence " + (i + 1), startSec: i * 7, endSec: i * 7 + 7 }));
+  const assets = [
+    { ref: "photo-1", kind: "photo", caption: CREDIT_ONLY, credit: "Lab", w: 1200, h: 900 },
+    { ref: "photo-2", kind: "photo", caption: CREDIT_ONLY, credit: "Lab", context: "Cash rose to a record.", w: 1200, h: 900 },
+    { ref: "photo-3", kind: "photo", caption: "Warren Buffett /AP", credit: "AP", w: 1200, h: 800 },
+  ];
+  const fb = fallbackPlan(sents, sents, assets);
+  assert.deepEqual(fb.assetSummaries.map((a) => a.summary), ["article photo", "Cash rose to a record.", "Warren Buffett"]);
+  const used = fb.scenes.map((sc) => sc.assetRef).filter(Boolean);
+  assert.deepEqual(used, ["photo-2", "photo-3"]);
+  assert.equal(validatePlan(fb, sents, assets).errors.length, 0);
+});
+
+test("planner images: at most four, graphics first, named by ref", async () => {
+  const { plannerImages } = await import("../src/pipeline/flow.ts");
+  const ph = (ref, graphic) => ({ ref, dataUrl: "data:image/jpeg;base64,AAAA", credit: "", graphic });
+  const out = plannerImages([ph("photo-1", false), ph("photo-2", true), ph("photo-3", false), ph("photo-4", true), ph("photo-5", false), ph("photo-6", true)]);
+  assert.deepEqual(out.map((im) => im.name), ["photo-2", "photo-4", "photo-6", "photo-1"]);
 });
