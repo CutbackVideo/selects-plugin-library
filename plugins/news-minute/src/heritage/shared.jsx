@@ -124,14 +124,15 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
   );
 }
 
-// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule.
+// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;
+// the sub line takes [ ] / { } marks like any sentence.
 // Order: title 0 s, rule 0.2 s, sub line 0.4 s.
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
       {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
-      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
