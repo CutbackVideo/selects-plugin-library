@@ -1,7 +1,7 @@
 // Visual plan -> timed scene clips. A plan that fails validation after one repair falls back to a simple
 // photo / text-card plan so the run never stops at scene selection.
 
-import type { PlanScene, TimedSentence } from "../prompts/types.ts";
+import type { PlanAsset, PlanScene, TimedSentence } from "../prompts/types.ts";
 import { demoteNumberlessCallouts, sceneMaxSec } from "../prompts/validate.ts";
 import { captionChunks, sceneWindows, type Span } from "./timing.ts";
 import type { SceneClip } from "./assemble.ts";
@@ -35,8 +35,35 @@ export function settlePlan(json: any, errors: string[], sentences: TimedSentence
   return { scenes: onlyLength ? json.scenes : null, demoted: d.demoted, longScenes: onlyLength ? errors : [], errors };
 }
 
-// One scene per sentence (two short ones merged while under 6 s); each article photo once, text cards between.
-export function fallbackPlan(sentences: Sentence[], times: Span[], photoRefs: string[]): PlanScene[] {
+// A caption without its credit: "/Yonhap"-style trailers and "graphic=..." credit lines are dropped, so a
+// caption that is only a credit (Chosun graphics: "/\uADF8\uB798\uD53D=..." ) comes back empty.
+export function captionText(caption: string | undefined): string {
+  return String(caption ?? "")
+    .replace(/\/\s*[^/]{0,40}$/, "")
+    .replace(/(?:^|\s)[^\s=]{1,6}\s*=\s*\S+(?:\s+\S+)?\s*$/, "")
+    .replace(/^[\s\-\u2013\u2014\u00b7|/]+|[\s\-\u2013\u2014\u00b7|/]+$/g, "")
+    .trim();
+}
+
+export type AssetSummary = { ref: string; summary: string };
+
+// What the fallback knows about an asset without looking at it: its caption, else the paragraph before it.
+export function fallbackSummary(a: PlanAsset): string {
+  const cap = captionText(a.caption);
+  if (cap) return cap;
+  if (a.context) return [...a.context].slice(0, 120).join("");
+  return a.kind === "illustration" ? "generated illustration" : "article photo";
+}
+
+// The fallback never sees the images, so a graphic it cannot describe (credit-only caption, no context) is
+// left out: showing an unknown chart over an unrelated sentence misinforms.
+export const fallbackCanPlace = (a: PlanAsset) => !isGraphic(a.caption ?? "", a.w ?? 0, a.h ?? 0) || !!captionText(a.caption) || !!a.context;
+
+// One scene per sentence (two short ones merged while under 6 s); each placeable article photo once, text
+// cards between.
+export function fallbackPlan(sentences: Sentence[], times: Span[], assets: PlanAsset[]): { assetSummaries: AssetSummary[]; scenes: PlanScene[] } {
+  const assetSummaries = assets.map((a) => ({ ref: a.ref, summary: fallbackSummary(a) }));
+  const photoRefs = assets.filter((a) => a.kind === "photo" && fallbackCanPlace(a)).map((a) => a.ref);
   const groups: number[][] = [];
   for (let i = 0; i < sentences.length; i++) {
     const last = groups[groups.length - 1];
@@ -45,7 +72,7 @@ export function fallbackPlan(sentences: Sentence[], times: Span[], photoRefs: st
     else groups.push([i]);
   }
   let photo = 0;
-  return groups.map((g, k) => {
+  const scenes = groups.map((g, k) => {
     // Each photo once: a photo of one person must not illustrate sentences about someone else.
     const usePhoto = photo < photoRefs.length && k % 2 === 0;
     if (usePhoto) {
@@ -56,6 +83,14 @@ export function fallbackPlan(sentences: Sentence[], times: Span[], photoRefs: st
     const chunks = captionChunks(sentences[g[0]].text, 12);
     return { sentenceIds: g.map((i) => sentences[i].id), type: "text_card", params: { text: chunks.slice(0, 2).join("\n") }, hideCaption: false, disclaimer: false };
   });
+  return { assetSummaries, scenes };
+}
+
+// Which scenes (1-based) show each asset, for the run record.
+export function placements(scenes: PlanScene[]): Record<string, number[]> {
+  const out: Record<string, number[]> = {};
+  scenes.forEach((sc, i) => { if (sc.assetRef) (out[sc.assetRef] ??= []).push(i + 1); });
+  return out;
 }
 
 // Timed clips for the plan. Photos become data URLs on the scene's own params.
