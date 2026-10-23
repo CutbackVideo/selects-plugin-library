@@ -1392,8 +1392,8 @@ return { beats, pool: pool.length, seconds: Math.round(used * 10) / 10 };
 `;
 }
 
-// `frameSize`, when given, is the output canvas to author (a template run
-// follows the timeline that was open); otherwise the Draft keeps its default.
+// `frameSize`, when given, is the caller-selected output canvas; otherwise
+// the Draft keeps its automatic canvas settings.
 function assembleScript(projectId: string, draftName: string, beats: any[], frameSize?: { width: number; height: number } | null) {
   return `
 const p = selects.project(${JSON.stringify(projectId)});
@@ -1863,17 +1863,19 @@ const TEMPLATE_VARIANTS: Record<string, string> = {
   "funny-quotes": "quotes",
 };
 
-// Reads the handed clips (app Resource ids), and the frame size of the
-// timeline that was open, if any. Handed ids are the app's own, which the
+// Reads the handed clips (app Resource ids). Picture-led template runs take
+// their canvas from the first usable selected source, not an unrelated Draft.
+// Handed ids are the app's own, which the
 // SDK accepts as they are, so each clip is read by its id rather than matched
 // against resources(). A clip whose analysis cannot be read is skipped.
 // Paths are only needed to sample colours, so they are looked up on request.
-function templatePoolScript(projectId: string, handed: Array<{ rid: string; name: string }>, openSequenceId: string | null, wantPaths: boolean) {
+function templatePoolScript(projectId: string, handed: Array<{ rid: string; name: string }>, openSequenceId: string | null, wantPaths: boolean, selectedFrame = false) {
   return `
 const p = selects.project(${JSON.stringify(projectId)});
 const HANDED: Array<{ rid: string; name: string }> = ${JSON.stringify(handed)};
 const OPEN: string | null = ${JSON.stringify(openSequenceId)};
 const WANT_PATHS: boolean = ${wantPaths ? "true" : "false"};
+const SELECTED_FRAME: boolean = ${selectedFrame ? "true" : "false"};
 let frame = null;
 if (OPEN) {
   try {
@@ -1895,6 +1897,7 @@ for (let i = 0; i < HANDED.length; i += 8) {
     const total = m.durationSeconds || 0;
     if (total < 2) { skipped.push({ name: h.name, reason: "shorter than 2s" }); return; }
     const fs = m.frameSize || null;
+    if (SELECTED_FRAME && !frame && fs && Number.isSafeInteger(fs.width) && Number.isSafeInteger(fs.height) && fs.width > 0 && fs.height > 0) frame = { width: fs.width, height: fs.height };
     pool.push({ rid: h.rid, name: h.name, total, portrait: Boolean(fs && fs.height > fs.width), path: null });
   });
 }
@@ -1963,13 +1966,13 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
 
   onStep("Reading the picked clips…");
   const read = await runQuiet(sdk, "Read picked clips",
-    templatePoolScript(projectId, handed, context?.sequenceId ?? null, style === "motion"), false);
+    templatePoolScript(projectId, handed, style === "quotes" ? context?.sequenceId ?? null : null, style === "motion", style !== "quotes"), false);
   if (!read) return { error: "Could not read the picked clips; try again." };
   const frame: { width: number; height: number } | null = read.frame ?? null;
   const picked: any[] = read.pool ?? [];
   if (!picked.length) return { error: "None of the picked clips is analysed and at least 2 seconds long; analyse them or pick others." };
-  // Without an open timeline to follow, the output keeps the plugin's
-  // default, which is landscape.
+  // Picture-led runs follow their selected source canvas; quotes keep their
+  // existing context behavior. Without a usable canvas, the default is landscape.
   const landscape = frame ? frame.width >= frame.height : true;
 
   // The style's own cue: the style's reference layout (whip and motion), which needs no beat grid. When the picked
