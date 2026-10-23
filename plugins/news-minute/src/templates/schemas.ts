@@ -23,7 +23,10 @@ export type TemplateType =
   | "line_trend_callout"
   | "stat_cards"
   | "quote_card"
-  | "highlight_card";
+  | "highlight_card"
+  | "donut_ratio"
+  | "verdict_card"
+  | "flow_cause_effect";
 
 const FONT: EditableParameterDefinition = { key: "fontFamily", label: "Font", type: "text", defaultValue: "" };
 const ACCENT: EditableParameterDefinition = { key: "accentColor", label: "Accent", type: "color", defaultValue: "#E8502F" };
@@ -164,6 +167,9 @@ export const TIME_INDEPENDENT: Record<TemplateType, boolean> = {
   stat_cards: false,
   quote_card: false,
   highlight_card: false,
+  donut_ratio: false,
+  verdict_card: false,
+  flow_cause_effect: false,
 };
 
 // Clip labels shown in the timeline.
@@ -180,4 +186,7 @@ export const LABELS: Record<TemplateType, string> = {
   stat_cards: "Stat cards",
   quote_card: "Quote",
   highlight_card: "Highlight card",
+  donut_ratio: "Share donut",
+  verdict_card: "Verdict cards",
+  flow_cause_effect: "Cause and effect",
 };
