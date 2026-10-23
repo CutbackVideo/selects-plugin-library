@@ -5,7 +5,8 @@ const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans 
 
 // Horizontal bar comparison on the white data window (2-3 bars). Each bar has a bold label, an
 // optional grey `sub` (period), grows from the left with a count-up value, and starts after the
-// previous one so the scene builds across `within`. A dashed marker holds the first bar's end.
+// previous one so the scene builds across `within`; the value fades in once the bar can hold it.
+// A dashed marker holds the first bar's end.
 // `bars: [{ label, sub?, value, tone: "grey" | "accent" }]`, values are numbers in `unit`.
 const decimals = (v) => {
   const s = String(v);
@@ -56,7 +57,7 @@ export default function BarCompareH({ data }) {
             </div>
             <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: trackW * k, height: barH * k, borderRadius: 16 * k, background: '#F2F2F0' }} />
             <div style={{ position: 'absolute', left: trackL * k, top: (y + 100) * k, width: w * k, height: barH * k, borderRadius: 16 * k, background: hot ? accent : '#AAB0AC', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' }}>
-              <div style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 84 * k, letterSpacing: -1 * k, paddingRight: 26 * k, whiteSpace: 'nowrap' }}>
+              <div style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 84 * k, letterSpacing: -1 * k, paddingRight: 26 * k, whiteSpace: 'nowrap', opacity: interpolate(w, [200, 300], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>
                 {fmt(v * t, d)}<span style={{ fontSize: 44 * k, marginLeft: 4 * k }}>{unit}</span>
               </div>
             </div>
