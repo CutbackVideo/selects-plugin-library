@@ -28,7 +28,7 @@ export type AssemblyInput = {
 const J = (v: unknown) => JSON.stringify(v);
 // run_script rejects scripts over 262,144 bytes (Selects Staging 2.0.763), so scene batches stay well under it.
 export const SCRIPT_MAX_BYTES = 262_144;
-export const SCENE_BATCH_BYTES = 200_000;
+export const SCENE_BATCH_BYTES = 180_000;
 
 function tpl(type: string) {
   const t = (TEMPLATES as Record<string, { tsxCode: string; editableParameters: unknown[]; timeIndependent: boolean; label: string }>)[type];
@@ -99,7 +99,7 @@ await d.commitAll("News short: scenes");
 return { added: ${batch.length} };`,
     };
   });
-  for (const c of calls) if (new TextEncoder().encode(c.script).length > SCRIPT_MAX_BYTES) throw new Error("a scene is too large for one script (photo too big)");
+  for (const c of calls) if (new TextEncoder().encode(c.script).length > 240_000) throw new Error("a scene is too large for one script (photo too big)");
   return calls;
 }
 

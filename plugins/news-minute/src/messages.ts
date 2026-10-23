@@ -57,6 +57,7 @@ export const MESSAGES: Record<string, [string, string]> = {
   approveAnyway: ["The check still reports these problems. Approve anyway?", "\uac80\uc0ac\uc5d0\uc11c \uc544\ub798 \ubb38\uc81c\uac00 \ub0a8\uc544 \uc788\uc5b4\uc694. \uadf8\ub798\ub3c4 \uc2b9\uc778\ud560\uae4c\uc694?"],
   editedCheck: ["Edited: check against the article", "\uc218\uc815\ub428: \uc6d0\ubb38 \ud655\uc778 \ud544\uc694"],
   aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uc751\ub2f5 \uc2dc\uac04\uc774 \ucd08\uacfc\ub3fc \ub2e4\uc2dc \uc2dc\ub3c4 \uc911\uc774\uc5d0\uc694\u2026"],
+  assemblingStep: ["Adding scenes ({n}/{of})\u2026", "\uc7a5\uba74\uc744 \ub123\uace0 \uc788\uc5b4\uc694({n}/{of})\u2026"],
 };
 
 export function t(lang: string | undefined, key: string, vars: Record<string, string | number> = {}): string {

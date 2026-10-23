@@ -126,7 +126,7 @@ test("scene scripts stay under the run_script size cap", async () => {
   const scenes = Array.from({ length: 6 }, (_, i) => ({ type: "news_photo", label: "Photo " + i, params: { image: img }, startSec: i * 5, endSec: i * 5 + 5, disclaimer: false }));
   const calls = sceneScripts("d", scenes);
   assert.ok(calls.length >= 6);
-  for (const c of calls) assert.ok(new TextEncoder().encode(c.script).length <= SCRIPT_MAX_BYTES);
+  for (const c of calls) assert.ok(new TextEncoder().encode(c.script).length <= 240_000);
   const huge = [{ ...scenes[0], params: { image: "data:," + "A".repeat(300_000) } }];
   assert.throws(() => sceneScripts("d", huge), /too large/);
 });
