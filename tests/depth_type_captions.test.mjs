@@ -26,7 +26,7 @@ function fixture({failure,wait=false}={}) {
     cancel:async(options)=>events.push(['cancel',plain(options)]),
   };
   const globals={AbortController,
-    hostUseSdk:()=>{},hostSdk:{files:{join:(...p)=>p.join('/')}},
+    hostUseSdk:()=>{},hostSdk:{files:{join:(...p)=>p.join('/')},media:{runFFmpeg:async args=>events.push(['normalize',plain(args)])}},
     importSharedAiVideo:async(sdk,pid,path)=>{events.push(['source',pid,path]);return resourceId;},
     videoAiClient:(sdk,pid,scope)=>{events.push(['client',pid,scope]);return client;},
     prepareSharedAiVideoFrames:async(sdk,pid,artifact,folder,expected)=>{
@@ -47,6 +47,11 @@ test('Depth uses the rendered composition Resource and adopts its exact frame cl
   assert.deepEqual(request,['run',{task:'person.matte',resourceId,sourceRange:{startSeconds:0,endSeconds:2},options:{downsampleRatio:.25,alphaEncoding:'grayscale-png-8bit',outputMode:'alpha-frames'}},'composition-v1:foreground',true]);
   assert.deepEqual(f.events.find(e=>e[0]==='adopt').slice(1),['project',{id:'owned-matte',name:'matte.json'},'/masks/alpha',{resourceId,width:1080,height:1920,fps:30,frames:60}]);
   assert.ok(f.events.findIndex(e=>e[0]==='adopt')<f.events.findIndex(e=>e[0]==='write'));
+  const normalized=f.events.find(e=>e[0]==='normalize')[1];
+  assert.ok(normalized.includes('setpts=PTS-STARTPTS,scale=1080:1920:flags=lanczos,setsar=1,fps=30:start_time=0'));
+  assert.equal(normalized.at(-1),'/masks/matte-source-v6.avi');
+  assert.deepEqual(f.events.find(e=>e[0]==='source'),['source','project','/masks/matte-source-v6.avi']);
+  assert.ok(f.events.findIndex(e=>e[0]==='normalize')<f.events.findIndex(e=>e[0]==='run'));
   assert.equal(control.stop,null);assert.equal(control.cancelAi,null);
 });
 test('a shared model failure stops Depth before adopting or writing masks',async()=>{

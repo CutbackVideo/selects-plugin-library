@@ -646,15 +646,22 @@ async function depthReadText(fs, path) {
 // Full-resolution mattes keep the model's soft edge; growing it leaves a band of background
 // around hair and hands. (maskGrow still spaces lines from the speaker in the layout.)
 const DEPTH_MATTE_GROW = 0;
-// Version 5 replaces the earlier platform-specific masks with shared RVM PNG frames.
-const DEPTH_MATTE_VERSION = 5;
+// Version 6 normalizes the preset render to the exact draft canvas before shared RVM.
+const DEPTH_MATTE_VERSION = 6;
 async function depthPrepareMasks(sdk, preview, settings, job, progress, control, pid) {
   hostUseSdk(sdk);
   const controller = new AbortController();
   control.stop = () => controller.abort();
   if (control.canceled) controller.abort();
   try {
-    const resourceId = await importSharedAiVideo(sdk, pid, preview.path);
+    // Native resolution presets can enlarge a small canvas (960×540 becomes HD).
+    // RVM must see the exact canvas/clock that the caption layout will mask.
+    const source = hostSdk.files.join(job.dir, "matte-source-v6.avi");
+    const frames = Math.round(preview.duration * preview.fps);
+    await hostSdk.media.runFFmpeg(["-nostdin", "-v", "error", "-y", "-i", preview.path, "-an",
+      "-vf", "setpts=PTS-STARTPTS,scale=" + preview.width + ":" + preview.height + ":flags=lanczos,setsar=1,fps=" + preview.fps + ":start_time=0",
+      "-frames:v", String(frames), "-c:v", "ffv1", "-level", "3", "-pix_fmt", "yuv420p", source], true, controller.signal);
+    const resourceId = await importSharedAiVideo(sdk, pid, source);
     const client = videoAiClient(sdk, pid, "depth-type-captions:" + job.dir);
     control.cancelAi=()=>client.cancel({identity:preview.sourceKey+":"+depthSubject(settings)});
     const result = await client.run({task:"person.matte",resourceId,
@@ -1396,6 +1403,11 @@ if(!(dm.durationFrames>0)||dm.durationFrames/dm.fps>${DEPTH_TEMPLATE_SECONDS})th
 const r=await d.commitAll('Create Depth Type draft from a video');if(!r.createdDraftId)throw new Error('The Draft was not created.');
 return {id:r.createdDraftId,name,sourceSeconds:total,endSeconds:range?range.endSeconds:null,draftSeconds:dm.durationFrames/dm.fps,words:words.length};`;
 }
+// Headless templates promise a vertical short; source pixels are fitted by the
+// editor before this relative transform, so cover/contain is the required scale.
+function depthPortraitDraftScript(pid, sid) {
+  return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw new Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}});}await d.commitAll('Frame Depth Type template to portrait');return true;`;
+}
 function DepthTemplateRun({ sdk, context }) {
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
   const template = context.template,
@@ -1464,6 +1476,8 @@ function DepthTemplateRun({ sdk, context }) {
             console.info("[depth-type] template run: clip of " + r.result.sourceSeconds + " s placed up to " + r.result.endSeconds + " s (Behind speaker handles " + DEPTH_TEMPLATE_SECONDS + " s).");
         }
         if (control.canceled || superseded()) throw new Error("Canceled.");
+        const framed = await sdk.runScript({ script: depthPortraitDraftScript(pid, sid), summary: "Frame Depth Type template to portrait", allowCommit: true });
+        if (framed.isError) throw new Error(framed.output || "The portrait framing could not be saved.");
         const settings = { ...DEPTH_DEFAULTS };
         let made;
         try {
