@@ -8,7 +8,7 @@ import path from 'node:path';
 import {panelSource, loadPanelFunctions, fakeHost, hostGlobals} from './windows_host.mjs';
 
 const REF = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'fixtures/daily-vlog-8/reference-edit.json'), 'utf8'));
-const source = panelSource('daily-vlog-8');
+const source = process.env.DAILY_VLOG_PANEL ? fs.readFileSync(process.env.DAILY_VLOG_PANEL, 'utf8') : panelSource('daily-vlog-8');
 const NAMES = ['ASSETS', 'ASSET_SECONDS', 'OPENING', 'MIDDLE', 'ENDING', 'FILM_PRISM', 'AMBER_REFERENCE', 'FILM_GATE', 'VERTICAL_SMEAR',
   'REFERENCE', 'castReference', 'buildDailyVlog'];
 const {buildDailyVlog} = loadPanelFunctions(source, NAMES, hostGlobals(fakeHost({})));
@@ -19,6 +19,7 @@ const SECONDS = {'relaxed-urban-bed.wav': 69.84, 'transition-w2.wav': 1.389977, 
 // A fake Draft: inserts round to whole frames, overlays go to the first audio track free over their range, a
 // transition spans round(offset * fps) frames each side of its cut.
 async function build(fps, {clipSeconds = 30, clips = 8, frameSize = {width: 1920, height: 1080}, reported = fps, adopt = null} = {}) {
+  const initialFps = fps, initialReported = reported; let draftCount=0, commits=0;
   const rows = [...Array.from({length: 9}, (_, i) => ({resourceId: 'v' + i, type: 'Video', name: 'v' + i, durationSeconds: clipSeconds})),
     ...Object.entries(SECONDS).map(([name, s]) => ({resourceId: 'a:' + name, type: 'Audio', name, durationSeconds: s}))];
   const main = [], audio = [], transitions = [], graphics = [], transforms = [], inserts = [];
@@ -39,13 +40,13 @@ async function build(fps, {clipSeconds = 30, clips = 8, frameSize = {width: 1920
       while (audio.some((c) => c.track === track && c.startFrame < over[1] && over[0] < c.endFrame)) track++;
       audio.push({clipId: 'c' + next++, resourceId: resource, name, startFrame: over[0], endFrame: over[1], track, sourceStartSeconds});
     },
-    commitAll: async () => ({createdDraftId: 'd1'}),
+    commitAll: async () => { commits++; return {createdDraftId: 'd1'}; },
   };
-  const project = {resources: async () => rows, importFiles: async () => { throw new Error('nothing to import'); }, createDraft: async () => draft, resource: (id) => id, sourceFiles: async () => ({fileTree: rows.filter((r) => r.type === 'Video').map((r) => ({type: 'file', resourceId: r.resourceId, frameSize: {width: 4096, height: 2160}}))})};
+  const project = {resources: async () => rows, importFiles: async () => { throw new Error('nothing to import'); }, createDraft: async () => { main.length=audio.length=transitions.length=graphics.length=transforms.length=inserts.length=0; cursor=0; next=0; fps=initialFps; reported=initialReported; draftCount++; return draft; }, resource: (id) => id, sourceFiles: async () => ({fileTree: rows.filter((r) => r.type === 'Video').map((r) => ({type: 'file', resourceId: r.resourceId, frameSize: {width: 4096, height: 2160}}))})};
   const AsyncFunction = (async () => {}).constructor;
   const sdk = {runScript: async ({summary, script}) => summary === 'Find the plugin files' ? {result: {plugin: '/plugin'}} : {result: await new AsyncFunction('selects', script)({project: () => project})}};
   const result = await buildDailyVlog(sdk, {projectId: 'p', titleId: 'v0', order: clips < 8 ? ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', null, 'v7'] : Array.from({length: 8}, (_, i) => 'v' + (i + 1))});
-  return {result, main, audio, transitions, graphics, transforms, inserts};
+  return {result, main, audio, transitions, graphics, transforms, inserts, draftCount, commits};
 }
 const at = (f, fps) => Math.round(f * fps / REF.fps);
 
@@ -102,13 +103,14 @@ test('a Draft reporting a rounded 29.97 builds like the exact rate', async () =>
   assert.deepEqual(rounded.main, exact.main);
 });
 
-for (const [from, to] of [[30, 24000 / 1001], [30000 / 1001, 25], [24, 60000 / 1001]]) {
+for (const [from, to] of [[24000 / 1001, 30000 / 1001], [30, 24000 / 1001], [30000 / 1001, 25], [24, 60000 / 1001]]) {
   test(`a Draft that adopts its first clip's rate (${from.toFixed(3)} -> ${to.toFixed(3)}) keeps the reference frames`, async () => {
     const b = await build(from, {adopt: to});
-    // The first shot was cut at the old rate, so it may be a frame off; every later cut is on the new rate's frame.
-    assert.ok(Math.abs(b.main[0].endFrame - at(REF.main[0].end, to)) <= 1);
+    // The SDK can adopt the source rate on first insert: the saved opening must already end at its transition frame.
+    assert.equal(b.main[0].endFrame, at(REF.main[0].end, to));
     assert.deepEqual(b.main.slice(1).map((c) => c.endFrame), REF.main.slice(1).map((c) => at(c.end, to)));
     const music = b.audio.find((c) => c.name === 'relaxed-urban-bed.wav');
     assert.deepEqual([music.startFrame, music.endFrame], [0, at(512, to)]);
+    assert.equal(b.draftCount,2); assert.equal(b.commits,1, 'only the correctly timed attempt is saved');
   });
 }

@@ -670,15 +670,17 @@ const resourceById=new Map(rows.map(x=>[x.resourceId,x]));
 for(const shot of cast){const r=resourceById.get(shot.id);if(!r||r.type!=='Video'||!(r.durationSeconds>0.1))throw new Error('A picked clip is not a usable video');}
 let audioByName=new Map(rows.filter(x=>x.type==='Audio').map(x=>[x.name,x.resourceId]));
 for(let i=0;i<assetNames.length;i++){if(!audioByName.has(assetNames[i])){const imported=await project.importFiles({paths:[assetPaths[i]]});if(!imported.addedResourceIds[0])throw new Error('Template sound missing: '+assetNames[i]);audioByName.set(assetNames[i],imported.addedResourceIds[0]);}}
-const draft=await project.createDraft({name});
+let draft;
 // Reference frames (25 fps) on the Draft's rate; the rate is read again after each insert (a Draft can adopt its
 // first clip's rate). Ducking offsets (at) stay 30000/1001 fps frames. A shot longer than its clip repeats the clip.
 const rate=async()=>{const reported=(await draft.meta()).fps;const r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error('Unsupported draft frame rate: '+reported);return r;};
-let dfps=await rate();
+let dfps;
 const F=(f)=>Math.round(f*dfps/REF.fps);
 const at=(f)=>Math.round(f*1001/30000*dfps);
 const OFFSETS=[0.45,0.15,0.75,0.3,0.6];
 let placed=0;
+const lay=async(aim=null)=>{
+ draft=await project.createDraft({name});dfps=aim||await rate();placed=0;
 for(const shot of cast){
   const r=resourceById.get(shot.id);
   const len=(shot.end-shot.start+shot.skip)/REF.fps;
@@ -691,10 +693,18 @@ for(const shot of cast){
       const end=Math.min(r.durationSeconds-0.003,start+(wanted-placed)/dfps);more=end<start+(wanted-placed)/dfps-1e-6;
       if(end-start<1/dfps)throw new Error('Video '+r.name+' is too short');
       await draft.insertResource({resourceId:shot.id,sourceRange:{startSeconds:start,endSeconds:end}});
-      dfps=await rate();placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=more?0:end;
+      const actual=await rate();
+      // The first insert can adopt a different source rate. Discard this unsaved attempt before effects/commit;
+      // aiming its first range at the adopted rate keeps the first cut on the same frame as its transition.
+      if(placed===0&&actual!==dfps)return actual;
+      dfps=actual;placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=more?0:end;
     }
   }
 }
+ return null;
+};
+const adopted=await lay();
+if(adopted&&await lay(adopted))throw new Error('The opening clip frame rate changed during the build.');
 let main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
 const endFrame=Math.max(...main.map(c=>c.endFrame));
 for(const original of main){const current=(await draft.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current)await draft.setClipAudio({clip:current,volumeDb:-60});}
@@ -772,6 +782,8 @@ function DailyTemplateRun({ sdk, context }) {
         const picked = id => (inputs[id] || []).filter(x => x?.kind === "video" && x.resourceId);
         let [opening] = picked("opening"), clips = picked("clips");
         if (!opening) throw templateIssue("Pick an opening clip, then try again.");
+        const seen = new Set([opening.resourceId]);
+        clips = clips.filter(pick => { if (seen.has(pick.resourceId)) return false; seen.add(pick.resourceId); return true; });
         if (clips.length < 7) throw templateIssue("Pick at least seven more clips, then try again.");
         say("Finding your clips…");
         const ids = await scriptResourceIds(sdk, projectId, [opening, ...clips].map(x => x.resourceId));
