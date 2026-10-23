@@ -2173,7 +2173,9 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
   let plan = null;
   try {
     const r = await askValid(sdk, "plan", plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), (j) => validatePlan(j, sentences, assets), log, rec, 1);
-    if (r.json && !r.errors.length) plan = r.json.scenes;
+    const onlyLength = r.errors.length > 0 && r.errors.every((e) => /lasts [\d.]+ s/.test(e) && Number(/lasts ([\d.]+) s/.exec(e)[1]) <= 14);
+    if (r.json && (!r.errors.length || onlyLength)) plan = r.json.scenes;
+    if (onlyLength) rec.notes.push("plan: accepted with long scenes (" + r.errors.join("; ") + ")");
   } catch {
     plan = null;
   }
@@ -2187,8 +2189,9 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
   let font = null;
   try {
     log("fonts");
+    const t0 = Date.now();
     font = await embeddedFont(sdk, env);
-    rec.notes.push("font: embedded");
+    rec.notes.push("font: embedded (load " + ((Date.now() - t0) / 1e3).toFixed(1) + " s)");
   } catch (e) {
     rec.notes.push("font: not embedded (" + String(e?.message || e) + ")");
     log("fontFallback");
