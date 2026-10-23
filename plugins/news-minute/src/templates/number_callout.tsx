@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 
@@ -17,7 +17,21 @@ const show = (v, unit) => {
   return String(v ?? '') + unit;
 };
 
+// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
+// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
 export default function NumberCallout({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps } = useVideoConfig();
   const k = width / 1080;
@@ -38,6 +52,7 @@ export default function NumberCallout({ data }) {
   const zoom = 1 + 0.04 * interpolate(frame, [0, fps * 8], [0, 1], { extrapolateRight: 'clamp' });
   return (
     <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: image ? '#000000' : String(data?.background ?? '#2B3D34'), pointerEvents: 'none' }}>
+      {fontFace}
       {image ? <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(' + zoom + ')' }} /> : null}
       <div style={{ position: 'absolute', inset: 0, background: image ? 'rgba(0,0,0,' + Number(data?.dim ?? 0.45) + ')' : 'radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 55%, rgba(0,0,0,0.30) 100%)' }} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily, color: '#FFFFFF', textShadow: '0 ' + 3 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.5)' }}>
