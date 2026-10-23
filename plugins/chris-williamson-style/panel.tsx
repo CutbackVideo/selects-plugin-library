@@ -1893,11 +1893,20 @@ const FACE_UI: Record<string, string[]> = {
 function faceUI(context: any) { return FACE_UI[String(context?.language || 'en').toLowerCase().split('-')[0]] || FACE_UI.en; }
 
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
-async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
-  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
+async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string, includeTarget = false) {
+  if(includeTarget) {
+    const core=await sdk.call("getDraftCore",sequenceId);
+    if(core?.owner?.projectId!==projectId||core?.sequenceJson?.id!==sequenceId)throw new Error("The Draft belongs to another Project.");
+  }
+  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow${includeTarget?`,target:{projectId:${JSON.stringify(projectId)},draftId:${JSON.stringify(sequenceId)},projectName:(await project.meta()).name}`:""}};` });
   if (r.isError || !r.result) throw new Error(r.output || "Selects could not read this draft.");
   return r.result;
 }
+
+const TARGET_UI:Record<string,{project:string;draft:string}>= {
+  en:{project:"Project",draft:"Draft"},
+  ko:{project:"\ud504\ub85c\uc81d\ud2b8",draft:"\ud0c0\uc784\ub77c\uc778"},
+};
 
 /** The panel as a person uses it: one button that styles the open Draft into a new Draft. */
 function StylePanel({ sdk, context, ui }: any) {
@@ -1909,11 +1918,13 @@ function StylePanel({ sdk, context, ui }: any) {
   const observer = useRef<AbortController | null>(null);
   const faceJournal = useRef('');
   const S = faceUI(context);
+  const T = TARGET_UI[String(context?.language||"en").toLowerCase().split("-")[0]]||TARGET_UI.en;
   // The Draft on screen now; a finished run only switches the view if the person is still on the Draft it started from.
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string; ffmpeg: string } | null>(null);
   const [setupIssue, setSetupIssue] = useState("");
   const [sourceName, setSourceName] = useState("");
+  const [target, setTarget] = useState<{projectId:string;draftId:string;projectName:string}|null>(null);
   const [alreadyStyled, setAlreadyStyled] = useState(false);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking");
   const [busy, setBusy] = useState(false);
@@ -1937,14 +1948,14 @@ function StylePanel({ sdk, context, ui }: any) {
     let alive = true;
     mounted.current = true;
     locked.current = false; setBusy(false); setFaceActive(false); setCanceling(false); setPending(false); faceJournal.current = '';
-    setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
+    setResult(null); setError(""); setStatus(""); setSourceName(""); setTarget(null); setAlreadyStyled(false); setAnalysisState("checking");
     if (!sequenceId) return () => { mounted.current = false; };
-    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then(async (d: any) => {
+    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript", true).then(async (d: any) => {
       const saved = paths ? await readState({readText, dataDir:paths.data} as Env, sequenceId) : null;
       if (!alive) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
-      setSourceName(name);
+      setSourceName(name); setTarget(d.target);
       setPending(!!saved?.pending); faceJournal.current = saved?.faceJournal || '';
       setAlreadyStyled(name.endsWith(SUFFIX) && !saved?.pending);
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
@@ -2026,9 +2037,9 @@ function StylePanel({ sdk, context, ui }: any) {
 
   return <ui.Section title="Chris Williamson Style"><ui.Stack>
     <p>Turn a talking-head draft into a Chris Williamson-style podcast clip.</p>
-    {sourceName ? <p><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
+    {sourceName && target ? <p data-project-id={target.projectId} data-draft-id={target.draftId}><small>{T.project}: {target.projectName||target.projectId}</small><br/><small>{T.draft}: </small><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
-    <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
+    <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !target || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
     {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
