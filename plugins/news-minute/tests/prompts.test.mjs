@@ -78,8 +78,8 @@ test('every prompt ends with the JSON-only instruction', () => {
 });
 
 test('number_callout needs digits in from/to and demotes to text_card', () => {
-  const sents = [{id: 's1', text: '수익이 두 배 가깝게 늘었다. 6.0%였다.', startSec: 0, endSec: 6}];
-  const plan = {scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {label: '수익', from: '6.0%', to: '두 배 가깝게'}, hideCaption: true, disclaimer: false}]};
+  const sents = [{id: 's1', text: '\uC218\uC775\uC774 \uB450 \uBC30 \uAC00\uAE5D\uAC8C \uB298\uC5C8\uB2E4. 6.0%\uC600\uB2E4.', startSec: 0, endSec: 6}];
+  const plan = {scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {label: '\uC218\uC775', from: '6.0%', to: '\uB450 \uBC30 \uAC00\uAE5D\uAC8C'}, hideCaption: true, disclaimer: false}]};
   assert.ok(P.validatePlan(plan, sents, []).errors.some((e) => e.includes('must each contain a digit')));
   const {plan: fixed, demoted} = P.demoteNumberlessCallouts(plan, sents);
   assert.equal(demoted, 1);
