@@ -222,7 +222,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
       }
     };
     sort(v.errors, rowErrors, general);
-    sort(v.warnings, rowWarnings, null);
+    // An asset used too often is reported once by ref; show it on every row that uses that asset.
+    const notes: string[] = [];
+    sort(v.warnings, rowWarnings, notes);
+    for (const w of notes) {
+      const m = /^asset (\S+) is used in/.exec(w);
+      if (!m) continue;
+      plan.scenes.forEach((x, k) => { if (x.assetRef === m[1]) rowWarnings.set(k, [...(rowWarnings.get(k) ?? []), w]); });
+    }
     const byId = new Map(plan.sentences.map((x) => [x.id, x]));
     const summary = new Map(plan.assetSummaries.map((a) => [a.ref, a.summary]));
     const photoRefs = plan.assets.map((a) => a.ref);

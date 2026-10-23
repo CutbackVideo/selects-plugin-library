@@ -892,6 +892,7 @@ function checkParams(type, p, sceneNums, where, errors) {
   }
 }
 var DATA_SCENE_TYPES = ["bar_compare_h", "line_trend_callout", "stat_cards", "number_callout"];
+var MAX_ASSET_USES = 2;
 var SCENE_MAX_SEC = { default: 10.5, data: 12 };
 function sceneMaxSec(type) {
   return DATA_SCENE_TYPES.includes(type) ? SCENE_MAX_SEC.data : SCENE_MAX_SEC.default;
@@ -920,6 +921,7 @@ function validatePlan(json, sentences, assets) {
   const assetByRef = new Map(assets.map((a) => [a.ref, a]));
   const photoRefs = assets.filter((a) => a.kind === "photo").map((a) => a.ref);
   const usedPhotos = /* @__PURE__ */ new Set();
+  const assetUses = /* @__PURE__ */ new Map();
   const summaries = /* @__PURE__ */ new Map();
   if (Array.isArray(json.assetSummaries)) {
     for (const a of json.assetSummaries) if (isObj(a) && isStr(a.ref) && isStr(a.summary)) summaries.set(a.ref, a.summary.trim());
@@ -967,6 +969,7 @@ function validatePlan(json, sentences, assets) {
     if (sc.type !== "news_photo" && sc.type !== "number_callout" && sc.type !== "quote_card" && sc.assetRef) {
       errors.push(`${where}: ${sc.type} must not carry an assetRef`);
     }
+    if (asset) assetUses.set(asset.ref, (assetUses.get(asset.ref) ?? 0) + 1);
     if (asset?.kind === "photo") usedPhotos.add(asset.ref);
     const usesIllustration = asset?.kind === "illustration";
     if (usesIllustration && sc.disclaimer !== true) errors.push(`${where}: a scene that shows an illustration must set disclaimer=true`);
@@ -984,6 +987,7 @@ function validatePlan(json, sentences, assets) {
   const textCards = json.scenes.filter((sc) => sc?.type === "text_card").length;
   if (json.scenes.length >= 6 && textCards > json.scenes.length / 3) warnings.push(`${textCards} of ${json.scenes.length} scenes are text cards; use data scenes where the narration has numbers`);
   if (first && first.type === "text_card" && photoRefs.length) warnings.push("the opening scene should use the strongest visual, not a text card");
+  for (const [ref, n] of assetUses) if (n > MAX_ASSET_USES) warnings.push(`asset ${ref} is used in ${n} scenes; use it at most ${MAX_ASSET_USES} times and give the extra scenes a text_card or data scene`);
   if (photoRefs.length && usedPhotos.size < photoRefs.length) warnings.push(`unused article photos: ${photoRefs.filter((r) => !usedPhotos.has(r)).join(", ")}`);
   return result(errors, warnings, {
     scenes: json.scenes.length,
@@ -1047,7 +1051,7 @@ function plannerPrompt(input2) {
     `- No scene may last more than ${SCENE_MAX_SEC.default} s, except data scenes (${DATA_SCENE_TYPES.join(", ")}), which may last up to ${SCENE_MAX_SEC.data} s (end of its last sentence minus start of its first). Merge short sentences, never stretch a long one.`,
     "- The first scene uses the strongest visual: a photo of the main subject, or the headline-number chart when the story is data-driven. The last one or two sentences are usually a photo of an official or a quote_card.",
     "- Use a data scene (number_callout, bar_compare_h, line_trend_callout, stat_cards) only when the scene's own sentences contain the numbers it shows. Every number in params must be copied from the narration of that same scene, as a JSON number or the exact wording. Never compute, round, or invent values.",
-    "- Use each article photo at least once when there are enough scenes; a photo may be reused in non-adjacent scenes. Choose the photo whose caption best matches the sentence.",
+    `- Use each article photo at least once when there are enough scenes; an asset may be reused in non-adjacent scenes but at most ${MAX_ASSET_USES} times in total: give any further scene a text_card or a data scene instead. Choose the photo whose caption best matches the sentence.`,
     "- A photo of a named person (check the caption) may only be used on sentences that are about that person: where the sentence names them or states their own words or actions. Never put it on a sentence about someone else or about a group, even if it is the only photo. Reusing the same person photo is fine only when each sentence is about that person; otherwise use a text_card or a number_callout instead.",
     '- Assets of kind "illustration" are generated images. Use them only for sentences that no article photo fits and only after every photo has been used. A scene that shows an illustration must set disclaimer=true. All other scenes set disclaimer=false.',
     "- When a scene's sentences state two comparable numbers (for example this year vs last year), prefer bar_compare_h over text_card; when they state 2-4 parallel items with numbers, prefer stat_cards. Fill every field from the narration only.",
@@ -2768,7 +2772,15 @@ function NewsMinutePanel({ sdk, context }) {
       }
     };
     sort(v.errors, rowErrors, general);
-    sort(v.warnings, rowWarnings, null);
+    const notes = [];
+    sort(v.warnings, rowWarnings, notes);
+    for (const w of notes) {
+      const m = /^asset (\S+) is used in/.exec(w);
+      if (!m) continue;
+      plan2.scenes.forEach((x, k) => {
+        if (x.assetRef === m[1]) rowWarnings.set(k, [...rowWarnings.get(k) ?? [], w]);
+      });
+    }
     const byId = new Map(plan2.sentences.map((x) => [x.id, x]));
     const summary = new Map(plan2.assetSummaries.map((a) => [a.ref, a.summary]));
     const photoRefs = plan2.assets.map((a) => a.ref);
