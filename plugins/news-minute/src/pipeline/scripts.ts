@@ -49,6 +49,12 @@ for (let i = 0; i < ${J(count)}; i++) {
 return { chunks: out, offset };`,
 });
 
+export const writeChunkScript = (path: string, offset: number, base64: string): ScriptCall => ({
+  summary: "Save the run record",
+  allowCommit: true,
+  script: `const r = await selects.files.writeChunk({ path: ${J(path)}, offset: ${J(offset)}, base64: ${J(base64)} }); return r.bytesWritten;`,
+});
+
 export const removeScript = (path: string): ScriptCall => ({
   summary: "Remove a temporary file",
   allowCommit: true,

@@ -50,6 +50,10 @@ export const MESSAGES: Record<string, [string, string]> = {
   noAI: ["This Selects version cannot run AI from apps. Update Selects.", "\uc774 Selects \ubc84\uc804\uc5d0\uc11c\ub294 \uc571\uc5d0\uc11c AI\ub97c \uc4f8 \uc218 \uc5c6\uc5b4\uc694. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694."],
   noStorage: ["Update Selects to use app storage.", "\uc571 \uc800\uc7a5\uc18c\ub97c \uc4f0\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694."],
   tooLongAudio: ["The narration is longer than {max} s. Shorten the script.", "\ub098\ub808\uc774\uc158\uc774 {max}\ucd08\ub97c \ub118\uc5b4\uc694. \ub300\ubcf8\uc744 \uc904\uc5ec \uc8fc\uc138\uc694."],
+  stepDone: ["{step}: {sec} s, {repairs} repairs, {parse} unreadable replies", "{step}: {sec}\ucd08, \uace0\uce68 {repairs}\ud68c, \uc77d\uc9c0 \ubabb\ud55c \uc751\ub2f5 {parse}\ud68c"],
+  aiCredits: ["Writing and checking the script runs AI turns billed to your Selects credits, like chat messages.", "\ub300\ubcf8 \uc4f0\uae30\uc640 \uc6d0\ubb38 \ub300\uc870\ub294 \ucc44\ud305\ucc98\ub7fc Selects \ud06c\ub808\ub527\uc774 \uc4f0\uc774\ub294 AI \ud638\ucd9c\uc774\uc5d0\uc694."],
+  buildCredits: ["Choosing the visuals runs one more AI turn (Selects credits).", "\ud654\uba74 \uad6c\uc131 \uace0\ub974\uae30\uc5d0 AI \ud638\ucd9c\uc774 \ud55c \ubc88 \ub354 \ub4e4\uc5b4\uac00\uc694(Selects \ud06c\ub808\ub527)."],
+  record: ["Run record: {path}", "\uc2e4\ud589 \uae30\ub85d: {path}"],
 };
 
 export function t(lang: string | undefined, key: string, vars: Record<string, string | number> = {}): string {

@@ -1,11 +1,11 @@
 // Thin wrappers over the panel SDK: run_script, askAI, storage, and the bundled FFmpeg.
 
 import type { ScriptCall } from "./scripts.ts";
-import { ffmpegScript, mediaJobScript, readChunksScript } from "./scripts.ts";
+import { ffmpegScript, mediaJobScript, readChunksScript, writeChunkScript } from "./scripts.ts";
 
 export type PanelSdk = {
   runScript(input: { summary: string; script: string; allowCommit?: boolean }): Promise<{ isError?: boolean; output?: string; result?: any }>;
-  askAI?(input: { prompt: string; timeoutMs?: number }): Promise<{ text: string }>;
+  askAI?(input: { prompt: string; timeoutMs?: number; ephemeral?: boolean }): Promise<{ text: string }>;
   storage?: { getItem(k: string): Promise<string | null>; setItem(k: string, v: string): Promise<void>; removeItem(k: string): Promise<void> };
   updates?: unknown;
 };
@@ -18,12 +18,14 @@ export async function run<T = any>(sdk: PanelSdk, call: ScriptCall): Promise<T> 
   return r.result as T;
 }
 
-// A panel AI turn is capped at five minutes; a timed-out turn is tried once more.
+// One AI turn, at most 3 minutes; a timed-out turn is tried once more. The host keeps panel turns out of the
+// user's chat history by default (ephemeral, on models that support it), so the option is left at its default.
+export const AI_TIMEOUT_MS = 180000;
 export async function ask(sdk: PanelSdk, prompt: string): Promise<string> {
   if (typeof sdk.askAI !== "function") throw new Error("askAI unavailable");
   for (let attempt = 0; ; attempt++) {
     try {
-      const r = await sdk.askAI({ prompt, timeoutMs: 300000 });
+      const r = await sdk.askAI({ prompt, timeoutMs: AI_TIMEOUT_MS });
       return String(r?.text ?? "");
     } catch (err: any) {
       if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) continue;
@@ -54,6 +56,19 @@ export async function ffmpeg(sdk: PanelSdk, summary: string, args: string[]): Pr
     await sleep(250);
   }
   throw new Error("ffmpeg timed out");
+}
+
+const CHUNK = 49152;
+// Write text to a file in chunks (replaces the file).
+export async function writeText(sdk: PanelSdk, path: string, text: string): Promise<void> {
+  const bytes = new TextEncoder().encode(text);
+  for (let at = 0; at === 0 || at < bytes.length; at += CHUNK) {
+    const part = bytes.subarray(at, at + CHUNK);
+    let bin = "";
+    for (let i = 0; i < part.length; i += 0x8000) bin += String.fromCharCode(...part.subarray(i, i + 0x8000));
+    await run(sdk, writeChunkScript(path, at, btoa(bin)));
+    if (!bytes.length) break;
+  }
 }
 
 function b64ToBytes(b64: string): Uint8Array {
