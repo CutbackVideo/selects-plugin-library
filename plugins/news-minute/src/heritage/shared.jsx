@@ -47,11 +47,12 @@ function useScene(data) {
   };
 }
 
-// The graphic window: ivory paper with a slightly lighter middle. `background: "transparent"` leaves
-// it clear for a damask plate laid underneath.
+// The graphic window: ivory paper with a slightly lighter middle. `background: "transparent"` or a
+// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
+// plate laid underneath.
 function Win({ s, data, children }) {
   const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
     : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
   return (
     <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>

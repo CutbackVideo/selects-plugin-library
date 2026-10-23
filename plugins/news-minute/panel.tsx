@@ -1517,11 +1517,12 @@ function useScene(data) {
   };
 }
 
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
-// it clear for a damask plate laid underneath.
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
+// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
+// plate laid underneath.
 function Win({ s, data, children }) {
   const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
     : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
   return (
     <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
@@ -1995,11 +1996,12 @@ function useScene(data) {
   };
 }
 
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` leaves
-// it clear for a damask plate laid underneath.
+// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
+// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
+// plate laid underneath.
 function Win({ s, data, children }) {
   const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' ? 'transparent'
+  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
     : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
   return (
     <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
@@ -2988,6 +2990,7 @@ function plannerImages(photos) {
   }
   return out;
 }
+var CLEAR_PAPER = "#F6F1E400";
 async function layoutImage(sdk, env, name) {
   if (!name) return null;
   const path = join(env, "assets", name);
@@ -3147,7 +3150,7 @@ async function assemble(sdk, env, s, preset, log, rec) {
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
   const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;
-  const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...bg.image ? { background: "transparent" } : {} };
+  const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...bg.image ? { background: CLEAR_PAPER } : {} };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const bandsId = await bands(sdk, env, projectId, preset, rec);
   log("assembling");
