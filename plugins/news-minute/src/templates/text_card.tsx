@@ -1,12 +1,26 @@
 import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+
+// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
+// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
 
 // Fallback scene when no photo or number fits: the sentence's key phrase on a white media window
 // (the data-card look), with a yellow highlighter sweeping under it and an optional grey sub line.
 // Use '\n' in `text` for a manual line break.
 export default function TextCard({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps } = useVideoConfig();
   const k = width / 1080;
@@ -26,6 +40,7 @@ export default function TextCard({ data }) {
   const mark = String(data?.highlightColor ?? 'rgba(255,215,0,0.8)');
   return (
     <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: String(data?.background ?? '#FDFDFD'), pointerEvents: 'none' }}>
+      {fontFace}
       <div style={{ position: 'absolute', left: 80 * k, right: 80 * k, top: 0, bottom: 120 * k, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
         <div style={{ fontFamily, fontWeight: 900, fontSize: size * k, lineHeight: 1.3, letterSpacing: -2 * k, color: String(data?.textColor ?? '#222222'), whiteSpace: 'pre-line', opacity: rise, transform: 'translateY(' + (1 - rise) * 24 * k + 'px)' }}>
           <span style={{ backgroundImage: 'linear-gradient(transparent 60%, ' + mark + ' 60%, ' + mark + ' 92%, transparent 92%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone', padding: '0 ' + 6 * k + 'px' }}>{text}</span>
