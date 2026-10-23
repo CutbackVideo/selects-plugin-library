@@ -61,7 +61,10 @@ var MESSAGES = {
   stepDone: ["{step}: {sec} s, {repairs} repairs, {parse} unreadable replies", "{step}: {sec}\uCD08, \uACE0\uCE68 {repairs}\uD68C, \uC77D\uC9C0 \uBABB\uD55C \uC751\uB2F5 {parse}\uD68C"],
   aiCredits: ["Writing and checking the script runs AI turns billed to your Selects credits, like chat messages.", "\uB300\uBCF8 \uC4F0\uAE30\uC640 \uC6D0\uBB38 \uB300\uC870\uB294 \uCC44\uD305\uCC98\uB7FC Selects \uD06C\uB808\uB527\uC774 \uC4F0\uC774\uB294 AI \uD638\uCD9C\uC774\uC5D0\uC694."],
   buildCredits: ["Choosing the visuals runs one more AI turn (Selects credits).", "\uD654\uBA74 \uAD6C\uC131 \uACE0\uB974\uAE30\uC5D0 AI \uD638\uCD9C\uC774 \uD55C \uBC88 \uB354 \uB4E4\uC5B4\uAC00\uC694(Selects \uD06C\uB808\uB527)."],
-  record: ["Run record: {path}", "\uC2E4\uD589 \uAE30\uB85D: {path}"]
+  record: ["Run record: {path}", "\uC2E4\uD589 \uAE30\uB85D: {path}"],
+  approveAnyway: ["The check still reports these problems. Approve anyway?", "\uAC80\uC0AC\uC5D0\uC11C \uC544\uB798 \uBB38\uC81C\uAC00 \uB0A8\uC544 \uC788\uC5B4\uC694. \uADF8\uB798\uB3C4 \uC2B9\uC778\uD560\uAE4C\uC694?"],
+  editedCheck: ["Edited: check against the article", "\uC218\uC815\uB428: \uC6D0\uBB38 \uD655\uC778 \uD544\uC694"],
+  aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uC751\uB2F5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB3FC \uB2E4\uC2DC \uC2DC\uB3C4 \uC911\uC774\uC5D0\uC694\u2026"]
 };
 function t(lang, key, vars = {}) {
   const pair = MESSAGES[key];
@@ -176,6 +179,22 @@ function extractArticle(url, html) {
           art.method = "jsonld";
         }
       }
+    }
+  }
+  if (!art.body && /dmcf-ptype=/.test(s)) {
+    const paras = [...s.matchAll(/<p[^>]*dmcf-ptype="general"[^>]*>(.*?)<\/p>/gs)].map((x) => stripTags(x[1])).filter(Boolean);
+    if (paras.length) {
+      art.body = paras.join("\n");
+      art.method = "dmcf";
+    }
+    for (const im of s.matchAll(/<img[^>]*dmcf-mtype="image"[^>]*>/g)) {
+      const src = /data-org-src="([^"]+)"/.exec(im[0]);
+      if (!src || !/^https:\/\//.test(src[1]) || photos.some((p) => p.url === src[1])) continue;
+      const alt = /alt="([^"]*)"/.exec(im[0]);
+      const w = /data-org-width="(\d+)"/.exec(im[0]);
+      const caption = alt ? unescapeHtml(alt[1]).trim() : "";
+      const credit = /([^\s.]+(?:DB|\uB274\uC2A4|\uC81C\uACF5))\.?$/.exec(caption);
+      photos.push({ url: src[1], caption, credit: credit ? credit[1] : "", w: w ? Number(w[1]) : 0, h: 0 });
     }
   }
   if (!art.body) {
@@ -357,14 +376,17 @@ async function run(sdk, call) {
   return r.result;
 }
 var AI_TIMEOUT_MS = 18e4;
-async function ask(sdk, prompt) {
+async function ask(sdk, prompt, onRetry) {
   if (typeof sdk.askAI !== "function") throw new Error("askAI unavailable");
   for (let attempt = 0; ; attempt++) {
     try {
       const r = await sdk.askAI({ prompt, timeoutMs: AI_TIMEOUT_MS });
       return String(r?.text ?? "");
     } catch (err) {
-      if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) continue;
+      if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) {
+        onRetry?.();
+        continue;
+      }
       throw err;
     }
   }
@@ -1860,7 +1882,11 @@ var newRunRecord = (preset, url) => ({ startedAt: (/* @__PURE__ */ new Date()).t
 async function askValid(sdk, step, prompt, check, log, rec, maxRepairs = 2) {
   const t0 = Date.now();
   const stat = { step, ms: 0, turns: 1, parseFailures: 0, repairs: 0, errors: [], at: (/* @__PURE__ */ new Date()).toISOString() };
-  let reply = await ask(sdk, prompt);
+  const retry = () => {
+    stat.turns++;
+    log("aiRetry");
+  };
+  let reply = await ask(sdk, prompt, retry);
   let json = null, errors = [];
   try {
     for (let attempt = 0; ; attempt++) {
@@ -1877,7 +1903,7 @@ async function askValid(sdk, step, prompt, check, log, rec, maxRepairs = 2) {
       log("repairing");
       stat.repairs++;
       stat.turns++;
-      reply = await ask(sdk, repairPrompt(prompt, json ?? reply, errors));
+      reply = await ask(sdk, repairPrompt(prompt, json ?? reply, errors), retry);
     }
   } finally {
     stat.ms = Date.now() - t0;
@@ -1907,7 +1933,13 @@ async function writeScript(sdk, article, preset, log, rec) {
   };
   log("checking");
   const prev = { headline: draft.headline, sentences: draft.sentences.map((s) => ({ id: s.id, text: s.text })) };
-  const fid = await askValid(sdk, "fidelity", fidelityPrompt(pa, { ...prev, language: preset.scriptLanguage }), (j) => validateFidelity(j, pa, prev), log, rec);
+  let fid;
+  try {
+    fid = await askValid(sdk, "fidelity", fidelityPrompt(pa, { ...prev, language: preset.scriptLanguage }), (j) => validateFidelity(j, pa, prev), log, rec);
+  } catch (e) {
+    fid = { json: null, errors: ["fidelity check failed: " + String(e?.message || e)] };
+    rec.notes.push(fid.errors[0]);
+  }
   if (fid.json && Array.isArray(fid.json.sentences) && fid.json.sentences.length === draft.sentences.length) {
     const script = {
       headline: { line1: String(fid.json.headline?.line1 ?? draft.headline.line1), line2: String(fid.json.headline?.line2 ?? draft.headline.line2) },
@@ -1922,6 +1954,9 @@ async function writeScript(sdk, article, preset, log, rec) {
     return { script, errors: fid.errors };
   }
   return { script: { headline: draft.headline, sentences: draft.sentences.map((s) => ({ ...s, issues: [], rewritten: false })) }, errors: [...first.errors, ...fid.errors] };
+}
+function checkEdited(script, article) {
+  return validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article));
 }
 var scriptText = (script) => joinScript(script.sentences.map((s) => s.text));
 var revisionOf = (script, voiceId) => ttsRevision(script.headline.line1 + "\n" + script.headline.line2 + "\n" + scriptText(script), voiceId);
@@ -2130,11 +2165,13 @@ function NewsMinutePanel({ sdk, context }) {
   });
   const setLine = (i, v) => {
     if (!s.script) return;
-    const sentences = s.script.sentences.map((x, k) => k === i ? { ...x, text: v } : x);
+    const sentences = s.script.sentences.map((x, k) => k === i ? { ...x, text: v, edited: true } : x);
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
   const setHead = (k, v) => s.script && update({ ...s, script: { ...s.script, headline: { ...s.script.headline, [k]: v } }, approved: null });
   const approve = () => guard(async () => {
+    if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
+    if (liveErrors.length && !window.confirm(T("approveAnyway") + "\n\n" + liveErrors.slice(0, 8).join("\n"))) return;
     const projectId = await ensureProject(sdk, env.current, s);
     await update({ ...s, projectId, approved: revisionOf(s.script, s.voiceId) });
     setTts(await readTts(sdk, projectId));
@@ -2169,10 +2206,12 @@ function NewsMinutePanel({ sdk, context }) {
     setText("");
   });
   const sc = s.script;
+  const touched = !!sc?.sentences.some((x) => x.edited);
   const chars = sc ? scriptText(sc).length : 0;
   const approved = !!(sc && s.approved && s.approved === revisionOf(sc, s.voiceId));
   const next = approved ? ttsNext(tts, s.approved) : null;
   const quote = creditQuote(chars);
+  const liveErrors = sc && s.article && touched ? checkEdited(sc, s.article).errors : s.scriptErrors;
   return /* @__PURE__ */ jsxs("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }, children: [
     /* @__PURE__ */ jsx("strong", { children: T("title") }),
     /* @__PURE__ */ jsxs("label", { children: [
@@ -2188,7 +2227,7 @@ function NewsMinutePanel({ sdk, context }) {
     ] }) : /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
       /* @__PURE__ */ jsx("strong", { children: T("review") }),
       /* @__PURE__ */ jsx("span", { style: muted, children: T("reviewHint") }),
-      s.scriptErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: s.scriptErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
+      liveErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
       /* @__PURE__ */ jsxs("label", { children: [
         T("headline1"),
         /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
@@ -2209,6 +2248,7 @@ function NewsMinutePanel({ sdk, context }) {
           x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
         ] }),
         x.rewritten ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9" }, children: T("rewritten") }) : null,
+        x.edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedCheck") }) : null,
         x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
           T("issues"),
           ": ",
@@ -2220,7 +2260,7 @@ function NewsMinutePanel({ sdk, context }) {
       approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
         /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("approved") }),
         /* @__PURE__ */ jsx("button", { disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
-      ] }) : /* @__PURE__ */ jsx("button", { disabled: busy, onClick: approve, children: T("approve") })
+      ] }) : /* @__PURE__ */ jsx("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
     ] }),
     approved && next ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
       /* @__PURE__ */ jsxs("label", { children: [

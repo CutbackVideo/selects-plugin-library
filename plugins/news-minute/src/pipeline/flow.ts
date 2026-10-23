@@ -15,7 +15,7 @@ import { fallbackPlan, hiddenCaptionSentences, sceneClips, type PhotoAsset } fro
 import { baseDraftScript, overlayTextScript, sceneScripts } from "./assemble.ts";
 
 export type Env = { platform: string; sep: string; dir: string; projectId: string | null };
-export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean };
+export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
   presetId: string;
@@ -56,7 +56,8 @@ export const newRunRecord = (preset: string, url: string): RunRecord => ({ start
 async function askValid<T>(sdk: PanelSdk, step: string, prompt: string, check: (json: any) => { ok: boolean; errors: string[] }, log: Log, rec: RunRecord, maxRepairs = 2): Promise<{ json: T | null; errors: string[] }> {
   const t0 = Date.now();
   const stat: StepStat = { step, ms: 0, turns: 1, parseFailures: 0, repairs: 0, errors: [], at: new Date().toISOString() };
-  let reply = await ask(sdk, prompt);
+  const retry = () => { stat.turns++; log("aiRetry"); };
+  let reply = await ask(sdk, prompt, retry);
   let json: any = null, errors: string[] = [];
   try {
     for (let attempt = 0; ; attempt++) {
@@ -65,7 +66,7 @@ async function askValid<T>(sdk: PanelSdk, step: string, prompt: string, check: (
       log("repairing");
       stat.repairs++;
       stat.turns++;
-      reply = await ask(sdk, P.repairPrompt(prompt, json ?? reply, errors));
+      reply = await ask(sdk, P.repairPrompt(prompt, json ?? reply, errors), retry);
     }
   } finally {
     stat.ms = Date.now() - t0;
@@ -93,7 +94,9 @@ export async function writeScript(sdk: PanelSdk, article: Article, preset: Prese
   };
   log("checking");
   const prev = { headline: draft.headline, sentences: draft.sentences.map((s: any) => ({ id: s.id, text: s.text })) };
-  const fid = await askValid<any>(sdk, "fidelity", P.fidelityPrompt(pa, { ...prev, language: preset.scriptLanguage }), (j) => P.validateFidelity(j, pa, prev), log, rec);
+  let fid: { json: any; errors: string[] };
+  try { fid = await askValid<any>(sdk, "fidelity", P.fidelityPrompt(pa, { ...prev, language: preset.scriptLanguage }), (j) => P.validateFidelity(j, pa, prev), log, rec); }
+  catch (e: any) { fid = { json: null, errors: ["fidelity check failed: " + String(e?.message || e)] }; rec.notes.push(fid.errors[0]); }
   if (fid.json && Array.isArray(fid.json.sentences) && fid.json.sentences.length === draft.sentences.length) {
     const script: Script = {
       headline: { line1: String(fid.json.headline?.line1 ?? draft.headline.line1), line2: String(fid.json.headline?.line2 ?? draft.headline.line2) },
