@@ -20,11 +20,12 @@ test('validateScript flags count, length, quote and invented numbers', () => {
 test('validatePlan enforces coverage, disclaimer and number tracing', () => {
   const sents = [{id: 's1', text: '164\uB9CC1000\uC6D0\uC785\uB2C8\uB2E4.', startSec: 0, endSec: 5}];
   const assets = [{ref: 'photo-1', kind: 'photo'}, {ref: 'ill-1', kind: 'illustration'}];
-  const ok = {scenes: [{sentenceIds: ['s1'], type: 'news_photo', params: {}, hideCaption: false, disclaimer: false, assetRef: 'photo-1'}]};
+  const sums = [{ref: 'photo-1', summary: 'a photo'}, {ref: 'ill-1', summary: 'an illustration'}];
+  const ok = {assetSummaries: sums, scenes: [{sentenceIds: ['s1'], type: 'news_photo', params: {}, hideCaption: false, disclaimer: false, assetRef: 'photo-1'}]};
   assert.equal(P.validatePlan(ok, sents, assets).ok, true);
-  const bad = {scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {label: 'x', from: 100, to: 164}, hideCaption: true, disclaimer: false}]};
+  const bad = {assetSummaries: sums, scenes: [{sentenceIds: ['s1'], type: 'number_callout', params: {label: 'x', from: 100, to: 164}, hideCaption: true, disclaimer: false}]};
   assert.ok(P.validatePlan(bad, sents, assets).errors.some((e) => e.includes('"100"')));
-  const ill = {scenes: [{sentenceIds: ['s1'], type: 'news_photo', params: {}, hideCaption: false, disclaimer: false, assetRef: 'ill-1'}]};
+  const ill = {assetSummaries: sums, scenes: [{sentenceIds: ['s1'], type: 'news_photo', params: {}, hideCaption: false, disclaimer: false, assetRef: 'ill-1'}]};
   assert.ok(P.validatePlan(ill, sents, assets).errors.some((e) => e.includes('disclaimer=true')));
 });
 
@@ -101,4 +102,19 @@ test('scene length limit is 12 s for data scenes and 10.5 s otherwise', () => {
 test('fidelity prompt asks for issue notes in the output language', () => {
   const text = P.fidelityPrompt(art, {headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x', sourceQuote: 'y'}]});
   assert.ok(text.includes('note written in Korean'));
+});
+
+test('plan requires asset summaries and warns on source-like text_card sub', () => {
+  const sents = [{id: 's1', text: '164 won.', startSec: 0, endSec: 5}];
+  const assets = [{ref: 'photo-1', kind: 'photo', caption: '/credit', context: 'before'}];
+  const card = (sub) => ({scenes: [{sentenceIds: ['s1'], type: 'text_card', params: {text: 't', sub}, hideCaption: false, disclaimer: false}]});
+  const missing = P.validatePlan(card('x'), sents, assets);
+  assert.ok(missing.errors.some((e) => e.includes('assetSummaries')));
+  const withSum = {...card('Yahoo Finance'), assetSummaries: [{ref: 'photo-1', summary: 'graph of prices'}]};
+  const v = P.validatePlan(withSum, sents, assets);
+  assert.equal(v.ok, true);
+  assert.ok(v.warnings.some((w) => w.includes('looks like a source')));
+  assert.equal(v.stats.assetSummaries['photo-1'], 'graph of prices');
+  const prompt = P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets});
+  assert.ok(prompt.includes('assetSummaries') && prompt.includes('"context": "before"'));
 });

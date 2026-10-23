@@ -4,7 +4,7 @@ export type Validation = {
   ok: boolean;
   errors: string[];
   warnings: string[];
-  stats: Record<string, number | string>;
+  stats: Record<string, number | string | Record<string, string>>;
 };
 
 export type ScriptSentence = { text: string; sourceQuote: string };
@@ -29,6 +29,8 @@ export type PlanAsset = {
   kind: "photo" | "illustration";
   caption?: string;
   credit?: string;
+  // Article text right before the image, for graphics whose caption is only a credit line.
+  context?: string;
   w?: number;
   h?: number;
 };
