@@ -9997,6 +9997,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const catalogWaiters = React.useRef<((latest: any) => void)[]>([]);
   const [updateRegistration, setUpdateRegistration] = React.useState(0);
   function readCatalogLatest(): Promise<any> {
+    // Without the host update API no check can ever run, so fail now rather than after the timeout.
+    if (!(sdk.updates?.register && sdk.runShell)) return Promise.reject(new Error(K.checkFailed));
     return new Promise((resolve, reject) => {
       const waiter = (latest: any) => { clearTimeout(timer); resolve(latest); };
       // A failed or skipped host check never calls back, so silence means failure.

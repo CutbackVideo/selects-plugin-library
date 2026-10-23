@@ -149,6 +149,12 @@ test('template pack update button follows the published catalog without the GitH
   assert.match(h.state.messages.at(-1),/v2\.0\.0/);
  });
 
+ await t.test('a pack recorded as a commit-pinned link updates from the catalog and is recorded as a catalog install',async()=>{
+  const h=harness({installSource:{kind:'link',url:official(commit)}});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.registrations,1);assert.deepEqual(h.state.installs,[official(commit)]);assert.equal(h.state.origin,'catalog');
+  assert.match(h.state.messages.at(-1),/v2\.0\.0/);
+ });
+
  await t.test('same or older catalog version reports up to date without installing',async()=>{
   for(const catalogVersion of ['1.0.0','0.9.0']){
    const h=harness({catalogVersion});await h.handlers.updatePack(h.pack);
@@ -161,6 +167,9 @@ test('template pack update button follows the published catalog without the GitH
   assert.equal(h.state.status.tone,'error');assert.equal(h.state.status.message,api.PACK_STRINGS.ko.checkFailed);assert.deepEqual(h.state.installs,[]);
   h=harness({latest:null});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.tone,'error');assert.deepEqual(h.state.installs,[]);
+  const started=Date.now();h=harness({registers:false});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.checkFailed);assert.equal(h.state.registrations,0);assert.deepEqual(h.state.installs,[]);
+  assert.ok(Date.now()-started<40,'a host without the update API fails immediately instead of waiting for the timeout');
  });
 
  await t.test('non-official packs and unsaved edits do not start a check',async()=>{
