@@ -253,6 +253,9 @@ export function demoteNumberlessCallouts(json: any, sentences: TimedSentence[]):
   return { plan: { ...json, scenes }, demoted };
 }
 
+// A text_card sub that reads like a data attribution belongs in `source`, not on the card.
+const SOURCE_LIKE_SUB = /=|\u00A9|\uCD9C\uCC98|\uD30C\uC774\uB0B8\uC2A4|\uB274\uC2A4|\uC77C\uBCF4|\uC2E0\uBB38|\uD1B5\uC2E0|Reuters|Bloomberg|Yahoo|Finance|News/i;
+
 export function validatePlan(json: any, sentences: TimedSentence[], assets: PlanAsset[]): Validation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -261,6 +264,14 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
   const assetByRef = new Map(assets.map((a) => [a.ref, a]));
   const photoRefs = assets.filter((a) => a.kind === "photo").map((a) => a.ref);
   const usedPhotos = new Set<string>();
+
+  const summaries = new Map<string, string>();
+  if (Array.isArray(json.assetSummaries)) {
+    for (const a of json.assetSummaries) if (isObj(a) && isStr(a.ref) && isStr(a.summary)) summaries.set(a.ref, a.summary.trim());
+  }
+  for (const a of assets) {
+    if (!summaries.has(a.ref)) errors.push(`assetSummaries is missing a summary for "${a.ref}"; describe what each asset shows before planning scenes`);
+  }
 
   const seen: string[] = [];
   let maxSceneSec = 0;
@@ -290,6 +301,9 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     const sceneText = sceneSentences.map((s) => s.text).join(" ");
     const sceneNums = new Set([...numberTokens(sceneText), ...rawNumberTokens(sceneText)]);
     checkParams(sc.type, sc.params ?? {}, sceneNums, where, errors);
+    if (sc.type === "text_card" && isStr(sc.params?.sub) && SOURCE_LIKE_SUB.test(sc.params.sub)) {
+      warnings.push(`${where}: text_card sub "${sc.params.sub}" looks like a source; sources belong in "source" of a data scene, not on a text card`);
+    }
 
     if (typeof sc.hideCaption !== "boolean") errors.push(`${where}: hideCaption must be true or false`);
     else if (sc.hideCaption && sc.type !== "number_callout") errors.push(`${where}: hideCaption is only allowed on number_callout`);
@@ -325,5 +339,6 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     scenes: json.scenes.length,
     maxSceneSec: Number(maxSceneSec.toFixed(1)),
     photosUsed: usedPhotos.size,
+    assetSummaries: Object.fromEntries(summaries),
   });
 }
