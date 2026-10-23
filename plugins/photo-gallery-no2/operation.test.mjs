@@ -9,7 +9,20 @@ const effectSha = 'bf1d24dab2ac13a45fcd5a1ce5ff0587de86be31f900ab03976cbbc1fc5eb
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const image = (i) => ({ resourceId: `r${i}`, name: `photo-${i}.png`, type: 'Image' });
 const file = (i) => ({ type: 'image', resourceId: `r${i}`, name: `photo-${i}.png`, path: `/test/photo-${i}.png`, frameSize: { width: 1080, height: 1920 } });
-const readableFiles = () => ({ stat: async () => ({ size: 32, isDirectory: false, mtimeMs: 1, ino: 1 }), readRange: async () => ({ bytesRead: 1, base64: 'iQ==' }), fingerprint:async()=>({size:32,sha256:'1'.repeat(64)}) });
+// Binary originals span more than one SDK chunk; their identity comes from the
+// existing stat/readRange API rather than a fabricated fingerprint capability.
+const sourceBytes = (path) => Buffer.concat([Buffer.from(path), Buffer.alloc(49152, 0x89)]);
+const readableFiles = (nodes) => ({
+  stat: async (path) => nodes.some(node => node.path === path) ?
+    { size: sourceBytes(path).length, isDirectory: false, mtimeMs: 1, ino: 1 } : null,
+  readRange: async ({ path, offset, length }) => {
+    assert.ok(nodes.some(node => node.path === path), `Unknown source: ${path}`);
+    assert.ok(Number.isSafeInteger(offset) && offset >= 0);
+    assert.ok(Number.isSafeInteger(length) && length >= 1 && length <= 49152);
+    const bytes = sourceBytes(path).subarray(offset, offset + length);
+    return { bytesRead: bytes.length, base64: bytes.toString('base64') };
+  },
+});
 function fixture({ shortVideo = false } = {}) {
   const calls = { create: 0, commit: 0 };
   const resources = Array.from({ length: 21 }, (_, i) => shortVideo ? { resourceId: `r${i}`, name: `clip-${i}.mp4`, type: 'Video' } : image(i));
@@ -24,7 +37,7 @@ function fixture({ shortVideo = false } = {}) {
     createDraft: async () => { calls.create++; return draft; },
   };
   const selects = {
-    files: readableFiles(),
+    files: readableFiles(nodes),
     project: (projectId) => { assert.equal(projectId, 'project-1'); return project; },
     draft: (draftId) => { assert.equal(draftId, 'draft-1'); return draft; },
     media: { probe: async ({ filePaths }) => ({ files: filePaths.map((path) => ({ path })), errors: [], summary: { failed: 0 } }) },
@@ -277,7 +290,7 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
     resource: (resourceId) => ({ resourceId }),
   };
   const selects = {
-    files: readableFiles(),
+    files: readableFiles(files),
     project: () => project,
     draft: () => draft,
     media: { probe: async ({ filePaths }) => ({ files: filePaths.map((path) => ({ path })), errors: [], summary: { failed: 0 } }) },
@@ -504,6 +517,10 @@ test('21 original photos become 21 independent Image clips over a black gap', as
   const input = { projectId: 'project-1', media, manualBpm: 113 };
   const created = await f.run({ ...input, operation: 'create' });
   assert.equal(created.status, 'saved', created.message);
+  assert.deepEqual(created.sourceGuard.files, media.map(({ path }) => ({
+    path, size: sourceBytes(path).length,
+    sha256: createHash('sha256').update(sourceBytes(path)).digest('hex'),
+  })));
   assert.equal(f.gapCalls, 1);
   assert.equal(f.inserted.length, 21);
   assert.deepEqual(f.inserted.map(row => row.resourceId), media.map(item => item.resourceId));
