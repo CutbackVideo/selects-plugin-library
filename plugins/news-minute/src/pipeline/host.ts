@@ -21,14 +21,14 @@ export async function run<T = any>(sdk: PanelSdk, call: ScriptCall): Promise<T> 
 // One AI turn, at most 3 minutes; a timed-out turn is tried once more. The host keeps panel turns out of the
 // user's chat history by default (ephemeral, on models that support it), so the option is left at its default.
 export const AI_TIMEOUT_MS = 180000;
-export async function ask(sdk: PanelSdk, prompt: string): Promise<string> {
+export async function ask(sdk: PanelSdk, prompt: string, onRetry?: () => void): Promise<string> {
   if (typeof sdk.askAI !== "function") throw new Error("askAI unavailable");
   for (let attempt = 0; ; attempt++) {
     try {
       const r = await sdk.askAI({ prompt, timeoutMs: AI_TIMEOUT_MS });
       return String(r?.text ?? "");
     } catch (err: any) {
-      if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) continue;
+      if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) { onRetry?.(); continue; }
       throw err;
     }
   }

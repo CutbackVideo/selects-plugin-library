@@ -84,6 +84,20 @@ export function extractArticle(url: string, html: string): Article {
       }
     }
   }
+  // Daum news (and other Kakao-hosted copies): paragraphs and figures carry dmcf attributes.
+  if (!art.body && /dmcf-ptype=/.test(s)) {
+    const paras = [...s.matchAll(/<p[^>]*dmcf-ptype="general"[^>]*>(.*?)<\/p>/gs)].map((x) => stripTags(x[1])).filter(Boolean);
+    if (paras.length) { art.body = paras.join("\n"); art.method = "dmcf"; }
+    for (const im of s.matchAll(/<img[^>]*dmcf-mtype="image"[^>]*>/g)) {
+      const src = /data-org-src="([^"]+)"/.exec(im[0]);
+      if (!src || !/^https:\/\//.test(src[1]) || photos.some((p) => p.url === src[1])) continue;
+      const alt = /alt="([^"]*)"/.exec(im[0]);
+      const w = /data-org-width="(\d+)"/.exec(im[0]);
+      const caption = alt ? unescapeHtml(alt[1]).trim() : "";
+      const credit = /([^\s.]+(?:DB|\uB274\uC2A4|\uC81C\uACF5))\.?$/.exec(caption);
+      photos.push({ url: src[1], caption, credit: credit ? credit[1] : "", w: w ? Number(w[1]) : 0, h: 0 });
+    }
+  }
   if (!art.body) {
     const sc = /<article[^>]*>(.*?)<\/article>/s.exec(s);
     const paras = [...(sc ? sc[1] : s).matchAll(/<p[^>]*>(.*?)<\/p>/gs)].map((x) => stripTags(x[1]));

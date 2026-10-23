@@ -54,6 +54,9 @@ export const MESSAGES: Record<string, [string, string]> = {
   aiCredits: ["Writing and checking the script runs AI turns billed to your Selects credits, like chat messages.", "\ub300\ubcf8 \uc4f0\uae30\uc640 \uc6d0\ubb38 \ub300\uc870\ub294 \ucc44\ud305\ucc98\ub7fc Selects \ud06c\ub808\ub527\uc774 \uc4f0\uc774\ub294 AI \ud638\ucd9c\uc774\uc5d0\uc694."],
   buildCredits: ["Choosing the visuals runs one more AI turn (Selects credits).", "\ud654\uba74 \uad6c\uc131 \uace0\ub974\uae30\uc5d0 AI \ud638\ucd9c\uc774 \ud55c \ubc88 \ub354 \ub4e4\uc5b4\uac00\uc694(Selects \ud06c\ub808\ub527)."],
   record: ["Run record: {path}", "\uc2e4\ud589 \uae30\ub85d: {path}"],
+  approveAnyway: ["The check still reports these problems. Approve anyway?", "\uac80\uc0ac\uc5d0\uc11c \uc544\ub798 \ubb38\uc81c\uac00 \ub0a8\uc544 \uc788\uc5b4\uc694. \uadf8\ub798\ub3c4 \uc2b9\uc778\ud560\uae4c\uc694?"],
+  editedCheck: ["Edited: check against the article", "\uc218\uc815\ub428: \uc6d0\ubb38 \ud655\uc778 \ud544\uc694"],
+  aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uc751\ub2f5 \uc2dc\uac04\uc774 \ucd08\uacfc\ub3fc \ub2e4\uc2dc \uc2dc\ub3c4 \uc911\uc774\uc5d0\uc694\u2026"],
 };
 
 export function t(lang: string | undefined, key: string, vars: Record<string, string | number> = {}): string {

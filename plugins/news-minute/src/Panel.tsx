@@ -91,12 +91,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   const setLine = (i: number, v: string) => {
     if (!s.script) return;
-    const sentences = s.script.sentences.map((x, k) => (k === i ? { ...x, text: v } : x));
+    const sentences = s.script.sentences.map((x, k) => (k === i ? { ...x, text: v, edited: true } : x));
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
   const setHead = (k: "line1" | "line2" | "accent", v: string) => s.script && update({ ...s, script: { ...s.script, headline: { ...s.script.headline, [k]: v } }, approved: null });
 
   const approve = () => guard(async () => {
+    if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
+    if (liveErrors.length && !window.confirm(T("approveAnyway") + "\n\n" + liveErrors.slice(0, 8).join("\n"))) return;
     const projectId = await F.ensureProject(sdk, env.current!, s);
     await update({ ...s, projectId, approved: F.revisionOf(s.script!, s.voiceId) });
     setTts(await F.readTts(sdk, projectId));
@@ -125,10 +127,12 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId }); setUrl(""); setText(""); });
 
   const sc = s.script;
+  const touched = !!sc?.sentences.some((x) => x.edited);
   const chars = sc ? F.scriptText(sc).length : 0;
   const approved = !!(sc && s.approved && s.approved === F.revisionOf(sc, s.voiceId));
   const next = approved ? F.ttsNext(tts, s.approved!) : null;
   const quote = creditQuote(chars);
+  const liveErrors = sc && s.article && touched ? F.checkEdited(sc, s.article).errors : s.scriptErrors;
 
   return (
     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
@@ -150,7 +154,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
           <strong>{T("review")}</strong>
           <span style={muted}>{T("reviewHint")}</span>
-          {s.scriptErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{s.scriptErrors.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
+          {liveErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{liveErrors.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
           <label>{T("headline1")}<input style={input} value={sc.headline.line1} disabled={busy || approved} onChange={(e) => setHead("line1", e.target.value)} /></label>
           <label>{T("headline2")}<input style={input} value={sc.headline.line2} disabled={busy || approved} onChange={(e) => setHead("line2", e.target.value)} /></label>
           <label>{T("accent")}<input style={input} value={sc.headline.accent ?? ""} disabled={busy || approved} onChange={(e) => setHead("accent", e.target.value)} /></label>
@@ -159,6 +163,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
               <textarea style={{ ...input, minHeight: 44 }} value={x.text} disabled={busy || approved} onChange={(e) => setLine(i, e.target.value)} />
               <span style={muted}>{T("source")}: {x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")}</span>
               {x.rewritten ? <span style={{ ...muted, color: "#4a90d9" }}>{T("rewritten")}</span> : null}
+              {x.edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedCheck")}</span> : null}
               {x.issues.length ? <span style={{ ...muted, color: "#d9822b" }}>{T("issues")}: {x.issues.map((v) => v.kind + (v.note ? " \u2013 " + v.note : "")).join("; ")}</span> : null}
             </div>
           ))}
@@ -170,7 +175,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
               <button disabled={busy || tts?.state === "submitted" || tts?.state === "submitting"} onClick={() => update({ ...s, approved: null })}>{T("edit")}</button>
             </div>
           ) : (
-            <button disabled={busy} onClick={approve}>{T("approve")}</button>
+            <button disabled={busy || chars > MAX_CHARS} onClick={approve}>{T("approve")}</button>
           )}
         </div>
       )}
