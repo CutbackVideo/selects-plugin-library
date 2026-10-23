@@ -231,6 +231,8 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
 
 // Longest allowed scene, in seconds. Data scenes carry charts that need more time to read.
 export const DATA_SCENE_TYPES = ["bar_compare_h", "line_trend_callout", "stat_cards", "number_callout"] as const;
+// Most scenes one asset may appear in; more reads as repetition. Reported as a warning only.
+export const MAX_ASSET_USES = 2;
 export const SCENE_MAX_SEC = { default: 10.5, data: 12 };
 export function sceneMaxSec(type: string): number {
   return (DATA_SCENE_TYPES as readonly string[]).includes(type) ? SCENE_MAX_SEC.data : SCENE_MAX_SEC.default;
@@ -264,6 +266,7 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
   const assetByRef = new Map(assets.map((a) => [a.ref, a]));
   const photoRefs = assets.filter((a) => a.kind === "photo").map((a) => a.ref);
   const usedPhotos = new Set<string>();
+  const assetUses = new Map<string, number>();
 
   const summaries = new Map<string, string>();
   if (Array.isArray(json.assetSummaries)) {
@@ -315,6 +318,7 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     if (sc.type !== "news_photo" && sc.type !== "number_callout" && sc.type !== "quote_card" && sc.assetRef) {
       errors.push(`${where}: ${sc.type} must not carry an assetRef`);
     }
+    if (asset) assetUses.set(asset.ref, (assetUses.get(asset.ref) ?? 0) + 1);
     if (asset?.kind === "photo") usedPhotos.add(asset.ref);
     const usesIllustration = asset?.kind === "illustration";
     if (usesIllustration && sc.disclaimer !== true) errors.push(`${where}: a scene that shows an illustration must set disclaimer=true`);
@@ -333,6 +337,7 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
   const textCards = json.scenes.filter((sc: any) => sc?.type === "text_card").length;
   if (json.scenes.length >= 6 && textCards > json.scenes.length / 3) warnings.push(`${textCards} of ${json.scenes.length} scenes are text cards; use data scenes where the narration has numbers`);
   if (first && first.type === "text_card" && photoRefs.length) warnings.push("the opening scene should use the strongest visual, not a text card");
+  for (const [ref, n] of assetUses) if (n > MAX_ASSET_USES) warnings.push(`asset ${ref} is used in ${n} scenes; use it at most ${MAX_ASSET_USES} times and give the extra scenes a text_card or data scene`);
   if (photoRefs.length && usedPhotos.size < photoRefs.length) warnings.push(`unused article photos: ${photoRefs.filter((r) => !usedPhotos.has(r)).join(", ")}`);
 
   return result(errors, warnings, {
