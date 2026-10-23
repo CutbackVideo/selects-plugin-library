@@ -148,9 +148,14 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
   const graphics=[];
   if(workingDraft){
    if(!outro||outro.startFrame!==plan.outro.startFrame||outro.endFrame!==plan.outro.endFrame)throw Error('Outro placement could not be confirmed.');
-   graphics.push({clipId:outro.clipId,trackId:outro.trackId,startFrame:plan.outro.startFrame,endFrame:plan.outro.endFrame,parameters:graphic.parameters});
-   transforms.push({clipId:outro.clipId,trackId:outro.trackId,transform:{}});
-   programTargets.push({clipId:outro.clipId,trackId:outro.trackId,effects:[],graphic});
+   // addMotionGraphic returns its clip ID and range, but no track ID. Bind the
+   // independently read live placement before recording verification targets.
+   const matches=(await d.clips({trackScope:'all'})).filter(clip=>clip.clipId===outro.clipId);
+   const placed=matches[0];
+   if(matches.length!==1||typeof placed?.trackId!=='string'||!placed.trackId||placed.startFrame!==plan.outro.startFrame||placed.endFrame!==plan.outro.endFrame)throw Error('Outro placement could not be confirmed.');
+   graphics.push({clipId:placed.clipId,trackId:placed.trackId,startFrame:plan.outro.startFrame,endFrame:plan.outro.endFrame,parameters:graphic.parameters});
+   transforms.push({clipId:placed.clipId,trackId:placed.trackId,transform:{}});
+   programTargets.push({clipId:placed.clipId,trackId:placed.trackId,effects:[],graphic});
   }
   stage='music';
   const beforeMusic=workingDraft?new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId)):null;

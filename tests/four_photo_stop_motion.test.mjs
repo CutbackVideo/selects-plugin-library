@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import os from 'node:os';
 import {spawnSync} from 'node:child_process';
 import {loadPanelOperation} from './panel_operation.mjs';
+import {fixture as authoringFixture} from './photo_authoring_fixture.mjs';
 import {hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
 const {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK}=loadPanelOperation('four-photo-stop-motion');
@@ -157,4 +158,43 @@ const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
 
 test('an old Selects build gets the update message, not "Reinstall"',()=>{
  assert.ok(panelSource.includes(NEWER_SELECTS));
+});
+
+// The existing SDK's addMotionGraphic receipt has no trackId. Its live clip
+// identity must come from a fresh read, rather than from an invented receipt.
+function graphicReceiptFixture(fault=null){
+ const f=authoringFixture('four-photo-stop-motion'),project=f.selects.project('p'),create=project.createDraft;
+ project.createDraft=async options=>{
+  const d=await create(options),add=d.addMotionGraphic,clips=d.clips;
+  let added=null;
+  d.addMotionGraphic=async input=>{
+   const placed=await add(input);added=placed.clipId;
+   return {clipId:placed.clipId,startFrame:placed.startFrame,endFrame:placed.endFrame,diff:{},...(fault==='wrong receipt track'?{trackId:'not-the-live-track'}:{})};
+  };
+  d.clips=async options=>{
+   const rows=await clips(options);if(added===null)return rows;
+   const actual=rows.find(r=>r.clipId===added);
+   if(fault==='missing')return rows.filter(r=>r.clipId!==added);
+   if(fault==='duplicate')return [...rows,{...actual,trackId:'duplicate-live-track'}];
+   if(fault==='moved')actual.endFrame++;
+   if(fault==='missing live track')delete actual.trackId;
+   return rows;
+  };
+  return d;
+ };
+ return f;
+}
+
+for(const fault of [null,'wrong receipt track'])test('Stop Motion binds the outro to its live clip when receipt track is '+String(fault),async()=>{
+ const f=graphicReceiptFixture(fault),result=await f.create();
+ assert.equal(result.status,'saved');assert.equal(f.commits.length,1);
+ const graphic=result.graphics[0],state=f.saved.get(result.draftId),live=state.clips.find(c=>c.clipId===graphic.clipId);
+ assert.equal(graphic.trackId,live.trackId);assert.notEqual(graphic.trackId,'not-the-live-track');
+ assert.equal(graphic.startFrame,live.startFrame);assert.equal(graphic.endFrame,live.endFrame);
+});
+
+for(const fault of ['missing','duplicate','moved','missing live track'])test('Stop Motion refuses an unconfirmed outro '+fault+' before committing',async()=>{
+ const f=graphicReceiptFixture(fault);
+ await assert.rejects(f.create(),/Outro placement could not be confirmed/);
+ assert.equal(f.commits.length,0);
 });
