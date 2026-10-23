@@ -4239,14 +4239,39 @@ await d.commitAll("Place the full source as a wide shot");
 return {clips:keys.length};`;
 }
 
+// Native mask coordinates follow the SVG's aspect-fit into the source box.
+function nativeSourceCrop(panel:any,W:number,H:number,windowTop:number,windowH:number) {
+ const r=panel.destination,ow=1080*r.width,oh=windowH*r.height,rect=panel.fit==='region'?panel.rect:null;
+ const w=rect?Math.max(rect.width,rect.height*ow/oh):panel.fit==='contain'?Math.max(W,H*ow/oh):Math.max(1,Math.min(W,panel.w));
+ const scale=ow/w,h=oh/scale;
+ const x=rect?rect.x-(w-rect.width)/2:panel.fit==='contain'?(W-w)/2:Math.max(0,Math.min(W-w,panel.cx-w/2));
+ const y=rect?rect.y-(h-rect.height)/2:panel.fit==='contain'?(H-h)/2:h>H?(H-h)/2:Math.max(0,Math.min(H-h,panel.cy-h*.4));
+ const box=rect||{x:Math.max(0,x),y:Math.max(0,y),width:Math.min(W,x+w)-Math.max(0,x),height:Math.min(H,y+h)-Math.max(0,y)};
+ const maskScale=Math.min(W/1080,H/1920);
+ return {transform:{scale:{x:scale/(1080/W),y:scale/(1080/W)},position:{x:(r.x*1080+(W/2-x)*scale-540)/1920*100,y:(960-(windowTop+r.y*windowH+(H/2-y)*scale))/1920*100}},
+  mask:{shape:'rectangle',x:(box.x+box.width/2-W/2)/maskScale,y:(box.y+box.height/2-H/2)/maskScale,width:box.width/maskScale,height:box.height/maskScale,rotation:0,roundness:0,feather:0,inverse:false}};
+}
+
 function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number,snapshot:any=null) {
   return `const shots = __SHOTS__;
 const compositionRects=${compositionRects.toString()},permittedSplits=${permittedSplits.toString()},assertCompositionLayout=${assertCompositionLayout.toString()};
 const SPLIT_LAYOUTS=${JSON.stringify(SPLIT_LAYOUTS)};
 const applyManualCrop=${applyManualCrop.toString()};
-const compile = ${compileSourceCropPlan.toString()};
+const compile = ${compileSourceCropPlan.toString()},nativeCrop=${nativeSourceCrop.toString()};
 const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)});
 const sources = ${JSON.stringify(sources)};
+const ownedCrop=async(e)=>e.name==="Shortform source crop"||(e.name==="Shape mask"&&(await d.videoEffectProgram(e))?.parameters?.shortformSourceCrop===true);
+const findOwnedCrop=async(c)=>{for(const e of await d.videoEffects(c))if(await ownedCrop(e))return e;};
+const applyNative=async(fresh,s,panel)=>{
+ for(const name of ["Shortform stacked framing","Shortform source panel","Shortform source crop"]){const old=(await d.videoEffects(await fresh())).find(e=>e.name===name);if(old)await d.removeVideoEffect(old);}
+ const previous=await findOwnedCrop(await fresh());if(previous)await d.removeVideoEffect(previous);
+ const crop=nativeCrop(panel,s.sourceW,s.sourceH,${Number(layout.windowTop??0)},s.windowH);
+ await d.setClipTransform({clip:await fresh(),...crop.transform});
+ await d.applyEffectPreset({clip:await fresh(),presetId:"effects-mask",parameters:{...crop.mask,shortformSourceCrop:true}});
+ const effect=(await d.videoEffects(await fresh())).find(e=>e.name==="Shape mask");
+ if(!effect)throw Error("Native crop mask was not created");
+
+};
 const aliases = new Map(),files=[];
 if(sources.some(s=>s.path)){
  const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else files.push(n);};
@@ -4292,7 +4317,7 @@ if(splitPlan.length){
 }
 // Only remove generated panel clips, preserving unrelated video and audio.
 const owned=[];
-for(const c of await d.clips({trackScope:"all"}))if(c.trackKind==="video"&&c.resourceId&&!plan.some(s=>s.style==="preserve"&&s.startFrame<c.endFrame&&s.endFrame>c.startFrame)&&(await d.videoEffects(c)).some(e=>e.name==="Shortform source panel"))owned.push(c);
+for(const c of await d.clips({trackScope:"all"}))if(c.trackKind==="video"&&c.resourceId&&!plan.some(s=>s.style==="preserve"&&s.startFrame<c.endFrame&&s.endFrame>c.startFrame)&&((await d.videoEffects(c)).some(e=>e.name==="Shortform source panel")||await findOwnedCrop(c)))owned.push(c);
 for(const old of owned){const live=(await d.clips({trackScope:"all"})).find(c=>c.trackId===old.trackId&&c.clipId===old.clipId);await d.removeClips(live);}
 for(const trackId of new Set(owned.map(c=>c.trackId)))if(!(await d.clips({trackScope:"all"})).some(c=>c.trackId===trackId))await d.deleteTrack({trackId});
 // Overlay lanes sit above graphics. Restore editable graphics above picture lanes.
@@ -4308,7 +4333,10 @@ for (const key of keys) {
  const c=await fresh(),s=plan.find(s=>s.startFrame<=c.startFrame&&s.endFrame>=c.endFrame);
  if (!s) throw new Error("Uncovered main clip");
  if (s.style==="preserve") continue;
- await d.setClipTransform({clip:c,scale:{x:1,y:s.windowH/(s.sourceH*1080/s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
+ if(s.panels.length>1){await applyNative(fresh,s,s.panels[0]);continue;}
+ const previousMask=await findOwnedCrop(await fresh());
+ if(previousMask)await d.removeVideoEffect(previousMask);
+ await d.setClipTransform({clip:await fresh(),scale:{x:1,y:s.windowH/(s.sourceH*1080/s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
  const parameters={sourceW:s.sourceW,sourceH:s.sourceH,windowH:s.windowH,panels:s.panels.slice(0,1),sourceX:0,sourceY:0,sourceZoom:100};
  const old=(await d.videoEffects(await fresh())).find(e=>e.name==="Shortform stacked framing");
  if(old) await d.replaceVideoEffect(old,{tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters,editableParameters:${JSON.stringify(SOURCE_PANEL_CONTROLS)}});
@@ -4323,8 +4351,7 @@ for(const slot of [...new Set(overlays.map(o=>o.panel.slot))].sort((a,b)=>a-b)){
   const added=(await d.clips({trackScope:"all"})).filter(c=>c.trackKind==="video"&&!before.has(c.trackId+":"+c.clipId));
   if(added.length!==1)throw Error("Split panel did not create one silent video clip");
   const key=added[0],fresh=async()=>(await d.clips({trackScope:"all"})).find(c=>c.trackId===key.trackId&&c.clipId===key.clipId);
-  await d.setClipTransform({clip:await fresh(),scale:{x:1,y:o.s.windowH/(o.s.sourceH*1080/o.s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
-  await d.addVideoEffect({clip:await fresh(),label:"Shortform source panel",tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters:{sourceW:o.s.sourceW,sourceH:o.s.sourceH,windowH:o.s.windowH,panels:[o.panel],sourceX:0,sourceY:0,sourceZoom:100},editableParameters:${JSON.stringify(SOURCE_PANEL_CONTROLS)}});
+  await applyNative(fresh,o.s,o.panel);
  }
 }
 // Rebuild bottom-to-top so overlapping captions/logos keep their layer order.
