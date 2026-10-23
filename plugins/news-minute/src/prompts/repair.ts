@@ -1,3 +1,4 @@
+import { JSON_ONLY } from "./script.ts";
 import { TARGET_CHARS, totalChars } from "./text.ts";
 
 // Builds the follow-up prompt for a failed validation. `basePrompt` is the original script, fidelity or
@@ -16,6 +17,6 @@ export function repairPrompt(basePrompt: string, previous: any, errors: string[]
         " Add up the characters of all sentences before replying.",
     );
   }
-  lines.push("", "Reply with the full corrected JSON object only, no prose, no code fence.");
+  lines.push("", `Reply with the full corrected JSON object. ${JSON_ONLY}`);
   return `${basePrompt}\n${lines.join("\n")}`;
 }

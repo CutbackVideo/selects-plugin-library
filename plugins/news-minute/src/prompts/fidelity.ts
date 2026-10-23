@@ -1,5 +1,5 @@
 import type { Article, IdSentence } from "./types.ts";
-import { LENGTH_RULES, STYLE_RULES, articleBlock } from "./script.ts";
+import { JSON_ONLY, LENGTH_RULES, STYLE_RULES, articleBlock } from "./script.ts";
 
 export function fidelityPrompt(
   article: Article,
@@ -33,7 +33,7 @@ export function fidelityPrompt(
     "",
     LENGTH_RULES,
     "",
-    "OUTPUT: reply with one JSON object only, no prose, no code fence.",
+    `OUTPUT: ${JSON_ONLY}`,
     '{"headline":{"line1":"","line2":"","issues":[{"kind":"meaning|number|unsupported|ai_tone|register","note":""}]},"sentences":[{"id":"","text":"","sourceQuote":"","issues":[{"kind":"","note":""}],"rewritten":false}]}',
   ].join("\n");
 }

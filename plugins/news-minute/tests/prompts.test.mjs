@@ -49,3 +49,30 @@ test('repairPrompt adds a target range for length errors only', () => {
   assert.ok(!P.repairPrompt('BASE', prev, ['sentence 1: number "5" does not appear in the article']).includes('LENGTH FIX'));
   assert.ok(P.repairPrompt('BASE', {scenes: []}, ['scene 1: x']).includes('scene 1: x'));
 });
+
+test('parseJsonLoose survives chatty app-agent replies', () => {
+  const obj = {a: 1, b: {c: 'x}y'}};
+  const raw = JSON.stringify(obj);
+  const cases = [
+    `  \n${raw}\n  `,
+    `Sure, here is the script:\n${raw}`,
+    `Here you go.\n\`\`\`json\n${raw}\n\`\`\`\nLet me know if you want changes.`,
+    `${raw}\n\nNote: I kept {every} number as written.`,
+    `Result: {not json} then\n${raw}`,
+    '```\n{"a":1,"b":{"c":"x}y"},}\n```',
+    `\uFEFF${raw}`,
+  ];
+  for (const c of cases) assert.deepEqual(P.parseJsonLoose(c), obj, c);
+  assert.throws(() => P.parseJsonLoose('no json here'));
+});
+
+test('every prompt ends with the JSON-only instruction', () => {
+  const art = {title: 't', source: 's', date: 'd', body: 'b'};
+  const sent = [{id: 's1', text: 'x', startSec: 0, endSec: 1}];
+  for (const p of [
+    P.scriptPrompt(art),
+    P.fidelityPrompt(art, {headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x'}]}),
+    P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sent, assets: []}),
+    P.repairPrompt('BASE', {}, ['e']),
+  ]) assert.ok(p.includes('no code fence'));
+});
