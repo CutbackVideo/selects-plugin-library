@@ -130,7 +130,31 @@ longer than 60 seconds. Only CPU execution is supported. Face `scoreThreshold`
 controls YuNet detections; it is not a speaking threshold. Sampling overrides
 are rejected because Light-ASD requires consecutive 25 fps crops and aligned
 16 kHz audio. The task decodes bounded windows rather than scanning the full
-source PTS timeline.
+source PTS timeline, and reads no frame timestamps beyond the source origin.
+
+Every decoded frame is compared with its predecessor using a 64 × 36 RGB
+thumbnail with four samples per cell. Mean normalized RGB difference above
+0.04 and a changed-pixel fraction above 0.12 (pixel difference above 0.1)
+request every-frame detection for the whole window. This is a conservative
+appearance-change signal, not a semantic scene-cut classifier: broad motion
+or flashes may also trigger it; small local changes may not.
+
+Otherwise YuNet runs on every 8th decoded frame and the window's last frame.
+`faceDetectionStride: 8` describes the maximum stride, and
+`faceDetectionPolicy: "frame-change-dense-window"` identifies this policy.
+Metrics include `denseWindows`, `sparseWindows`, `changeMilliseconds`,
+`faceDetections`, and separate decode/face/ASD times. `changeWindows` diagnostics
+record triggered source windows and local change-frame indices.
+
+Sparse tracks join adjacent scheduled detections; dense tracks retain the
+existing five-frame gap tolerance. A track is
+kept when its detections stand for 70% of the window's frames. Between two
+detections of a track, every frame carries a face with linearly interpolated
+box and detector score, marked `interpolated: true` and without landmarks.
+Light-ASD scores every frame of a track from crops along that path, so
+interpolated faces carry `activeSpeakerScore` like detected ones. Nothing is
+extrapolated before a track's first or after its last detection. Faces that
+join no track appear only on detection frames.
 
 The primary output is `speakers.json` through `files.detections`. A sample
 contains source timestamps, source-pixel face boxes and optional

@@ -30,7 +30,9 @@ flowchart LR
 `speakers.detect` adds CPU Light-ASD AVA inference after YuNet face detection.
 It consumes a Video Resource with its own synchronized audio and an explicit
 source interval of at most 60 seconds. Internally it uses bounded 3-second
-windows, 25 fps face crops and 16 kHz MFCC audio. `speakers.json` contains
+windows, 25 fps face crops and 16 kHz MFCC audio. YuNet runs on every 8th
+frame in stable windows; a broad frame change switches the entire window to
+every-frame detection. Boxes between a track's detections are interpolated. `speakers.json` contains
 source-pixel faces, source timestamps, window-local track IDs and optional
 uncalibrated active-speaker logits. Missing scores mean unknown; positive scores
 are evidence, not calibrated probabilities or verified identities.
