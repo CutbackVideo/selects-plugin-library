@@ -79,7 +79,7 @@ const windowStart = (pick, want, f) => {
 // fresh Draft. The discarded Draft is never committed, so it is not saved.
 const lay = async (rate, final) => {
   d = await p.createDraft({ name: cfg.draftName });
-  await d.setFrameSize({ width: W, height: H });
+  // Applying the canvas before insert pins the default rate; let the first source adopt its rate first.
   fps = rate || (await d.meta()).fps;
   frames = framesAt(fps);
   placed = [];
