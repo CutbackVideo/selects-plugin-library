@@ -131,9 +131,11 @@ test('templates use independent settings without renderer families',{skip:!modul
    }
    if(id==='history'||id==='villain'){
     assert.equal(frame.headlineStrokeOn,false);
-    assert.ok(html.includes('gap:14px'));
+    assert.equal(frame.headlineRowGap,136);
+    const renderedGap=Number(html.match(/(?:;|")gap:([\d.]+)px/)[1]);
+    assert.ok(Math.abs(renderedGap-20)<1e-9);
     assert.ok(html.includes('padding:4px 18px 8px'));
-    assert.equal(frame.headlineSize1*frame.headlineLineHeight+6+14,136);
+    assert.ok(Math.abs(frame.headlineSize1*frame.headlineLineHeight+renderedGap-136)<1e-9);
    }
    if(correction.captions){
     const params=api.radioCaptionParams(template);
