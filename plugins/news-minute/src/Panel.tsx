@@ -90,9 +90,12 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const env = useRef<F.Env | null>(null);
   const latest = useRef<F.Session | null>(null);
   latest.current = s;
+  // Every call on the preview Draft goes through one queue, so a rename never overlaps a refill.
+  const onDraft = useRef(F.draftQueue()).current;
+  const renameNow = (_p: string, d: string, name: string) => run(sdk, renameDraftScript(d, name));
   const viewer: Viewer = {
-    open: (_p, d) => run(sdk, openDraftScript(d)),
-    rename: (_p, d, name) => run(sdk, renameDraftScript(d, name)),
+    open: (p, d) => onDraft(() => run(sdk, openDraftScript(d))),
+    rename: (p, d, name) => onDraft(() => renameNow(p, d, name)),
     seek: null,
     still: null,
   };
@@ -100,7 +103,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   const log: F.Log = (k, v) => { const m = T(k, v); setStatus(m); setLines((l) => [...l.slice(-40), new Date().toLocaleTimeString() + "  " + m]); };
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
-  const update = async (next: F.Session) => { setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
+  const update = async (next: F.Session) => { latest.current = next; setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
 
   useEffect(() => {
     (async () => {
@@ -159,15 +162,18 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   // Once the plan moves past the preview, the Draft's name says so in the editor too (once per change).
   const stale = !!(pv && s?.plan && pv.planRev !== F.previewRev(s));
+  // The check runs again when the queued rename's turn comes: a refill queued before it may have made it current.
   useEffect(() => {
-    const cur = latest.current;
-    if (!stale || busy || !cur?.preview || !cur.projectId) return;
-    const name = F.previewName(cur, T("stalePrefix"));
-    if (cur.preview.name === name) return;
-    const p = cur.preview;
-    viewer.rename(cur.projectId, p.draftId, name)
-      .then(() => { const now = latest.current; if (now?.preview?.draftId === p.draftId) update({ ...now, preview: { ...now.preview, name } }); })
-      .catch(() => {});
+    if (!stale || busy) return;
+    onDraft(async () => {
+      const cur = latest.current, p = cur?.preview;
+      if (!cur || !p || !cur.projectId || !cur.plan || p.planRev === F.previewRev(cur) || cur.videos?.includes(p.draftId)) return;
+      const name = F.previewName(cur, T("stalePrefix"));
+      if (p.name === name) return;
+      await renameNow(cur.projectId, p.draftId, name);
+      const now = latest.current;
+      if (now?.preview?.draftId === p.draftId) await update({ ...now, preview: { ...now.preview, name } });
+    }).catch(() => {});
   }, [stale, busy]);
 
   if (!s) return <div style={{ padding: 12 }}>{error || "\u2026"}</div>;
@@ -229,7 +235,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (blocking.length) { setError(T("previewBlocked", { errors: blocking.slice(0, 3).join("; ") })); return; }
     const rec = F.newRunRecord(preset.id, sess.article?.url ?? "");
     try {
-      const r = await F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec);
+      const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec));
       await update({ ...sess, preview: r.preview });
       await viewer.open(sess.projectId!, r.preview.draftId).catch(() => {});
       log("previewReady");
@@ -280,7 +286,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         rec.notes.push("video: preview Draft " + draftId + " renamed");
         log("videoFromPreview");
       } else {
-        const r = await F.assemble(sdk, env.current!, s, preset, log, rec, { name, reuse: s.preview });
+        const r = await onDraft(() => F.assemble(sdk, env.current!, s, preset, log, rec, { name, reuse: s.preview }));
         draftId = r.draftId;
         rec.notes.push("video: " + (r.refilled ? "preview Draft " + draftId + " refilled" : "new Draft " + draftId));
       }
@@ -292,7 +298,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     }
     finally { await finish(rec); }
     // The preview is used up: a later change to the plan starts a new preview Draft.
-    await update({ ...s, draftId, preview: null });
+    await update({ ...s, draftId, preview: null, videos: [...(s.videos ?? []).filter((d) => d !== draftId), draftId].slice(-50) });
     await viewer.open(s.projectId!, draftId).catch(() => {});
   });
 
@@ -306,7 +312,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   };
 
   // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); });
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); });
 
   const pick = (i: number) => {
     setPicked(i);

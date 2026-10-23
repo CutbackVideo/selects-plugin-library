@@ -6151,10 +6151,10 @@ async function revisePlan(sdk, env, s, preset, feedback, log, rec) {
   return { plan, kept: false };
 }
 var previewRev = (s) => ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
-var previewFresh = (s) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s));
+var previewFresh = (s) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s) && !s.videos?.includes(s.preview.draftId));
 var finalName = (s) => s.script?.headline.line1 || s.article?.title || "News short";
 var previewName = (s, prefix) => prefix + " \xB7 " + (s.article?.title || finalName(s));
-var canRefill = (p, projectId, presetId, plateLen) => !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0;
+var canRefill = (p, projectId, presetId, plateLen, videos = []) => !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
 var PartialDraftError = class extends Error {
   draft;
   preview = null;
@@ -6163,12 +6163,22 @@ var PartialDraftError = class extends Error {
     this.draft = draft;
   }
 };
+function draftQueue() {
+  let tail = Promise.resolve();
+  return (fn) => {
+    const p = tail.then(fn);
+    tail = p.catch(() => {
+    });
+    return p;
+  };
+}
 async function assemble(sdk, env, s, preset, log, rec, target) {
   const script = s.script, article = s.article, projectId = s.projectId, sp = s.plan;
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
   const texts = sentences.map((x2) => x2.text);
   const plateLen = plateSeconds(total);
-  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen) ? target.reuse : null;
+  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen, s.videos) ? target.reuse : null;
+  if (target?.reuse && !reuse && s.videos?.includes(target.reuse.draftId)) rec.notes.push("preview: Draft " + target.reuse.draftId + " is a video, not refilled");
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
@@ -6343,9 +6353,11 @@ function NewsMinutePanel({ sdk, context }) {
   const env = useRef(null);
   const latest = useRef(null);
   latest.current = s;
+  const onDraft = useRef(draftQueue()).current;
+  const renameNow = (_p, d, name) => run(sdk, renameDraftScript(d, name));
   const viewer = {
-    open: (_p, d) => run(sdk, openDraftScript(d)),
-    rename: (_p, d, name) => run(sdk, renameDraftScript(d, name)),
+    open: (p, d) => onDraft(() => run(sdk, openDraftScript(d))),
+    rename: (p, d, name) => onDraft(() => renameNow(p, d, name)),
     seek: null,
     still: null
   };
@@ -6360,6 +6372,7 @@ function NewsMinutePanel({ sdk, context }) {
     if (path) log("record", { path });
   };
   const update = async (next2) => {
+    latest.current = next2;
     setS(next2);
     await save(sdk, sessionKey(env.current?.projectId ?? next2.projectId), next2);
   };
@@ -6439,14 +6452,15 @@ function NewsMinutePanel({ sdk, context }) {
   }, [pv?.draftId, pv?.planRev, picked, busy, stills]);
   const stale = !!(pv && s?.plan && pv.planRev !== previewRev(s));
   useEffect(() => {
-    const cur = latest.current;
-    if (!stale || busy || !cur?.preview || !cur.projectId) return;
-    const name = previewName(cur, T("stalePrefix"));
-    if (cur.preview.name === name) return;
-    const p = cur.preview;
-    viewer.rename(cur.projectId, p.draftId, name).then(() => {
+    if (!stale || busy) return;
+    onDraft(async () => {
+      const cur = latest.current, p = cur?.preview;
+      if (!cur || !p || !cur.projectId || !cur.plan || p.planRev === previewRev(cur) || cur.videos?.includes(p.draftId)) return;
+      const name = previewName(cur, T("stalePrefix"));
+      if (p.name === name) return;
+      await renameNow(cur.projectId, p.draftId, name);
       const now = latest.current;
-      if (now?.preview?.draftId === p.draftId) update({ ...now, preview: { ...now.preview, name } });
+      if (now?.preview?.draftId === p.draftId) await update({ ...now, preview: { ...now.preview, name } });
     }).catch(() => {
     });
   }, [stale, busy]);
@@ -6519,7 +6533,7 @@ function NewsMinutePanel({ sdk, context }) {
     }
     const rec = newRunRecord(preset.id, sess.article?.url ?? "");
     try {
-      const r = await buildPreview(sdk, env.current, sess, preset, T("previewPrefix"), log, rec);
+      const r = await onDraft(() => buildPreview(sdk, env.current, sess, preset, T("previewPrefix"), log, rec));
       await update({ ...sess, preview: r.preview });
       await viewer.open(sess.projectId, r.preview.draftId).catch(() => {
       });
@@ -6584,7 +6598,7 @@ function NewsMinutePanel({ sdk, context }) {
         rec.notes.push("video: preview Draft " + draftId + " renamed");
         log("videoFromPreview");
       } else {
-        const r = await assemble(sdk, env.current, s, preset, log, rec, { name, reuse: s.preview });
+        const r = await onDraft(() => assemble(sdk, env.current, s, preset, log, rec, { name, reuse: s.preview }));
         draftId = r.draftId;
         rec.notes.push("video: " + (r.refilled ? "preview Draft " + draftId + " refilled" : "new Draft " + draftId));
       }
@@ -6595,7 +6609,7 @@ function NewsMinutePanel({ sdk, context }) {
     } finally {
       await finish(rec);
     }
-    await update({ ...s, draftId, preview: null });
+    await update({ ...s, draftId, preview: null, videos: [...(s.videos ?? []).filter((d) => d !== draftId), draftId].slice(-50) });
     await viewer.open(s.projectId, draftId).catch(() => {
     });
   });
@@ -6607,7 +6621,7 @@ function NewsMinutePanel({ sdk, context }) {
     update({ ...s, plan: { ...plan2, scenes, edited }, draftId: null });
   };
   const reset = () => guard(async () => {
-    await update({ ...emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null });
+    await update({ ...emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos });
     setUrl("");
     setText("");
     setOpenRow(null);
