@@ -1,83 +1,82 @@
 import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+// @heritage
 
-// 2-4 equal cards on the white data window, each with a coloured header and 1-2 rows of numbers.
-// The first row's value is large and in the accent colour, the rest are smaller and dark. Cards rise
-// in staggered and their numbers count up. `cards: [{ header, rows: [{ label, value, unit? }] }]`;
-// a string value is shown as written (no count-up).
-const decimals = (v) => {
-  const s = String(v);
-  return s.includes('.') ? s.length - s.indexOf('.') - 1 : 0;
-};
-// Korean graphics write 5000 but 12,500: group thousands only from five digits up.
-const fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });
-
-// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
-// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
+// Number cards (style spec 6-3): 2-4 cards side by side in x 60..1020 (gap 36; three cards are 296
+// wide), each with a green header band (84 tall, white 44/800 name) over a logo-gold 3 px line.
+// Cards rise 0.42 s apart, their first label 0.3 s later; once the last card is in, each card's key
+// number (72 crimson, unit 36) pops 0.22 s apart, then the second row (label 30/600 grey, value 38/800
+// ink, under a quiet divider) rises 0.18 s apart. Numbers pop, no count-up (spec 5-3).
+// `cards: [{ header, rows: [{ label, value: number | text, unit? }] }]`, at most two rows per card.
+const fmt = (v) => { const c = countable(v); return c && typeof v === 'number' ? counted(c, 1) : String(v ?? ''); };
 
 export default function StatCards({ data }) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const dur = Number(data?.durationSec) > 0 ? Math.round(Number(data.durationSec) * fps) : durationInFrames;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const accent = String(data?.accentColor ?? '#E8502F');
-  const headerColor = String(data?.headerColor ?? '#D9705A');
+  const accent = String(data?.accentColor ?? C.acc);
+  const band = String(data?.headerColor ?? C.green);
   const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 4);
   const n = Math.max(1, cards.length);
-  const title = String(data?.title ?? '');
   const subtitle = String(data?.subtitle ?? '');
-  const source = String(data?.source ?? '');
-  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };
-  const step = Math.min(Math.round(fps * 0.6), Math.round((dur * 0.4) / n));
-  const gap = 24, left = 60, cardW = (960 - gap * (n - 1)) / n;
-  const big = n >= 4 ? 56 : n === 3 ? 70 : 84;
+  const rowsOf = (c) => (Array.isArray(c?.rows) ? c.rows.slice(0, 2) : []);
+  const two = cards.some((c) => rowsOf(c).length > 1);
+  const at = (i) => 0.45 + 0.42 * i;
+  const numAt = at(n - 1) + 0.9;
+  const row2At = numAt + 0.8;
+  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise) or the last number pop.
+  const s = useScene(data, two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8);
+  const k = s.k;
+  const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
+  // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.
+  const Hc = two ? 450 : 300;
+  const y0 = (subtitle ? 206 : 186) + (450 - Hc) / 2;
   return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: '#FDFDFD', fontFamily, pointerEvents: 'none', overflow: 'hidden' }}>
-      {fontFace}
-      {title ? <div style={{ position: 'absolute', left: 65 * k, top: 60 * k, right: 65 * k, fontWeight: 800, fontSize: 46 * k, color: '#222222', letterSpacing: -1 * k }}>{title}</div> : null}
-      {subtitle ? <div style={{ position: 'absolute', left: 65 * k, top: 124 * k, right: 65 * k, fontWeight: 500, fontSize: 30 * k, color: '#8A8A8A' }}>{subtitle}</div> : null}
+    <Win s={s} data={data}>
+      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
       {cards.map((c, i) => {
-        const start = i * step;
-        const p = interpolate(frame, [start, start + Math.round(fps * 0.3)], [0, 1], ease);
-        const count = interpolate(frame, [start, start + Math.round(fps * 1.1)], [0, 1], ease);
-        const rows = Array.isArray(c?.rows) ? c.rows.slice(0, 2) : [];
+        const x = X0 + i * (W + gap), cx = x + W / 2, t0 = at(i);
+        const header = String(c?.header ?? '');
+        const [r0, r1] = rowsOf(c);
+        const v0 = fmt(r0?.value), u0 = String(r0?.unit ?? '');
+        const v1 = r1 ? fmt(r1.value) + String(r1.unit ?? '') : '';
+        // The key number and its unit shrink together only when they would overflow the card.
+        const sc = Math.min(1, (W - 28) / Math.max(1, ems(v0) * 72 + ems(u0) * 36 + 4));
         return (
-          <div key={i} style={{ position: 'absolute', left: (left + i * (cardW + gap)) * k, top: (240 + (1 - p) * 30) * k, width: cardW * k, height: 470 * k, opacity: p, borderRadius: 18 * k, background: '#F4F3F0', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', height: 96 * k, background: headerColor, color: '#FFFFFF', fontWeight: 800, fontSize: (n >= 4 ? 34 : 40) * k, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>{String(c?.header ?? '')}</div>
-            {rows.map((r, j) => {
-              const raw = r?.value;
-              const num = typeof raw === 'number';
-              const shown = num ? fmt(raw * count, decimals(raw)) : String(raw ?? '');
-              return (
-                <div key={j} style={{ marginTop: (j === 0 ? 40 : 34) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 500, fontSize: 30 * k, color: '#7A7A7A', whiteSpace: 'nowrap' }}>{String(r?.label ?? '')}</div>
-                  <div style={{ fontWeight: 900, fontSize: (j === 0 ? big : big * 0.62) * k, color: j === 0 ? accent : '#222222', letterSpacing: -1 * k, whiteSpace: 'nowrap', marginTop: 6 * k }}>
-                    {shown}<span style={{ fontSize: (j === 0 ? big : big * 0.62) * 0.5 * k, marginLeft: 3 * k }}>{String(r?.unit ?? '')}</span>
-                  </div>
+          <React.Fragment key={i}>
+            <Rise s={s} t0={t0} dur={0.9} dy={22} x={x} y={y0} anchor="lt">
+              <div style={{ ...cardStyle(s), position: 'relative', width: W * k, height: Hc * k }}>
+                {/* Inner coordinates are 2 px (the border) above and left of the sian card's. */}
+                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: fitSize(header, 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k }}>{header}</div>
+                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL }} />
+                {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line }} /> : null}
+              </div>
+            </Rise>
+            {r0?.label ? (
+              <Rise s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140}>
+                <div style={{ fontSize: fitSize(String(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}>{String(r0.label)}</div>
+              </Rise>
+            ) : null}
+            {r0 ? (
+              <Pop s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214}>
+                <div style={{ display: 'flex', alignItems: 'baseline', color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: 72 * sc * k, letterSpacing: -1.5 * sc * k }}>{v0}</span>
+                  {u0 ? <span style={{ fontSize: 36 * sc * k, fontWeight: 700, marginLeft: 2 * sc * k }}>{u0}</span> : null}
                 </div>
-              );
-            })}
-          </div>
+              </Pop>
+            ) : null}
+            {r1?.label ? (
+              <Rise s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330}>
+                <div style={{ fontSize: fitSize(String(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray }}>{String(r1.label)}</div>
+              </Rise>
+            ) : null}
+            {r1 ? (
+              <Rise s={s} t0={row2At + 0.18 * i + 0.12} dy={10} x={cx} y={y0 + 385}>
+                <div style={{ fontSize: fitSize(v1, 38, W - 24) * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k }}>{v1}</div>
+              </Rise>
+            ) : null}
+          </React.Fragment>
         );
       })}
-      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}
-    </div>
+      <Source s={s} text={String(data?.source ?? '')} />
+    </Win>
   );
 }
