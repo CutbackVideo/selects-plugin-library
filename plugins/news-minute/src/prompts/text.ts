@@ -1,8 +1,9 @@
 // Text helpers shared by the validators. Hangul is written as \uXXXX escapes (public-source check).
 
-// Measured with the default narration voice: 256 chars (spaces included) took 39.5 s.
-export const TTS_CHARS_PER_SEC = 6.5;
-export const TARGET_CHARS = { min: 340, goal: [360, 380] as [number, number], max: 390 };
+// Measured with the default narration voice: 6.5 chars/s on a 256-char script, 6.2 chars/s on a 376-char script
+// (60.6 s). Tuned to the slower run. Every length number in the prompts and validators is read from here.
+export const TTS_CHARS_PER_SEC = 6.2;
+export const TARGET_CHARS = { min: 320, goal: [340, 360] as [number, number], max: 370 };
 export const SENTENCE_COUNT = { min: 8, max: 14 };
 
 // Sentence endings: ...ni-da (formal), ...ni-kka-yo is not used; questions end with ...l-kka-yo.

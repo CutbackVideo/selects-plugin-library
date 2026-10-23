@@ -2,6 +2,7 @@ import type { Article, FidelityJson, PlanAsset, ScriptJson, TimedSentence, Valid
 import {
   SENTENCE_COUNT,
   TARGET_CHARS,
+  TTS_CHARS_PER_SEC,
   estimateSeconds,
   eojeolCount,
   headlineMax,
@@ -67,9 +68,9 @@ function checkRows(rows: Row[], headline: any, article: Article, errors: string[
 function checkLength(texts: string[], errors: string[]) {
   const chars = totalChars(texts);
   if (chars > TARGET_CHARS.max) {
-    errors.push(`narration is ${chars} chars (spaces included); the hard cap is ${TARGET_CHARS.max} (about 60 s). Shorten by at least ${chars - TARGET_CHARS.goal[1]} chars`);
+    errors.push(`narration is ${chars} chars (spaces included); the hard cap is ${TARGET_CHARS.max} (about ${Math.round(TARGET_CHARS.max / TTS_CHARS_PER_SEC)} s). Shorten by at least ${chars - TARGET_CHARS.goal[1]} chars`);
   } else if (chars < TARGET_CHARS.min) {
-    errors.push(`narration is only ${chars} chars; aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} (about 55-58 s)`);
+    errors.push(`narration is only ${chars} chars; aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} (about ${Math.round(TARGET_CHARS.goal[0] / TTS_CHARS_PER_SEC)}-${Math.round(TARGET_CHARS.goal[1] / TTS_CHARS_PER_SEC)} s)`);
   }
   return chars;
 }
