@@ -120,3 +120,12 @@ test('unshipped render programs cannot be managed and prevent every earlier pend
  fs.mkdirSync(path.dirname(path.join(dir,target)));fs.writeFileSync(path.join(dir,target),'// example:start\nold\n// example:end\n');registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');
  const before=fs.readFileSync(file('no14-still-video'),'utf8');assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
 }));
+
+test('only the canonical Chris source template can share the registered panel block',()=>fixture(({dir,run})=>{
+ const target='plugins/chris-williamson-style/src/panel.template.tsx',file=path.join(dir,target),registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));
+ fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(path.join(dir,'plugins/chris-williamson-style/plugin.json'),JSON.stringify({id:'chris-williamson-style',collection:'visual-highlights'}));fs.writeFileSync(file,'// example:start\nold\n// example:end\n// ORIGINAL TEMPLATE TAIL\n');registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,1);const result=run();assert.equal(result.status,0,result.stderr);assert.match(fs.readFileSync(file,'utf8'),/return 19/);assert.ok(fs.readFileSync(file,'utf8').endsWith('// ORIGINAL TEMPLATE TAIL\n'));assert.equal(run('--check').status,0);
+}));
+for(const target of ['plugins/no14-still-video/src/panel.template.tsx','plugins/chris-williamson-style/src/other.tsx','plugins/chris-williamson-style/src/../panel.tsx','plugins/chris-williamson-style/../../outside.tsx'])test('nonallowlisted source target rejects without changing an earlier panel: '+target,()=>fixture(({dir,file,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');const before=fs.readFileSync(file('no14-still-video'),'utf8');assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));

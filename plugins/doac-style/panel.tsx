@@ -590,6 +590,7 @@ async function runCaptionTemplate({sdk,context,currentProject,onStatus,onJob=()=
 function TemplateRun({sdk,context}){
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
  const [status,setStatus]=useState('Starting DOAC Style…');
+ const [finishedRun,setFinishedRun]=useState(null);
  const started=useRef(new Set()),live=useRef(null),project=useRef(context.projectId),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  project.current=context.projectId;
@@ -599,7 +600,7 @@ function TemplateRun({sdk,context}){
   started.current.add(runId);
   let done=false,job=null;
   // A superseded run stays quiet: the runtime reports under the current run id.
-  const finish=result=>{if(done)return;done=true;if(live.current===runId)sdk.finishTemplate(result);};
+  const finish=result=>{if(done)return;done=true;if(live.current===runId){setStatus('sequenceId' in result?'Done.':result.error);setFinishedRun(runId);sdk.finishTemplate(result);}};
   (async()=>{
    try{
     const result=await runCaptionTemplate({sdk,context,currentProject:()=>project.current,onStatus:setStatus,onJob:j=>{job=j;},isCurrent:()=>mounted.current&&live.current===runId});
@@ -611,7 +612,7 @@ function TemplateRun({sdk,context}){
    }
   })().catch(()=>finish({error:TEMPLATE_FALLBACK}));
  },[runId]);
- return <small>{status}</small>;
+ return <TemplateProgressView runId={runId} status={status} terminal={finishedRun===runId}/>;
 }
 function Panel(props){
   hostUseSdk(props.sdk);return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
@@ -1005,3 +1006,50 @@ function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: 
   }, [sdk?.updates]);
 }
 // app-update-guard:end
+
+// template-progress-adapter:start
+const sharedTemplateProgress=(()=>{const module={exports:{}};
+// template-progress:start
+// Read-only progress presentation. Existing consumer callbacks remain the only
+// source of stage information; clock ticks never imply work or completion.
+function createTemplateProgressView(React, timing = {}) {
+  const now = timing.now || (() => typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const schedule = timing.schedule || ((fn, ms) => setInterval(fn, ms));
+  const cancel = timing.cancel || (id => clearInterval(id));
+  const thresholdSeconds = 120;
+  return function TemplateProgressView({runId, status, busy = true, terminal = false}) {
+    const message = typeof status === 'string' && status.trim() ? status.trim() : 'Waiting for the first step…';
+    const snapshot = React.useRef(null);
+    const [, tick] = React.useState(0);
+    const stamp = now();
+    if (!snapshot.current || snapshot.current.runId !== runId) {
+      snapshot.current = {runId, message, changedAt: stamp, terminal: false};
+    }
+    const current = snapshot.current;
+    if (!current.terminal) {
+      if (current.message !== message) { current.message = message; current.changedAt = stamp; }
+      if (terminal || !busy) current.terminal = true;
+    }
+    const running = !current.terminal;
+    React.useEffect(() => {
+      if (!running) return;
+      let attached = true;
+      const timer = schedule(() => { if (attached) tick(value => value + 1); }, 1000);
+      return () => { attached = false; cancel(timer); };
+    }, [runId, running]);
+    const seconds = Math.floor(Math.max(0, stamp - current.changedAt) / 1000);
+    const h = React.createElement;
+    return h('section', {'aria-label': 'Template run progress', style: {display: 'grid', gap: 4, padding: '8px 0'}},
+      h('small', {role: 'status'}, running ? 'Current step: ' + current.message : current.message),
+      running && h('small', {'data-progress-age': true}, 'Last step change: ' + seconds + ' s ago.'),
+      running && seconds >= thresholdSeconds && h('p', {role: 'status', style: {margin: 0}},
+        'No new step update for ' + seconds + ' s. Completion has not been confirmed.'),
+      !running && h('small', null, 'Run finished.'),
+    );
+  };
+}
+module.exports = {createTemplateProgressView};
+// template-progress:end
+return module.exports;})();
+const TemplateProgressView=sharedTemplateProgress.createTemplateProgressView(React);
+// template-progress-adapter:end

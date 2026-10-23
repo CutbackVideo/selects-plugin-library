@@ -242,6 +242,17 @@
       "targets": [
         "plugins/jude-kinetic-style/panel.tsx"
       ]
+    },
+    {
+      "id": "template-progress",
+      "source": "shared/template-progress.cjs",
+      "targets": [
+        "plugins/jude-kinetic-style/panel.tsx",
+        "plugins/chris-williamson-style/panel.tsx",
+        "plugins/doac-style/panel.tsx",
+        "plugins/depth-type-captions/panel.tsx",
+        "plugins/chris-williamson-style/src/panel.template.tsx"
+      ]
     }
   ]
 }

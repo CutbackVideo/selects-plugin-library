@@ -62,12 +62,12 @@ try{
    consumers.add(match[1]);
   }
   for(const target of targets){
-   const match=typeof target==='string'&&/^plugins\/([a-z0-9-]+)\/(panel\.tsx|assets\/[a-z0-9-]+\.tsx)$/.exec(target);
-   requireValue(match&&!excluded.has(match[1]),'Invalid or excluded module consumer');
+   const match=typeof target==='string'&&/^plugins\/([a-z0-9-]+)\/(panel\.tsx|assets\/[a-z0-9-]+\.tsx|src\/panel\.template\.tsx)$/.exec(target);
+   requireValue(match&&!excluded.has(match[1])&&(match[2]!=='src/panel.template.tsx'||target==='plugins/chris-williamson-style/src/panel.template.tsx'),'Invalid or excluded module consumer');
    consumers.add(match[1]);
    const manifest=JSON.parse(readFileSync(path.join(root,'plugins',match[1],'plugin.json'),'utf8'));
    requireValue(manifest.id===match[1]&&(manifest.collection==='visual-highlights'||compatibility.includes(target)),'Module consumer is not a declared template or compatibility dependency');
-   requireValue(match[2]==='panel.tsx'||manifest.files?.includes(match[2]),'Render module consumer is not a declared shipped template file');
+   requireValue(match[2]==='panel.tsx'||target==='plugins/chris-williamson-style/src/panel.template.tsx'||manifest.files?.includes(match[2]),'Render module consumer is not a declared shipped template file');
    const filename=path.join(root,target),entry=updates.get(filename)||{before:readFileSync(filename,'utf8')};
    const current=entry.after??entry.before;
    const starts=[...current.matchAll(new RegExp('^'+start+'\\r?$','gm'))],ends=[...current.matchAll(new RegExp('^'+end+'\\r?$','gm'))];
