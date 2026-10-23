@@ -353,7 +353,7 @@ export type Env = {
   imageData?: (path:string) => Promise<string>;
   cleanLegacy?: (projectId:string,draftId:string) => Promise<any>;
   readCore?: (draftId:string) => Promise<any>;
-  capture?: (draftId:string,frames:number[]) => Promise<{dataUrl:string;name?:string}[]>;
+  capture?: (draftId:string,frames:number[]) => Promise<{dataUrl:string;name?:string;frames?:{frameNumber:number;hasSourceImage:boolean}[]}[]>;
   textMeasure?: () => Promise<(text: string) => number>;
   readText: (path: string) => Promise<string>;
   writeText: (path: string, text: string) => Promise<void>;
@@ -582,7 +582,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     imageData: async (path) => { const bytes=await hostReadBytes(path);let raw="";for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));return "data:image/jpeg;base64,"+btoa(raw); },
     cleanLegacy: (project,id) => removeLegacyFlashes(sdk,env,project,id),
     readCore: (id) => sdk.call("getDraftCore",id),
-    capture: async (id,frames) => {const core=await sdk.call("getDraftCore",id);if(!core.owner)throw Error("Draft owner missing");const c=await sdk.call("captureVisualFrames",{owner:core.owner,sequenceId:id,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:"resolved",includeOverlays:true,frames:frames.map(frameNumber=>({frameNumber,view:"timeline_composite"}))});return [{dataUrl:await smallImage("data:image/jpeg;base64,"+c.data),name:"Saved Draft"}];},
+    capture: async (id,frames) => {const core=await sdk.call("getDraftCore",id);if(!core.owner)throw Error("Draft owner missing");const c=await sdk.call("captureVisualFrames",{owner:core.owner,sequenceId:id,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:"resolved",includeOverlays:true,frames:frames.map(frameNumber=>({frameNumber,view:"timeline_composite"}))});return [{dataUrl:await smallImage("data:image/jpeg;base64,"+c.data),name:"Saved Draft",frames:c.frames}];},
     // Real keyword widths in em: the embedded Inter ExtraBold, and for Hangul/CJK the system font the renderer falls back to.
     textMeasure: async () => {
       const src = /url\((data:[^)]+)\)/.exec(await readText(hostJoin(paths.plugin, "fonts", "font.css")))?.[1];

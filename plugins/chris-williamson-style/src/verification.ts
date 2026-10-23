@@ -22,14 +22,25 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
   // Small contact sheets keep late captions readable rather than shrinking the
   // entire short into the first phrase/keyword's two sample frames.
   const batches:number[][]=[];for(let i=0;i<points.length;i+=8)batches.push(points.slice(i,i+8));
+  const images:any[]=[];
   for(const frames of batches) {
-    const capture=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const c=await d.captureFrames({frames:${JSON.stringify(frames)}});return {frames:c.frames,width:c.width,height:c.height};`,"Render representative saved frames");
-    if(!Array.isArray(capture.frames)||capture.frames.length!==frames.length||capture.frames.some((f:any)=>!f.hasSourceImage))throw new Error("One or more verification frames could not be rendered.");
+    // The host contact sheet already carries the source-render attestation.
+    // Reuse that same artifact for visual review instead of rendering it twice.
+    const captured=env.capture?await env.capture(draftId,frames):[];
+    const observed=captured.flatMap(image=>image.frames||[]);
+    if(observed.some(frame=>frame.hasSourceImage===false))throw new Error("One or more verification frames could not be rendered.");
+    const attested=observed.length===frames.length&&observed.every((frame,i)=>frame.frameNumber===frames[i]&&frame.hasSourceImage===true);
+    if(!attested) {
+      // Older/custom environments may omit metadata. Keep the existing source
+      // check in that case; absent evidence is never treated as a success.
+      const capture=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const c=await d.captureFrames({frames:${JSON.stringify(frames)}});return {frames:c.frames,width:c.width,height:c.height};`,"Render representative saved frames");
+      if(!Array.isArray(capture.frames)||capture.frames.length!==frames.length||capture.frames.some((f:any)=>f.hasSourceImage!==true))throw new Error("One or more verification frames could not be rendered.");
+    }
+    images.push(...captured.map(image=>({...image,name:"Saved Draft frames "+frames.join(", ")})));
   }
   let visual:any={status:"unverified",reason:"Visual review was not available"};
-  if(env.capture) {
+  if(images.length) {
     try {
-      const images=[];for(const frames of batches)images.push(...(await env.capture(draftId,frames)).map((image:any)=>({...image,name:"Saved Draft frames "+frames.join(", ")})));
       // The reference frame is a local calibration file; the public package does not ship it.
       let withReference=false;
       try{images.push({dataUrl:await env.imageData!(hostJoin(env.pluginDir,"evidence","reference-frame.jpg")),name:"Original reference: target small-caption scale and fixed phrase layout"});withReference=true;}catch{}
