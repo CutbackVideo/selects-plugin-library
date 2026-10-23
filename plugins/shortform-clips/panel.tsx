@@ -671,10 +671,14 @@ const tempName = () => ".tmp-" + Date.now().toString(36) + Math.random().toStrin
 // selects.files: the file service newer Selects versions give to scripts.
 async function sdkFiles(sdk: any): Promise<any> {
   const J = JSON.stringify;
+  const metrics={scriptCalls:0,scriptMs:0,readBytes:0};
   const run = async (script: string, write = false) => {
-    const r: any = await sdk.runScript({ script, summary: write ? "Save this app's files" : "Read this app's files", allowCommit: write });
-    if (r.isError) throw new Error(String(r.output || "selects.files failed").slice(0, 600));
-    return r.result;
+    const start=Date.now();if(!write)metrics.scriptCalls++;
+    try{
+      const r: any = await sdk.runScript({ script, summary: write ? "Save this app's files" : "Read this app's files", allowCommit: write });
+      if (r.isError) throw new Error(String(r.output || "selects.files failed").slice(0, 600));
+      return r.result;
+    }finally{if(!write)metrics.scriptMs+=Date.now()-start;}
   };
   const env = await run(`const e = await selects.files.environment(); return { platform: e.platform, home: e.homedir };`);
   if (!env || typeof env.home !== "string" || !env.home || typeof env.platform !== "string") throw new Error("selects.files is not available");
@@ -682,10 +686,12 @@ async function sdkFiles(sdk: any): Promise<any> {
     if (typeof base64 !== "string") throw new Error("Could not read " + path);
     const bytes = fromBase64(base64);
     if (bytes.length !== want) throw new Error(path + " changed while it was being read.");
+    metrics.readBytes+=bytes.length;
     return bytes;
   };
   return {
     via: "sdk",
+    readMetrics:()=>({...metrics}),
     home: env.home,
     windows: env.platform === "win32",
     // Three base64 chunks leave room for JSON inside the 256 KiB script response cap.
@@ -905,6 +911,31 @@ function hostFiles(b: any) {
     },
     readFile,
     readOptionalFile,
+    readMetrics:()=>b.readMetrics?.()||null,
+    // Read exactly these records; unlike readFolder, missing or unreadable records are never skipped.
+    async readFiles(paths:string[]):Promise<(Uint8Array|null)[]>{
+      if(!paths.length)return [];
+      const stats=await b.stat(paths),out:(Uint8Array|null)[]=paths.map(()=>null),tasks:(()=>Promise<void>)[]=[];
+      let group:number[]=[],size=0;
+      const flush=()=>{
+        if(!group.length)return;
+        const batch=group;group=[];size=0;
+        tasks.push(async()=>{
+          const values=await b.readWhole(batch.map(i=>paths[i]),batch.map(i=>stats[i].size));
+          batch.forEach((i,k)=>out[i]=values[k]);
+        });
+      };
+      stats.forEach((stat:any,i:number)=>{
+        if(!stat)return;
+        if(stat.dir)throw Error('Expected a saved file: '+paths[i]);
+        if(!stat.size){out[i]=new Uint8Array(0);return;}
+        if(stat.size>b.readPiece){tasks.push(async()=>{out[i]=await sized(paths[i],stat.size);});return;}
+        const cost=4*Math.ceil(stat.size/3)+64;
+        if(group.length>=24||size+cost>Math.floor(b.readPiece*4/3))flush();
+        group.push(i);size+=cost;
+      });
+      flush();await pooled(tasks,b.width,task=>task());return out;
+    },
     // Every file in a folder whose name matches, and that changed after `since` when given. Small files
     // share a call and the pieces of large ones are fetched side by side; a file that cannot be read is
     // left out.
@@ -1735,6 +1766,7 @@ function makeTemplateRepository(storage:any) {
   let queue:Promise<any>=Promise.resolve();
   const serial=(fn:any)=>{const next=queue.then(fn,fn);queue=next.catch(()=>{});return next;};
   const readRecord=async(kind:string,id:string)=>storage.get?storage.get(kind,id):(await storage.list(kind)).find((r:any)=>r.id===id);
+  const readRecords=async(kind:string,ids:string[])=>storage.getMany?storage.getMany(kind,ids):Promise.all(ids.map(id=>readRecord(kind,id)));
   const readIndex=async()=>{
     const index=await readRecord('template-library','index');
     if(index){safeJson(index);packAssert(index.schemaVersion===1&&Array.isArray(index.records),'Invalid template library.');}
@@ -1773,14 +1805,18 @@ function makeTemplateRepository(storage:any) {
     if(plainObject(value)){const out:any={};for(const [k,v] of Object.entries(value))out[k]=await hydrate(v,assets);return out;}
     return value;
   }
-  async function getSnapshot(id:string,assets=new Map<string,Promise<string>>()){
+  async function getSnapshot(id:string,assets=new Map<string,Promise<string>>(),snapshots?:Map<string,any>){
     packAssert(/^[a-f0-9]{64}$/.test(id),'Invalid template snapshot reference.');
-    const row=pendingSnapshots.get(id)||await readRecord('template-snapshots',id);
-    packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');
-    return validateTemplate(await hydrate(row.data,assets),true);
+    let data=snapshots?.get(id);
+    if(!snapshots?.has(id)){
+      const row=pendingSnapshots.get(id)||await readRecord('template-snapshots',id);
+      packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');data=row.data;
+    }
+    return validateTemplate(await hydrate(data,assets),true);
   }
-  async function state(){
+  async function state(onLegacy?:()=>void){
     const existing=await readIndex();if(existing)return existing;
+    onLegacy?.();
     const old=await legacy.load();
     packAssert(!old.errors.length,'Could not migrate templates: '+old.errors.join('; '));
     const records=[];
@@ -1814,13 +1850,56 @@ function makeTemplateRepository(storage:any) {
     return index;
   }
   const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
-  async function view(record:any,assets:Map<string,Promise<string>>){return {...await getSnapshot(record.working,assets),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
+  async function view(record:any,assets:Map<string,Promise<string>>,snapshots?:Map<string,any>){return {...await getSnapshot(record.working,assets,snapshots),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
   const api:any={
     fs:storage.fs,
-    async load(){try{const index=await state();
-      // One cache per load: reopening/reloading still observes edits and damaged files.
-      const assets=new Map<string,Promise<string>>();
-      return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map((r:any)=>view(r,assets))),packs:index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
+    async load(){
+      const started=Date.now(),before=storage.fs?.readMetrics?.();
+      const timing:any={route:storage.fs?.via||'other',legacy:false,templates:0,snapshots:0,assets:0,stateMs:0,snapshotsMs:0,assetsMs:0,hydrateMs:0,status:'error'};
+      let phase='state',phaseStart=started;
+      const next=(name:string)=>{timing[phase+'Ms']=Date.now()-phaseStart;phase=name;phaseStart=Date.now();};
+      try{
+        const index=await state(()=>timing.legacy=true),records=index.records.filter((r:any)=>!r.removed);
+        timing.templates=records.length;next('snapshots');
+        const ids=[...new Set<string>(records.map((r:any)=>r.working))],snapshots=new Map<string,any>();
+        ids.forEach(id=>packAssert(/^[a-f0-9]{64}$/.test(id),'Invalid template snapshot reference.'));
+        timing.snapshots=ids.length;
+        const needed=ids.filter(id=>!pendingSnapshots.has(id)),rows=await readRecords('template-snapshots',needed);
+        const byId=new Map(needed.map((id,i)=>[id,rows[i]]));
+        await Promise.all(ids.map(async id=>{
+          const row=pendingSnapshots.get(id)||byId.get(id);
+          packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');snapshots.set(id,row.data);
+        }));
+        next('assets');
+        const assetIds=new Set<string>();
+        const collect=(value:any)=>{
+          if(plainObject(value)&&Object.keys(value).length===1&&value.templateAsset){
+            packAssert(/^[a-f0-9]{64}$/.test(value.templateAsset),'Invalid template asset reference.');assetIds.add(value.templateAsset);
+          }else if(Array.isArray(value))value.forEach(collect);
+          else if(plainObject(value))Object.values(value).forEach(collect);
+        };
+        for(const data of snapshots.values())collect(data);
+        timing.assets=assetIds.size;
+        const missing=[...assetIds].filter(id=>!pendingAssets.has(id)),assetRows=await readRecords('template-assets',missing);
+        const assetById=new Map(missing.map((id,i)=>[id,assetRows[i]])),assets=new Map<string,Promise<string>>();
+        // One cache per load; verify every unique image before exposing any editable templates.
+        for(const id of assetIds)assets.set(id,(async()=>{
+          const row=pendingAssets.get(id)||assetById.get(id);
+          packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template image.');return row.data;
+        })());
+        await Promise.all(assets.values());next('hydrate');
+        const templates=await Promise.all(records.map((r:any)=>view(r,assets,snapshots)));
+        const packs=index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)}));
+        timing.status='ok';return {templates,packs,errors:[]};
+      }catch(e:any){return {templates:[],packs:[],errors:[e.message]};}
+      finally{
+        timing[phase+'Ms']=Date.now()-phaseStart;timing.totalMs=Date.now()-started;
+        const after=storage.fs?.readMetrics?.();
+        for(const key of ['scriptCalls','scriptMs','readBytes'])timing[key]=before&&after?after[key]-before[key]:null;
+        // Counts/timings only: no template contents, IDs or user file paths.
+        console.info('[shortform:template-load]',timing);
+      }
+    },
     put(kind:string,id:string,value:any){return serial(async()=>{
       packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
       const index=await mutableState(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
@@ -1932,6 +2011,11 @@ function makeStore(files: any) {
           return bytes?.length?JSON.parse(dec(bytes)):null;
         }
         return await files.exists(path)?JSON.parse(dec(await files.readFile(path))):null;
+      },
+      async getMany(kind:string,ids:string[]){
+        if(!files.readFiles)return Promise.all(ids.map(id=>this.get(kind,id)));
+        const values=await files.readFiles(ids.map(id=>files.join(dir(kind),id+".json")));
+        return values.map((bytes:Uint8Array|null)=>bytes?.length?JSON.parse(dec(bytes)):null);
       },
       async list(kind: string, since = 0) {
         const key=kind+":"+since;

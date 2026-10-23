@@ -60,8 +60,10 @@ test('template startup shares verified images and reduces Windows host calls',{s
   for(const p of expected)assert.equal(stats.filter(x=>x===p).length,1,p);
   for(const key of assets){const p=root+'\\'+key.replaceAll('/','\\')+'.json';assert.equal(ranges.filter(x=>x===p).length,Math.ceil(files.get(p).length/49152));}
   assert.equal(imageDigests().length,assets.length);
-  const expectedReadScripts=expected.reduce((n,p)=>n+Math.ceil(files.get(p).length/(144*1024)),0);
-  assert.equal(scripts.length,expected.length+expectedReadScripts);
+  // Index, all 12 settings, and the shared image each use one metadata + one read script.
+  assert.equal(scripts.length,6);
+  const metrics=filesApi.readMetrics();assert.equal(metrics.scriptCalls,7,'includes the initial environment query');
+  assert.equal(metrics.readBytes,expected.reduce((n,p)=>n+files.get(p).length,0));
   // Large records still respect the SDK's per-read and script response limits.
   const large={id:'large',data:'x'.repeat(340*1024)},largePath=root+'\\template-library\\large.json';
   files.set(largePath,Buffer.from(JSON.stringify(large)));stats.length=0;scripts.length=0;
