@@ -343,7 +343,7 @@ var narrationStatusScript = (workflowId) => ({
   script: `const j = selects.narration.job(${J(workflowId)});
 const s = await j.status();
 const r = await j.result();
-return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null, resourceId: (s as any).resourceId || null }, result: r };`
+return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null }, result: r };`
 });
 var resumeImportScript = (workflowId) => ({
   summary: "Finish importing the narration",
@@ -500,8 +500,8 @@ function creditQuote(chars) {
 }
 
 // src/prompts/text.ts
-var TTS_CHARS_PER_SEC = 6.5;
-var TARGET_CHARS = { min: 340, goal: [360, 380], max: 390 };
+var TTS_CHARS_PER_SEC = 6.2;
+var TARGET_CHARS = { min: 320, goal: [340, 360], max: 370 };
 var SENTENCE_COUNT = { min: 8, max: 14 };
 var FORMAL_END = /(\uB2C8\uB2E4|\uAE4C\uC694)[.?]$/;
 var SOFT_END = /\uB294\uB370\uC694[.?]$/;
@@ -611,7 +611,7 @@ function fidelityPrompt(article, script) {
     "REWRITE RULES",
     "- If a sentence has no issue, return it unchanged with rewritten=false and issues=[].",
     "- If it has an issue, rewrite that sentence minimally so it matches the article exactly, set rewritten=true, and list each issue with a short note in English (what was wrong and what you changed). Never paraphrase the meaning away to make a sentence smoother.",
-    "- A rewrite must not make the total longer: if the draft total is already above 380 characters, shorten while fixing. The final total must stay within the length rules below.",
+    `- A rewrite must not make the total longer: if the draft total is already above ${TARGET_CHARS.goal[1]} characters, shorten while fixing. The final total must stay within the length rules below.`,
     "- Keep the same ids in the same order. Do not add, drop, merge, or reorder sentences.",
     "- Set sourceQuote for each sentence to an exact contiguous substring of the article body that supports the final text.",
     "- The headline obeys the same checks; list its issues in headline.issues and fix it in place.",
@@ -718,9 +718,9 @@ function checkRows(rows, headline, article, errors, warnings) {
 function checkLength(texts, errors) {
   const chars = totalChars(texts);
   if (chars > TARGET_CHARS.max) {
-    errors.push(`narration is ${chars} chars (spaces included); the hard cap is ${TARGET_CHARS.max} (about 60 s). Shorten by at least ${chars - TARGET_CHARS.goal[1]} chars`);
+    errors.push(`narration is ${chars} chars (spaces included); the hard cap is ${TARGET_CHARS.max} (about ${Math.round(TARGET_CHARS.max / TTS_CHARS_PER_SEC)} s). Shorten by at least ${chars - TARGET_CHARS.goal[1]} chars`);
   } else if (chars < TARGET_CHARS.min) {
-    errors.push(`narration is only ${chars} chars; aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} (about 55-58 s)`);
+    errors.push(`narration is only ${chars} chars; aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} (about ${Math.round(TARGET_CHARS.goal[0] / TTS_CHARS_PER_SEC)}-${Math.round(TARGET_CHARS.goal[1] / TTS_CHARS_PER_SEC)} s)`);
   }
   return chars;
 }
@@ -1985,7 +1985,7 @@ async function pollNarration(sdk, rec) {
     await run(sdk, resumeImportScript(rec.workflowId));
     return rec;
   }
-  const result2 = r.result ? { resourceId: r.status?.resourceId || r.result.resourceId, durationSeconds: r.result.durationSeconds } : null;
+  const result2 = r.result ? { resourceId: r.result.resourceId, durationSeconds: r.result.durationSeconds } : null;
   const next = applyStatus(rec, r.status, result2);
   if (next.state !== rec.state || next.resourceId !== rec.resourceId) await save(sdk, ttsKey(rec.projectId), next);
   return next;
@@ -2068,7 +2068,7 @@ import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 };
 var muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
-var MAX_CHARS = 390;
+var MAX_CHARS = TARGET_CHARS.max;
 function NewsMinutePanel({ sdk, context }) {
   const lang = context?.language;
   const T = (k, v) => t(lang, k, v);
@@ -2262,7 +2262,7 @@ function NewsMinutePanel({ sdk, context }) {
           x.issues.map((v) => v.kind + (v.note ? " \u2013 " + v.note : "")).join("; ")
         ] }) : null
       ] }, x.id)),
-      /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / 6.5) }) }),
+      /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
       chars > MAX_CHARS ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
       approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
         /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("approved") }),

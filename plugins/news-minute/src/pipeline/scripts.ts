@@ -119,7 +119,7 @@ export const narrationStatusScript = (workflowId: string): ScriptCall => ({
   script: `const j = selects.narration.job(${J(workflowId)});
 const s = await j.status();
 const r = await j.result();
-return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null, resourceId: (s as any).resourceId || null }, result: r };`,
+return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null }, result: r };`,
 });
 
 export const resumeImportScript = (workflowId: string): ScriptCall => ({
