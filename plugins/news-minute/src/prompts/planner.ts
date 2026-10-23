@@ -1,3 +1,4 @@
+import { JSON_ONLY } from "./script.ts";
 import type { PlanAsset, TimedSentence } from "./types.ts";
 
 const CATALOG = `SCENE TYPES (pick one per scene; v1 subset)
@@ -49,7 +50,7 @@ export function plannerPrompt(input: {
     "- hideCaption is true only for number_callout, false otherwise.",
     "- sentenceIds must use the ids above. assetRef must be one of the refs above or omitted.",
     "",
-    "OUTPUT: reply with one JSON object only, no prose, no code fence.",
+    `OUTPUT: ${JSON_ONLY}`,
     '{"scenes":[{"sentenceIds":["s1"],"type":"news_photo","params":{},"hideCaption":false,"disclaimer":false,"assetRef":"photo-1"}]}',
   ].join("\n");
 }
