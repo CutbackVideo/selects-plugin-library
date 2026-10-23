@@ -27,7 +27,9 @@ PANEL = os.environ.get("MINI_VLOG_PANEL") or os.path.join(PLUGIN, "panel.tsx")
 # Mini keeps the inherited bootstrap/PCM recipe; its optional probe now carries terminal native failures.
 AV_HOST_SHA256 = "2a537b09eba5112faf8c0d944f9a4d3d5a42ac5c4e76e5cc53069e7db784efc5"
 AV_BEAT_SHA256 = "f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4"
-BEAT_DETECT_SHA256 = "562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c"
+# Reviewed canonical body: CLI process is an explicit Node dependency;
+# numerical output parity is covered by audio_beat_engine.test.mjs.
+BEAT_DETECT_SHA256 = "b13d28679657589d1e256eaa4d1c1c8fbc74ea0b0f840ea3c35a27c4aa3f07f0"
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end", re.S)
 AV_BEAT = re.compile(r"// av-beat-worker:start\n.*?// av-beat-worker:end", re.S)
