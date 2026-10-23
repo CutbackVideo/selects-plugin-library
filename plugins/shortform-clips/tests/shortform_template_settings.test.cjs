@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('templates use independent settings without renderer families',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(source+'\nexport {independentTemplateDesigns,normalizeTemplateSettings,validateTemplate,cleanTemplate,portableTemplate,templateEditorProfile,radioFrameParams,radioCaptionParams,forPlatform,merge,splitDate,withEpisodeDate,STRINGS,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {cropTransform,independentTemplateDesigns,normalizeTemplateSettings,validateTemplate,cleanTemplate,portableTemplate,templateEditorProfile,radioFrameParams,radioCaptionParams,forPlatform,merge,splitDate,withEpisodeDate,STRINGS,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const api=mod.exports;
  const raw=id=>JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/sbs-radio/templates/'+id+'.json'),'utf8'));
  const migrated=id=>api.validateTemplate(raw(id));
@@ -129,7 +129,13 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.match(mixed,/ChosunBg/);
     assert.match(mixed,/>與<\/span>/);
    }
-   if(id==='history'||id==='villain'){
+   if(id==='history'){
+    assert.equal(frame.headlineBaseline1,334);assert.equal(frame.headlineBaseline2,470);assert.equal(frame.headlineBoxPadding,10);
+    const moved=structuredClone(template);moved.layout.headlineCenter+=20;
+    const shifted=api.radioFrameParams(moved,'First','Second');assert.equal(shifted.headlineBaseline1,354);assert.equal(shifted.headlineBaseline2,490);
+    assert.match(html,/data-headline-baseline="334"/);assert.match(html,/data-headline-baseline="470"/);
+   }
+   if(id==='villain'){
     assert.equal(frame.headlineStrokeOn,false);
     assert.equal(frame.headlineRowGap,136);
     const renderedGap=Number(html.match(/(?:;|")gap:([\d.]+)px/)[1]);
@@ -143,6 +149,19 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.equal(params.fontSize,correction.captions.fontSize);
     assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'Caption'}).includes(correction.captions.font));
    }
+  }
+ });
+ await t.test('visual-team fixed placement contains the complete 16:9 frame',()=>{
+  for(const id of ['history','money','villain']){
+   const template=api.validateTemplate(JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates',id+'.json'),'utf8')));
+   const L=template.layout, tr=api.cropTransform(L);
+   assert.equal(L.reframe,false);assert.equal(L.splitPolicy,'never');
+   const width=1080*tr.scale,height=width*9/16;
+   const centerY=960-tr.posY/100*1920;
+   assert.ok(width<=1080.1,id+': neither side is cropped');
+   assert.ok(centerY-height/2>=L.windowTop-.1,id+': top is visible');
+   assert.ok(centerY+height/2<=L.windowBottom+.1,id+': bottom is visible');
+   assert.equal(tr.posX,0);
   }
  });
  await t.test('Panilgi preserves independent tracking and paragraph geometry',()=>{

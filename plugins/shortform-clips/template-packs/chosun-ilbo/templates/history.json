@@ -1,6 +1,6 @@
 {
   "id": "history",
-  "version": 3,
+  "version": 5,
   "names": {
     "ko": "\uc5ed\uc0ac\uc804\uc7c1",
     "en": "History War"
@@ -16,12 +16,12 @@
   "layout": {
     "windowTop": 557,
     "windowBottom": 1172,
-    "sourceTop": 0,
-    "sourceBottom": 1080,
+    "sourceTop": -6.666666666666629,
+    "sourceBottom": 1086.6666666666665,
     "offsetX": 0,
     "headlineCenter": 372,
     "logoCenter": 1358,
-    "reframe": true,
+    "reframe": false,
     "reframePreset": "speaker",
     "reframeFocus": "speaker",
     "splitPolicy": "never",
@@ -71,7 +71,11 @@
     "letterSpacing2": 0,
     "rowGap": 136,
     "offsetX1": -4.500269293785095,
-    "offsetX2": -4.500269293785095
+    "offsetX2": -4.500269293785095,
+    "baseline1": 334,
+    "baseline2": 470,
+    "boxPadding": 10,
+    "baselineCenter": 372
   },
   "logo": {
     "mode": "none",

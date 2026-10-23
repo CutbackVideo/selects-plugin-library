@@ -1,6 +1,6 @@
 {
   "id": "villain",
-  "version": 3,
+  "version": 4,
   "names": {
     "ko": "\uc545\uc778\uc804",
     "en": "Villains"
@@ -16,12 +16,12 @@
   "layout": {
     "windowTop": 558,
     "windowBottom": 1161,
-    "sourceTop": 0,
-    "sourceBottom": 1080,
+    "sourceTop": 0.0,
+    "sourceBottom": 1080.0,
     "offsetX": 0,
     "headlineCenter": 372,
     "logoCenter": 1494,
-    "reframe": true,
+    "reframe": false,
     "reframePreset": "speaker",
     "reframeFocus": "speaker",
     "splitPolicy": "never",
