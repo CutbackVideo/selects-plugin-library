@@ -21,3 +21,12 @@ test('common beat engine: the inherited raw float32 PCM CLI remains usable in ea
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'beat-engine-cli-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));const file=path.join(directory,'samples.f32'),input=samples();fs.writeFileSync(file,Buffer.from(input.buffer));
  for(const relative of ['shared/audio-beat-analysis.cjs',...consumers.map(id=>'plugins/'+id+'/beat-detect.cjs')]){const child=spawnSync(process.execPath,[path.join(root,relative),file,'22050'],{encoding:'utf8',timeout:30000,maxBuffer:1024*1024});assert.equal(child.status,0,relative+': '+child.stderr);const result=JSON.parse(child.stdout);assert.equal(result.accepted,true);assert.ok(Math.abs(result.bpm-120)<.2);}
 });
+test('common beat engine: CLI output-file mode preserves JSON on disk and its stdout acknowledgment',t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'beat-engine-outfile-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));const file=path.join(directory,'samples.f32'),input=samples();fs.writeFileSync(file,Buffer.from(input.buffer));
+ const expected=serial(require('../shared/audio-beat-analysis.cjs').analyze(input,22050));
+ for(const [index,relative] of ['shared/audio-beat-analysis.cjs',...consumers.map(id=>'plugins/'+id+'/beat-detect.cjs')].entries()){const output=path.join(directory,`${index}.json`),child=spawnSync(process.execPath,[path.join(root,relative),file,'22050',output],{encoding:'utf8',timeout:30000,maxBuffer:1024*1024});assert.equal(child.status,0,relative+': '+child.stderr);assert.deepEqual(JSON.parse(child.stdout),{ok:true},relative);assert.deepEqual(JSON.parse(fs.readFileSync(output,'utf8')),expected,relative);}
+});
+test('common beat engine: CLI input failure still reports JSON and exits unsuccessfully',t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'beat-engine-error-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));const file=path.join(directory,'missing.f32');
+ for(const relative of ['shared/audio-beat-analysis.cjs',...consumers.map(id=>'plugins/'+id+'/beat-detect.cjs')]){const child=spawnSync(process.execPath,[path.join(root,relative),file,'22050'],{encoding:'utf8',timeout:30000,maxBuffer:1024*1024});assert.equal(child.status,1,relative+': '+child.stderr);assert.match(JSON.parse(child.stdout).error,/ENOENT/,relative);assert.equal(child.stderr,'',relative);}
+});

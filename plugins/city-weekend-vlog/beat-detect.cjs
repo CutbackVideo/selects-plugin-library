@@ -431,6 +431,7 @@ function analyze(samples, sampleRate, opts) {
 module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux, takeFlip };
 
 if (require.main === module) {
+  const process = require('node:process');
   try {
     const [file, rate, out] = process.argv.slice(2);
     const fs = require('node:fs');
