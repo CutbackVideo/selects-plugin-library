@@ -60,7 +60,7 @@ test('batched template file reads preserve errors, budgets and complete-template
   try{await repo.load();const key=[...f.rows.keys()].find(k=>k.startsWith('template-assets/'));f.rows.delete(key);await repo.load();}
   finally{console.info=old;}
   assert.equal(logs.length,2);assert.ok(logs.every(([tag])=>tag==='[shortform:template-load]'));
-  const first=logs[0][1],second=logs[1][1];assert.equal(first.status,'ok');assert.equal(second.status,'error');
+  const first=JSON.parse(logs[0][1]),second=JSON.parse(logs[1][1]);assert.equal(first.status,'ok');assert.equal(second.status,'error');
   for(const key of ['stateMs','snapshotsMs','assetsMs','hydrateMs','totalMs'])assert.ok(Number.isFinite(first[key])&&first[key]>=0);
   assert.equal(first.templates,1);assert.equal(first.assets,1);assert.equal(first.scriptCalls,null,'unsupported route counters are not reported as zero');
   assert.ok(!JSON.stringify(logs).includes('data:image/'));assert.ok(!JSON.stringify(logs).includes('/test'));assert.ok(!JSON.stringify(logs).includes(pack.templates[0].id));

@@ -1897,7 +1897,7 @@ function makeTemplateRepository(storage:any) {
         const after=storage.fs?.readMetrics?.();
         for(const key of ['scriptCalls','scriptMs','readBytes'])timing[key]=before&&after?after[key]-before[key]:null;
         // Counts/timings only: no template contents, IDs or user file paths.
-        console.info('[shortform:template-load]',timing);
+        console.info('[shortform:template-load]',JSON.stringify(timing));
       }
     },
     put(kind:string,id:string,value:any){return serial(async()=>{
