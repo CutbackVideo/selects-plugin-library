@@ -269,8 +269,13 @@ function NewsMinutePanel({ sdk, context }: Props) {
     let draftId: string;
     try {
       // The reviewed preview becomes the video: renamed when it shows this plan, else filled again first.
+      // A preview Draft removed by hand fails the rename; the refill below then reports it gone and builds anew.
+      let renamed = false;
       if (F.previewFresh(s) && s.preview!.projectId === s.projectId) {
-        await viewer.rename(s.projectId!, s.preview!.draftId, name);
+        try { await viewer.rename(s.projectId!, s.preview!.draftId, name); renamed = true; }
+        catch (e: any) { rec.notes.push("video: preview Draft " + s.preview!.draftId + " not renamed (" + String(e?.message || e) + ")"); }
+      }
+      if (renamed) {
         draftId = s.preview!.draftId;
         rec.notes.push("video: preview Draft " + draftId + " renamed");
         log("videoFromPreview");

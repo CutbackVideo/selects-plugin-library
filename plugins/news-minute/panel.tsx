@@ -6570,8 +6570,16 @@ function NewsMinutePanel({ sdk, context }) {
     const name = finalName(s);
     let draftId;
     try {
+      let renamed = false;
       if (previewFresh(s) && s.preview.projectId === s.projectId) {
-        await viewer.rename(s.projectId, s.preview.draftId, name);
+        try {
+          await viewer.rename(s.projectId, s.preview.draftId, name);
+          renamed = true;
+        } catch (e) {
+          rec.notes.push("video: preview Draft " + s.preview.draftId + " not renamed (" + String(e?.message || e) + ")");
+        }
+      }
+      if (renamed) {
         draftId = s.preview.draftId;
         rec.notes.push("video: preview Draft " + draftId + " renamed");
         log("videoFromPreview");
