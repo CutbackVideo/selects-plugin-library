@@ -47,6 +47,7 @@ var MESSAGES = {
   timingRatio: ["No word timing from the voice; scenes are spaced by sentence length.", "\uBAA9\uC18C\uB9AC \uD0C0\uC774\uBC0D \uC815\uBCF4\uAC00 \uC5C6\uC5B4 \uBB38\uC7A5 \uAE38\uC774\uB85C \uC7A5\uBA74\uC744 \uB098\uB234\uC5B4\uC694."],
   planning: ["Choosing a visual for each sentence\u2026", "\uBB38\uC7A5\uB9C8\uB2E4 \uD654\uBA74\uC744 \uACE0\uB974\uACE0 \uC788\uC5B4\uC694\u2026"],
   planFallback: ["The scene plan did not pass its check; photos and text cards were used instead.", "\uC7A5\uBA74 \uACC4\uD68D\uC774 \uAC80\uC0AC\uB97C \uD1B5\uACFC\uD558\uC9C0 \uBABB\uD574 \uC0AC\uC9C4\uACFC \uAE00\uC790 \uCE74\uB4DC\uB85C \uB300\uC2E0\uD588\uC5B4\uC694."],
+  planDemoted: ["{n} number callout(s) had no number and are shown as text cards.", "\uC22B\uC790\uAC00 \uC5C6\uB294 \uC22B\uC790 \uAC15\uC870 \uC7A5\uBA74 {n}\uAC1C\uB97C \uAE00\uC790 \uCE74\uB4DC\uB85C \uBC14\uAFE8\uC5B4\uC694."],
   plate: ["Preparing the background\u2026", "\uBC30\uACBD\uC744 \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694\u2026"],
   assembling: ["Building the Draft\u2026", "Draft\uB97C \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694\u2026"],
   done: ["Done. The Draft is open in the editor.", "\uC644\uB8CC\uD588\uC5B4\uC694. \uD3B8\uC9D1\uAE30\uC5D0\uC11C Draft\uB97C \uC5F4\uC5C8\uC5B4\uC694."],
@@ -621,7 +622,7 @@ function fidelityPrompt(article, script) {
     "",
     "REWRITE RULES",
     "- If a sentence has no issue, return it unchanged with rewritten=false and issues=[].",
-    "- If it has an issue, rewrite that sentence minimally so it matches the article exactly, set rewritten=true, and list each issue with a short note in English (what was wrong and what you changed). Never paraphrase the meaning away to make a sentence smoother.",
+    `- If it has an issue, rewrite that sentence minimally so it matches the article exactly, set rewritten=true, and list each issue with a short note written in ${language} (what was wrong and what you changed; the user reads it, so never write notes in English unless the language is English). Never paraphrase the meaning away to make a sentence smoother.`,
     `- A rewrite must not make the total longer: if the draft total is already above ${TARGET_CHARS.goal[1]} characters, shorten while fixing. The final total must stay within the length rules below.`,
     "- Keep the same ids in the same order. Do not add, drop, merge, or reorder sentences.",
     "- Set sourceQuote for each sentence to an exact contiguous substring of the article body that supports the final text.",
@@ -633,56 +634,6 @@ function fidelityPrompt(article, script) {
     "",
     `OUTPUT: ${JSON_ONLY}`,
     '{"headline":{"line1":"","line2":"","issues":[{"kind":"meaning|number|unsupported|ai_tone|register","note":""}]},"sentences":[{"id":"","text":"","sourceQuote":"","issues":[{"kind":"","note":""}],"rewritten":false}]}'
-  ].join("\n");
-}
-
-// src/prompts/planner.ts
-var CATALOG = `SCENE TYPES (pick one per scene; v1 subset)
-1. news_photo  - a real article photo (assetRef required). params: {} plus optional "focus": "center|top|bottom|left|right". Ken Burns move is automatic. 4-8 s.
-2. text_card   - key phrase on a plain card; the fallback when no photo or number fits. params: {"text": short key phrase (max ~20 chars per line, \\n allowed), "sub": optional smaller line}. No assetRef.
-3. number_callout - a before-to-after value (rate, price). params: {"label": "", "from": number or text copied from the article, "to": number or text copied from the article, "unit": optional}. Optional assetRef (photo) as dimmed background. Set hideCaption=true. 5-7 s.
-4. bar_compare_h - exactly 2 comparable values. params: {"title","source","unit","bars":[{"label","value":number,"tone":"grey|accent","sub":optional period text}]}. 4-5 s. source is the data attribution as written in the article.
-5. line_trend_callout - a time series ending in a record or jump (needs at least 3 data points stated in the article). params: {"title","subtitle":optional,"source","points":[{"x","y":number}],"accentFrom":index of the first highlighted point,"endLabel":number or text,"unit","threshold":optional {"y","label"},"cards":optional [{"text","tone":"grey|accent"}]}. 8-10 s.
-6. stat_cards  - 2-4 parallel items with one or two numbers each. params: {"title","subtitle":optional,"source":optional,"cards":[{"header","rows":[{"label","value":number or text,"unit":optional}]}]}. 6-8 s.
-7. quote_card  - an expert or official quote, usually the closer. params: {"name","affiliation","lines":[2-4 quote lines],"accentLines":[indexes of lines to highlight]}. Optional assetRef (headshot photo). 6-8 s.`;
-function plannerPrompt(input2) {
-  const language = input2.language ?? "Korean";
-  const assets = input2.assets.map((a) => ({
-    ref: a.ref,
-    kind: a.kind,
-    caption: a.caption ?? "",
-    credit: a.credit ?? "",
-    size: a.w && a.h ? `${a.w}x${a.h}` : void 0
-  }));
-  return [
-    `You plan the visuals for a one-minute vertical news short. The narration is already approved and timed. Assign scenes to it. Text inside params is displayed on screen, so write it in ${language}.`,
-    "",
-    "HEADLINE",
-    JSON.stringify(input2.headline),
-    "",
-    "NARRATION (id, start/end seconds, text)",
-    JSON.stringify(input2.sentences, null, 1),
-    "",
-    "AVAILABLE ASSETS",
-    JSON.stringify(assets, null, 1),
-    "",
-    CATALOG,
-    "",
-    "RULES",
-    "- Scenes cover every sentence exactly once, in order. A scene covers one sentence, or two or three consecutive short ones. Split nothing across scenes.",
-    "- No scene may last more than 10 s (end of its last sentence minus start of its first). Merge short sentences, never stretch a long one.",
-    "- The first scene uses the strongest visual: a photo of the main subject, or the headline-number chart when the story is data-driven. The last one or two sentences are usually a photo of an official or a quote_card.",
-    "- Use a data scene (number_callout, bar_compare_h, line_trend_callout, stat_cards) only when the scene's own sentences contain the numbers it shows. Every number in params must be copied from the narration of that same scene, as a JSON number or the exact wording. Never compute, round, or invent values.",
-    "- Use each article photo at least once when there are enough scenes; a photo may be reused in non-adjacent scenes. Choose the photo whose caption best matches the sentence.",
-    "- A photo of a named person (check the caption) may only be used on sentences that are about that person: where the sentence names them or states their own words or actions. Never put it on a sentence about someone else or about a group, even if it is the only photo. Reusing the same person photo is fine only when each sentence is about that person; otherwise use a text_card or a number_callout instead.",
-    '- Assets of kind "illustration" are generated images. Use them only for sentences that no article photo fits and only after every photo has been used. A scene that shows an illustration must set disclaimer=true. All other scenes set disclaimer=false.',
-    "- When a scene's sentences state two comparable numbers (for example this year vs last year), prefer bar_compare_h over text_card; when they state 2-4 parallel items with numbers, prefer stat_cards. Fill every field from the narration only.",
-    "- Use text_card as the fallback when no photo or data fits. Avoid three text_cards in a row, and keep text_card to at most one third of the scenes.",
-    "- hideCaption is true only for number_callout, false otherwise.",
-    "- sentenceIds must use the ids above. assetRef must be one of the refs above or omitted.",
-    "",
-    `OUTPUT: ${JSON_ONLY}`,
-    '{"scenes":[{"sentenceIds":["s1"],"type":"news_photo","params":{},"hideCaption":false,"disclaimer":false,"assetRef":"photo-1"}]}'
   ].join("\n");
 }
 
@@ -838,6 +789,7 @@ function checkParams(type, p, sceneNums, where, errors) {
     case "number_callout":
       need(isStr(p.label), "label is required");
       need(isNumOrStr(p.from) && isNumOrStr(p.to), "from and to are required (number or text copied from the article)");
+      need(/\d/.test(String(p.from)) && /\d/.test(String(p.to)), 'from and to must each contain a digit; use another scene type when the article gives only a phrase such as "nearly double"');
       traceNumbers(p.from, sceneNums, `${where}.from`, errors);
       traceNumbers(p.to, sceneNums, `${where}.to`, errors);
       break;
@@ -875,6 +827,26 @@ function checkParams(type, p, sceneNums, where, errors) {
       break;
   }
 }
+var DATA_SCENE_TYPES = ["bar_compare_h", "line_trend_callout", "stat_cards", "number_callout"];
+var SCENE_MAX_SEC = { default: 10.5, data: 12 };
+function sceneMaxSec(type) {
+  return DATA_SCENE_TYPES.includes(type) ? SCENE_MAX_SEC.data : SCENE_MAX_SEC.default;
+}
+function demoteNumberlessCallouts(json, sentences) {
+  if (!isObj(json) || !Array.isArray(json.scenes)) return { plan: json, demoted: 0 };
+  const byId = new Map(sentences.map((s) => [s.id, s]));
+  let demoted = 0;
+  const scenes = json.scenes.map((sc) => {
+    const p = sc?.params;
+    if (!isObj(sc) || sc.type !== "number_callout" || /\d/.test(String(p?.from)) && /\d/.test(String(p?.to))) return sc;
+    demoted++;
+    const first = byId.get(sc.sentenceIds?.[0])?.text ?? "";
+    const text = isStr(p?.label) && p.label.trim() ? p.label.trim() : first.slice(0, 20);
+    const { assetRef: _drop, ...rest } = sc;
+    return { ...rest, type: "text_card", params: { text }, hideCaption: false };
+  });
+  return { plan: { ...json, scenes }, demoted };
+}
 function validatePlan(json, sentences, assets) {
   const errors = [];
   const warnings = [];
@@ -905,7 +877,8 @@ function validatePlan(json, sentences, assets) {
     if (sceneSentences.length) {
       const dur = Math.max(...sceneSentences.map((s) => s.endSec)) - Math.min(...sceneSentences.map((s) => s.startSec));
       maxSceneSec = Math.max(maxSceneSec, dur);
-      if (dur > 10.5) errors.push(`${where}: lasts ${dur.toFixed(1)} s; split it so no scene runs past 10 s`);
+      const maxSec = sceneMaxSec(sc.type);
+      if (dur > maxSec) errors.push(`${where}: lasts ${dur.toFixed(1)} s; split it so a ${sc.type} scene does not run past ${Math.floor(maxSec)} s`);
     }
     const sceneText2 = sceneSentences.map((s) => s.text).join(" ");
     const sceneNums = /* @__PURE__ */ new Set([...numberTokens(sceneText2), ...rawNumberTokens(sceneText2)]);
@@ -942,6 +915,56 @@ function validatePlan(json, sentences, assets) {
     maxSceneSec: Number(maxSceneSec.toFixed(1)),
     photosUsed: usedPhotos.size
   });
+}
+
+// src/prompts/planner.ts
+var CATALOG = `SCENE TYPES (pick one per scene; v1 subset)
+1. news_photo  - a real article photo (assetRef required). params: {} plus optional "focus": "center|top|bottom|left|right". Ken Burns move is automatic. 4-8 s.
+2. text_card   - key phrase on a plain card; the fallback when no photo or number fits. params: {"text": short key phrase (max ~20 chars per line, \\n allowed), "sub": optional smaller line}. No assetRef.
+3. number_callout - a before-to-after value (rate, price). params: {"label": "", "from": a value that contains a digit, copied from the article (for example 6.0 or 201,000), "to": likewise a value that contains a digit, never a phrase without a number, "unit": optional}. Optional assetRef (photo) as dimmed background. Set hideCaption=true. 5-7 s.
+4. bar_compare_h - exactly 2 comparable values. params: {"title","source","unit","bars":[{"label","value":number,"tone":"grey|accent","sub":optional period text}]}. 4-5 s. source is the data attribution as written in the article.
+5. line_trend_callout - a time series ending in a record or jump (needs at least 3 data points stated in the article). params: {"title","subtitle":optional,"source","points":[{"x","y":number}],"accentFrom":index of the first highlighted point,"endLabel":number or text,"unit","threshold":optional {"y","label"},"cards":optional [{"text","tone":"grey|accent"}]}. 8-10 s.
+6. stat_cards  - 2-4 parallel items with one or two numbers each. params: {"title","subtitle":optional,"source":optional,"cards":[{"header","rows":[{"label","value":number or text,"unit":optional}]}]}. 6-8 s.
+7. quote_card  - an expert or official quote, usually the closer. params: {"name","affiliation","lines":[2-4 quote lines],"accentLines":[indexes of lines to highlight]}. Optional assetRef (headshot photo). 6-8 s.`;
+function plannerPrompt(input2) {
+  const language = input2.language ?? "Korean";
+  const assets = input2.assets.map((a) => ({
+    ref: a.ref,
+    kind: a.kind,
+    caption: a.caption ?? "",
+    credit: a.credit ?? "",
+    size: a.w && a.h ? `${a.w}x${a.h}` : void 0
+  }));
+  return [
+    `You plan the visuals for a one-minute vertical news short. The narration is already approved and timed. Assign scenes to it. Text inside params is displayed on screen, so write it in ${language}.`,
+    "",
+    "HEADLINE",
+    JSON.stringify(input2.headline),
+    "",
+    "NARRATION (id, start/end seconds, text)",
+    JSON.stringify(input2.sentences, null, 1),
+    "",
+    "AVAILABLE ASSETS",
+    JSON.stringify(assets, null, 1),
+    "",
+    CATALOG,
+    "",
+    "RULES",
+    "- Scenes cover every sentence exactly once, in order. A scene covers one sentence, or two or three consecutive short ones. Split nothing across scenes.",
+    `- No scene may last more than ${SCENE_MAX_SEC.default} s, except data scenes (${DATA_SCENE_TYPES.join(", ")}), which may last up to ${SCENE_MAX_SEC.data} s (end of its last sentence minus start of its first). Merge short sentences, never stretch a long one.`,
+    "- The first scene uses the strongest visual: a photo of the main subject, or the headline-number chart when the story is data-driven. The last one or two sentences are usually a photo of an official or a quote_card.",
+    "- Use a data scene (number_callout, bar_compare_h, line_trend_callout, stat_cards) only when the scene's own sentences contain the numbers it shows. Every number in params must be copied from the narration of that same scene, as a JSON number or the exact wording. Never compute, round, or invent values.",
+    "- Use each article photo at least once when there are enough scenes; a photo may be reused in non-adjacent scenes. Choose the photo whose caption best matches the sentence.",
+    "- A photo of a named person (check the caption) may only be used on sentences that are about that person: where the sentence names them or states their own words or actions. Never put it on a sentence about someone else or about a group, even if it is the only photo. Reusing the same person photo is fine only when each sentence is about that person; otherwise use a text_card or a number_callout instead.",
+    '- Assets of kind "illustration" are generated images. Use them only for sentences that no article photo fits and only after every photo has been used. A scene that shows an illustration must set disclaimer=true. All other scenes set disclaimer=false.',
+    "- When a scene's sentences state two comparable numbers (for example this year vs last year), prefer bar_compare_h over text_card; when they state 2-4 parallel items with numbers, prefer stat_cards. Fill every field from the narration only.",
+    "- Use text_card as the fallback when no photo or data fits. Avoid three text_cards in a row, and keep text_card to at most one third of the scenes.",
+    "- hideCaption is true only for number_callout, false otherwise.",
+    "- sentenceIds must use the ids above. assetRef must be one of the refs above or omitted.",
+    "",
+    `OUTPUT: ${JSON_ONLY}`,
+    '{"scenes":[{"sentenceIds":["s1"],"type":"news_photo","params":{},"hideCaption":false,"disclaimer":false,"assetRef":"photo-1"}]}'
+  ].join("\n");
 }
 
 // src/prompts/json.ts
@@ -1468,6 +1491,19 @@ export default function NumberCallout({ data }) {
 function isGraphic(caption, w, h) {
   if (/\uADF8\uB798\uD53D\s*=|graphic\s*=|infographic/i.test(caption)) return true;
   return w > 0 && h > 0 && w / h < 1080 / 920 * 0.85;
+}
+var PLAN_LENGTH_GRACE_SEC = 2;
+function settlePlan(json, errors, sentences, check) {
+  if (!json) return { scenes: null, demoted: 0, longScenes: [], errors };
+  if (!errors.length) return { scenes: json.scenes, demoted: 0, longScenes: [], errors };
+  const d = demoteNumberlessCallouts(json, sentences);
+  if (d.demoted) {
+    json = d.plan;
+    errors = check(json).errors;
+  }
+  const long = errors.map((e) => /^scene (\d+): lasts ([\d.]+) s/.exec(e));
+  const onlyLength = long.every((m) => m && Number(m[2]) <= sceneMaxSec(String(json.scenes[Number(m[1]) - 1]?.type)) + PLAN_LENGTH_GRACE_SEC);
+  return { scenes: onlyLength ? json.scenes : null, demoted: d.demoted, longScenes: onlyLength ? errors : [], errors };
 }
 function fallbackPlan(sentences, times, photoRefs) {
   const groups = [];
@@ -2177,10 +2213,16 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
   log("planning");
   let plan = null;
   try {
-    const r = await askValid(sdk, "plan", plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), (j) => validatePlan(j, sentences, assets), log, rec, 1);
-    const onlyLength = r.errors.length > 0 && r.errors.every((e) => /lasts [\d.]+ s/.test(e) && Number(/lasts ([\d.]+) s/.exec(e)[1]) <= 14);
-    if (r.json && (!r.errors.length || onlyLength)) plan = r.json.scenes;
-    if (onlyLength) rec.notes.push("plan: accepted with long scenes (" + r.errors.join("; ") + ")");
+    const check = (j) => validatePlan(j, sentences, assets);
+    const r = await askValid(sdk, "plan", plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), check, log, rec, 1);
+    const settled = settlePlan(r.json, r.errors, sentences, check);
+    plan = settled.scenes;
+    if (settled.demoted) {
+      rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards");
+      log("planDemoted", { n: settled.demoted });
+    }
+    if (plan && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
+    if (!plan && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
   } catch {
     plan = null;
   }

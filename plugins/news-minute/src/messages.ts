@@ -39,6 +39,7 @@ export const MESSAGES: Record<string, [string, string]> = {
   timingRatio: ["No word timing from the voice; scenes are spaced by sentence length.", "\ubaa9\uc18c\ub9ac \ud0c0\uc774\ubc0d \uc815\ubcf4\uac00 \uc5c6\uc5b4 \ubb38\uc7a5 \uae38\uc774\ub85c \uc7a5\uba74\uc744 \ub098\ub234\uc5b4\uc694."],
   planning: ["Choosing a visual for each sentence\u2026", "\ubb38\uc7a5\ub9c8\ub2e4 \ud654\uba74\uc744 \uace0\ub974\uace0 \uc788\uc5b4\uc694\u2026"],
   planFallback: ["The scene plan did not pass its check; photos and text cards were used instead.", "\uc7a5\uba74 \uacc4\ud68d\uc774 \uac80\uc0ac\ub97c \ud1b5\uacfc\ud558\uc9c0 \ubabb\ud574 \uc0ac\uc9c4\uacfc \uae00\uc790 \uce74\ub4dc\ub85c \ub300\uc2e0\ud588\uc5b4\uc694."],
+  planDemoted: ["{n} number callout(s) had no number and are shown as text cards.", "\uc22b\uc790\uac00 \uc5c6\ub294 \uc22b\uc790 \uac15\uc870 \uc7a5\uba74 {n}\uac1c\ub97c \uae00\uc790 \uce74\ub4dc\ub85c \ubc14\uafe8\uc5b4\uc694."],
   plate: ["Preparing the background\u2026", "\ubc30\uacbd\uc744 \uc900\ube44\ud558\uace0 \uc788\uc5b4\uc694\u2026"],
   assembling: ["Building the Draft\u2026", "Draft\ub97c \ub9cc\ub4e4\uace0 \uc788\uc5b4\uc694\u2026"],
   done: ["Done. The Draft is open in the editor.", "\uc644\ub8cc\ud588\uc5b4\uc694. \ud3b8\uc9d1\uae30\uc5d0\uc11c Draft\ub97c \uc5f4\uc5c8\uc5b4\uc694."],

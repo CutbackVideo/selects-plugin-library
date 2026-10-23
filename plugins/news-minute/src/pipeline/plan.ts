@@ -1,7 +1,8 @@
 // Visual plan -> timed scene clips. A plan that fails validation after one repair falls back to a simple
 // photo / text-card plan so the run never stops at scene selection.
 
-import type { PlanScene } from "../prompts/types.ts";
+import type { PlanScene, TimedSentence } from "../prompts/types.ts";
+import { demoteNumberlessCallouts, sceneMaxSec } from "../prompts/validate.ts";
 import { captionChunks, sceneWindows, type Span } from "./timing.ts";
 import type { SceneClip } from "./assemble.ts";
 import { TEMPLATES } from "../templates/generated.ts";
@@ -17,6 +18,22 @@ export function isGraphic(caption: string, w: number, h: number): boolean {
 }
 
 const MAX_SCENE_SEC = 10;
+
+// How far past its type's limit a scene may run before the plan falls back.
+export const PLAN_LENGTH_GRACE_SEC = 2;
+
+// Settles a plan that still has errors after repair: number callouts without a number become text cards
+// (then the plan is checked again), and a plan whose only remaining errors are scenes at most
+// PLAN_LENGTH_GRACE_SEC over their type's limit is kept. scenes is null when the plan should fall back.
+export function settlePlan(json: any, errors: string[], sentences: TimedSentence[], check: (json: any) => { errors: string[] }): { scenes: PlanScene[] | null; demoted: number; longScenes: string[]; errors: string[] } {
+  if (!json) return { scenes: null, demoted: 0, longScenes: [], errors };
+  if (!errors.length) return { scenes: json.scenes, demoted: 0, longScenes: [], errors };
+  const d = demoteNumberlessCallouts(json, sentences);
+  if (d.demoted) { json = d.plan; errors = check(json).errors; }
+  const long = errors.map((e) => /^scene (\d+): lasts ([\d.]+) s/.exec(e));
+  const onlyLength = long.every((m) => m && Number(m[2]) <= sceneMaxSec(String(json.scenes[Number(m[1]) - 1]?.type)) + PLAN_LENGTH_GRACE_SEC);
+  return { scenes: onlyLength ? json.scenes : null, demoted: d.demoted, longScenes: onlyLength ? errors : [], errors };
+}
 
 // One scene per sentence (two short ones merged while under 6 s); each article photo once, text cards between.
 export function fallbackPlan(sentences: Sentence[], times: Span[], photoRefs: string[]): PlanScene[] {
