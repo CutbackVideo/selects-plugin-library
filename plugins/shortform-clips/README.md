@@ -613,3 +613,30 @@ The Chosun Ilbo pack under `template-packs/chosun-ilbo/` restores six legacy des
 See `tests/regression/README.md` for repeatable real-footage cases and local HTML runs.
 
 Reapplying remembers template-owned tracks per project and Draft. If their clips were deleted, empty owned tracks are removed before graphics are added again; occupied tracks and unrelated empty tracks are preserved. Tracks left empty before this ownership record existed cannot be identified automatically.
+
+## Diagnose template startup
+
+The app shows the template list after reading names and detection rules, without
+reading template images. Images are loaded and verified when needed for the
+selected editor, manual application, clip generation or result-cover settings.
+An image error leaves the picker usable and offers a retry. Saving, exporting
+and generation require a complete, validated template.
+
+Startup emits `[shortform:template-list]` with state and snapshot timings and
+counts; selected-image loads emit `[shortform:template-selected]`. The full-library
+compatibility loader emits `[shortform:template-load]` with additional image and
+hydration timings. Diagnostics report total elapsed time and success or failure;
+list/full loads also indicate whether legacy migration was needed. Legacy libraries
+still read their old embedded images during migration until a library index exists.
+On the SDK file route, it includes file-script count, bytes read and summed script
+time. Summed concurrent script time can exceed total elapsed time; counter deltas
+can include overlapping file work on the same adapter. Unsupported counters are
+`null`. Template contents, IDs and user paths are excluded.
+
+For a slow Windows opening, record these diagnostics for the first opening and a
+close/reopen using the same app version and installed template library. Compare
+`totalMs` and stage times, then `scriptCalls` and `readBytes`. Host call counts in
+Node-based SDK simulations are regression evidence, not measured Windows latency.
+The initial list contains no image data or editable design fields. Every selected
+template is verified before it reaches editing, export or generation. Switching
+selection ignores late results from the previous request.
