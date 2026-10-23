@@ -648,6 +648,105 @@ async function depthReadText(fs, path) {
 const DEPTH_MATTE_GROW = 0;
 // Version 6 normalizes the preset render to the exact draft canvas before shared RVM.
 const DEPTH_MATTE_VERSION = 6;
+// Faces are detected on the normalized CFR render: display pixels map directly
+// to canvas percentages. Every frame of a phrase must be observed; gaps and
+// empty detections are unknown, never evidence that a face-free lane exists.
+function depthFaceSamples(data, expected) {
+  const unknown=reason=>({status:'unverified',reason,fps:expected.fps,frames:expected.frames,samples:[]});
+  if(data?.task!=='faces.detect'||data.coordinateSpace!=='display-pixels'||data.boxFormat!=='xyxy'||data.frameSize?.width!==expected.width||data.frameSize?.height!==expected.height||!Array.isArray(data.samples))return unknown('Face coordinates do not match the normalized canvas.');
+  const samples=[];const seen=new Set();
+  for(const sample of data.samples){
+    const index=Number(sample.index),time=Number(sample.sourceTimeSeconds);
+    if(!Number.isSafeInteger(index)||index<0||index>=expected.frames||seen.has(index)||!Number.isFinite(time)||Math.abs(time-index/expected.fps)>0.5/expected.fps+0.0001)return unknown('Face observations do not match the normalized frame clock.');
+    seen.add(index);const boxes=[];
+    for(const face of Array.isArray(sample.faces)?sample.faces:[]){
+      const b=face.box,score=Number(face.score);if(!b||!(score>=.8))continue;
+      const x=Number(b.xmin),y=Number(b.ymin),right=Number(b.xmax),bottom=Number(b.ymax);
+      if(![x,y,right,bottom].every(Number.isFinite)||x<0||y<0||right>expected.width||bottom>expected.height||right<=x||bottom<=y)return unknown('Face bounds are invalid.');
+      // Expand observed boxes for detector error and the edge of facial features.
+      const mx=(right-x)*.1+expected.width*.01,my=(bottom-y)*.1+expected.height*.01;
+      boxes.push({x:Math.max(0,(x-mx)/expected.width*100),y:Math.max(0,(y-my)/expected.height*100),right:Math.min(100,(right+mx)/expected.width*100),bottom:Math.min(100,(bottom+my)/expected.height*100)});
+    }
+    samples.push({index,boxes});
+  }
+  return {status:'observed',fps:expected.fps,frames:expected.frames,coverage:{requiredFrames:expected.frames,observedFrames:seen.size,framesWithFaces:samples.filter(s=>s.boxes.length).length,missingFrames:expected.frames-seen.size,complete:seen.size===expected.frames},samples};
+}
+async function depthPrepareFaces(sdk,pid,resourceId,preview,job,control,signal,progress){
+  const expected={width:preview.width,height:preview.height,fps:preview.fps,frames:Math.round(preview.duration*preview.fps)};
+  try{
+    const client=videoAiClient(sdk,pid,'depth-face-protection:'+job.dir),identity=preview.sourceKey+':every-frame-faces-v1';
+    control.cancelAi=()=>client.cancel({identity});
+    const result=await client.run({task:'faces.detect',resourceId,sourceRange:{startSeconds:0,endSeconds:preview.duration},options:{sampleEverySeconds:.5/preview.fps,scoreThreshold:.8,provider:'cpu'}},{identity,signal,retryTerminal:control.retryAi===true,onProgress:()=>progress('Checking face clearance…')});
+    const read=await sdk.runScript({summary:'Read face clearance for the normalized canvas',allowCommit:false,script:`const data:any=await selects.ai.readJSON(${JSON.stringify(result.result.files.detections)},${JSON.stringify(pid)});return (${depthFaceSamples.toString()})(data,${JSON.stringify(expected)});`});
+    if(read.isError||!read.result)throw new Error('Face observations are unavailable.');return read.result;
+  }catch(error){if(signal.aborted)throw error;return {status:'unverified',reason:'Face detection could not be verified.',fps:expected.fps,frames:expected.frames,samples:[]};}
+}
+function depthFaceSummary(plan){return {faceUnresolved:plan.filter(p=>p.faceProtection?.status==='unresolved').length,faceUnverified:plan.filter(p=>p.faceProtection?.status==='manual-unverified').length,frontPhrases:plan.filter(p=>p.layers.some(l=>l.depth==='front')).length};}
+function depthProtectFrontFaces(plan,faces,settings,width,height){
+  const byFrame=new Map((faces?.samples||[]).map(s=>[s.index,s.boxes]));
+  const hit=(a,b)=>a.x<b.right&&a.x+a.w>b.x&&a.y<b.bottom&&a.y+a.h>b.y;
+  return plan.map(phrase=>{
+    if(phrase.layers.some(l=>Object.keys(l.wordEdits||{}).length))return {...phrase,faceProtection:{status:'manual-unverified',reason:'Per-word manual positioning was preserved.'}};
+    const front=phrase.layers.filter(l=>l.depth==='front');if(!front.length)return phrase;
+    // Never turn missing geometry or insufficient room into hidden body text.
+    const unresolved=reason=>({...phrase,faceProtection:{status:'unresolved',reason}});
+    if(faces?.status!=='observed'||!(faces.fps>0))return unresolved('Face observations are unverified; original text was preserved.');
+    const first=Math.max(0,Math.floor(phrase.start*faces.fps+1e-6)),last=Math.min(faces.frames,Math.ceil(phrase.end*faces.fps-1e-6)),protectedBoxes=[];
+    for(let i=first;i<last;i++){const boxes=byFrame.get(i);if(!boxes?.length)return unresolved('A face observation is missing during this phrase; original text was preserved.');protectedBoxes.push(...boxes);}
+    if(!protectedBoxes.length)return unresolved('No face interval was verified; original text was preserved.');
+    // Uniform width/height changes preserve the normalized glyph geometry. The
+    // renderer uses the same minimum of width-fit and height-fit font sizes.
+    const glyphs=new Map(phrase.layers.map(l=>[l.id,depthMeasureGlyphs(l,settings,width,height)]));
+    const bounds=l=>{const boxes=(glyphs.get(l.id)||[]).map(g=>({x:l.x+g.x*l.width,y:l.y+g.y*l.height,w:g.w*l.width,h:g.h*l.height}));if(!boxes.length)return null;const x=Math.min(...boxes.map(b=>b.x))-.2,y=Math.min(...boxes.map(b=>b.y))-.2;return {x,y,w:Math.max(...boxes.map(b=>b.x+b.w))-x+.2,h:Math.max(...boxes.map(b=>b.y+b.h))-y+.2};};
+    const ink=front.map(bounds),backInk=phrase.layers.filter(l=>l.depth!=='front').map(bounds).filter(Boolean);
+    const obstacles=[...protectedBoxes,...backInk.map(b=>({x:b.x,y:b.y,right:b.x+b.w,bottom:b.y+b.h}))];
+    if(ink.some(b=>!b))return unresolved('Glyph bounds are unverified; original text was preserved.');
+    if(ink.every(b=>b.x>=1&&b.y>=1&&b.x+b.w<=99&&b.y+b.h<=99)&&!ink.some(b=>obstacles.some(face=>hit(b,face))))return {...phrase,faceProtection:{status:'observed-clear'}};
+    const faceTop=Math.min(...protectedBoxes.map(b=>b.y)),faceBottom=Math.max(...protectedBoxes.map(b=>b.bottom));
+    const place=(layers,side)=>{
+      const boxes=layers.map(bounds),top=Math.min(...boxes.map(b=>b.y)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
+      const offsets=[0,...obstacles.flatMap(b=>[b.bottom-top+.3,b.y-bottom-.3])].sort((a,b)=>Math.abs(a)-Math.abs(b));
+      for(const dy of offsets){const trial=layers.map(l=>({...l,y:l.y+dy}));if(trial.every(l=>{const b=bounds(l);return b&&b.x>=1&&b.y>=1&&b.x+b.w<=99&&b.y+b.h<=99&&(!side||side==='above'&&b.y+b.h<=faceTop-.3||side==='below'&&b.y>=faceBottom+.3)&&!obstacles.some(face=>hit(b,face));}))return trial;}
+      return null;
+    };
+    const originalPixels=new Map(front.map(l=>[l.id,depthTypeSpec(l,settings,1000,1000*height/width).fontSize*width/1000]));
+    const readable=layers=>layers.every(l=>depthTypeSpec(l,settings,1000,1000*height/width).fontSize*width/1000+.001>=Math.min(originalPixels.get(l.id),Math.min(width,height)*.04));
+    const scaledGroup=(group,scale)=>{const origin=Math.min(...group.map(l=>l.y));return group.map(l=>({...l,x:50+(l.x-50)*scale,y:origin+(l.y-origin)*scale,width:l.width*scale,height:l.height*scale}));};
+    const scaled=scale=>scaledGroup(front,scale);
+    let moved=null,scale=1,split=false,packed=false;
+    for(let step=0;step<=8&&!moved;step++){scale=1-step*.05;const layers=scaled(scale);if(readable(layers))moved=place(layers);}
+    // A short decorative line can be several times taller than a long reading
+    // line. Fit the two ordered groups independently, keeping each line above
+    // a 4%-of-short-edge font-size floor (or its original size when smaller).
+    const fitBand=(group,side)=>{for(let step=0;step<=36;step++){const layers=scaledGroup(group,1-step*.025);if(!readable(layers))break;const placed=place(layers,side);if(placed)return placed;}return null;};
+    if(!moved)for(let cut=1;cut<front.length&&!moved;cut++){const upper=fitBand(front.slice(0,cut),'above'),lower=fitBand(front.slice(cut),'below');if(upper&&lower){moved=[...upper,...lower];split=true;}}
+    // If the old hero gap is too tall, pack the supporting lines together in
+    // a free band. The headline stays unchanged and is an obstacle, even when
+    // its middle is behind the person. Reduce only the largest supporting line
+    // at each step; a long reading line must not shrink with a huge short word.
+    if(!moved){
+      let bands=[[1,99]];
+      for(const obstacle of obstacles){const lo=obstacle.y-.3,hi=obstacle.bottom+.3;bands=bands.flatMap(([a,b])=>hi<=a||lo>=b?[[a,b]]:[[a,Math.min(b,lo)],[Math.max(a,hi),b]].filter(([x,y])=>y>x));}
+      bands.sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]));
+      for(const band of bands){
+        const scales=front.map(()=>1);
+        for(let attempt=0;attempt<200&&!moved;attempt++){
+          const layers=front.map((l,i)=>scaledGroup([l],scales[i])[0]),stack=[];let y=band[0];
+          for(const l of layers){const b=bounds(l),placed={...l,y:l.y+y-b.y};stack.push(placed);y+=b.h+.7;}
+          if(y-.7<=band[1]&&stack.every(l=>{const b=bounds(l);return b.x>=1&&b.x+b.w<=99&&!obstacles.some(obstacle=>hit(b,obstacle));})){moved=stack;packed=true;break;}
+          const choices=front.map((l,i)=>({i,next:scales[i]-.025,pixels:originalPixels.get(l.id)*scales[i]})).filter(c=>c.next>0&&readable([scaledGroup([front[c.i]],c.next)[0]]));
+          if(!choices.length)break;
+          const outside=layers.map((l,i)=>({i,b:bounds(l)})).filter(({b})=>b.x<1||b.x+b.w>99).map(({i})=>i);
+          const choice=choices.filter(c=>!outside.length||outside.includes(c.i)).sort((a,b)=>b.pixels-a.pixels)[0];if(!choice)break;scales[choice.i]=choice.next;
+        }
+        if(moved)break;
+      }
+    }
+    if(!moved)return unresolved('No readable placement avoids faces and the headline; original text was preserved for review.');
+    const replacements=new Map(moved.map(l=>[l.id,{...l,typeBase:{x:l.x,y:l.y,width:l.width,height:l.height,canvasWidth:width,canvasHeight:height}}]));
+    return {...phrase,layers:phrase.layers.map(l=>replacements.get(l.id)||l),faceProtection:{status:packed?'packed-outside-faces-and-headline':split?'split-around-observed-faces':'moved-outside-observed-faces',scale:split||packed?null:scale,lineScales:split||packed?moved.map(l=>({id:l.id,scale:l.height/front.find(old=>old.id===l.id).height})):null}};
+  });
+}
 async function depthPrepareMasks(sdk, preview, settings, job, progress, control, pid) {
   hostUseSdk(sdk);
   const controller = new AbortController();
@@ -662,6 +761,7 @@ async function depthPrepareMasks(sdk, preview, settings, job, progress, control,
       "-vf", "setpts=PTS-STARTPTS,scale=" + preview.width + ":" + preview.height + ":flags=lanczos,setsar=1,fps=" + preview.fps + ":start_time=0",
       "-frames:v", String(frames), "-c:v", "ffv1", "-level", "3", "-pix_fmt", "yuv420p", source], true, controller.signal);
     const resourceId = await importSharedAiVideo(sdk, pid, source);
+    const faceProtection = await depthPrepareFaces(sdk,pid,resourceId,preview,job,control,controller.signal,progress);
     const client = videoAiClient(sdk, pid, "depth-type-captions:" + job.dir);
     control.cancelAi=()=>client.cancel({identity:preview.sourceKey+":"+depthSubject(settings)});
     const result = await client.run({task:"person.matte",resourceId,
@@ -672,7 +772,7 @@ async function depthPrepareMasks(sdk, preview, settings, job, progress, control,
     const prepared = await prepareSharedAiVideoFrames(sdk,pid,result.result.files.manifest,
       hostSdk.files.join(job.dir,"alpha"),{resourceId,width:preview.width,height:preview.height,fps:preview.fps,
       frames:Math.round(preview.duration*preview.fps)});
-    return await depthWriteSharedMasks(sdk,preview,settings,job,progress,control,prepared);
+    return await depthWriteSharedMasks(sdk,{...preview,faceProtection},settings,job,progress,control,prepared);
   } finally { control.stop = null; control.cancelAi=null; }
 }
 // What either mask maker leaves in the job folder: one matte per frame beside
@@ -684,7 +784,7 @@ async function depthMaskResult(fs, preview, job) {
   if (Math.abs(layout.count - frames) > 1)
     throw new Error("The speaker masks cover " + layout.count + " frames but the draft has " + frames + ". Choose Redo.");
   if (!depthMaskFits(layout, preview.width, preview.height)) throw new Error("The render does not match the draft canvas.");
-  const mask = { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, misses: layout.misses || 0, canvasWidth: preview.width, canvasHeight: preview.height, sourceKey: preview.sourceKey };
+  const mask = { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, faces: layout.faces || null, misses: layout.misses || 0, canvasWidth: preview.width, canvasHeight: preview.height, sourceKey: preview.sourceKey };
   const files = {
     dir: job.dir,
     base: (await fs.pathToLocalURL(job.dir)).replace(/\/+$/, ""),
@@ -778,7 +878,7 @@ async function depthWriteSharedMasks(sdk, preview, settings, job, progress, cont
       }),
     );
   (await fs.rm(small, { recursive: true, force: true }));
-  const layout = { version: DEPTH_MATTE_VERSION, width: lw, height: lh, fps: preview.fps, frames, misses, filled: 0, matteWidth: preview.width, matteHeight: preview.height, count: frames.length, mode: depthSubject(settings), grow: 0, source: "selects-ai-runtime" };
+  const layout = { version: DEPTH_MATTE_VERSION, width: lw, height: lh, fps: preview.fps, frames, misses, filled: 0, matteWidth: preview.width, matteHeight: preview.height, count: frames.length, mode: depthSubject(settings), grow: 0, source: "selects-ai-runtime", faces: preview.faceProtection || null };
   await fs.writeFile(fs.join(job.dir, "layout.json"), JSON.stringify(layout));
   return depthMaskResult(fs, preview, job);
 }
@@ -786,7 +886,7 @@ async function depthLoadLayoutMask(files) {
   const fs = hostSdk.files;
   const layout = JSON.parse(await depthReadText(fs, fs.join(files.dir, "layout.json")));
   if (!layout.frames?.length) throw new Error("The speaker mask files are gone. Choose Redo.");
-  return { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, misses: layout.misses || 0, canvasWidth: files.canvasWidth, canvasHeight: files.canvasHeight, sourceKey: files.sourceKey };
+  return { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, faces: layout.faces || null, misses: layout.misses || 0, canvasWidth: files.canvasWidth, canvasHeight: files.canvasHeight, sourceKey: files.sourceKey };
 }
 // Mask folders take ~3 MB per second of 1080p video. Keep the saved one and the
 // one before it (for Undo); drop the rest of this draft's folders.
@@ -1317,6 +1417,18 @@ async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse 
       files = made.files;
       layoutMask = made.mask;
     }
+    // Reopening an older saved mask can reuse its alpha frames while adding
+    // face observations from that same normalized source; no new RVM job is needed.
+    if(!layoutMask.faces){
+      const faceController=new AbortController();control.stop=()=>faceController.abort();
+      if(control.canceled)faceController.abort();
+      try{
+        const source=hostSdk.files.join(files.dir,"matte-source-v6.avi");
+        const resourceId=await importSharedAiVideo(sdk,pid,source);
+        layoutMask.faces=await depthPrepareFaces(sdk,pid,resourceId,{width:meta.width,height:meta.height,fps:meta.fps,duration:meta.duration,sourceKey:files.sourceKey},{dir:files.dir},control,faceController.signal,progress);
+      }catch(error){if(faceController.signal.aborted)throw error;layoutMask.faces={status:'unverified',reason:'Saved face observations are unavailable.',samples:[]};}
+      finally{control.stop=null;control.cancelAi=null;}
+    }
     const composed = depthCopy(next);
     for (let i = 0; i < next.length; i++) {
       if (control.canceled) throw new Error("Canceled.");
@@ -1334,7 +1446,7 @@ async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse 
       const placed = await depthFallbackPlacement(next[i], settings, meta.width, meta.height, layoutMask);
       composed[i] = { ...placed, layers: placed.layers.map((l) => (l.id.endsWith("-hero") ? l : { ...l, depth: "front" })) };
     }
-    next = composed;
+    next = depthProtectFrontFaces(composed,layoutMask.faces,settings,meta.width,meta.height);
   } else {
     const placed = [];
     for (const p of next) placed.push(await depthFallbackPlacement(p, settings, meta.width, meta.height, null));
@@ -1491,7 +1603,7 @@ function DepthTemplateRun({ sdk, context }) {
         // Remembered as the panel remembers a save, so opening the panel on this Draft
         // shows these captions for Fine-tune, Redo (reusing the masks) and Remove.
         const plan = result.trimmed ? depthBoundPlan(savePlan, result.duration).plan : savePlan;
-        const summary = { phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
+        const summary = { ...depthFaceSummary(savePlan), phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
         await depthSave(DEPTH_TAG + ":" + pid + ":" + sid, { settings, plan, owned: result.owned, summary, masks: files, savedMasks: files?.dir || null });
         finish({ sequenceId: sid });
       } catch (e) {
@@ -1721,7 +1833,7 @@ function DepthEditorReady({ sdk, context, saved }) {
   // Saved captions read the mask folder they were saved with; keep it and the one
   // before it (Undo), drop older folders of this draft.
   const pruneMasks = (saved, previous) => depthPruneMasks(sdk, pid, sid, [saved, previous]).catch(() => {});
-  const describe = (s) => s.phrases + " caption" + (s.phrases === 1 ? "" : "s") + (s.masks ? " · " + s.around + " placed around the speaker" : " · Behind speaker off");
+  const describe = (s) => s.phrases + " caption" + (s.phrases === 1 ? "" : "s") + (s.masks ? " · " + s.around + " placed around the speaker" : " · Behind speaker off") + (s.faceUnresolved ? " · " + s.faceUnresolved + " face-clearance placements need review; original text was preserved" : "") + (s.faceUnverified ? " · Manual word edits need face-clearance review" : "");
   const saveNote = (result) =>
     (result.recovered ? " The previous caption clip was missing, so a new one was added." : "") +
     (result.replaced > 1 ? " Replaced " + result.replaced + " earlier caption clips." : "") +
@@ -1783,7 +1895,7 @@ function DepthEditorReady({ sdk, context, saved }) {
             },
           },
         });
-        const done = { phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
+        const done = { ...depthFaceSummary(savePlan), phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
         if (alive.current) {
           setOwned(result.owned);
           setSavedMasks(files?.dir || null);
@@ -1794,7 +1906,7 @@ function DepthEditorReady({ sdk, context, saved }) {
           setUndo({ id: result.commitId, ...before, owned: result.recovered ? null : before.owned });
           setStatus(
             "Done. " + describe(done) + "." +
-              (files && done.around < done.phrases ? " The other " + (done.phrases - done.around) + " keep their smaller lines in front of the speaker." : "") +
+              (files && done.frontPhrases ? " Smaller lines stay in front in " + done.frontPhrases + " phrase(s); review any unresolved face-clearance placement." : "") +
               (files ? " Words behind the speaker use " + files.count + " full-size masks (" + files.width + " × " + files.height + ")" + (files.misses ? "; " + files.misses + " frames without a detected speaker hide them" : "") + "." : "") +
               saveNote(result),
           );
@@ -1828,7 +1940,7 @@ function DepthEditorReady({ sdk, context, saved }) {
         setPlan(bounded);
         setSelected((i) => Math.max(0, Math.min(i, bounded.length - 1)));
         setLayerIndex(0);
-        const done = { ...(summary || { around: 0 }), phrases: bounded.length, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
+        const done = { ...(summary || { around: 0 }), ...depthFaceSummary(bounded), phrases: bounded.length, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
         setSummary(done);
         setEdited(false);
         setUndo({ id: r.result.commitId, ...before, owned: r.result.recovered ? null : before.owned });

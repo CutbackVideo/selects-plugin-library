@@ -33,6 +33,7 @@ function fixture({failure,wait=false}={}) {
       events.push(['adopt',pid,plain(artifact),folder,plain(expected)]);
       return {count:60,width:1080,height:1920,pattern:'/masks/alpha/frame_%06d.png'};
     },
+    depthPrepareFaces:async(sdk,pid,id,source)=>{events.push(['faces',pid,id,plain(source)]);return {status:'unverified',samples:[]};},
     depthWriteSharedMasks:async(sdk,preview,settings,job,progress,control,prepared)=>{
       events.push(['write',plain(prepared)]);return {count:prepared.count};
     },
@@ -52,6 +53,8 @@ test('Depth uses the rendered composition Resource and adopts its exact frame cl
   assert.equal(normalized.at(-1),'/masks/matte-source-v6.avi');
   assert.deepEqual(f.events.find(e=>e[0]==='source'),['source','project','/masks/matte-source-v6.avi']);
   assert.ok(f.events.findIndex(e=>e[0]==='normalize')<f.events.findIndex(e=>e[0]==='run'));
+  assert.deepEqual(f.events.find(e=>e[0]==='faces').slice(1),['project',resourceId,preview]);
+  assert.ok(f.events.findIndex(e=>e[0]==='faces')<f.events.findIndex(e=>e[0]==='run'));
   assert.equal(control.stop,null);assert.equal(control.cancelAi,null);
 });
 test('a shared model failure stops Depth before adopting or writing masks',async()=>{
