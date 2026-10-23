@@ -501,8 +501,9 @@ export function judeAvoidObservedFaces(items:any,segments:any[],faces:any,clips:
   rows.forEach((row,i)=>{row.parameters=chosen[i];});
   moved++;
  }
- const complete=Object.values(faces).length>0&&Object.values(faces).every((f:any)=>f.coverage?.complete);
- return {scope:complete?'all-decoded-source-frames':'observed-framing-samples',movedGroups:moved,splitGroups,independentGroups,unresolvedGroups:unresolved,motionBetweenSamples:complete?'source-frame-observed':'unverified'};
+ const expectedSegmentKeys=segments.map((_,i)=>String(i)),unknownSegmentKeys=expectedSegmentKeys.filter(key=>faces[key]?.coverage?.complete!==true);
+ const verifiedSegments=expectedSegmentKeys.length-unknownSegmentKeys.length,complete=expectedSegmentKeys.length>0&&unknownSegmentKeys.length===0;
+ return {scope:complete?'all-decoded-source-frames':'observed-framing-samples',movedGroups:moved,splitGroups,independentGroups,unresolvedGroups:unresolved,requiredSegments:expectedSegmentKeys.length,verifiedSegments,unknownSegmentKeys,motionBetweenSamples:complete?'source-frame-observed':'unverified'};
 }
 async function judeProtectObservedFaces(env:Env,src:any,draftId:string,items:any,segments:any[],faces:any){
  const clips=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const out=[];for(const c of await d.clips({trackScope:'main'})){if(c.resourceId)out.push({startFrame:c.startFrame,endFrame:c.endFrame,t:await d.clipTransform(c)});}return out;`,'Check caption clearance against observed faces');

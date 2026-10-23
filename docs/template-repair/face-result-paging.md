@@ -34,3 +34,12 @@ Read-only call-site audit: Chris and Podcast already project selected geometry;
 Depth projects normalized geometry inside its script. Their aggregate size may
 still grow on larger inputs, and this patch does not claim those consumers were
 fixed. Excluded templates and app/SDK code are unchanged.
+
+The same real-plan controlled generation completed after paging, and the read
+warning disappeared. Its 67 empty detector frames leave six of eleven source
+segments unknown; five non-card caption stacks still require review. The
+summary now checks every expected segment key, rather than only the entries
+that returned verified faces. It reports required/verified/unknown segments and
+never labels a partial set as complete. This metadata correction changes no
+caption placement, font, timing, music or saved graphic parameters. Reading all
+719 decoded frames is distinct from finding a confident face at every moment.

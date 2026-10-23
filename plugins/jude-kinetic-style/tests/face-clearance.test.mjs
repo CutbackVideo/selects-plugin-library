@@ -19,6 +19,25 @@ test('a tall stack can use two ordered bands without losing words or shrinking b
 
 const noSpaceHelper=vm.runInNewContext(block('judeAvoidObservedFaces')+';judeAvoidObservedFaces',{judeProjectObservedFace:()=>({x:0,y:20,w:1080,h:1880}),judeCaptionInk:p=>({x:400,y:p.y*19.2,w:200,h:p.fontSize})});
 test('when neither band is readable, the original words and design remain with an explicit unresolved count',()=>{const items=fixture(),before=plain(items);const r=noSpaceHelper(items,segments,{'0':{w:1920,h:1080,faces:[[.4,.2,.2,.4]]}},clips,files);assert.equal(r.unresolvedGroups,1);assert.deepEqual(plain(items),before);});
+test('one missing expected segment cannot claim every source frame was verified',()=>{
+ const expected=[{startFrame:0,endFrame:10,resourceId:'r'},{startFrame:10,endFrame:20,resourceId:'r'}];
+ const result=judeAvoidObservedFaces({shots:[],captions:[]},expected,{'0':{coverage:{complete:true}}},[],{});
+ assert.equal(result.scope,'observed-framing-samples');assert.equal(result.motionBetweenSamples,'unverified');
+ assert.equal(result.requiredSegments,2);assert.equal(result.verifiedSegments,1);assert.deepEqual(plain(result.unknownSegmentKeys),['1']);
+});
+test('all missing segments remain unknown even when an unrelated key claims complete coverage',()=>{
+ const expected=[{startFrame:0,endFrame:10,resourceId:'r'},{startFrame:10,endFrame:20,resourceId:'r'}];
+ for(const observed of [{},{'999':{coverage:{complete:true}}}]){
+  const result=judeAvoidObservedFaces({shots:[],captions:[]},expected,observed,[],{});
+  assert.equal(result.scope,'observed-framing-samples');assert.equal(result.verifiedSegments,0);assert.deepEqual(plain(result.unknownSegmentKeys),['0','1']);
+ }
+});
+test('complete coverage requires every expected segment key, with no missing segment inferred clear',()=>{
+ const expected=[{startFrame:0,endFrame:10,resourceId:'r'},{startFrame:10,endFrame:20,resourceId:'r'}];
+ const result=judeAvoidObservedFaces({shots:[],captions:[]},expected,{'0':{coverage:{complete:true}},'1':{coverage:{complete:true}}},[],{});
+ assert.equal(result.scope,'all-decoded-source-frames');assert.equal(result.motionBetweenSamples,'source-frame-observed');
+ assert.equal(result.requiredSegments,2);assert.equal(result.verifiedSegments,2);assert.deepEqual(plain(result.unknownSegmentKeys),[]);
+});
 
  test('fallback glyph ink gets a conservative edge while bundled glyph geometry is unchanged',()=>{const vmHelper=vm.runInNewContext(block('judeCaptionInk')+';judeCaptionInk',{textEm:()=>1,inkOf:()=>({width:100}),fontOf:()=>({k:.35,glyphs:{x:[]}}),inkRect:()=>[10,100,100,50]});const p={fontSize:100,x:50,y:50,boxWidth:200,risePx:0};assert.deepEqual(plain(vmHelper({...p,text:'x'})),{x:10,y:100,w:100,h:50,fontSize:100});assert.deepEqual(plain(vmHelper({...p,text:'\uD55C'})),{x:6,y:96,w:108,h:58,fontSize:100});});
  test('a face result measured at a different display size remains unresolved',()=>{const items=fixture(),before=plain(items);const r=judeAvoidObservedFaces(items,segments,{'0':{w:960,h:540,faces:[[.4,.2,.2,.4]]}},clips,files);assert.equal(r.unresolvedGroups,1);assert.deepEqual(plain(items),before);});
