@@ -27,7 +27,8 @@ export type Session = {
   projectId: string | null;
   draftId: string | null;
 };
-export const SESSION_KEY = "session";
+// One session per open Project (the panel follows the Project it is opened in).
+export const sessionKey = (projectId: string | null) => "session:" + (projectId ?? "none");
 export const emptySession = (presetId = "chosun"): Session => ({ presetId, voiceId: DEFAULT_VOICE, article: null, script: null, scriptErrors: [], approved: null, projectId: null, draftId: null });
 
 export type Log = (key: string, vars?: Record<string, string | number>) => void;
@@ -124,8 +125,8 @@ export const scriptText = (script: Script) => joinScript(script.sentences.map((s
 export const revisionOf = (script: Script, voiceId: string) => ttsRevision(script.headline.line1 + "\n" + script.headline.line2 + "\n" + scriptText(script), voiceId);
 
 export async function ensureProject(sdk: PanelSdk, env: Env, s: Session): Promise<string> {
-  if (s.projectId) return s.projectId;
   if (env.projectId) return env.projectId;
+  if (s.projectId) return s.projectId;
   const r = await run<{ projectId: string }>(sdk, createProjectScript());
   return r.projectId;
 }
