@@ -86,7 +86,7 @@ export default function DonutRatio({ data }) {
         </At>
       ) : null}
       <Rise s={s} t0={2.1} dy={8} x={DCX} y={DCY + 50}>
-        <div style={{ fontSize: fitSize(hero.label, 28, 230) * k, fontWeight: 700, color: C.ink2 }}>{hero.label}</div>
+        <div style={{ fontSize: fitSize(plainText(hero.label), 28, 230) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={hero.label} hlAt={2.65} /></div>
       </Rise>
       {all.map((x, i) => {
         const big = i === hi;
@@ -97,7 +97,7 @@ export default function DonutRatio({ data }) {
             <Rise s={s} t0={rowAt[i]} dy={14} x={592} y={y} anchor="l">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 * k }}>
                 <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
-                <div style={{ fontSize: fitSize(x.label, sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}>{x.label}</div>
+                <div style={{ fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}><Marked s={s} text={x.label} hlAt={rowAt[i] + 0.55} /></div>
               </div>
             </Rise>
             <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={y} anchor="r">

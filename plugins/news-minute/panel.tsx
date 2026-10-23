@@ -1668,17 +1668,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -1743,6 +1743,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -1751,7 +1752,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -1848,11 +1849,11 @@ export default function BarCompareH({ data }) {
           <React.Fragment key={i}>
             {h > 0.5 ? <div style={{ position: 'absolute', left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + 'px ' + Math.min(8, h) * k + 'px 0 0' }} /> : null}
             <Rise s={s} t0={t0 + 0.05} dy={14} x={cx[i]} y={BASE + 48}>
-              <div style={{ fontSize: fitSize(label, 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}>{label}</div>
+              <div style={{ fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}><Marked s={s} text={label} hlAt={t0 + 0.6} /></div>
             </Rise>
             {sub ? (
               <Rise s={s} t0={t0 + 0.17} dy={14} x={cx[i]} y={BASE + 100}>
-                <div style={{ fontSize: fitSize(sub, 30, slot) * k, fontWeight: 500, color: C.gray }}>{sub}</div>
+                <div style={{ fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={sub} hlAt={t0 + 0.72} /></div>
               </Rise>
             ) : null}
             {!big ? <Pop s={s} t0={t0 + 0.6} x={cx[i]} y={BASE - H[i] - 48}>{valueRun(fmt(v, dec), 58, 34, C.ink2, slot)}</Pop> : null}
@@ -2007,17 +2008,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -2082,6 +2083,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -2090,7 +2092,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -2200,7 +2202,7 @@ export default function DonutRatio({ data }) {
         </At>
       ) : null}
       <Rise s={s} t0={2.1} dy={8} x={DCX} y={DCY + 50}>
-        <div style={{ fontSize: fitSize(hero.label, 28, 230) * k, fontWeight: 700, color: C.ink2 }}>{hero.label}</div>
+        <div style={{ fontSize: fitSize(plainText(hero.label), 28, 230) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={hero.label} hlAt={2.65} /></div>
       </Rise>
       {all.map((x, i) => {
         const big = i === hi;
@@ -2211,7 +2213,7 @@ export default function DonutRatio({ data }) {
             <Rise s={s} t0={rowAt[i]} dy={14} x={592} y={y} anchor="l">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 * k }}>
                 <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
-                <div style={{ fontSize: fitSize(x.label, sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}>{x.label}</div>
+                <div style={{ fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}><Marked s={s} text={x.label} hlAt={rowAt[i] + 0.55} /></div>
               </div>
             </Rise>
             <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={y} anchor="r">
@@ -2363,17 +2365,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -2438,6 +2440,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -2446,7 +2449,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -2481,7 +2484,7 @@ const FW = 400, FH = 330, LCX = 290, RCX = 790;
 
 function Card({ s, cx, cy, t0, hero, caption, word }) {
   const k = s.k;
-  const size = fitSize(word, 64, FW - 60);
+  const size = fitSize(plainText(word), 64, FW - 60);
   return (
     <>
       <Rise s={s} t0={t0} dur={0.9} dy={22} x={cx} y={cy}>
@@ -2489,11 +2492,11 @@ function Card({ s, cx, cy, t0, hero, caption, word }) {
       </Rise>
       {caption ? (
         <Rise s={s} t0={t0 + 0.25} dy={10} x={cx} y={cy - 56}>
-          <div style={{ fontSize: fitSize(caption, 40, FW - 60) * k, fontWeight: 800, color: C.green }}>{caption}</div>
+          <div style={{ fontSize: fitSize(plainText(caption), 40, FW - 60) * k, fontWeight: 800, color: C.green }}><Marked s={s} text={caption} hlAt={t0 + 0.8} /></div>
         </Rise>
       ) : null}
       <Rise s={s} t0={t0 + (caption ? 0.45 : 0.3)} dy={12} x={cx} y={cy + (caption ? 26 : 0)}>
-        <div style={{ fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}>{word}</div>
+        <div style={{ fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}><Marked s={s} text={word} hlAt={t0 + 1.0} /></div>
       </Rise>
     </>
   );
@@ -2662,17 +2665,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -2737,6 +2740,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -2745,7 +2749,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -2797,7 +2801,7 @@ export default function HighlightCard({ data }) {
       </Rise>
       {title ? (
         <Rise s={s} t0={0.3} dy={14} x={540} y={y0 + 78}>
-          <div style={{ fontSize: fitSize(title, 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k }}>{title}</div>
+          <div style={{ fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k }}><Marked s={s} text={title} hlAt={0.85} /></div>
         </Rise>
       ) : null}
       <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136} t0={0.5} />
@@ -2813,7 +2817,7 @@ export default function HighlightCard({ data }) {
       </Pop>
       {subtitle ? (
         <Rise s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58}>
-          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}>{subtitle}</div>
+          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={1.75} /></div>
         </Rise>
       ) : null}
       <Source s={s} text={String(data?.source ?? '')} />
@@ -2956,17 +2960,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -3031,6 +3035,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -3039,7 +3044,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -3188,12 +3193,12 @@ export default function LineTrendCallout({ data }) {
       </svg>
       {labels.map((i, j) => (
         <Rise key={i} s={s} t0={0.15 + 0.08 * j} dy={8} x={X(i)} y={base + 38}>
-          <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}>{String(pts[i].x ?? '')}</div>
+          <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={String(pts[i].x ?? '')} hlAt={0.7 + 0.08 * j} /></div>
         </Rise>
       ))}
       {threshold && String(threshold.label ?? '') !== '' ? (
         <Rise s={s} t0={0.7} dy={8} x={X0} y={thY - 24} anchor="l">
-          <div style={{ fontSize: 30 * k, fontWeight: 800, color: C.accD }}>{String(threshold.label)}</div>
+          <div style={{ fontSize: 30 * k, fontWeight: 800, color: C.accD }}><Marked s={s} text={String(threshold.label)} hlAt={1.25} /></div>
         </Rise>
       ) : null}
       {keys.map((i) => {
@@ -3222,8 +3227,8 @@ export default function LineTrendCallout({ data }) {
         return (
           <Rise key={i} s={s} t0={sweepEnd + 0.3 + 0.4 * i} dur={0.9} dy={22} x={X0 + i * (w + CARD_GAP)} y={CARD_TOP} anchor="lt">
             <div style={{ ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 * k }}>
-              {head ? <div style={{ fontSize: fitSize(head, 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 }}>{head}</div> : null}
-              <div style={{ fontSize: fitSize(value, 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 }}>{value}</div>
+              {head ? <div style={{ fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 }}><Marked s={s} text={head} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div> : null}
+              <div style={{ fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 }}><Marked s={s} text={value} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>
             </div>
           </Rise>
         );
@@ -3368,17 +3373,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -3443,6 +3448,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -3451,7 +3457,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -3661,17 +3667,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -3736,6 +3742,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -3744,7 +3751,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -3818,7 +3825,7 @@ export default function NumberCallout({ data }) {
       <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
       {label ? (
         <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
-          <div style={{ fontSize: fitSize(label, 44, 900) * k, fontWeight: 700, color: C.ink2 }}>{label}</div>
+          <div style={{ fontSize: fitSize(plainText(label), 44, 900) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={label} hlAt={0.95} /></div>
         </Rise>
       ) : null}
       <Rise s={s} t0={fromAt} x={540} y={yFrom}>
@@ -3988,17 +3995,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -4063,6 +4070,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -4071,7 +4079,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -4186,12 +4194,12 @@ export default function QuoteCard({ data }) {
       <Medal s={s} headshot={headshot} />
       {name ? (
         <Rise s={s} t0={0.3} dy={16} x={330} y={122} anchor="l">
-          <div style={{ fontSize: fitSize(name, 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k }}>{name}</div>
+          <div style={{ fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
         </Rise>
       ) : null}
       {affiliation ? (
         <Rise s={s} t0={0.5} dy={16} x={332} y={198} anchor="l">
-          <div style={{ fontSize: fitSize(affiliation, 40, X1 - 332) * k, fontWeight: 600, color: C.gray }}>{affiliation}</div>
+          <div style={{ fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={affiliation} hlAt={1.05} /></div>
         </Rise>
       ) : null}
       <GoldRule s={s} y={318} t0={0.6} />
@@ -4336,17 +4344,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -4411,6 +4419,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -4419,7 +4428,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -4488,14 +4497,14 @@ export default function StatCards({ data }) {
             <Rise s={s} t0={t0} dur={0.9} dy={22} x={x} y={y0} anchor="lt">
               <div style={{ ...cardStyle(s), position: 'relative', width: W * k, height: Hc * k }}>
                 {/* Inner coordinates are 2 px (the border) above and left of the sian card's. */}
-                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: fitSize(header, 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k }}>{header}</div>
+                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: fitSize(plainText(header), 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k }}>{plainText(header)}</div>
                 <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL }} />
                 {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line }} /> : null}
               </div>
             </Rise>
             {r0?.label ? (
               <Rise s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140}>
-                <div style={{ fontSize: fitSize(String(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}>{String(r0.label)}</div>
+                <div style={{ fontSize: fitSize(plainText(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}><Marked s={s} text={String(r0.label)} hlAt={t0 + 0.85} /></div>
               </Rise>
             ) : null}
             {r0 ? (
@@ -4508,7 +4517,7 @@ export default function StatCards({ data }) {
             ) : null}
             {r1?.label ? (
               <Rise s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330}>
-                <div style={{ fontSize: fitSize(String(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray }}>{String(r1.label)}</div>
+                <div style={{ fontSize: fitSize(plainText(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={String(r1.label)} hlAt={row2At + 0.18 * i + 0.55} /></div>
               </Rise>
             ) : null}
             {r1 ? (
@@ -4659,17 +4668,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -4734,6 +4743,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -4742,7 +4752,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -4794,7 +4804,7 @@ export default function TextCard({ data }) {
       {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
       {sub ? (
         <Rise s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 22}>
-          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}>{sub}</div>
+          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={sub} hlAt={at(lines.length) + 0.55} /></div>
         </Rise>
       ) : null}
       <Source s={s} text={String(data?.source ?? '')} />
@@ -4937,17 +4947,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -5012,6 +5022,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -5020,7 +5031,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
@@ -5108,7 +5119,7 @@ export default function VerdictCard({ data }) {
     <Win s={s} data={data}>
       <GoldRule s={s} y={78} t0={0} ornament={false} />
       <Pop s={s} t0={0.3} x={540} y={78}><Ribbon s={s} text={String(data?.title ?? '')} size={44} /></Pop>
-      {subtitle ? <Rise s={s} t0={0.5} dy={10} x={540} y={152}><div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+      {subtitle ? <Rise s={s} t0={0.5} dy={10} x={540} y={152}><div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={1.05} /></div></Rise> : null}
       {cards.map((c, i) => {
         const t0 = starts[i];
         const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;

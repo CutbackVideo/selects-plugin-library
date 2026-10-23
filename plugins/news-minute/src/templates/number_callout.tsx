@@ -50,7 +50,7 @@ export default function NumberCallout({ data }) {
       <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
       {label ? (
         <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
-          <div style={{ fontSize: fitSize(label, 44, 900) * k, fontWeight: 700, color: C.ink2 }}>{label}</div>
+          <div style={{ fontSize: fitSize(plainText(label), 44, 900) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={label} hlAt={0.95} /></div>
         </Rise>
       ) : null}
       <Rise s={s} t0={fromAt} x={540} y={yFrom}>

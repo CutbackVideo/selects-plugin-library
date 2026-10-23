@@ -64,7 +64,7 @@ export default function VerdictCard({ data }) {
     <Win s={s} data={data}>
       <GoldRule s={s} y={78} t0={0} ornament={false} />
       <Pop s={s} t0={0.3} x={540} y={78}><Ribbon s={s} text={String(data?.title ?? '')} size={44} /></Pop>
-      {subtitle ? <Rise s={s} t0={0.5} dy={10} x={540} y={152}><div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}>{subtitle}</div></Rise> : null}
+      {subtitle ? <Rise s={s} t0={0.5} dy={10} x={540} y={152}><div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={1.05} /></div></Rise> : null}
       {cards.map((c, i) => {
         const t0 = starts[i];
         const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;

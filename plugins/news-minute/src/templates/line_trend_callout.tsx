@@ -125,12 +125,12 @@ export default function LineTrendCallout({ data }) {
       </svg>
       {labels.map((i, j) => (
         <Rise key={i} s={s} t0={0.15 + 0.08 * j} dy={8} x={X(i)} y={base + 38}>
-          <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}>{String(pts[i].x ?? '')}</div>
+          <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={String(pts[i].x ?? '')} hlAt={0.7 + 0.08 * j} /></div>
         </Rise>
       ))}
       {threshold && String(threshold.label ?? '') !== '' ? (
         <Rise s={s} t0={0.7} dy={8} x={X0} y={thY - 24} anchor="l">
-          <div style={{ fontSize: 30 * k, fontWeight: 800, color: C.accD }}>{String(threshold.label)}</div>
+          <div style={{ fontSize: 30 * k, fontWeight: 800, color: C.accD }}><Marked s={s} text={String(threshold.label)} hlAt={1.25} /></div>
         </Rise>
       ) : null}
       {keys.map((i) => {
@@ -159,8 +159,8 @@ export default function LineTrendCallout({ data }) {
         return (
           <Rise key={i} s={s} t0={sweepEnd + 0.3 + 0.4 * i} dur={0.9} dy={22} x={X0 + i * (w + CARD_GAP)} y={CARD_TOP} anchor="lt">
             <div style={{ ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 * k }}>
-              {head ? <div style={{ fontSize: fitSize(head, 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 }}>{head}</div> : null}
-              <div style={{ fontSize: fitSize(value, 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 }}>{value}</div>
+              {head ? <div style={{ fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 }}><Marked s={s} text={head} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div> : null}
+              <div style={{ fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 }}><Marked s={s} text={value} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>
             </div>
           </Rise>
         );

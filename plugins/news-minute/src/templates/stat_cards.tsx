@@ -45,14 +45,14 @@ export default function StatCards({ data }) {
             <Rise s={s} t0={t0} dur={0.9} dy={22} x={x} y={y0} anchor="lt">
               <div style={{ ...cardStyle(s), position: 'relative', width: W * k, height: Hc * k }}>
                 {/* Inner coordinates are 2 px (the border) above and left of the sian card's. */}
-                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: fitSize(header, 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k }}>{header}</div>
+                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: fitSize(plainText(header), 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k }}>{plainText(header)}</div>
                 <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL }} />
                 {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line }} /> : null}
               </div>
             </Rise>
             {r0?.label ? (
               <Rise s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140}>
-                <div style={{ fontSize: fitSize(String(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}>{String(r0.label)}</div>
+                <div style={{ fontSize: fitSize(plainText(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}><Marked s={s} text={String(r0.label)} hlAt={t0 + 0.85} /></div>
               </Rise>
             ) : null}
             {r0 ? (
@@ -65,7 +65,7 @@ export default function StatCards({ data }) {
             ) : null}
             {r1?.label ? (
               <Rise s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330}>
-                <div style={{ fontSize: fitSize(String(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray }}>{String(r1.label)}</div>
+                <div style={{ fontSize: fitSize(plainText(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={String(r1.label)} hlAt={row2At + 0.18 * i + 0.55} /></div>
               </Rise>
             ) : null}
             {r1 ? (

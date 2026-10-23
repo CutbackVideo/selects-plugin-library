@@ -130,17 +130,17 @@ function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
 function Header({ s, title, subtitle, t0 = 0 }) {
   return (
     <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}>{title}</div></Rise> : null}
+      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
       {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
       {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
     </>
   );
 }
 
-// Source line, always bottom-right (26/500).
+// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
 function Source({ s, text, t0 = 0.3 }) {
   if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{text}</div></Rise>;
+  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
 }
 
 // Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
@@ -205,6 +205,7 @@ function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l
 }
 
 // Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
+// Its text is one colour on the ribbon, so emphasis marks are dropped.
 function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
   const k = s.k, n = 14 * k;
   const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
@@ -213,7 +214,7 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
       <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
       <div style={{ ...line, top: 4.25 * k }} />
       <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{text}</span>
+      <span style={{ position: 'relative' }}>{plainText(text)}</span>
     </div>
   );
 }
