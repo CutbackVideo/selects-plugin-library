@@ -16,6 +16,7 @@ import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placeme
 import { bandsScript, baseDraftScript, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
+import { clearPreviewCache, openPreview, renameDraft, sceneStill, seekScene } from "./preview.ts";
 
 export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
@@ -439,6 +440,26 @@ export function draftQueue() {
   };
 }
 
+// Thumbnail keys per build: a refill with the same plan still records a new time, so its stills render again.
+export const stillBuild = (p: PreviewDraft) => p.draftId + ":" + p.planRev + ":" + p.at + "#";
+export const stillKey = (p: PreviewDraft, scene: number) => stillBuild(p) + scene;
+
+// The panel's calls on the preview Draft, each queued on the same queue as the builds and refills. A still asked
+// for a preview that is no longer the recorded one is dropped when its turn comes instead of rendering.
+export function previewViewer(sdk: PanelSdk, env: () => Env | null, queue: ReturnType<typeof draftQueue>, current: () => PreviewDraft | null | undefined) {
+  return {
+    open: (projectId: string, draftId: string) => queue(() => openPreview(sdk, { projectId, draftId })),
+    rename: (projectId: string, draftId: string, name: string) => queue(() => renameDraft(sdk, { projectId, draftId, name })),
+    seek: (p: PreviewDraft, scene: number) => queue(() => seekScene(sdk, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene] })),
+    still: (p: PreviewDraft, scene: number) => queue(async () => {
+      const cur = current(), e = env();
+      if (!cur || cur.draftId !== p.draftId || cur.at !== p.at) throw new Error("the preview Draft changed");
+      if (!e) throw new Error("no environment");
+      return sceneStill(sdk, { tmp: e.tmp, sep: e.sep }, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene], key: stillKey(p, scene) });
+    }),
+  };
+}
+
 export type AssembleTarget = { name: string; reuse?: PreviewDraft | null };
 export type Assembled = { draftId: string; timing: string; fallbackPlan: boolean; refilled: boolean; draft: Omit<PreviewDraft, "name" | "planRev" | "at"> };
 
@@ -507,6 +528,8 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, scenes: placed });
   try {
     if (reuse) {
+      // Stills rendered from the Draft before this refill must not come back from the cache.
+      clearPreviewCache(sdk);
       const call = refillDraftScript(reuse.draftId, reuse.frames, x);
       rec.notes.push("script bytes: refill " + scriptBytes(call));
       const r = await run<{ refilled: boolean; reason: string; frames: number; removed?: number }>(sdk, call);

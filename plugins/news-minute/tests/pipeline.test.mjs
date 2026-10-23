@@ -503,3 +503,48 @@ test("calls on the preview Draft run one at a time, in order, past a failure", a
   assert.deepEqual(log, ["rename>", "<rename", "refill>", "<refill", "open>", "<open"]);
   assert.deepEqual(results.map((x) => x.status), ["rejected", "fulfilled", "fulfilled"]);
 });
+
+const PNG_ANSWERS = {
+  "Render the complete preview scene": { byteSize: 9 },
+  "Read a downloaded file": { chunks: [Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]).toString("base64")], offset: 9 },
+  "Remove a temporary file": true,
+};
+
+test("preview viewer calls wait their turn behind a build; a still for a replaced preview does not render", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const h = fakeHost({ ...PNG_ANSWERS, "Approve the preview Draft": true });
+  const q = F.draftQueue();
+  const p = { draftId: "d", projectId: "p", planRev: "r1", frames: 300, scenes: [{ startSec: 1, endSec: 3 }], at: "t1" };
+  let current = p, release;
+  const build = q(() => new Promise((r) => { release = r; }));
+  const viewer = F.previewViewer(h.sdk, () => HOST_ENV, q, () => current);
+  const rename = viewer.rename("p", "d", "Preview · New");
+  const still = viewer.still(p, 0);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(h.calls.length, 0);
+  current = { ...p, at: "t2" }; // the build refilled the Draft
+  release();
+  await build;
+  await rename;
+  await assert.rejects(still, /preview Draft changed/);
+  assert.deepEqual(h.calls.map((c) => c.summary), ["Approve the preview Draft"]);
+  assert.notEqual(F.stillKey(p, 0), F.stillKey(current, 0));
+  assert.ok(F.stillKey(current, 1).startsWith(F.stillBuild(current)) && !F.stillKey(p, 1).startsWith(F.stillBuild(current)));
+});
+
+test("refilling the preview Draft drops the stills rendered from it before", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const log = () => {};
+  const a = await F.buildPreview(fakeHost(DRAFT_ANSWERS).sdk, HOST_ENV, s, preset, "Preview", log, F.newRunRecord("chosun", "u"));
+  const h = fakeHost({ ...DRAFT_ANSWERS, ...PNG_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230 } });
+  const viewer = F.previewViewer(h.sdk, () => HOST_ENV, F.draftQueue(), () => a.preview);
+  const renders = () => h.calls.filter((c) => c.summary === "Render the complete preview scene").length;
+  assert.equal((await viewer.still(a.preview, 0)).cached, false);
+  assert.equal((await viewer.still(a.preview, 0)).cached, true);
+  assert.equal(renders(), 1);
+  const edited = { ...s, preview: a.preview, plan: { ...s.plan, scenes: [s.plan.scenes[0], { ...s.plan.scenes[1], params: { text: "c" } }] } };
+  assert.equal((await F.buildPreview(h.sdk, HOST_ENV, edited, preset, "Preview", log, F.newRunRecord("chosun", "u"))).refilled, true);
+  assert.equal((await viewer.still(a.preview, 0)).cached, false);
+  assert.equal(renders(), 2);
+});

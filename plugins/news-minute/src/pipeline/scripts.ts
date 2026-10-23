@@ -155,13 +155,3 @@ export const openDraftScript = (draftId: string): ScriptCall => ({
   summary: "Open the Draft",
   script: `return await selects.editor.openDraft(${J(draftId)});`,
 });
-
-// Until the preview helpers land: the Draft's name, saved by commitAll (Draft.setName).
-export const renameDraftScript = (draftId: string, name: string): ScriptCall => ({
-  summary: "Rename the Draft",
-  allowCommit: true,
-  script: `const d = selects.draft(${J(draftId)});
-await d.setName(${J(name)});
-await d.commitAll("News short: name");
-return true;`,
-});

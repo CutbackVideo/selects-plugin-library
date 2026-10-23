@@ -87,6 +87,7 @@ export const MESSAGES: Record<string, [string, string]> = {
   editScene: ["Edit", "\uace0\uce58\uae30"],
   closeScene: ["Close", "\ub2eb\uae30"],
   videoFromPreview: ["The preview Draft is now the video.", "\ubbf8\ub9ac\ubcf4\uae30 Draft\ub97c \uadf8\ub300\ub85c \uc601\uc0c1\uc73c\ub85c \uc37c\uc5b4\uc694."],
+  previewNotOpened: ["The preview Draft did not open in the viewer.", "\ubbf8\ub9ac\ubcf4\uae30 Draft\uac00 \ubdf0\uc5b4\uc5d0 \uc5f4\ub9ac\uc9c0 \uc54a\uc558\uc5b4\uc694."],
   seekUnconfirmed: ["The viewer did not move to scene {n}.", "\ubdf0\uc5b4\uac00 {n}\ubc88 \uc7a5\uba74\uc73c\ub85c \uc62e\uaca8\uc9c0\uc9c0 \uc54a\uc558\uc5b4\uc694."],
   planFallbackNote: ["This is the simple fallback plan (photos and text cards): the AI plan did not pass its check.", "AI \uacc4\ud68d\uc774 \uac80\uc0ac\ub97c \ud1b5\uacfc\ud558\uc9c0 \ubabb\ud574 \ub2e8\uc21c \ub300\uccb4 \ud50c\ub79c(\uc0ac\uc9c4\u00b7\uae00\uc790 \uce74\ub4dc)\uc744 \ubcf4\uc5ec \uc8fc\uace0 \uc788\uc5b4\uc694."],
   sceneType: ["Type", "\uc885\ub958"],
