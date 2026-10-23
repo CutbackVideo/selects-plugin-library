@@ -80,8 +80,13 @@ test('shared, Card News Maker, a16z and both photo consumers pass the host SDK T
     .replace(/^export default withPanelLocalClient\(\w+\);\s*$/m, '');
   const a16zPanel = fs.readFileSync(process.env.A16Z_STYLE_CAPTIONS_PANEL ||
     new URL('../plugins/a16z-style-captions/panel.tsx', import.meta.url), 'utf8');
-  const a16zClient = a16zPanel.split('// shared/local-client.ts\n')[1]
-    .split('// plugins/a16z-style-captions/')[0];
+  // esbuild can split one module around an imported dependency. Keep every
+  // emitted local-client section, rather than only the first banner's chunk.
+  const clientMarker = '// shared/local-client.ts\n';
+  const clientStart = a16zPanel.indexOf(clientMarker);
+  const clientEnd = a16zPanel.indexOf('// plugins/a16z-style-captions/', clientStart);
+  assert.ok(clientStart >= 0 && clientEnd > clientStart, 'complete bundled local client exists');
+  const a16zClient = a16zPanel.slice(clientStart + clientMarker.length, clientEnd);
   const directory = fs.mkdtempSync(path.join(tmpdir(), 'local-client-types-'));
   try {
     const scripts = [];

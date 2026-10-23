@@ -140,17 +140,20 @@ test('Portrait detachment during draft commit saves the acknowledged draft but n
  assert.deepEqual(saved,['committed']);assert.equal(summaries.includes('Open montage draft'),false);
 });
 test('Depth template retry intent is true once per new run and false on its remount',async()=>{
- const saved=new Map(),controls=[];let effect;const refs=[];let i=0;
+ const saved=new Map(),controls=[],scripts=[];let effect;const refs=[];let i=0;
  const globals={useRef:v=>refs[i++]||(refs[i-1]={current:v}),useState:()=>['',()=>{}],useEffect:fn=>{effect=fn;},h:()=>null,
  DEPTH_TAG:'depth',DEPTH_TEMPLATE_SECONDS:90,DEPTH_DEFAULTS:{},DEPTH_TEMPLATE_FAILED:'failed',DEPTH_TEMPLATE_ERRORS:{},
  depthStorage:()=>({getItem:async key=>saved.get(key)||null}),depthSave:async(key,value)=>saved.set(key,JSON.stringify(value)),depthHostProblem:()=>null,
  depthTemplateError:code=>Object.assign(Error(code),{code}),depthMakeCaptions:async({control})=>{controls.push(control);throw Error('fixture stops after AI intent');},console:{warn:()=>{}}};
- const ctx=vm.createContext({useAppUpdateGuard:()=>{},...globals});vm.runInContext(panelFunction('depth-type-captions','DepthTemplateRun')+';this.run=DepthTemplateRun;',ctx);
- const sdk={runScript:async()=>({result:{seconds:3}}),finishTemplate:()=>{}};
+ const ctx=vm.createContext({useAppUpdateGuard:()=>{},...globals});vm.runInContext(panelFunction('depth-type-captions','depthPortraitDraftScript')+'\n'+panelFunction('depth-type-captions','DepthTemplateRun')+';this.run=DepthTemplateRun;',ctx);
+ const sdk={runScript:async input=>{scripts.push(input);return {result:input.summary==="Read the draft's length"?{seconds:3}:true};},finishTemplate:()=>{}};
  const render=runId=>{i=0;ctx.run({sdk,context:{projectId:'project',template:{runId,libraryId:'library',inputs:{speaker:[{kind:'timeline',sequenceId:'draft'}]}}}});return effect();};
- render('same');await tick();assert.equal(controls[0].retryAi,true);
- refs.length=0;render('same');await tick();assert.equal(controls[1].retryAi,false);
- render('next');await tick();assert.equal(controls[2].retryAi,true);
+ render('same');await tick();assert.equal(controls.length,1);assert.equal(controls[0].retryAi,true);
+ refs.length=0;render('same');await tick();assert.equal(controls.length,2);assert.equal(controls[1].retryAi,false);
+ render('next');await tick();assert.equal(controls.length,3);assert.equal(controls[2].retryAi,true);
+ const framing=scripts.filter(s=>s.summary==='Frame Depth Type template to portrait');
+ assert.equal(framing.length,3,'each run reaches caption creation through the real portrait helper');
+ assert.ok(framing.every(s=>s.script.includes('await d.setFrameSize({width:1080,height:1920})')));
 });
 test('Windows Portrait retries missing x264 with built-in MPEG4, retaining frame clock and rejects other failures',async()=>{
  for(const message of ["Unknown encoder 'libx264'",'invalid input data']) {
