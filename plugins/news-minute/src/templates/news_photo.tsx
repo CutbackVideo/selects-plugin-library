@@ -1,5 +1,5 @@
 import React from 'react';
-import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Img, interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
 const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 
@@ -16,7 +16,21 @@ const MOVES = {
 };
 const FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '25% 50%', right: '75% 50%' };
 
+// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
+// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
+  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? <style>{css}</style> : null;
+}
+
 export default function NewsPhoto({ data }) {
+  const fontFace = useEmbeddedFont(data);
   const frame = useCurrentFrame();
   const { width, fps, durationInFrames } = useVideoConfig();
   const k = width / 1080;
@@ -35,6 +49,7 @@ export default function NewsPhoto({ data }) {
   const credit = String(data?.credit ?? '');
   return (
     <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, overflow: 'hidden', background: '#000000', pointerEvents: 'none' }}>
+      {fontFace}
       {image ? (
         <Img src={image} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />
       ) : null}
