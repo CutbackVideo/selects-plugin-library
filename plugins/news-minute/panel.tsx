@@ -426,6 +426,7 @@ async function ffmpeg(sdk, summary, args) {
   throw new Error("ffmpeg timed out");
 }
 var CHUNK = 49152;
+var READ_PER_CALL = 3;
 async function writeText(sdk, path, text) {
   const bytes = new TextEncoder().encode(text);
   for (let at = 0; at === 0 || at < bytes.length; at += CHUNK) {
@@ -446,14 +447,15 @@ async function readFileBytes(sdk, path, maxBytes = 8 * 1024 * 1024) {
   const parts = [];
   let offset = 0, total = 0;
   for (; ; ) {
-    const r = await run(sdk, readChunksScript(path, offset, 16));
+    const r = await run(sdk, readChunksScript(path, offset, READ_PER_CALL));
+    if (!r || !Array.isArray(r.chunks)) throw new Error("reading " + path + " returned no data");
     for (const c of r.chunks) {
       const b = b64ToBytes(c);
       parts.push(b);
       total += b.length;
     }
     if (total > maxBytes) throw new Error("file too large: " + path);
-    if (r.offset === offset || r.chunks.length < 16) break;
+    if (r.offset === offset || r.chunks.length < READ_PER_CALL) break;
     offset = r.offset;
   }
   const out = new Uint8Array(total);
