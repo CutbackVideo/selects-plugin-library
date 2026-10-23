@@ -574,7 +574,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     // mac-only:start
     runShell: async (command, summary, timeoutMs = 120000) => {
       const r = await sdk.runShell({ command, summary, timeoutMs, maxOutputBytes: 16000 });
-      if (r.isError || r.exitCode !== 0) throw new Error((r.stderr || r.output || summary + " failed").slice(0, 600));
+      if (r.isError || r.exitCode !== 0) throw Object.assign(new Error((r.stderr || r.output || summary + " failed").slice(0, 600)),{rawStderr:r.stderr,rawStdout:r.stdout,rawOutput:r.output,exitCode:r.exitCode});
       return String(r.stdout || "");
     },
     // mac-only:end
@@ -881,7 +881,7 @@ function TemplateRun({ sdk, context }: any) {
         catch(error:any){console.warn('Saved Chris draft notification could not be confirmed:',error?.message||error);}
         finish({ sequenceId: result.draftId });
       } catch (e: any) {
-        finish({ error: String(e?.message || e || "").slice(0, 300) || TEMPLATE_FAILED });
+        finish({ error: String(e?.publicMessage || e?.message || e || "").slice(0, 300) || TEMPLATE_FAILED });
       } finally {
         finish({ error: TEMPLATE_FAILED });
       }

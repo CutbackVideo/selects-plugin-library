@@ -1,3 +1,14 @@
+// Keep the operation and trailing engine diagnostics visible inside the host's
+// short error notice. Shell startup output is retained in the separate raw log.
+export function engineFailureMessage(stage:string,raw:string) {
+  const lines=String(raw||"").replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean).slice(-3);
+  const prefix=stage+": ";
+  if(!lines.length)return prefix+"No diagnostic output was returned.";
+  const cap=Math.floor((290-prefix.length-lines.length+1)/lines.length);
+  const compact=(line:string)=>line.length<=cap?line:line.slice(0,Math.ceil((cap-1)/2))+"…"+line.slice(-Math.floor((cap-1)/2));
+  return prefix+lines.map(compact).join(" ");
+}
+
 // Retry only the explicitly failed agent turn. A timeout may still be browsing
 // in the background, so recover its sidecar instead of starting another turn.
 export async function searchBrollQuery(env:Env,query:string,prompt:string,saved:()=>Promise<any[]>) {
@@ -61,11 +72,22 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
   const items=reel.brolls.map((b,i)=>({id:pass+String(i+1).padStart(3,"0"),keyword:b.key.text,query:b.query,context:brollSpokenContext(spokenWords,b.key,fps),desiredKind:"video",candidates:(Array.isArray(found[b.query])?found[b.query]:[]).filter(c=>!c.path||allowedLocal===null||allowedLocal.has(pathKey(c.path)))}));
   const callEngine=async(cmd:string,job:any)=>{
     const file=hostJoin(jobDir,cmd+".json");await env.writeText(file,JSON.stringify(job));
-    if(hostIsWindows())await cwEngine(env,cmd,file);
-    // mac-only:start
-    else await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
-    // mac-only:end
-    return JSON.parse(await env.readText(hostJoin(jobDir,cmd+"-result.json")));
+    try {
+      if(hostIsWindows())await cwEngine(env,cmd,file);
+      // mac-only:start
+      else await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
+      // mac-only:end
+      return JSON.parse(await env.readText(hostJoin(jobDir,cmd+"-result.json")));
+    }catch(error:any) {
+      if(env.signal?.aborted||error?.name==='AbortError'||error?.code==='CW_FACE_DETACHED'||error?.code==='CW_FACE_CANCELED')throw error;
+      const stage=cmd==='assets'?"B-roll clip rendering":"B-roll candidate preparation",raw=String(error?.rawStderr||error?.message||error);
+      const diagnosticLog=hostJoin(jobDir,cmd+"-error-"+Date.now()+".json");
+      const diagnostic={stage,jobFile:file,message:String(error?.message||error),stderr:error?.rawStderr,stdout:error?.rawStdout,output:error?.rawOutput,exitCode:error?.exitCode,stack:error?.stack};
+      let logFailure:string|undefined;
+      try{await env.writeText(diagnosticLog,JSON.stringify(diagnostic,null,2));}catch(writeError:any){logFailure=String(writeError.message||writeError);}
+      const publicMessage=engineFailureMessage(stage,raw);
+      throw Object.assign(new Error(publicMessage),{publicMessage,diagnosticLog:logFailure?undefined:diagnosticLog,diagnosticLogFailure:logFailure,cause:error});
+    }
   };
   const result=await callEngine("candidates",{candidates:{ffmpeg:env.ffmpeg,ffprobe,items}});
   const accepted:any[]=[];
