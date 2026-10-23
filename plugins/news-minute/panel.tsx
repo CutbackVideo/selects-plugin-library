@@ -2368,7 +2368,7 @@ var BLOCKING_PLAN_ERROR = /unknown sentence id|cover every sentence|sentenceIds 
 function recordPlan(rec, plan, images) {
   const placed = placements(plan.scenes);
   rec.plan = {
-    images: { count: images.length, chars: images.reduce((n, im) => n + im.dataUrl.length, 0), refs: images.map((im) => im.name ?? "") },
+    images: images && { count: images.length, chars: images.reduce((n, im) => n + im.dataUrl.length, 0), refs: images.map((im) => im.name ?? "") },
     assetSummaries: Object.fromEntries(plan.assetSummaries.map((a) => [a.ref, a.summary])),
     placements: placed,
     unused: plan.assets.map((a) => a.ref).filter((r) => !placed[r]),
@@ -2466,7 +2466,7 @@ async function assemble(sdk, env, s, preset, log, rec) {
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
-  recordPlan(rec, sp, []);
+  recordPlan(rec, sp, null);
   const plan = sp.scenes;
   const fontStats = { count: 0, bytes: 0, missing: /* @__PURE__ */ new Set(), failed: 0 };
   let font = null;
@@ -2532,6 +2532,7 @@ var muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
 var MAX_CHARS = TARGET_CHARS.max;
 var warn = { color: "#d9822b", fontSize: 12 };
+var field = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
 function thumbOf(dataUrl) {
   return new Promise((resolve, reject) => {
     const im = new Image();
@@ -2808,14 +2809,12 @@ function NewsMinutePanel({ sdk, context }) {
             edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedMark") }) : null
           ] }),
           /* @__PURE__ */ jsx("span", { style: { ...muted, color: "inherit" }, children: ss.map((x) => x.text).join(" ") }),
-          /* @__PURE__ */ jsxs("label", { style: muted, children: [
+          /* @__PURE__ */ jsxs("label", { style: field, children: [
             T("sceneType"),
-            " ",
             /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
           ] }),
-          canPhoto ? /* @__PURE__ */ jsxs("label", { style: muted, children: [
+          canPhoto ? /* @__PURE__ */ jsxs("label", { style: field, children: [
             T("scenePhoto"),
-            " ",
             /* @__PURE__ */ jsxs("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
               const { assetRef: _x, ...rest } = scene;
               setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest);
@@ -2830,11 +2829,11 @@ function NewsMinutePanel({ sdk, context }) {
           ] }) : null,
           (SCENE_FIELDS[scene.type] ?? []).map((k) => {
             const raw = scene.params?.[k];
-            if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: muted, children: [
+            if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: field, children: [
               T("field_lines"),
               /* @__PURE__ */ jsx("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
             ] }, k);
-            return /* @__PURE__ */ jsxs("label", { style: muted, children: [
+            return /* @__PURE__ */ jsxs("label", { style: field, children: [
               T("field_" + k),
               k === "text" ? /* @__PURE__ */ jsx("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
             ] }, k);
@@ -2870,7 +2869,7 @@ function NewsMinutePanel({ sdk, context }) {
           (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: muted, children: "\u2022 " + x }, "w" + k))
         ] }, i + ":" + scene.sentenceIds.join(","));
       }),
-      /* @__PURE__ */ jsxs("label", { children: [
+      /* @__PURE__ */ jsxs("label", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
         T("feedback"),
         /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
       ] }),

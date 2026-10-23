@@ -77,7 +77,7 @@ export async function fetchArticle(sdk: PanelSdk, env: Env, url: string): Promis
 // Per-step diagnostics for the run record: time, AI turns, JSON parse failures, repairs, remaining errors.
 export type StepStat = { step: string; ms: number; turns: number; parseFailures: number; repairs: number; errors: string[]; at: string };
 // plan: what the planner saw and where each asset went (asset summaries, scenes per asset, images sent).
-export type PlanRecord = { images: { count: number; chars: number; refs: string[] }; assetSummaries: Record<string, string>; placements: Record<string, number[]>; unused: string[]; fallback: boolean; rounds: PlanRound[]; edited: number };
+export type PlanRecord = { images: { count: number; chars: number; refs: string[] } | null; assetSummaries: Record<string, string>; placements: Record<string, number[]>; unused: string[]; fallback: boolean; rounds: PlanRound[]; edited: number };
 export type RunRecord = { startedAt: string; preset: string; url: string; steps: StepStat[]; notes: string[]; plan?: PlanRecord };
 export const newRunRecord = (preset: string, url: string): RunRecord => ({ startedAt: new Date().toISOString(), preset, url, steps: [], notes: [] });
 
@@ -263,10 +263,11 @@ export const checkPlan = (plan: Pick<ScenePlan, "assetSummaries" | "scenes" | "s
 // Errors the Draft cannot be built with (scene order and sentence coverage); other errors only warn.
 export const BLOCKING_PLAN_ERROR = /unknown sentence id|cover every sentence|sentenceIds is required|must be an object|type must be one of|reply must be/;
 
-function recordPlan(rec: RunRecord, plan: ScenePlan, images: AskImage[]) {
+// images is null for a record that made no planner call (building the Draft).
+function recordPlan(rec: RunRecord, plan: ScenePlan, images: AskImage[] | null) {
   const placed = placements(plan.scenes);
   rec.plan = {
-    images: { count: images.length, chars: images.reduce((n, im) => n + im.dataUrl.length, 0), refs: images.map((im) => im.name ?? "") },
+    images: images && { count: images.length, chars: images.reduce((n, im) => n + im.dataUrl.length, 0), refs: images.map((im) => im.name ?? "") },
     assetSummaries: Object.fromEntries(plan.assetSummaries.map((a) => [a.ref, a.summary])),
     placements: placed,
     unused: plan.assets.map((a) => a.ref).filter((r) => !placed[r]),
@@ -365,7 +366,7 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
-  recordPlan(rec, sp, []);
+  recordPlan(rec, sp, null);
   const plan = sp.scenes;
   // The embedded face is best effort: without it the templates use the installed fonts. Each graphic gets its
   // own subset: graphics keep separate parameters, so a shared subset would be copied into every caption
