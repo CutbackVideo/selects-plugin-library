@@ -20,6 +20,8 @@ const muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 } as const;
 const input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" } as const;
 const MAX_CHARS = TARGET_CHARS.max;
 const warn = { color: "#d9822b", fontSize: 12 } as const;
+// Review fields stack the label over its control at any panel width.
+const field = { ...muted, display: "flex", flexDirection: "column", gap: 2 } as const;
 
 // A small JPEG of an article photo for the plan review rows (kept in the session, so it stays small).
 function thumbOf(dataUrl: string): Promise<string> {
@@ -256,13 +258,13 @@ function NewsMinutePanel({ sdk, context }: Props) {
                 {edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedMark")}</span> : null}
               </div>
               <span style={{ ...muted, color: "inherit" }}>{ss.map((x) => x.text).join(" ")}</span>
-              <label style={muted}>{T("sceneType")}{" "}
+              <label style={field}>{T("sceneType")}
                 <select value={scene.type} disabled={busy} onChange={(e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs))}>
                   {SCENE_TYPES.map((t2) => <option key={t2} value={t2}>{T("type_" + t2)}</option>)}
                 </select>
               </label>
               {canPhoto ? (
-                <label style={muted}>{T("scenePhoto")}{" "}
+                <label style={field}>{T("scenePhoto")}
                   <select value={scene.assetRef ?? ""} disabled={busy} onChange={(e) => { const { assetRef: _x, ...rest } = scene; setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest); }}>
                     <option value="">{T("noPhoto")}</option>
                     {photoRefs.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -278,12 +280,12 @@ function NewsMinutePanel({ sdk, context }: Props) {
               {(SCENE_FIELDS[scene.type] ?? []).map((k) => {
                 const raw = scene.params?.[k];
                 if (k === "lines") return (
-                  <label key={k} style={muted}>{T("field_lines")}
+                  <label key={k} style={field}>{T("field_lines")}
                     <textarea style={input} rows={3} value={Array.isArray(raw) ? raw.join("\n") : ""} disabled={busy} onChange={(e) => setParam("lines", e.target.value.split("\n"))} />
                   </label>
                 );
                 return (
-                  <label key={k} style={muted}>{T("field_" + k)}
+                  <label key={k} style={field}>{T("field_" + k)}
                     {k === "text"
                       ? <textarea style={input} rows={2} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />
                       : <input style={input} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />}
@@ -304,7 +306,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
             </div>
           );
         })}
-        <label>{T("feedback")}
+        <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>{T("feedback")}
           <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
         </label>
         <span style={muted}>{T("buildCredits")}</span>
