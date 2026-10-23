@@ -537,7 +537,7 @@ function depthOwner(pid, sid) {
 function depthReadScript(pid, sid) {
   return (
     depthOwner(pid, sid) +
-    'const m=await d.meta();const clips=await d.clips({trackScope:"main"});const words=(await d.words({view:"playback"})).filter(w=>!w.nonSpeech&&!w.cut&&!w.unanalyzed&&w.text.trim());if(words.length>1500)throw new Error("Use a draft with fewer than 1500 words.");return {name:m.name,fps:m.fps,width:m.frameSize.width,height:m.frameSize.height,duration:clips.reduce((n,c)=>Math.max(n,c.endFrame),0)/m.fps,words:words.map(w=>({text:w.text,s:w.startFrame,e:w.endFrame,source:w.sourceStartFrame,wordId:w.wordId,speaker:w.speakerId,resource:w.resourceId,utterance:w.utteranceId}))};'
+    'const m=await d.meta();const clips=await d.clips({trackScope:"main"});const words=(await d.words({view:"playback"})).filter(w=>!w.nonSpeech&&!w.cut&&!w.unanalyzed&&w.text.trim());if(words.length>1500)throw new Error("Use a draft with fewer than 1500 words.");return {name:m.name,projectName:owner.title,fps:m.fps,width:m.frameSize.width,height:m.frameSize.height,duration:clips.reduce((n,c)=>Math.max(n,c.endFrame),0)/m.fps,words:words.map(w=>({text:w.text,s:w.startFrame,e:w.endFrame,source:w.sourceStartFrame,wordId:w.wordId,speaker:w.speakerId,resource:w.resourceId,utterance:w.utteranceId}))};'
   );
 }
 // The panel's own clips (captions, and b-roll or cards from earlier versions) never
@@ -1684,6 +1684,7 @@ function DepthEditorReady({ sdk, context, saved }) {
     [wordIndex, setWordIndex] = useState(0),
     [moveUnit, setMoveUnit] = useState("word"),
     [info, setInfo] = useState(null),
+    [targetInfo, setTargetInfo] = useState(null),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
     [preview, setPreview] = useState(null),
@@ -1738,20 +1739,21 @@ function DepthEditorReady({ sdk, context, saved }) {
   useEffect(() => {
     if (!pid || !sid) return;
     let live = true;
+    setTargetInfo(null);
     sdk
       .runScript({ script: depthReadScript(pid, sid), summary: "Read Depth Type draft", allowCommit: false })
       .then((r) => {
         if (!live) return;
         if (r.isError || !r.result) throw new Error(r.output || "Draft read returned no data.");
-        setInfo(r.result);
+        setInfo(r.result);setTargetInfo({sdk,pid,sid,name:r.result.name,projectName:r.result.projectName});
       })
       .catch((e) => {
-        if (live) setStatus(e.message);
+        if (live) {setStatus(e.message);setTargetInfo({sdk,pid,sid,failed:true});}
       });
     return () => {
       live = false;
     };
-  }, []);
+  }, [sdk,pid,sid]);
   const run = async (label, fn) => {
     if (lock.current) return;
     lock.current = true;
@@ -2245,10 +2247,16 @@ function DepthEditorReady({ sdk, context, saved }) {
       styleSection,
     ),
   );
+  const TARGET_LABELS={"en":{"project":"Project","current":"Current draft","running":"Caption source draft","loading":"Reading target\u2026","unavailable":"Name unavailable.","noDraft":"Open a draft to begin.","noProject":"Open a project to begin."},"ko":{"project":"\ud504\ub85c\uc81d\ud2b8","current":"\ud604\uc7ac Draft","running":"\uc790\ub9c9 \uc6d0\ubcf8 Draft","loading":"\ub300\uc0c1\uc744 \ud655\uc778\ud558\ub294 \uc911\u2026","unavailable":"\uc774\ub984\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.","noDraft":"Draft\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","noProject":"\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694."}};
+  const targetLabels=TARGET_LABELS[String(context.language||"").toLowerCase().startsWith("ko")?"ko":"en"];
+  const target=targetInfo?.sdk===sdk&&targetInfo?.pid===pid&&targetInfo?.sid===sid?targetInfo:null;
   return h(
     "div",
     { style: { display: "grid", gap: 12, minWidth: 0 } },
-    h("header", null, h("h2", { style: { margin: 0 } }, "Depth Type Captions"), h("small", null, info?.name || "Open a draft to begin")),
+    h("header", null, h("h2", { style: { margin: 0 } }, "Depth Type Captions"),
+      h("p", null, h("strong",null,targetLabels.project), ": ", !pid?targetLabels.noProject:target?(target.projectName||targetLabels.unavailable):targetLabels.loading),
+      h("p", null, h("strong",null,targetLabels.current), ": ", !sid?targetLabels.noDraft:target?(target.name||targetLabels.unavailable):targetLabels.loading),
+      busy&&h("p",null,h("strong",null,targetLabels.running),": ",target?.projectName||targetLabels.unavailable," / ",target?.name||targetLabels.unavailable)),
     h("div", { role: "status", style: { fontSize: 12, color: "var(--panel-muted-fg,#aaa)", overflowWrap: "anywhere" } }, status || (owned ? "" : "Works on drafts with dialogue, up to 90 seconds.")),
     main,
     fineTune,

@@ -756,7 +756,7 @@ type AnalysisState = "checking" | "ready" | "analyzing" | "needs-analysis";
 
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
 async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
-  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
+  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const pm=await project.meta();if(!pm.draftIds.includes(${JSON.stringify(sequenceId)}))throw Error("The Draft belongs to another Project.");const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,projectName:pm.title,projectId:${JSON.stringify(projectId)},sequenceId:${JSON.stringify(sequenceId)},words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
   if (r.isError || !r.result) throw new Error(r.output || "Selects could not read this draft.");
   return r.result;
 }
@@ -772,41 +772,51 @@ function StylePanel({ sdk, context, ui }: any) {
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string } | null>(null);
   const [setupIssue, setSetupIssue] = useState("");
-  const [sourceName, setSourceName] = useState("");
+  const [sourceInfo, setSourceInfo] = useState(null), [runningTarget, setRunningTarget] = useState(null);
+  const sourceKey=JSON.stringify([projectId,sequenceId]),sourceCurrent=useRef(sourceKey);sourceCurrent.current=sourceKey;
+  const TARGET_LABELS={"en":{"project":"Project","current":"Current draft","running":"Caption source draft","loading":"Reading target\u2026","unavailable":"Name unavailable.","noDraft":"Open a draft to begin.","noProject":"Open a project to begin."},"ko":{"project":"\ud504\ub85c\uc81d\ud2b8","current":"\ud604\uc7ac Draft","running":"\uc790\ub9c9 \uc6d0\ubcf8 Draft","loading":"\ub300\uc0c1\uc744 \ud655\uc778\ud558\ub294 \uc911\u2026","unavailable":"\uc774\ub984\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.","noDraft":"Draft\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","noProject":"\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694."}};
+  const targetLabels=TARGET_LABELS[String(context.language||"").toLowerCase().startsWith("ko")?"ko":"en"];
+  const currentInfo=sourceInfo?.key===sourceKey&&sourceInfo?.sdk===sdk?sourceInfo:null;
   const [alreadyStyled, setAlreadyStyled] = useState(false);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
-  const aiObserver=useRef<AbortController|null>(null);
+  const aiObserver=useRef<AbortController|null>(null),aiScope=useRef("");
   useEffect(()=>()=>aiObserver.current?.abort(),[]);
 
   useEffect(() => {
+    let live=true;
     pluginPaths(sdk)
-      .then((p) => { setPaths(p); setSetupIssue(""); })
-      .catch((e: any) => setSetupIssue(hostMessage(e)));
-  }, []);
+      .then((p) => { if(live){setPaths(p);setSetupIssue("");} })
+      .catch((e: any) => {if(live)setSetupIssue(hostMessage(e));});
+    return()=>{live=false;};
+  }, [sdk]);
 
   useEffect(() => {
+    let live=true;const capturedKey=sourceKey;
     mounted.current = true;
-    setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
-    if (!sequenceId) return () => { mounted.current = false; };
+    setResult(null); setError(""); setStatus(""); setSourceInfo(null); setAlreadyStyled(false); setAnalysisState("checking");
+    if (!sequenceId) return () => { live=false;mounted.current = false; };
     readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then((d: any) => {
-      if (!mounted.current) return;
+      if (!live||sourceCurrent.current!==capturedKey) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
-      setSourceName(name);
+      setSourceInfo({key:capturedKey,sdk,name,projectName:d.projectName});
       setAlreadyStyled(name.endsWith(SUFFIX));
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
-    }).catch(() => { if (mounted.current) setAnalysisState("needs-analysis"); });
-    return () => { mounted.current = false;aiObserver.current?.abort(); };
-  }, [projectId, sequenceId]);
+    }).catch(() => { if (live&&sourceCurrent.current===capturedKey) {setSourceInfo({key:capturedKey,sdk,failed:true});setAnalysisState("needs-analysis");} });
+    return () => { live=false;mounted.current = false;const observer=aiObserver.current;if(aiScope.current===capturedKey)observer?.abort(); };
+  }, [projectId, sequenceId, sdk]);
 
   // Without a transcript there is nothing to style: start analysis of the Draft's footage and wait for its words.
   async function ensureTranscript(draftId: string, signal?:AbortSignal) {
-    if(signal?.aborted)throw new DOMException("Aborted","AbortError");
+    const current=()=>mounted.current&&!signal?.aborted&&aiObserver.current?.signal===signal&&sourceCurrent.current===sourceKey;
+    const attached=()=>{if(!current())throw new DOMException("Aborted","AbortError");};
+    attached();
     let d = await readOpenDraft(sdk, projectId, draftId, "Read draft transcript");
+    attached();
     if (d.words) return;
     if (!d.sourceResourceId || !d.resource) throw new Error("Selects could not find analyzable source footage for this draft.");
     const state = d.resource.status;
@@ -816,14 +826,15 @@ function StylePanel({ sdk, context, ui }: any) {
       if (r.isError) throw new Error(r.output || "Selects could not start transcript analysis.");
     }
     for (let attempt = 0; attempt < 180; attempt += 1) {
-      if(signal?.aborted)throw new DOMException("Aborted","AbortError");
+      attached();
       d = await readOpenDraft(sdk, projectId, draftId, "Check transcript analysis");
-      if (d.words) { if (mounted.current) setAnalysisState("ready"); return; }
+      attached();
+      if (d.words) { setAnalysisState("ready"); return; }
       const s = d.resource?.status;
       if (s === "samplingFailed" || s === "analyzingFailed") throw new Error("Transcript analysis failed. Open the Project workflows to see the reason, then try again.");
       if (s === "analysisNotApplicable") throw new Error("This source cannot be transcribed by Selects.");
       const percent = typeof d.workflow?.progress === "number" ? ` ${Math.round(d.workflow.progress * 100)}%` : "";
-      if (mounted.current) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
+      if (current()) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error("Transcript analysis is still running. Wait for it to finish, then run the style again.");
@@ -832,20 +843,23 @@ function StylePanel({ sdk, context, ui }: any) {
   async function create() {
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
-    const controller=new AbortController();aiObserver.current=controller;
+    const controller=new AbortController();aiScope.current=sourceKey;aiObserver.current=controller;
+    const current=()=>mounted.current&&aiObserver.current===controller&&!controller.signal.aborted&&sourceCurrent.current===sourceKey;
+    setRunningTarget({projectId,sequenceId,projectName:currentInfo?.projectName,name:currentInfo?.name});
     locked.current = true; setBusy(true); setError(""); setResult(null);
     try {
       setStatus("Checking the transcript…");
       await ensureTranscript(from,controller.signal);
-      const env = panelEnv(sdk, paths, (m) => { if (mounted.current) setStatus(m); });
+      if(!current())throw new DOMException("Aborted","AbortError");
+      const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); });
       env.signal=controller.signal;env.retryAi=true;
       const report = await runPipeline(env, projectId, from, { copy: false });
       judeAttached(env);
-      if (mounted.current) { setResult({ id: report.draftId }); setStatus("Your Jude Kinetic draft is ready."); }
-      if (!onScreen.current || onScreen.current === from) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Jude Kinetic draft" });
+      if (current()) { setResult({ id: report.draftId }); setStatus("Your Jude Kinetic draft is ready."); }
+      if (current() && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Jude Kinetic draft" });
     } catch (e: any) {
-      if (mounted.current) { setError(hostMessage(e)); setStatus(""); }
-    } finally { if(aiObserver.current===controller)aiObserver.current=null;locked.current = false; if (mounted.current) setBusy(false); }
+      if (current()) { setError(hostMessage(e)); setStatus(""); }
+    } finally { if(aiObserver.current===controller){aiObserver.current=null;locked.current=false;if(mounted.current){setBusy(false);setRunningTarget(null);}} }
   }
 
   const actionLabel = alreadyStyled
@@ -862,7 +876,9 @@ function StylePanel({ sdk, context, ui }: any) {
 
   return <ui.Section title="Jude Kinetic"><ui.Stack>
     <p>Turn a talking-head draft into red and cream kinetic typography.</p>
-    {sourceName ? <p><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
+    <p><strong>{targetLabels.project}</strong>: {!projectId?targetLabels.noProject:currentInfo?(currentInfo.projectName||targetLabels.unavailable):targetLabels.loading}</p>
+    <p><strong>{targetLabels.current}</strong>: {!sequenceId?targetLabels.noDraft:currentInfo?(currentInfo.name||targetLabels.unavailable):targetLabels.loading}</p>
+    {runningTarget&&<p><strong>{targetLabels.running}</strong>: {runningTarget.projectName||targetLabels.unavailable} / {runningTarget.name||targetLabels.unavailable}</p>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
