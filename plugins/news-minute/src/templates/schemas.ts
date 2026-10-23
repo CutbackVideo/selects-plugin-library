@@ -135,7 +135,7 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" },
     SOURCE,
     { key: "unit", label: "Unit", type: "text", defaultValue: "" },
-    ACCENT,
+    PAPER,
   ],
   stat_cards: [
     FONT,
@@ -150,7 +150,7 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     FONT,
     { key: "name", label: "Name", type: "text", defaultValue: "" },
     { key: "affiliation", label: "Affiliation", type: "text", defaultValue: "" },
-    ACCENT,
+    PAPER,
   ],
 };
 
