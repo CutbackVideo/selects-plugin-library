@@ -271,6 +271,7 @@ jobs:
           node --test tests/shared_ai*.test.cjs
           node --test plugins/ali-abdaal-style/tests/portrait.test.mjs
           node --test plugins/jude-kinetic-style/tests/sprite-codec.test.mjs
+          node --test tests/jude_face_result_pages.test.mjs
           node --test plugins/doac-style/tests/caption-placement.test.mjs
           node --test tests/video_ai_frames.test.mjs
           node --test tests/travel_beat_vlog.test.mjs tests/travel_beat_vlog_overlay.test.mjs tests/template_alias_failures.test.mjs tests/cutout_beat_gallery_windows.test.mjs
