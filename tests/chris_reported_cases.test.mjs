@@ -130,5 +130,5 @@ test('only actual saved-run warnings open a localized host notice; dismissal pre
 
 test('the host-limited notice contains complete next steps and the full report path within 500 characters',()=>{
  const r={jobDir:'/Users/mano/Documents/clip-highlights-analysis/repro-20261023/round3/caption/outputs/chris-williamson-style/runs/9b1c5341-mvklz701',warnings:['Final B-roll crop rejected: The first sampled crop is completely black. '+ 'Detailed original finding. '.repeat(20),"The phrase cannot be read because contrast is low.",'The speaker leans out of frame.']};
- for(const language of ['en','ko']){const notice=templateIssueNotice(r,language);assert.ok(notice.message.length<500);assert.ok(notice.message.endsWith(r.jobDir+'/report.json'));assert.equal(notice.warningCount,3);assert.ok(!notice.message.includes('Detailed original finding'));}assert.equal(r.warnings.length,3);
+ for(const language of ['en','ko']){const notice=templateIssueNotice(r,language);assert.ok(notice.message.length<500);assert.ok(notice.message.endsWith(r.jobDir+'/report.json'));assert.equal(notice.warningCount,3);assert.ok(!notice.message.includes('Detailed original finding'));}assert.equal(r.warnings.length,3);assert.ok(templateIssueNotice({...r,jobDir:'/very-long/'+ 'x'.repeat(500)},'en').message.length<500);
 });

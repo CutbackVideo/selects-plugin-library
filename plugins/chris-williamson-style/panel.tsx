@@ -2021,8 +2021,9 @@ export function templateIssueNotice(result:any,language:string){
  if(warnings.some((w:string)=>/speaker.*out of frame|framing|weak frame/i.test(w)))lines.push(ko?'• 화자가 화면 밖으로 벗어나는 구간을 확인해주세요.':'• Framing: review the speaker leaving the picture.');
  if(!lines.length)lines.push(ko?'• 실행 중 보고된 문제를 전체 보고서에서 확인해주세요.':'• Review the reported execution issues in the full report.');
  const path=typeof result?.jobDir==='string'?hostJoin(result.jobDir,'report.json'):null;
- const location=path&&path.length<=300?path:(ko?'템플릿 데이터 폴더의 report.json':'report.json in the template data folder');
- const message=(ko?'타임라인이 저장되었습니다. 확인이 필요한 항목: ':'Draft saved. Issues requiring review: ')+warnings.length+'\n'+lines.join('\n')+'\n'+(ko?'전체 보고서: ':'Full report: ')+location;
+ const prefix=(ko?'타임라인이 저장되었습니다. 확인이 필요한 항목: ':'Draft saved. Issues requiring review: ')+warnings.length+'\n'+lines.join('\n')+'\n'+(ko?'전체 보고서: ':'Full report: ');
+ const location=path&&path.length<=480-prefix.length?path:(ko?'템플릿 데이터 폴더의 report.json':'report.json in the template data folder');
+ const message=prefix+location;
  return {message,warningCount:warnings.length};
 }
 export async function notifyTemplateIssues(sdk:any,context:any,result:any){
@@ -2032,7 +2033,7 @@ export async function notifyTemplateIssues(sdk:any,context:any,result:any){
  const language=String(context?.language||'en').toLowerCase().split('-')[0],ui=RESULT_NOTICE_UI[language]||RESULT_NOTICE_UI.en;
  const notice=templateIssueNotice(result,language);
  const acknowledged=await sdk.confirm({title:ui.title,message:notice.message,confirmLabel:ui.done,cancelLabel:ui.close});
- return {shown:true,warningCount:warnings.length,displayedWarnings:Math.min(8,warnings.length),acknowledged:acknowledged===true};
+ return {shown:true,warningCount:warnings.length,summarizedWarnings:warnings.length,acknowledged:acknowledged===true};
 }
 
 async function templatePaths(sdk: any) {
