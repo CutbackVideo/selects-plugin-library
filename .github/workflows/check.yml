@@ -139,6 +139,7 @@ jobs:
         run: |
           node plugins/vlog-opening/tests/reference.test.cjs
           node plugins/vlog-opening/tests/orientation.test.cjs
+          node plugins/vlog-opening/tests/style-parameters.test.cjs
       - name: Test Mini Vlog
         run: |
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_source_resolution.test.mjs tests/mini_owned_cues.test.mjs tests/mini_media_scope.test.mjs tests/mini_native_facts.test.mjs tests/analysis_worker.test.mjs tests/analysis_worker_followup.test.mjs tests/media_inventory_observation.test.mjs tests/media_inventory_consumer.test.mjs tests/selected_inventory_scope.test.mjs tests/mini_assembly_receipts.test.mjs tests/mini_execution_ownership.test.mjs tests/mini_pending_discovery.test.mjs tests/mini_program_intent.test.mjs tests/mini_look_phase.test.mjs tests/mini_assembly_intent.test.mjs tests/mini_assembly_verification.test.mjs tests/mini_frozen_recovery.test.mjs tests/mini_analysis_inputs.test.mjs tests/mini_video_sources.test.mjs tests/mini_own_music_sources.test.mjs tests/mini_own_music_analysis.test.mjs tests/mini_own_music_recovery.test.mjs tests/clip_analysis.test.mjs tests/clip_analysis_sources.test.mjs tests/analysis_asset_lifetime.test.mjs
@@ -230,6 +231,8 @@ jobs:
           node --test tests/selected_template_media.test.mjs
           node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
+          node --test tests/cinema_vlog_studio_fps.test.mjs
+          node --test tests/thank_you_recap_fps.test.mjs
           node --test tests/cutout_beat_gallery.test.mjs
           node --test tests/daily_vlog_8.test.mjs
           node --test tests/daily_vlog_8_reference.test.mjs
