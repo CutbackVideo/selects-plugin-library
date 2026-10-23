@@ -82,7 +82,15 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
         { label: "Right", value: "right" },
       ],
     },
+    {
+      key: "fit", label: "Fit", type: "select", defaultValue: "cover",
+      options: [
+        { label: "Fill (crop)", value: "cover" },
+        { label: "Whole image", value: "contain" },
+      ],
+    },
     { key: "zoom", label: "Zoom", type: "number", defaultValue: 0.09, min: 0, max: 0.3, step: 0.01 },
+    { key: "background", label: "Background (whole image)", type: "color", defaultValue: "#2B3D34" },
     { key: "credit", label: "Credit", type: "text", defaultValue: "" },
   ],
   text_card: [
