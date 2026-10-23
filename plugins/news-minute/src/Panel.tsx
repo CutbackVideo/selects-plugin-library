@@ -35,14 +35,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   const log: F.Log = (k, v) => { const m = T(k, v); setStatus(m); setLines((l) => [...l.slice(-40), new Date().toLocaleTimeString() + "  " + m]); };
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
-  const update = async (next: F.Session) => { setS(next); await save(sdk, F.SESSION_KEY, next); };
+  const update = async (next: F.Session) => { setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
 
   useEffect(() => {
     (async () => {
       try {
         if (!sdk.storage) throw new Error(T("noStorage"));
         env.current = await F.getEnv(sdk);
-        const saved = await load<F.Session>(sdk, F.SESSION_KEY);
+        const saved = await load<F.Session>(sdk, F.sessionKey(env.current.projectId));
         const sess = saved ?? F.emptySession();
         setS(sess);
         if (sess.projectId) setTts(await F.readTts(sdk, sess.projectId));

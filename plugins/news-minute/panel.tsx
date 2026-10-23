@@ -1868,7 +1868,7 @@ return { captions: i };`
 }
 
 // src/pipeline/flow.ts
-var SESSION_KEY = "session";
+var sessionKey = (projectId) => "session:" + (projectId ?? "none");
 var emptySession = (presetId = "chosun") => ({ presetId, voiceId: DEFAULT_VOICE, article: null, script: null, scriptErrors: [], approved: null, projectId: null, draftId: null });
 var join = (env, ...parts) => [env.dir, ...parts].join(env.sep);
 var tmpPath = (env, name) => [env.tmp.replace(/[\\/]+$/, ""), "news-minute-" + name].join(env.sep);
@@ -1968,8 +1968,8 @@ function checkEdited(script, article) {
 var scriptText = (script) => joinScript(script.sentences.map((s) => s.text));
 var revisionOf = (script, voiceId) => ttsRevision(script.headline.line1 + "\n" + script.headline.line2 + "\n" + scriptText(script), voiceId);
 async function ensureProject(sdk, env, s) {
-  if (s.projectId) return s.projectId;
   if (env.projectId) return env.projectId;
+  if (s.projectId) return s.projectId;
   const r = await run(sdk, createProjectScript());
   return r.projectId;
 }
@@ -2105,14 +2105,14 @@ function NewsMinutePanel({ sdk, context }) {
   };
   const update = async (next2) => {
     setS(next2);
-    await save(sdk, SESSION_KEY, next2);
+    await save(sdk, sessionKey(env.current?.projectId ?? next2.projectId), next2);
   };
   useEffect(() => {
     (async () => {
       try {
         if (!sdk.storage) throw new Error(T("noStorage"));
         env.current = await getEnv(sdk);
-        const saved = await load(sdk, SESSION_KEY);
+        const saved = await load(sdk, sessionKey(env.current.projectId));
         const sess = saved ?? emptySession();
         setS(sess);
         if (sess.projectId) setTts(await readTts(sdk, sess.projectId));
