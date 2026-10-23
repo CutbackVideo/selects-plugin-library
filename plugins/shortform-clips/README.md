@@ -121,8 +121,9 @@ The development evaluation harness is not shipped or run as another AI stage.
 
 ### Review before framing
 
-**Include framing** in Make clips is on by default. Turning it off skips framing
-and its speaker and face analysis, so clips are ready sooner. Each clip then shows
+**Include framing** in Make clips is off by default, which skips framing and
+its speaker and face analysis so clips are ready sooner. Turn it on to frame
+every clip during the run. Each clip then shows
 its whole source frame centred in the template's video window, over a blurred,
 enlarged copy of the same frame. Cards show **Wide · not framed yet**. The setting
 is saved with the run; landscape and scene templates ignore it.
