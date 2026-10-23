@@ -4,7 +4,7 @@ import * as P from "../prompts/index.ts";
 import type { Article as PromptArticle, PlanScene } from "../prompts/types.ts";
 import { DEFAULT_VOICE, type Preset } from "../preset.ts";
 import { decodeHtml, extractArticle, type Article } from "./article.ts";
-import { ask, ffmpeg, load, readFileBase64, readFileBytes, run, save, type PanelSdk } from "./host.ts";
+import { ask, ffmpeg, load, readFileBase64, readFileBytes, run, save, writeText, type PanelSdk } from "./host.ts";
 import {
   alignmentScript, createProjectScript, downloadScript, envScript, existsScript, generateScript, importScript,
   narrationStatusScript, photoArgs, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
@@ -48,28 +48,44 @@ export async function fetchArticle(sdk: PanelSdk, env: Env, url: string): Promis
   }
 }
 
-// Repair: prefer the prompts module's own repairPrompt; otherwise restate the task with the reply and errors.
-function repairText(task: string, reply: string, errors: string[]): string {
-  const own = (P as any).repairPrompt;
-  if (typeof own === "function") return own(task, reply, errors);
-  return [task, "", "YOUR PREVIOUS REPLY", reply, "", "IT FAILED THESE CHECKS; fix every one and reply with the corrected JSON only:", ...errors.map((e) => "- " + e)].join("\n");
-}
+// Per-step diagnostics for the run record: time, AI turns, JSON parse failures, repairs, remaining errors.
+export type StepStat = { step: string; ms: number; turns: number; parseFailures: number; repairs: number; errors: string[]; at: string };
+export type RunRecord = { startedAt: string; preset: string; url: string; steps: StepStat[]; notes: string[] };
+export const newRunRecord = (preset: string, url: string): RunRecord => ({ startedAt: new Date().toISOString(), preset, url, steps: [], notes: [] });
 
-async function askValid<T>(sdk: PanelSdk, prompt: string, check: (json: any) => { ok: boolean; errors: string[] }, log: Log, maxRepairs = 2): Promise<{ json: T | null; errors: string[] }> {
+async function askValid<T>(sdk: PanelSdk, step: string, prompt: string, check: (json: any) => { ok: boolean; errors: string[] }, log: Log, rec: RunRecord, maxRepairs = 2): Promise<{ json: T | null; errors: string[] }> {
+  const t0 = Date.now();
+  const stat: StepStat = { step, ms: 0, turns: 1, parseFailures: 0, repairs: 0, errors: [], at: new Date().toISOString() };
   let reply = await ask(sdk, prompt);
   let json: any = null, errors: string[] = [];
-  for (let attempt = 0; ; attempt++) {
-    try { json = P.parseJsonLoose(reply); const v = check(json); errors = v.errors; } catch (e: any) { json = null; errors = [String(e?.message || e)]; }
-    if (!errors.length || attempt >= maxRepairs) return { json, errors };
-    log("repairing");
-    reply = await ask(sdk, repairText(prompt, reply, errors));
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try { json = P.parseJsonLoose(reply); const v = check(json); errors = v.errors; } catch (e: any) { json = null; stat.parseFailures++; errors = [String(e?.message || e)]; }
+      if (!errors.length || attempt >= maxRepairs) return { json, errors };
+      log("repairing");
+      stat.repairs++;
+      stat.turns++;
+      reply = await ask(sdk, P.repairPrompt(prompt, json ?? reply, errors));
+    }
+  } finally {
+    stat.ms = Date.now() - t0;
+    stat.errors = errors.slice(0, 20);
+    rec.steps.push(stat);
+    log("stepDone", { step, sec: (stat.ms / 1000).toFixed(1), repairs: stat.repairs, parse: stat.parseFailures });
   }
 }
 
-export async function writeScript(sdk: PanelSdk, article: Article, preset: Preset, log: Log): Promise<{ script: Script; errors: string[] }> {
+// The run record goes to ~/.selects/plugin-data/news-minute/runs/<time>.json (best effort).
+export async function saveRunRecord(sdk: PanelSdk, env: Env, rec: RunRecord): Promise<string | null> {
+  const name = "run-" + rec.startedAt.replace(/[:.]/g, "-") + ".json";
+  const path = join(env, name);
+  try { await writeText(sdk, path, JSON.stringify(rec, null, 1)); return path; } catch { return null; }
+}
+
+export async function writeScript(sdk: PanelSdk, article: Article, preset: Preset, log: Log, rec: RunRecord): Promise<{ script: Script; errors: string[] }> {
   const pa = promptArticle(article);
   log("writing");
-  const first = await askValid<any>(sdk, P.scriptPrompt(pa, { language: preset.scriptLanguage }), (j) => P.validateScript(j, pa), log);
+  const first = await askValid<any>(sdk, "script", P.scriptPrompt(pa, { language: preset.scriptLanguage }), (j) => P.validateScript(j, pa), log, rec);
   if (!first.json || !Array.isArray(first.json.sentences)) throw new Error(first.errors.join("; ") || "no script");
   const draft = {
     headline: { line1: String(first.json.headline?.line1 ?? ""), line2: String(first.json.headline?.line2 ?? "") },
@@ -77,7 +93,7 @@ export async function writeScript(sdk: PanelSdk, article: Article, preset: Prese
   };
   log("checking");
   const prev = { headline: draft.headline, sentences: draft.sentences.map((s: any) => ({ id: s.id, text: s.text })) };
-  const fid = await askValid<any>(sdk, P.fidelityPrompt(pa, { ...prev, language: preset.scriptLanguage }), (j) => P.validateFidelity(j, pa, prev), log);
+  const fid = await askValid<any>(sdk, "fidelity", P.fidelityPrompt(pa, { ...prev, language: preset.scriptLanguage }), (j) => P.validateFidelity(j, pa, prev), log, rec);
   if (fid.json && Array.isArray(fid.json.sentences) && fid.json.sentences.length === draft.sentences.length) {
     const script: Script = {
       headline: { line1: String(fid.json.headline?.line1 ?? draft.headline.line1), line2: String(fid.json.headline?.line2 ?? draft.headline.line2) },
@@ -170,7 +186,7 @@ async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number
   return r.ids[0];
 }
 
-export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log): Promise<{ draftId: string; timing: string; fallbackPlan: boolean }> {
+export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord): Promise<{ draftId: string; timing: string; fallbackPlan: boolean }> {
   const script = s.script!, article = s.article!, projectId = s.projectId!;
   const total = narration.durationSeconds;
   if (!(total > 0)) throw new Error("narration length unknown");
@@ -181,6 +197,7 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   const chars = await run<AlignChar[] | null>(sdk, alignmentScript(projectId, narration.resourceId));
   const texts = script.sentences.map((x) => x.text);
   const { times, source } = sentenceTimes(texts, chars, total);
+  rec.notes.push("timing: " + source + (chars ? ", " + chars.length + " aligned characters" : ", no alignment"));
   if (source === "ratio") log("timingRatio");
 
   const photos = await prepPhotos(sdk, env, article, log);
@@ -190,11 +207,11 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   log("planning");
   let plan: PlanScene[] | null = null;
   try {
-    const r = await askValid<any>(sdk, P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), (j) => P.validatePlan(j, sentences, assets), log, 1);
+    const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), (j) => P.validatePlan(j, sentences, assets), log, rec, 1);
     if (r.json && !r.errors.length) plan = r.json.scenes;
   } catch { plan = null; }
   const usedFallback = !plan;
-  if (!plan) { log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
+  if (!plan) { rec.notes.push("plan: fallback"); log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
 
   const scenes = sceneClips(plan, sentences, times, total, photos);
   const hidden = hiddenCaptionSentences(plan, sentences);
@@ -207,5 +224,6 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   if (!base.draftId) throw new Error("the Draft was not created");
   for (const call of sceneScripts(base.draftId, scenes)) await run(sdk, call);
   await run(sdk, overlayTextScript(base.draftId, x));
+  rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
   return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
 }

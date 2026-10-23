@@ -86,6 +86,9 @@
   "music": {
     "Panel": "busy || lock.current || canceling"
   },
+  "news-minute": {
+    "NewsMinutePanel": "busy"
+  },
   "no14-still-video": {
     "No14Panel": "busy || running.current",
     "No14TemplateRun": "true"

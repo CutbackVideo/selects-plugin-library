@@ -16,13 +16,13 @@ export type Preset = {
 export const PRESETS: Record<string, Preset> = {
   chosun: {
     id: "chosun",
-    label: "Chosun Ilbo · 오늘의 1분",
+    label: "Chosun Ilbo \u00B7 \uC624\uB298\uC758 1\uBD84",
     background: "#21302A",
     accentColor: "#D8B66A",
-    logoMain: "오늘의", // "today's"
-    logoAccent: "1분", // "1 minute"
-    tagline: "1분으로 이해하는 이슈", // "the issue in one minute"
-    disclaimer: "※위 사진은 해당 보도와 관련 없습니다", // "this image is unrelated to the report"
+    logoMain: "\uC624\uB298\uC758", // "today's"
+    logoAccent: "1\uBD84", // "1 minute"
+    tagline: "1\uBD84\uC73C\uB85C \uC774\uD574\uD558\uB294 \uC774\uC288", // "the issue in one minute"
+    disclaimer: "\u203B\uC704 \uC0AC\uC9C4\uC740 \uD574\uB2F9 \uBCF4\uB3C4\uC640 \uAD00\uB828 \uC5C6\uC2B5\uB2C8\uB2E4", // "this image is unrelated to the report"
     scriptLanguage: "Korean",
     ttsLanguage: "ko",
   },
