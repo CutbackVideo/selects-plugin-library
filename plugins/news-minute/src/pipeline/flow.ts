@@ -230,7 +230,10 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   let plan: PlanScene[] | null = null;
   try {
     const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), (j) => P.validatePlan(j, sentences, assets), log, rec, 1);
-    if (r.json && !r.errors.length) plan = r.json.scenes;
+    // A scene a little over the 10 s guide is still a usable plan; anything else falls back.
+    const onlyLength = r.errors.length > 0 && r.errors.every((e) => /lasts [\d.]+ s/.test(e) && Number(/lasts ([\d.]+) s/.exec(e)![1]) <= 14);
+    if (r.json && (!r.errors.length || onlyLength)) plan = r.json.scenes;
+    if (onlyLength) rec.notes.push("plan: accepted with long scenes (" + r.errors.join("; ") + ")");
   } catch { plan = null; }
   const usedFallback = !plan;
   if (!plan) { rec.notes.push("plan: fallback"); log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
@@ -242,8 +245,9 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   let font: EmbeddedFont | null = null;
   try {
     log("fonts");
+    const t0 = Date.now();
     font = await embeddedFont(sdk, env);
-    rec.notes.push("font: embedded");
+    rec.notes.push("font: embedded (load " + ((Date.now() - t0) / 1000).toFixed(1) + " s)");
   } catch (e: any) {
     rec.notes.push("font: not embedded (" + String(e?.message || e) + ")");
     log("fontFallback");
