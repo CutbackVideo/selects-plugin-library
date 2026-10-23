@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "a16z-style-captions",
-  "version": "0.20.8",
+  "version": "0.20.9",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
@@ -39,36 +39,36 @@
       "summary": "One click turns a talking-head Draft into a 9:16 Short in the a16z house style: framing, editorial captions, keyword cards, B-roll, name tag and music."
     },
     "es": {
-      "name": "Subt\u00edtulos estilo a16z",
-      "summary": "Con un clic convierte un Draft de persona hablando en un Short 9:16 al estilo de a16z: encuadre, subt\u00edtulos editoriales, tarjetas de palabras clave, B-roll, r\u00f3tulo con el nombre y m\u00fasica."
+      "name": "Subtítulos estilo a16z",
+      "summary": "Con un clic convierte un Draft de persona hablando en un Short 9:16 al estilo de a16z: encuadre, subtítulos editoriales, tarjetas de palabras clave, B-roll, rótulo con el nombre y música."
     },
     "fr": {
       "name": "Sous-titres style a16z",
-      "summary": "En un clic, transforme un Draft face cam\u00e9ra en Short 9:16 dans le style maison d\u2019a16z : cadrage, sous-titres \u00e9ditoriaux, cartes mots-cl\u00e9s, B-roll, nom \u00e0 l\u2019\u00e9cran et musique."
+      "summary": "En un clic, transforme un Draft face caméra en Short 9:16 dans le style maison d’a16z : cadrage, sous-titres éditoriaux, cartes mots-clés, B-roll, nom à l’écran et musique."
     },
     "it": {
       "name": "Sottotitoli stile a16z",
       "summary": "Con un clic trasforma un Draft con una persona che parla in uno Short 9:16 nello stile di a16z: inquadratura, sottotitoli editoriali, schede con parole chiave, B-roll, sottopancia e musica."
     },
     "ja": {
-      "name": "a16z\u30b9\u30bf\u30a4\u30eb\u5b57\u5e55",
-      "summary": "\u30ef\u30f3\u30af\u30ea\u30c3\u30af\u3067\u3001\u8a71\u3057\u624b\u3092\u6620\u3057\u305fDraft\u3092a16z\u30b9\u30bf\u30a4\u30eb\u306e9:16\u30b7\u30e7\u30fc\u30c8\u306b\u5909\u63db\u3057\u307e\u3059\u3002\u30d5\u30ec\u30fc\u30df\u30f3\u30b0\u3001\u7de8\u96c6\u7684\u306a\u5b57\u5e55\u3001\u30ad\u30fc\u30ef\u30fc\u30c9\u30ab\u30fc\u30c9\u3001B\u30ed\u30fc\u30eb\u3001\u540d\u524d\u30c6\u30ed\u30c3\u30d7\u3001\u97f3\u697d\u4ed8\u304d\u3002"
+      "name": "a16zスタイル字幕",
+      "summary": "ワンクリックで、話し手を映したDraftをa16zスタイルの9:16ショートに変換します。フレーミング、編集的な字幕、キーワードカード、Bロール、名前テロップ、音楽付き。"
     },
     "ko": {
-      "name": "a16z \uc2a4\ud0c0\uc77c \uc790\ub9c9",
-      "summary": "\ud074\ub9ad \ud55c \ubc88\uc73c\ub85c \ud1a0\ud0b9\ud5e4\ub4dc Draft\ub97c a16z \uc2a4\ud0c0\uc77c\uc758 9:16 \uc1fc\uce20\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ud504\ub808\uc774\ubc0d, \uc5d0\ub514\ud1a0\ub9ac\uc5bc \uc790\ub9c9, \ud0a4\uc6cc\ub4dc \uce74\ub4dc, B\ub864, \uc774\ub984\ud45c, \uc74c\uc545\uae4c\uc9c0 \ub123\uc2b5\ub2c8\ub2e4."
+      "name": "a16z 스타일 자막",
+      "summary": "클릭 한 번으로 토킹헤드 Draft를 a16z 스타일의 9:16 쇼츠로 만듭니다. 프레이밍, 에디토리얼 자막, 키워드 카드, B롤, 이름표, 음악까지 넣습니다."
     },
     "pt": {
       "name": "Legendas estilo a16z",
-      "summary": "Com um clique, transforma um Draft de pessoa falando em um Short 9:16 no estilo da a16z: enquadramento, legendas editoriais, cart\u00f5es de palavra-chave, B-roll, nome na tela e m\u00fasica."
+      "summary": "Com um clique, transforma um Draft de pessoa falando em um Short 9:16 no estilo da a16z: enquadramento, legendas editoriais, cartões de palavra-chave, B-roll, nome na tela e música."
     },
     "tr": {
-      "name": "a16z Tarz\u0131 Altyaz\u0131lar",
-      "summary": "Tek t\u0131kla konu\u015fan ki\u015fi i\u00e7eren bir Draft\u2019\u0131 a16z tarz\u0131nda 9:16 bir Short\u2019a d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: \u00e7er\u00e7eveleme, editoryal altyaz\u0131lar, anahtar kelime kartlar\u0131, B-roll, isim etiketi ve m\u00fczik."
+      "name": "a16z Tarzı Altyazılar",
+      "summary": "Tek tıkla konuşan kişi içeren bir Draft’ı a16z tarzında 9:16 bir Short’a dönüştürür: çerçeveleme, editoryal altyazılar, anahtar kelime kartları, B-roll, isim etiketi ve müzik."
     },
     "zh": {
-      "name": "a16z \u98ce\u683c\u5b57\u5e55",
-      "summary": "\u4e00\u952e\u628a\u53e3\u64ad Draft \u505a\u6210 a16z \u98ce\u683c\u7684 9:16 \u77ed\u89c6\u9891\uff1a\u4eba\u7269\u6784\u56fe\u3001\u7f16\u8f91\u98ce\u683c\u5b57\u5e55\u3001\u5173\u952e\u8bcd\u5361\u7247\u3001B-roll\u3001\u59d3\u540d\u6761\u548c\u97f3\u4e50\u3002"
+      "name": "a16z 风格字幕",
+      "summary": "一键把口播 Draft 做成 a16z 风格的 9:16 短视频：人物构图、编辑风格字幕、关键词卡片、B-roll、姓名条和音乐。"
     }
   },
   "preview": {

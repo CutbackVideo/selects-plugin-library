@@ -29,7 +29,7 @@ No.14, Camera Shutter, Four Photo Stop Motion, Polaroid, Photo Gallery, Mini Vlo
 
 Dedicated tests remove new SDK fingerprint/source-window/fresh/deadline capabilities and exercise saves, independent readback, remounts, lost replies, manual changes, same-size file replacement and saved-ID retention on failure. Generated scripts are checked against existing SDK declarations, alongside affected-consumer regressions. Final command outcomes are recorded in PR #346.
 
-Installed-app, Windows, whole playback and export remain unverified. No Electron or other task's processes, temporary files or data were touched. Semantic review and whole-template acceptance remain 0/28.
+The initial SDK-free checkpoint did not run an app. The later [actual-app checkpoint](sdk-free-live-validation.md) verifies isolated development-app saves, cold recovery and three native exports, while native Preview and Gallery border-quality gates remain open. Existing work and foreign processes are preserved. Installed PanelHost, Windows, semantic review and whole-template acceptance remain open (0/28).
 
 ## CI fixture follow-up
 

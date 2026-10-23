@@ -381,3 +381,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `torn-paper-love` | Source audit only | Full contract and runtime completion gates above |
 | `travel-beat-vlog` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `vlog-opening` | Source audit only | Full contract and runtime completion gates above |
+
+## SDK-free actual-app follow-up
+
+See [the partial runtime checkpoint](sdk-free-live-validation.md) for the four remaining Worker consumer repairs, actual-app lifecycle probe, Gallery/Archive save and cold recovery, three native exports, and the still-failing Preview and Gallery border gates. SDK/app changes and Chan remain excluded; whole-template acceptance is 0/28.
