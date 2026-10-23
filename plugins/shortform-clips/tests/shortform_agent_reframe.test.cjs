@@ -4,7 +4,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('autonomous reframing contract',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {FRAMING_WORDS_SCRIPT,runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {FRAMING_WORDS_SCRIPT,runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence,compositionTimingDiagnostic};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  await t.test('long framing reads omit editing spans while retaining timing and speaker facts',async()=>{
   const word={text:'babyfood',startFrame:0,endFrame:30,wordId:'w1',speakerId:1,speakerName:'Speaker',sourceResourceId:'source',sourceStartFrame:100,sourceEndFrame:130};
   const words=Array.from({length:400},(_,i)=>({...word,wordId:'w'+i,span:{owner:'x'.repeat(2000)},within:{owner:'y'.repeat(2000)}}));
@@ -78,6 +78,29 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
   assert.deepEqual(normalize(parts),[w]);
   for(const change of [{wordId:'w2'},{sourceResourceId:'r2'},{startFrame:21},{sourceStartFrame:121},{text:'changed'}]) assert.equal(normalize([parts[0],{...parts[1],...change}]).length,2);
   assert.deepEqual(parts[0].endFrame,20);
+ });
+ await t.test('timing diagnostics stay bounded while retaining a late failure',()=>{
+  const shots=Array.from({length:150},(_,i)=>({startFrame:i,endFrame:i+1,text:'do not log'}));
+  shots[149].startFrame=151;
+  const d=m.exports.compositionTimingDiagnostic({shots},150);
+  assert.equal(d.shots.length,128);assert.equal(d.truncated,true);
+  assert.equal(d.issue.index,149);assert.equal(d.issue.actual.startFrame,151);
+  assert.ok(!JSON.stringify(d).includes('do not log'));
+  assert.equal(m.exports.compositionTimingDiagnostic({shots:[{startFrame:0.5,endFrame:2}]},2).issue.kind,'non-integer');
+ });
+ await t.test('persists exact rejected intervals and separates gaps from overlaps',async()=>{
+  for(const [startFrame,kind] of [[50,'gap'],[10,'overlap']]){
+   const report={...valid,shots:[{...valid.shots[0],endFrame:30},{...valid.shots[0],startFrame}]};
+   const r=await run({report}),result=await r.execute();
+   assert.equal(result.qualityStatus,'limited');assert.equal(r.state().applies,0);
+   const d=JSON.parse(JSON.stringify(result)).timingDiagnostics;
+   assert.equal(d.received.issue.kind,kind);assert.equal(d.validated.issue.kind,kind);
+   assert.equal(d.validated.issue.expectedStartFrame,30);
+   assert.equal(d.validated.issue.actual.startFrame,startFrame);
+   assert.equal(d.validated.issue.previous.endFrame,30);
+   assert.equal(d.fps,30);
+   assert.deepEqual(r.state().notes.find(n=>n.plan==='agent-reframe-preserved').timingDiagnostics,d);
+  }
  });
  await t.test('agent plans once and code validates and applies without runtime previews',async()=>{const r=await run();assert.equal((await r.execute()).status,'complete');assert.equal(r.state().reads,3);assert.equal(r.state().calls,1);assert.equal(r.state().applies,1);});
  await t.test('descriptive evidence cannot discard executable framing or change its geometry',async()=>{
