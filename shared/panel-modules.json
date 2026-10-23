@@ -92,7 +92,11 @@
       "source": "shared/analysis-worker.js",
       "targets": [
         "plugins/mini-vlog/panel.tsx",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/city-weekend-vlog/panel.tsx",
+        "plugins/torn-paper-love/panel.tsx",
+        "plugins/summer-trip/panel.tsx",
+        "plugins/the-end-credits/panel.tsx"
       ]
     },
     {

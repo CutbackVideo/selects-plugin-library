@@ -5,8 +5,9 @@ function panelWorkerIssue(code,message,cause=undefined){
 }
 async function runPanelWorker(source,payload,options={}){
  if(!options||typeof options!=='object'||Array.isArray(options))throw panelWorkerIssue('INPUT','The analysis worker scope is invalid.');
- const {signal,isCurrent=()=>true,timeoutMs=60000}=options;
+ const {signal,isCurrent=()=>true,timeoutMs=60000,transfer}=options;
  if(typeof source!=='string'||!source||new TextEncoder().encode(source).length>1024*1024||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw panelWorkerIssue('INPUT','The analysis worker request is invalid.');
+ if(transfer!==undefined&&!Array.isArray(transfer))throw panelWorkerIssue('INPUT','The analysis worker transfer list is invalid.');
  const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
  const stopped=cause=>panelWorkerIssue('STOPPED','Background analysis ended before completion.',cause);
  const timeout=cause=>panelWorkerIssue('TIMEOUT','Background analysis timed out.',cause);
@@ -57,9 +58,10 @@ async function runPanelWorker(source,payload,options={}){
    timer=setTimeout(()=>finish(undefined,timeout()),Math.max(0,deadline-Date.now()));
    watch=setTimeout(observe,50);
    phase='DISPATCH';
-   // Preserve caller data. Beat fallback still needs the original PCM duration;
-   // transferring its buffer here would silently detach those samples.
-   worker.postMessage(payload);
+   // Clone by default. Only callers that already relinquish their buffer opt
+   // into transfer; selection/copying and fallback remain caller policy.
+   if(transfer===undefined)worker.postMessage(payload);
+   else worker.postMessage(payload,transfer);
   }catch(cause){finish(undefined,panelWorkerIssue(phase,phase==='START'?'The analysis worker could not start.':'The analysis worker request could not be sent.',cause));}
  });
 }

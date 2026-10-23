@@ -972,13 +972,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "55e6faca69d31f3cd5f300435310464dce6dc6a47b97bf15e459b4d3923df49d",
+      "sha256": "ce52a16f9ff4035e9c16eb0f65467ddb4138a844387e302557b36b309096e8d0",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8044,
+          "endLine": 8046,
           "feature": "panel-ui"
         },
         {
@@ -1017,13 +1017,13 @@
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7593,
-          "endLine": 7996,
+          "startLine": 7595,
+          "endLine": 7998,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7998,
-          "endLine": 8043,
+          "startLine": 8000,
+          "endLine": 8045,
           "feature": "app-guard"
         },
         {
@@ -1057,118 +1057,118 @@
           "feature": "music-policy"
         },
         {
-          "startLine": 4564,
-          "endLine": 4579,
+          "startLine": 4566,
+          "endLine": 4581,
           "feature": "music-policy"
         },
         {
-          "startLine": 4581,
-          "endLine": 4584,
+          "startLine": 4583,
+          "endLine": 4586,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5281,
-          "endLine": 5294,
+          "startLine": 5283,
+          "endLine": 5296,
           "feature": "music-policy"
         },
         {
-          "startLine": 5296,
-          "endLine": 5321,
+          "startLine": 5298,
+          "endLine": 5323,
           "feature": "program-policy"
         },
         {
-          "startLine": 5337,
-          "endLine": 5359,
+          "startLine": 5339,
+          "endLine": 5361,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5364,
-          "endLine": 5372,
+          "startLine": 5366,
+          "endLine": 5374,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5374,
-          "endLine": 5387,
+          "startLine": 5376,
+          "endLine": 5389,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5392,
-          "endLine": 5416,
+          "startLine": 5394,
+          "endLine": 5418,
           "feature": "music-policy"
         },
         {
-          "startLine": 5418,
-          "endLine": 5425,
+          "startLine": 5420,
+          "endLine": 5427,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5446,
-          "endLine": 5456,
+          "startLine": 5448,
+          "endLine": 5458,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5752,
-          "endLine": 5775,
+          "startLine": 5754,
+          "endLine": 5777,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5776,
-          "endLine": 5794,
+          "startLine": 5778,
+          "endLine": 5796,
           "feature": "title-policy"
         },
         {
-          "startLine": 5869,
-          "endLine": 5919,
+          "startLine": 5871,
+          "endLine": 5921,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5958,
-          "endLine": 5999,
+          "startLine": 5960,
+          "endLine": 6001,
           "feature": "music-policy"
         },
         {
-          "startLine": 6008,
-          "endLine": 6099,
+          "startLine": 6010,
+          "endLine": 6101,
           "feature": "title-policy"
         },
         {
-          "startLine": 6102,
-          "endLine": 6132,
+          "startLine": 6104,
+          "endLine": 6134,
           "feature": "music-policy"
         },
         {
-          "startLine": 6175,
-          "endLine": 6187,
+          "startLine": 6177,
+          "endLine": 6189,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6204,
-          "endLine": 6402,
+          "startLine": 6206,
+          "endLine": 6404,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6433,
-          "endLine": 6461,
+          "startLine": 6435,
+          "endLine": 6463,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6740,
-          "endLine": 6753,
+          "startLine": 6742,
+          "endLine": 6755,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6762,
-          "endLine": 6764,
+          "startLine": 6764,
+          "endLine": 6766,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6773,
-          "endLine": 6800,
+          "startLine": 6775,
+          "endLine": 6802,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7270,
-          "endLine": 7430,
+          "startLine": 7272,
+          "endLine": 7432,
           "feature": "workflow-policy"
         },
         {
@@ -1177,13 +1177,13 @@
           "feature": "audio-preview"
         },
         {
-          "startLine": 5743,
-          "endLine": 5748,
+          "startLine": 5745,
+          "endLine": 5750,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6134,
-          "endLine": 6172,
+          "startLine": 6136,
+          "endLine": 6174,
           "feature": "audio-preview"
         },
         {
@@ -1192,23 +1192,23 @@
           "feature": "asset-owner"
         },
         {
-          "startLine": 7002,
-          "endLine": 7251,
+          "startLine": 7004,
+          "endLine": 7253,
           "feature": "source-input"
         },
         {
-          "startLine": 4586,
-          "endLine": 5277,
+          "startLine": 4588,
+          "endLine": 5279,
           "feature": "workflow-owner"
         },
         {
           "startLine": 4497,
-          "endLine": 4563,
+          "endLine": 4565,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7477,
-          "endLine": 7591,
+          "startLine": 7479,
+          "endLine": 7593,
           "feature": "catalog-read"
         },
         {
@@ -1227,13 +1227,13 @@
           "feature": "text-runtime"
         },
         {
-          "startLine": 6804,
-          "endLine": 6906,
+          "startLine": 6806,
+          "endLine": 6908,
           "feature": "file-observation"
         },
         {
-          "startLine": 6907,
-          "endLine": 7001,
+          "startLine": 6909,
+          "endLine": 7003,
           "feature": "draft-observation"
         }
       ]
@@ -1818,13 +1818,13 @@
     },
     {
       "path": "shared/analysis-worker.js",
-      "sha256": "001877b94060ec82cad06ab12946b023b3bc49023bc7e64566cae917126bdc45",
+      "sha256": "9afd6dbf59ec75bbc1b6a5da411ba7e5893fdc2820f047b18aaf13023869a757",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 66,
+          "endLine": 68,
           "feature": "worker-owner"
         }
       ]
@@ -2317,7 +2317,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 7365
+          "line": 7367
         }
       ],
       "repairOwner": "media-inventory",
@@ -2368,7 +2368,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6271
+          "line": 6273
         }
       ],
       "repairOwner": "media-inventory",
@@ -2387,7 +2387,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6136
+          "line": 6138
         },
         {
           "file": "shared/bundled-assets.js",

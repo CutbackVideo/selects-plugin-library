@@ -1,5 +1,58 @@
 # Mini / Archive: own the complete analysis Worker lifetime
 
+## SDK-free four-consumer follow-up
+
+Based on `dac6563`, City Weekend alpha.11, Torn Paper Love alpha.11, Summer Trip
+alpha.9 and THE END Credits alpha.10 now reuse the same existing Worker owner.
+Their actual old adapters reproduce dispatch rejection without cleanup, successful
+late replies and hidden cleanup failures. Their music callers also admitted fixed
+timing after terminal cleanup uncertainty. The initial 28 adapter/caller checks
+fail 20 and retain eight healthy/ordinary-fallback controls. These are controlled
+execution-boundary counterexamples, not independently reported customer incidents.
+
+The shared owner gains only an optional transfer array; default payload cloning
+for Mini/Archive remains unchanged. City/Torn keep cloned samples, Summer keeps
+transferring its full buffer or a partial-view copy, and THE END keeps transferring
+an exact slice copy. Algorithms, rates, timeouts, reply protocols and ordinary
+fixed-timing fallback remain local. The real callers supply current mounted/run
+predicates and clear music selection on terminal cleanup failure before fallback
+or duration probes. Existing Mini/Archive generated helper blocks are synchronized.
+No public SDK, IPC, Electron code, Chan source or persistent user data changes.
+
+`tests/analysis_worker_followup.test.mjs` executes the four real adapters and
+music callbacks. It adds partial-view ownership and native invalid-transfer
+cleanup checks. The final focused suite passes 125 cases, including existing
+Mini/Archive lifetime, registry, text isolation and source ownership regressions.
+The new suite is registered in the existing CI Worker step. Old package tests
+that required the removed `worker.postMessage` spelling now check canonical
+adapter wiring; their independent frame/BPM/input/style assertions remain.
+
+`tools/repro_analysis_worker_followup.mjs` runs an owned standalone headless Chrome
+child with a new temporary profile, closes it in `finally`, and never connects to
+an existing Electron, CDP port or user profile. Forty native Chromium cases pass:
+four exact-parent and repaired adapters for dispatch/late/cleanup/parity, plus
+both existing consumers. Native DataCloneError leaves the parent's one Worker,
+URL, timer and listener until the probe disposes its own orphans; repaired paths
+settle with zero owned resources. Delayed messages and injected cleanup errors
+are rejected. Unchanged real detector output matches Node exactly on the same
+20-second PCM, including preserved clone/transfer ownership. Evidence:
+`clip-highlights-analysis/repro-20261023/worker-followup-FoRQSe/results.json`.
+Run the committed tool with `SBS_PANEL_TEST_MODULES` pointing to existing
+esbuild/Playwright dependencies and `WORKER_BROWSER` to an existing Chromium
+executable. It creates only its own temporary profile/evidence directory.
+
+The four package suites pass 66 of 67 cases. THE END's independent cue-builder
+stretch test fails because local FFmpeg has no `rubberband` filter. Its unchanged
+test also fails against an archived `dac6563` package with the same error; no
+product or test condition is weakened. Baseline log:
+`worker-followup-baseline-8om91gcs/cues-baseline.log` in the same evidence parent.
+Existing Mini/Archive package suites pass all 31 cases. Public-source, package
+file inventory, 15-module synchronization, both ownership maps and all 28 template
+checks pass. Verification groups overlap and must not be summed as unique cases.
+This browser/adapter checkpoint does not establish installed PanelHost/UI,
+Project save, playback/export or Windows acceptance; whole-template acceptance
+remains 0/28. Historical checkpoints below retain their original scopes.
+
 Scope: Mini `0.1.0-alpha.16`, Archive `0.1.0-alpha.10`, stacked on draft #311
 (original-image facts). Chan's apps stay excluded. Full template and all-feature
 ownership acceptance remain **0/28**; the registry is still a partial inventory.

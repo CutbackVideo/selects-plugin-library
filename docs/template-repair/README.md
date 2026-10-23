@@ -6,6 +6,16 @@ The current review unit is plugin-library PR #346. App PR #7876 is closed at the
 See [pr-consolidation.md](pr-consolidation.md) for the replacement map and review
 order. New connected Archive work updates #346.
 
+## SDK-free Worker consumer follow-up
+
+City Weekend, Torn Paper Love, Summer Trip and THE END now reuse the existing
+analysis-worker owner, preserving their sample copy/transfer policies. Actual
+adapter/caller REDs cover dispatch leaks, late success and hidden cleanup failures;
+40 owned-child Chromium scenarios confirm repaired resource counts and unchanged
+detector output alongside Mini/Archive. See [analysis-worker.md](analysis-worker.md)
+for regression evidence, the independent local FFmpeg limitation and remaining
+installed-panel/full-template gates. No SDK or app code changes; Chan stays excluded.
+
 ## Shared text runtime checkpoint
 
 Seven existing templates now reuse the same language, translation, plural,

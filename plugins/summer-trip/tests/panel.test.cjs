@@ -207,8 +207,8 @@ assert.ok(!/roots!?\.(plugin|data) \+/.test(code) && !/\+ ?["']\/["']/.test(code
 // Own music: the host's ffmpeg decodes (the CLI's arguments, -t 360 at 22050 Hz), beat-detect.cjs runs unmodified in a
 // Web Worker with the drop pick 'largest'; a failure falls back to ffprobe's length and fixed timing.
 assert.ok(code.includes('const samples = await hostDecodePcm(file.path, roots.data, ST_PCM_RATE, ST_PCM_SECONDS, { signal: abort.signal, timeoutMs: 120000 });')
-  && code.includes('const g = await analyseBeat(assets.beatWorker, samples, abort.signal);') && code.includes('beatWorker: stBeatWorkerSource(beatDetect)')
-  && code.includes('worker.postMessage({ id: 1, buf, rate: ST_PCM_RATE, pick: "largest" }, [buf]);') && code.includes('duration = Math.min(await hostProbeDuration(file.path, { timeoutMs: 20000 }), ST_PCM_SECONDS)'), 'own music in the panel');
+  && code.includes('const g = await analyseBeat(assets.beatWorker, samples, abort.signal, ST_BEAT_TIMEOUT_MS, live);') && code.includes('beatWorker: stBeatWorkerSource(beatDetect)')
+  && code.includes('runPanelWorker(source, { id: 1, buf, rate: ST_PCM_RATE, pick: "largest" }, { signal, timeoutMs, isCurrent, transfer: [buf] })') && code.includes('duration = Math.min(await hostProbeDuration(file.path, { timeoutMs: 20000 }), ST_PCM_SECONDS)'), 'own music in the panel');
 assert.ok(code.includes("const ST_PCM_RATE = 22050;") && code.includes("const ST_PCM_SECONDS = 360;"), 'the CLI path\'s rate and span');
 // The muffled copy: SHA-256 (first 8 hex, as shasum gave) over the bytes read cross-realm, ffmpeg argv, rename into place.
 assert.ok(code.includes('const hash = bytes && bytes.byteLength ? hostSha256Hex(bytes).slice(0, 8) : "";') && code.includes('await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });')

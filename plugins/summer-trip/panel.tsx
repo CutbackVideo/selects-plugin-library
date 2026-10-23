@@ -4114,32 +4114,91 @@ async function readText(root: string, rel: string) {
 // beat-detect's analysis of `samples` in a Web Worker (stBeatWorkerSource), never on the panel's thread: the panel CSP
 // allows blob: workers (worker-src blob:). A host that refuses the worker rejects the analysis, and the panel falls back
 // to fixed timing. `signal` aborts it (worker.terminate()); so does `timeoutMs`. The samples' buffer is transferred.
-function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = ST_BEAT_TIMEOUT_MS): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let worker: Worker | null = null, url: string | null = null, done = false;
-    let timer: any = null;
-    const finish = (fn: () => void) => {
-      if (done) return;
-      done = true;
-      if (timer) clearTimeout(timer);
-      try { worker?.terminate(); } catch { /* gone */ }
-      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
-      signal?.removeEventListener("abort", onAbort);
-      fn();
-    };
-    const onAbort = () => finish(() => reject(STALE));
-    if (signal?.aborted) { reject(STALE); return; }
-    signal?.addEventListener("abort", onAbort);
-    try {
-      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-      worker = new Worker(url);
-    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
-    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.ok ? resolve(e.data.result) : reject(new Error(String(e.data?.error || "beat detection failed")))));
-    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
-    timer = setTimeout(() => finish(() => reject(new Error("the beat detection took too long"))), timeoutMs);
+// analysis-worker:start
+// One browser Worker invocation. Algorithm, payload units and result protocol
+// belong to the caller; no Project, media process or persistent file is touched.
+function panelWorkerIssue(code,message,cause=undefined){
+ return Object.assign(Error(message),{code:'PANEL_WORKER_'+code,publicMessage:message,...cause?{cause}:{}});
+}
+async function runPanelWorker(source,payload,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw panelWorkerIssue('INPUT','The analysis worker scope is invalid.');
+ const {signal,isCurrent=()=>true,timeoutMs=60000,transfer}=options;
+ if(typeof source!=='string'||!source||new TextEncoder().encode(source).length>1024*1024||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw panelWorkerIssue('INPUT','The analysis worker request is invalid.');
+ if(transfer!==undefined&&!Array.isArray(transfer))throw panelWorkerIssue('INPUT','The analysis worker transfer list is invalid.');
+ const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
+ const stopped=cause=>panelWorkerIssue('STOPPED','Background analysis ended before completion.',cause);
+ const timeout=cause=>panelWorkerIssue('TIMEOUT','Background analysis timed out.',cause);
+ const deadline=Date.now()+timeoutMs;
+ if(!live())throw stopped();
+ if(typeof Worker!=='function'||typeof Blob!=='function'||typeof globalThis.URL?.createObjectURL!=='function'||typeof globalThis.URL?.revokeObjectURL!=='function')throw panelWorkerIssue('UNSUPPORTED','This environment cannot run background analysis.');
+ return new Promise((resolve,reject)=>{
+  let worker,url,timer,watch,done=false,phase='START';
+  const finish=(value,failure)=>{
+   if(done)return;done=true;
+   const cleanupFailures=[],attempt=action=>{try{action();}catch(error){cleanupFailures.push(error);}};
+   if(timer!==undefined)attempt(()=>clearTimeout(timer));
+   if(watch!==undefined)attempt(()=>clearTimeout(watch));
+   attempt(()=>signal?.removeEventListener('abort',onAbort));
+   if(worker){
+    attempt(()=>{worker.onmessage=null;worker.onerror=null;worker.onmessageerror=null;});
+    attempt(()=>worker.terminate());
+   }
+   if(url!==undefined)attempt(()=>URL.revokeObjectURL(url));
+   // Cleanup can itself detach the owner or cross the deadline. Never hand a
+   // late result back merely because its message arrived before cleanup began.
+   if(!live())failure=stopped(failure);
+   else if(Date.now()>=deadline)failure=timeout(failure);
+   if(cleanupFailures.length){
+    failure=Object.assign(panelWorkerIssue(failure?.code?.replace(/^PANEL_WORKER_/,'')??'CLEANUP',failure?.publicMessage??'Analysis worker cleanup could not be confirmed.',failure??cleanupFailures[0]),{terminal:true,cleanupFailures});
+   }
+   if(failure)reject(failure);else resolve(value);
+  };
+  const onAbort=()=>finish(undefined,stopped());
+  const current=()=>{
+   if(done)return false;
+   if(!live()){finish(undefined,stopped());return false;}
+   if(Date.now()>=deadline){finish(undefined,timeout());return false;}
+   return true;
+  };
+  const observe=()=>{if(current())watch=setTimeout(observe,50);};
+  try{
+   url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+   if(!current())return;
+   worker=new Worker(url);
+   worker.onmessage=event=>finish(event.data);
+   worker.onerror=event=>{try{event?.preventDefault?.();}catch{}finish(undefined,panelWorkerIssue('ERROR','Background analysis could not be completed.',event));};
+   worker.onmessageerror=event=>finish(undefined,panelWorkerIssue('MESSAGE','The background analysis response could not be read.',event));
+   // Subscribe after construction: cancellation inside a constructor must not
+   // finish before the newly created Worker reference becomes owned.
+   signal?.addEventListener('abort',onAbort,{once:true});
+   if(!current())return;
+   timer=setTimeout(()=>finish(undefined,timeout()),Math.max(0,deadline-Date.now()));
+   watch=setTimeout(observe,50);
+   phase='DISPATCH';
+   // Clone by default. Only callers that already relinquish their buffer opt
+   // into transfer; selection/copying and fallback remain caller policy.
+   if(transfer===undefined)worker.postMessage(payload);
+   else worker.postMessage(payload,transfer);
+  }catch(cause){finish(undefined,panelWorkerIssue(phase,phase==='START'?'The analysis worker could not start.':'The analysis worker request could not be sent.',cause));}
+ });
+}
+// analysis-worker:end
+async function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = ST_BEAT_TIMEOUT_MS, isCurrent: () => boolean = () => true): Promise<any> {
+  let reply: any;
+  try {
     const buf = samples.buffer.byteLength === samples.byteLength ? samples.buffer : samples.slice().buffer;
-    worker.postMessage({ id: 1, buf, rate: ST_PCM_RATE, pick: "largest" }, [buf]);
-  });
+    reply = await runPanelWorker(source, { id: 1, buf, rate: ST_PCM_RATE, pick: "largest" }, { signal, timeoutMs, isCurrent, transfer: [buf] });
+  } catch (cause: any) {
+    const timedOut = cause?.code === "PANEL_WORKER_TIMEOUT", stopped = cause?.code === "PANEL_WORKER_STOPPED";
+    if (stopped && !cause?.terminal) throw STALE;
+    const starting = cause?.code === "PANEL_WORKER_START" || cause?.code === "PANEL_WORKER_UNSUPPORTED";
+    const err: any = new Error(timedOut ? "the beat detection took too long" : stopped ? "cancelled" : starting ? "the beat detector could not start" : "the beat detector stopped");
+    err.cause = cause;
+    if (cause?.terminal) err.terminal = true;
+    throw err;
+  }
+  if (!reply?.ok) throw new Error(String(reply?.error || "beat detection failed"));
+  return reply.result;
 }
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
@@ -4762,7 +4821,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
       // the drop (own music, spec 7.3).
       const samples = await hostDecodePcm(file.path, roots.data, ST_PCM_RATE, ST_PCM_SECONDS, { signal: abort.signal, timeoutMs: 120000 });
       if (!live()) return;
-      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal, ST_BEAT_TIMEOUT_MS, live);
       if (!live()) return;
       if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
@@ -4772,6 +4831,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
         : m.noDrop ? { tone: "info", say: (l) => t(l, "noDrop") } : null);
     } catch (e: any) {
       if (!live()) return;
+      if (e?.terminal) { setOwnMusic(null); setOwnGrid(null); setStatus({ tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) }); return; }
       if (e?.code === "host_tools") { setOwnGrid(null); setStatus({ tone: "error", say: (l) => t(l, "needsNewerSelectsMusic") }); return; }
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
       let duration: number | null = null;
