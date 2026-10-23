@@ -1413,12 +1413,12 @@
     },
     {
       "path": "plugins/mini-vlog/tests/scripts-edit.test.cjs",
-      "sha256": "864b72f36b731130356fb750ff749dc0e8c7b0c3e1a06590c17d6b1c97722fd3",
+      "sha256": "8834476bec34ebf82d4d1b1db3182581f3ea6bb27d5adc648339d2c721dd0549",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 408,
+          "endLine": 421,
           "feature": "test-harness"
         }
       ],

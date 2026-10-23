@@ -94,7 +94,7 @@ for (const f of plugin.files) assert.ok(fs.existsSync(path.join(root, f)), 'plug
 for (const f of ['panel.tsx', 'planner.js', 'beat-detect.cjs', 'assets/decode-title.tsx', 'assets/archived-credit.tsx', 'assets/letterbox-reveal.tsx', 'assets/cinematic-look.tsx',
   'assets/fade-out.tsx', 'assets/photo-motion.tsx', 'assets/fonts/presets.json', 'assets/cues/manifest.json', 'scripts/assemble.js', 'scripts/decorate.js']) assert.ok(plugin.files.includes(f), 'ships ' + f);
 assert.deepEqual(plugin.compatibility.platforms, ['macOS arm64', 'Windows x64']);
-assert.ok(!/ffmpeg|node\.?js|homebrew/i.test(plugin.compatibility.selects), 'no tool requirements');
+assert.match(plugin.compatibility.selects, /no additional tools to install/i, 'no external tools to install; existing host FFmpeg is allowed');
 assert.deepEqual(Object.keys(plugin.localized).sort(), ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh']);
 for (const [lang, v] of Object.entries(plugin.localized)) assert.ok(v.name === 'Archive Vlog' && v.summary.length > 20, 'localized ' + lang);
 const opt = id => plugin.options.find(o => o.id === id);
@@ -729,7 +729,7 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
 // insertResource with "Resource analyzed sequence not found"), and the "not found" message carries it.
 {
   const src = panel.slice(panel.indexOf('const TEMPLATE_ALIAS_JS = `') + 'const TEMPLATE_ALIAS_JS = `'.length);
-  const shared = fs.readFileSync(path.resolve(root, '../../shared/native-image-input.mjs'), 'utf8').replace(/^export /gm, '');
+  const shared = block(panel, 'file-observation') + '\n' + fs.readFileSync(path.resolve(root, '../../shared/native-image-input.mjs'), 'utf8').replace("import {fingerprintTemplateFile} from './file-observation.js';\n", '').replace(/^export /gm, '');
   const declaration = 'const TEMPLATE_ALIAS_JS = `' + src.slice(0, src.indexOf('`;')) + '`;';
   const script = new Function(shared + '\n' + declaration + '\nreturn TEMPLATE_ALIAS_JS;')().replace('__CONFIG__', JSON.stringify({ projectId: 'p', files: [{ rid: 'r1', kind: 'video' }, { rid: 'r2', kind: 'video' }] }));
   const draft = { clips: async () => [], insertResource: async ({ resourceId }) => { throw new Error('Resource analyzed sequence not found: seq-' + resourceId); }, meta: async () => ({}) };

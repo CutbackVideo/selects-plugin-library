@@ -29,7 +29,8 @@ const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
 const galleryNativePlace = (...args) => globalThis.__native.place(...args);`;
 const assetSource=fs.readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
 const formatSource=fs.readFileSync(new URL('./format.mjs',import.meta.url),'utf8').replace('export const REFERENCE','const REFERENCE').replace('export function planGallery','function planGallery');
-// These tests own Gallery interactions; the shared local SDK initializer has its own suite.
+// These tests own Gallery interactions; source verification endpoints and native
+// authoring are explicit mocks. Their real byte/source contracts have separate suites.
 const source = template.replace(/\/\/ local-sdk:start[\s\S]*?\/\/ local-sdk:end/, 'function panelLocalClient(sdk) { return sdk; }\nexport default Panel;').replace('/*__SHARED_SCRIPT_BUILDER__*/',
   'const buildScript = input => JSON.stringify(input);' + nativeMock + '\n' + assetSource + '\n' + formatSource);
 assert.notEqual(source, template);
@@ -68,6 +69,7 @@ const photos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`, name
   kind: 'image', width: 1000, height: 1000, path: `/fixture/photo-${i + 1}.jpg` }));
 function harness(media = photos, options = {}) {
   const calls = [], nativeCalls = [];
+  let savedSourceGuard;
   globalThis.__native = {
     fps:async()=>options.fps??60,
     verify:async(sdk,projectId,result)=>{const r=await sdk.runScript({script:JSON.stringify({operation:"verifyCreated",projectId,draftId:result.draftId}),allowCommit:false});if(r.isError||r.result?.status!=="verified")throw Object.assign(new Error("Saved Draft could not be confirmed"),{code:"IMAGE_SAVE_UNVERIFIED"});return result;},
@@ -160,18 +162,19 @@ function harness(media = photos, options = {}) {
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
         ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: input.durationFrames, durationSeconds: input.durationFrames/60 })) } };
       if (input.operation === 'preflight') return { result: { status: 'ready', plan: planGallery(input) } };
-      if(input.operation==='create'){if(options.coldBudget&&request.timeoutSeconds!==120)return {isError:true,output:'Script deadline exceeded'};if(options.placeError)return {result:{status:'outcomeUnknown',message:options.placeError}};options.onPlace?.();return {result:{status:'saved',draftId:'draft-new'}};}
+      if(input.operation==='create'){if(options.coldBudget&&request.timeoutSeconds!==120)return {isError:true,output:'Script deadline exceeded'};if(options.placeError)return {result:{status:'outcomeUnknown',message:options.placeError}};options.onPlace?.();savedSourceGuard={media:input.media,music:input.music,files:[],signature:'UI endpoint fixture'};return {result:{status:'saved',draftId:'draft-new',sourceGuard:savedSourceGuard}};}
       if (input.operation === 'createBase') return { result: { status: 'baseCreated', draftId: 'draft-new' } };
       if (input.operation === 'fillBase') return { result: { status: 'baseFilled', draftId: 'draft-new' } };
       if (input.operation === 'placeVideosExisting') return { result: { status: 'videosPlaced', draftId: 'draft-new' } };
       if (input.operation === 'styleExisting') return { result: { status: 'styled', draftId: 'draft-new' } };
       if (input.operation === 'verifyCreated') return { result: { status: 'verified', draftId: 'draft-new', tileCount: 21 } };
+      if (['verifySourceFiles','verifySourceMetadata'].includes(input.operation)) {assert.equal(request.allowCommit,false);assert.deepEqual(input.sourceGuard,savedSourceGuard);return {result:{status:'verified'}};}
       throw new Error(`Unexpected operation ${input.operation}`);
     },
   };
   const view = render(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
-  return { view, calls, nativeCalls, changeAudio:(file,bytes)=>disk.set(file,bytes), changeSequence: sequenceId => view.rerender(React.createElement(Panel, { sdk,
+  return { view, calls, nativeCalls, sdk, changeAudio:(file,bytes)=>disk.set(file,bytes), changeSequence: sequenceId => view.rerender(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId, language: 'en' }, ui: kit() })) };
 }
 async function assignAndCreate(view) {
@@ -187,7 +190,7 @@ test('21 original photos follow one panel action through preflight, native place
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.match(h.view.container.textContent, /reference moves in these tiles.*4, 6, 11, 17, 19, 21/);
   assert.deepEqual(h.calls.map(call => call.input.operation),
-    ['inspect', 'verifyInputs', 'verifyInputs', 'preflight', 'create', 'verifyCreated']);
+    ['inspect', 'verifyInputs', 'verifyInputs', 'preflight', 'create', 'verifyCreated', 'verifySourceFiles', 'verifySourceMetadata']);
   assert.deepEqual(h.nativeCalls, ['resources', 'resources']);
   assert.equal(h.calls.find(call => call.input.operation === 'create').allowCommit, true);
   assert.deepEqual(h.calls.find(call => call.input.operation === 'create').input.media.map(item => item.path), photos.map(item => item.path));
@@ -474,8 +477,15 @@ test('BPM UI binds creation to the exact music contents actually estimated',asyn
  assert.equal(made.musicFingerprint?.path,audio.path);assert.equal(made.musicFingerprint.sha256,createHash('sha256').update(Buffer.from('fixture audio custom')).digest('hex'));
 });
 
-test('an unsupported complete-authoring host stops before music import or video preparation',async()=>{
- const tools=[],h=harness(photos,{maxScriptTimeoutSeconds:30,tools});
- fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+test('a host without existing runScript stops before music import or video preparation',async()=>{
+ const tools=[],h=harness(photos,{tools});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));h.sdk.runScript=undefined;fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
  await waitFor(()=>assert.match(h.view.container.textContent,/Update Selects/));assert.deepEqual(h.calls.map(c=>c.input.operation),['inspect']);assert.equal(tools.length,0);assert.equal(h.calls.some(c=>c.allowCommit),false);
+});
+
+test('a host without a new deadline capability still completes the existing panel path',async()=>{
+ const h=harness();delete h.sdk.maxScriptTimeoutSeconds;await assignAndCreate(h.view);
+ await waitFor(()=>assert.match(h.view.container.textContent,/Saved and read back all 21 tiles/));
+ assert.equal(h.calls.filter(c=>c.input.operation==='create').length,1);
+ assert.deepEqual(h.calls.filter(c=>c.input.operation.startsWith('verifySource')).map(c=>c.input.operation),['verifySourceFiles','verifySourceMetadata']);
 });

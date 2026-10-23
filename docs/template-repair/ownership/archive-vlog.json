@@ -1662,7 +1662,7 @@
     },
     {
       "path": "plugins/archive-vlog/tests/panel.test.cjs",
-      "sha256": "cdc059631e55c04cf320a906471e6bcfa199a48bcd1f4db574f0236558136d9f",
+      "sha256": "09a6c2832813310b689549adc4806e9dd920050da384f79dd38fbd30e3511d19",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [

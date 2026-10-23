@@ -30,3 +30,9 @@ No.14, Camera Shutter, Four Photo Stop Motion, Polaroid, Photo Gallery, Mini Vlo
 Dedicated tests remove new SDK fingerprint/source-window/fresh/deadline capabilities and exercise saves, independent readback, remounts, lost replies, manual changes, same-size file replacement and saved-ID retention on failure. Generated scripts are checked against existing SDK declarations, alongside affected-consumer regressions. Final command outcomes are recorded in PR #346.
 
 Installed-app, Windows, whole playback and export remain unverified. No Electron or other task's processes, temporary files or data were touched. Semantic review and whole-template acceptance remain 0/28.
+
+## CI fixture follow-up
+
+Remote CI exposed a Gallery builder assertion that reconstructed the old panel without registered observation modules. It now compares the complete read-only generator output with the installed artifact. Gallery operation fixtures now return complete existing stat/readRange bytes instead of a one-byte read plus a retired native fingerprint mock. UI endpoint fixtures retain the saved source evidence and independent verification requests, and no longer require a new deadline capability. All 111 Gallery package checks pass.
+
+Two remaining Vlog package checks needed the same dependency boundary: Archive embeds the canonical observer when evaluating input helpers and allows the already bundled host decoder without requiring an external install; Mini supplies observed saved-source facts to its decoration fixture. Both previously failing package checks pass. Ownership evidence is refreshed. No runtime, SDK, panel artifact or other task is changed by this test-only follow-up. Remote CI must rerun on the new head.

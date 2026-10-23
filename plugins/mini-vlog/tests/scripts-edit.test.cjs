@@ -1,7 +1,20 @@
 // plugins/mini-vlog/tests/scripts-edit.test.cjs
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const dir = path.resolve(__dirname, '..', 'scripts');
-const load = (name, cfg) => { const run=new Function('selects', `return (async()=>{${fs.readFileSync(path.join(dir, name), 'utf8').replace('__CONFIG__', () => JSON.stringify(cfg))}})();`);return selects=>run({...selects,project:id=>{const project=selects.project(id);return {...project,resources:project.resources|| (async()=>[...(cfg.picks||[]).map(p=>({resourceId:p.rid,type:p.kind==='photo'?'Image':'Video'})),...(cfg.music?[{resourceId:cfg.music.resourceId,type:'Audio'}]:[])])};}});};
+const load = (name, cfg) => async selects => {
+  let input = cfg;
+  if (name === 'decorate.js' && cfg.__sources === undefined) {
+    // The caller observes the saved fixture, not the original placement request.
+    const draft = selects.draft(cfg.sequenceId), rows = await draft.clips({trackScope:'all'}), {fps} = await draft.meta();
+    input = {...cfg, __sources:{revision:'saved-fixture',clips:rows.filter(row=>row.resourceId).map(row=>({
+      clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,
+      source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds??0,endSeconds:(row.sourceStartSeconds??0)+(row.endFrame-row.startFrame)/fps},
+      playbackSpeed:(row.playbackSpeed?.numerator??1)/(row.playbackSpeed?.denominator??1),
+    }))}};
+  }
+  const run = new Function('selects', `return (async()=>{${fs.readFileSync(path.join(dir,name),'utf8').replace('__CONFIG__',()=>JSON.stringify(input))}})();`);
+  return run({...selects,project:id=>{const project=selects.project(id);return {...project,resources:project.resources|| (async()=>[...(cfg.picks||[]).map(p=>({resourceId:p.rid,type:p.kind==='photo'?'Image':'Video'})),...(cfg.music?[{resourceId:cfg.music.resourceId,type:'Audio'}]:[])])};}});
+};
 // Models Selects: a Draft created in this run_script call has no saved audio-track inventory, so
 // setAudioTracks throws until it is reopened (selects.draft) in a later call; commitAll runs once per call.
 // Like Selects, a new Draft adopts its first clip's frame size (`adopt`) on the first insert, over an earlier setFrameSize.
