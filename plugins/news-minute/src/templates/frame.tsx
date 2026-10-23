@@ -32,13 +32,13 @@ export default function Frame({ data }) {
           <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />
         </div>
       ) : (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 24) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 128 * k }}>
-            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 84 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}
-            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 112 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 12) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 150 * k }}>
+            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 100 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}
+            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 134 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}
           </div>
           {logoMain || logoAccent ? <div style={{ width: 486 * k, height: 3 * k, marginTop: 8 * k, background: gold }} /> : null}
-          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 46 * k, color: '#FFFFFF', marginTop: 14 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}
+          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 52 * k, color: '#FFFFFF', marginTop: 16 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}
         </div>
       )}
     </div>

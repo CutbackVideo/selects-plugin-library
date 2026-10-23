@@ -16,6 +16,8 @@ const fmt = (v, d) => v.toLocaleString('en-US', { minimumFractionDigits: d, maxi
 
 export default function LineTrendCallout({ data }) {
   const frame = useCurrentFrame();
+  // Unique per placement so two trend lines in one document never share a clip path.
+  const clipId = 'ltc-' + String(React.useId ? React.useId() : 'reveal').replace(/[^A-Za-z0-9_-]/g, '');
   const { width, fps, durationInFrames } = useVideoConfig();
   const k = width / 1080;
   const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
@@ -59,8 +61,8 @@ export default function LineTrendCallout({ data }) {
       </div>
       <svg width={1080 * k} height={height * k} viewBox={'0 0 1080 ' + height} style={{ position: 'absolute', left: 0, top: 0 }}>
         <line x1={cx0} x2={cx1} y1={cy1} y2={cy1} stroke="#E4E4E2" strokeWidth="2" />
-        <clipPath id="ltc-reveal"><rect x={cx0 - 10} y="0" width={(cx1 - cx0 + 20) * draw} height={height} /></clipPath>
-        {fill ? <path d={fill} fill="#F0F0EE" clipPath="url(#ltc-reveal)" /> : null}
+        <clipPath id={clipId}><rect x={cx0 - 10} y="0" width={(cx1 - cx0 + 20) * draw} height={height} /></clipPath>
+        {fill ? <path d={fill} fill="#F0F0EE" clipPath={'url(#' + clipId + ')'} /> : null}
         {threshold ? (
           <g opacity={headIn}>
             <line x1={cx0} x2={cx1} y1={Y(Number(threshold.y))} y2={Y(Number(threshold.y))} stroke={accent} strokeWidth="3" strokeDasharray="10 8" />

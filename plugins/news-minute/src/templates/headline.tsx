@@ -11,7 +11,7 @@ export default function Headline({ data }) {
   const k = width / 1080;
   const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
   const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const size = Number(data?.fontSize ?? 86);
+  const size = Number(data?.fontSize ?? 96);
   const boxColor = String(data?.boxColor ?? '#FFD700');
   const line1 = String(data?.line1 ?? '');
   const line2 = String(data?.line2 ?? '');
@@ -19,8 +19,8 @@ export default function Headline({ data }) {
   // Hangul glyphs at this weight run close to 0.95em; digits and spaces are narrower.
   const em = (s) => [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\x21-\x7e]/.test(c) ? 0.58 : 0.95), 0);
   const fit = (s, max) => Math.min(size, max / Math.max(1, em(s)));
-  const size1 = fit(line1, 1000);
-  const size2 = fit(line2, 1010);
+  const size1 = fit(line1, 1010);
+  const size2 = fit(line2, 1030);
   const at = accent && line1.includes(accent) ? line1.indexOf(accent) : -1;
   const text1 = at < 0 ? line1 : (
     <>

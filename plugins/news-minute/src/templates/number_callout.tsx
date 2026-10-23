@@ -41,15 +41,15 @@ export default function NumberCallout({ data }) {
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data?.dim ?? 0.45) + ')' }} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily, color: '#FFFFFF', textShadow: '0 ' + 3 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.5)' }}>
         <div style={{ opacity: a, transform: 'translateY(' + (1 - a) * 16 * k + 'px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {label ? <div style={{ fontWeight: 700, fontSize: fit(label, 72, 900) * k, letterSpacing: -2 * k, whiteSpace: 'nowrap' }}>{label}</div> : null}
-          <div style={{ fontWeight: 800, fontSize: fit(from, 120, 1000) * k, letterSpacing: -3 * k, whiteSpace: 'nowrap', lineHeight: 1.15 }}>{from}</div>
+          {label ? <div style={{ fontWeight: 700, fontSize: fit(label, 92, 960) * k, letterSpacing: -2 * k, whiteSpace: 'nowrap' }}>{label}</div> : null}
+          <div style={{ fontWeight: 800, fontSize: fit(from, 176, 1020) * k, letterSpacing: -3 * k, whiteSpace: 'nowrap', lineHeight: 1.15 }}>{from}</div>
         </div>
         <div style={{ opacity: b, display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 16 * k }}>
-          <svg width={70 * k} height={130 * k} viewBox="0 0 70 130" style={{ transform: 'translateY(' + (1 - b) * -20 * k + 'px)' }}>
+          <svg width={84 * k} height={156 * k} viewBox="0 0 70 130" style={{ transform: 'translateY(' + (1 - b) * -20 * k + 'px)' }}>
             <rect x="29" y="0" width="12" height="88" fill="#FFFFFF" />
             <polygon points="0,80 70,80 35,130" fill="#FFFFFF" />
           </svg>
-          <div style={{ marginTop: 34 * k, background: String(data?.boxColor ?? '#FFD700'), color: '#000000', textShadow: 'none', fontWeight: 900, fontSize: fit(to, 120, 980) * k, letterSpacing: -3 * k, lineHeight: 1.12, padding: '0 ' + 18 * k + 'px', whiteSpace: 'nowrap', transform: 'scale(' + (0.9 + 0.1 * b) + ')' }}>{to}</div>
+          <div style={{ marginTop: 34 * k, background: String(data?.boxColor ?? '#FFD700'), color: '#000000', textShadow: 'none', fontWeight: 900, fontSize: fit(to, 176, 990) * k, letterSpacing: -3 * k, lineHeight: 1.12, padding: '0 ' + 18 * k + 'px', whiteSpace: 'nowrap', transform: 'scale(' + (0.9 + 0.1 * b) + ')' }}>{to}</div>
         </div>
       </div>
     </div>

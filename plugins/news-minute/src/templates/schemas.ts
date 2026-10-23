@@ -43,7 +43,7 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "line1", label: "Line 1", type: "text", defaultValue: "" },
     { key: "line2", label: "Line 2", type: "text", defaultValue: "" },
     { key: "accent", label: "Line 1 accent words", type: "text", defaultValue: "" },
-    { key: "fontSize", label: "Size", type: "number", defaultValue: 86, min: 40, max: 120, step: 1 },
+    { key: "fontSize", label: "Size", type: "number", defaultValue: 96, min: 40, max: 130, step: 1 },
     { key: "boxColor", label: "Box", type: "color", defaultValue: "#FFD700" },
     { key: "line1Color", label: "Line 1 colour", type: "color", defaultValue: "#FFFFFF" },
     { key: "line2Color", label: "Line 2 colour", type: "color", defaultValue: "#000000" },
