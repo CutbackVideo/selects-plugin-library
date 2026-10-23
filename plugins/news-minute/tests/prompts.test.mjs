@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as P from '../src/prompts/index.ts';
 
-const body = '서울 월세가 164만1000원으로 올랐다. 2020년보다 20만1000원 높다.';
+const body = '\uC11C\uC6B8 \uC6D4\uC138\uAC00 164\uB9CC1000\uC6D0\uC73C\uB85C \uC62C\uB790\uB2E4. 2020\uB144\uBCF4\uB2E4 20\uB9CC1000\uC6D0 \uB192\uB2E4.';
 const art = {title: 't', source: 's', date: 'd', body};
 const mk = (text, sourceQuote) => ({text, sourceQuote});
 
 test('validateScript flags count, length, quote and invented numbers', () => {
   const v = P.validateScript(
-    {headline: {line1: 'a', line2: 'b'}, sentences: [mk('월세가 99만원입니다.', 'nope')]},
+    {headline: {line1: 'a', line2: 'b'}, sentences: [mk('\uC6D4\uC138\uAC00 99\uB9CC\uC6D0\uC785\uB2C8\uB2E4.', 'nope')]},
     art,
   );
   assert.equal(v.ok, false);
@@ -18,7 +18,7 @@ test('validateScript flags count, length, quote and invented numbers', () => {
 });
 
 test('validatePlan enforces coverage, disclaimer and number tracing', () => {
-  const sents = [{id: 's1', text: '164만1000원입니다.', startSec: 0, endSec: 5}];
+  const sents = [{id: 's1', text: '164\uB9CC1000\uC6D0\uC785\uB2C8\uB2E4.', startSec: 0, endSec: 5}];
   const assets = [{ref: 'photo-1', kind: 'photo'}, {ref: 'ill-1', kind: 'illustration'}];
   const ok = {scenes: [{sentenceIds: ['s1'], type: 'news_photo', params: {}, hideCaption: false, disclaimer: false, assetRef: 'photo-1'}]};
   assert.equal(P.validatePlan(ok, sents, assets).ok, true);
