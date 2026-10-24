@@ -54,6 +54,21 @@ for (const t of SCENE_TYPES.filter((x) => !MOVING.has(x))) {
   });
 }
 
+// A count down (1,000 -> 1\uC6D0) counts right-aligned in the slot of 1,000, so its unit stays put, then moves to the centre
+// (spec 5-1: from rest to rest); the seek frame is past the move.
+test("a count down holds its unit while it counts, then moves to the centre before the seek frame", () => {
+  const data = { title: "\uC218\uCE58 \uBCC0\uD654", label: "\uC218\uCE58", from: 1000, to: 1, unit: "\uC6D0", source: "\uC790\uB8CC" };
+  const moves = (node) => node && typeof node === "object" && (/^translateX\(/.test(node.props?.style?.transform ?? "") || node.children.some(moves));
+  for (const frames of [600, 300, 150, 90]) {
+    const { enter, end } = sceneFrames(frames, { startSec: 0, endSec: frames / FPS, enterSec: entranceSec("number_callout", data, frames) });
+    assert.deepEqual(render("number_callout", data, frames, enter), render("number_callout", data, frames, end - 1), frames + " frames, seek frame " + enter);
+  }
+  // 300 frames: the count runs 1.75..2.95 s (frames 53..88), the move 2.95..3.75 s (frames 89..112).
+  assert.ok(!moves(render("number_callout", data, 300, 80)) && text(render("number_callout", data, 300, 80)).includes("1000"));
+  assert.ok(moves(render("number_callout", data, 300, 100)));
+  assert.equal(entranceSec("number_callout", data, 300), 3.75);
+});
+
 test("bar comparison seek frame shows the final values (review case: 10.01 s, 16.5 % / 9.8 %)", () => {
   const data = { title: "SOXX vs \uBC84\uD06C\uC154", unit: "%", bars: [{ label: "SOXX", value: 16.5, tone: "grey" }, { label: "\uBC84\uD06C\uC154", value: 9.8, tone: "accent" }] };
   const sec = entranceSec("bar_compare_h", data, 300);
