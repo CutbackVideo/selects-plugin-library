@@ -294,7 +294,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n"))) return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
-    const name = F.finalName(s);
+    // Another confirm of this article (or any Draft of that name) gets a numbered name, so the tabs tell them apart.
+    const name = F.uniqueName(F.finalName(s), await F.draftNames(sdk, s.projectId!, s.preview?.draftId ?? null).catch(() => []));
     let draftId: string, placed: F.PreviewDraft;
     try {
       // The reviewed preview becomes the video: renamed when it shows this plan, else filled again first.

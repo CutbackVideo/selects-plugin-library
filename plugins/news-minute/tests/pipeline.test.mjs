@@ -337,11 +337,11 @@ test("only order and coverage errors block building the Draft", async () => {
 test("preview refill keeps Main, clears the Video and Audio tracks, renames, and puts narration and frame back", async () => {
   const { PRESETS } = await import("../src/preset.ts");
   const { refillDraftScript } = await import("../src/pipeline/assemble.ts");
-  const x = { projectId: "p", draftName: "Preview · t", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
+  const x = { projectId: "p", draftName: "Preview \u00B7 t", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
   const r = refillDraftScript("d1", 1228, x).script;
   assert.ok(r.includes('selects.draft("d1")') && !r.includes("createDraft") && !r.includes("insertResource"));
   assert.ok(r.includes('c.trackKind === "video" || c.trackKind === "audio"') && r.includes("removeClips(extra)") && r.includes("removeEmptyTracks()"));
-  assert.ok(r.includes("mainEnd !== 1228") && r.includes('setName("Preview · t")') && r.includes('resource("r2")') && r.includes("commitAll"));
+  assert.ok(r.includes("mainEnd !== 1228") && r.includes('setName("Preview \u00B7 t")') && r.includes('resource("r2")') && r.includes("commitAll"));
   assert.ok(r.indexOf("removeClips") < r.indexOf("overlayResource"));
   assert.ok(r.includes('"News frame"') && !refillDraftScript("d1", 1228, { ...x, bandsId: "r3" }).script.includes('"News frame"'));
 });
@@ -357,7 +357,7 @@ test("preview revision follows the scenes, look, headline and narration only", a
   assert.notEqual(previewRev({ ...s, plan: { ...plan, narrationId: "n2" } }), rev);
   assert.ok(previewFresh({ ...s, preview: { planRev: rev } }));
   assert.ok(!previewFresh({ ...s, preview: { planRev: "" } }) && !previewFresh({ ...s, preview: null }));
-  assert.equal(previewName(s, "Preview"), "Preview · T");
+  assert.equal(previewName(s, "Preview"), "Preview \u00B7 T");
   const p = { projectId: "p", presetId: "chosun", plateSeconds: 41.1, frames: 1230 };
   assert.ok(canRefill(p, "p", "chosun", 41.1));
   assert.ok(!canRefill(p, "q", "chosun", 41.1) && !canRefill(p, "p", "generic", 41.1) && !canRefill(p, "p", "chosun", 41.6) && !canRefill(null, "p", "chosun", 41.1));
@@ -420,7 +420,7 @@ test("the preview Draft is built once, then refilled in place without new Resour
   const a = await F.buildPreview(first.sdk, HOST_ENV, s, preset, "Preview", log, F.newRunRecord("chosun", "u"));
   assert.equal(a.preview.draftId, "d-new");
   assert.equal(a.refilled, false);
-  assert.equal(a.preview.name, "Preview · Title");
+  assert.equal(a.preview.name, "Preview \u00B7 Title");
   assert.equal(a.preview.planRev, F.previewRev(s));
   assert.deepEqual([a.preview.frames, a.preview.plateId, a.preview.bandsId, a.preview.scenes.length], [1230, "plate1", null, 2]);
   assert.ok(a.preview.scenes[1].startSec > a.preview.scenes[0].startSec && a.preview.scenes[1].endSec <= 41);
@@ -429,7 +429,7 @@ test("the preview Draft is built once, then refilled in place without new Resour
   // the scene rows show the spans the graphics were placed on, snapped to frames
   assert.deepEqual(F.sceneSpans(s.plan), a.preview.scenes.map((x) => ({ startSec: Math.round(x.startSec * 30000 / 1001) / (30000 / 1001), endSec: Math.round(x.endSec * 30000 / 1001) / (30000 / 1001) })));
   assert.equal(F.sceneSpans({ ...s.plan, scenes: [{ type: "text_card", sentenceIds: ["gone"], params: {} }] }), null);
-  assert.ok(first.calls.some((c) => c.script.includes('createDraft({ name: "Preview · Title" })')));
+  assert.ok(first.calls.some((c) => c.script.includes('createDraft({ name: "Preview \u00B7 Title" })')));
 
   // a hand edit, then the refill: the same Draft, no createDraft, no import
   const edited = { ...s, preview: a.preview, plan: { ...s.plan, scenes: [s.plan.scenes[0], { ...s.plan.scenes[1], params: { text: "c" } }] } };
@@ -464,7 +464,7 @@ test("a number scene keeps its caption, even from a plan that still says hideCap
 test("a preview Draft that cannot be refilled is left alone and a new one is built", async () => {
   const F = await import("../src/pipeline/flow.ts");
   const { s, preset } = await planSession();
-  const old = { draftId: "d-old", name: "Preview · Title", projectId: "p", planRev: "x", presetId: preset.id, narrationId: "n1", plateSeconds: 40.6, plateId: "plate0", plateImage: false, bandsId: null, frames: 1230, scenes: [], at: "" };
+  const old = { draftId: "d-old", name: "Preview \u00B7 Title", projectId: "p", planRev: "x", presetId: preset.id, narrationId: "n1", plateSeconds: 40.6, plateId: "plate0", plateImage: false, bandsId: null, frames: 1230, scenes: [], at: "" };
   const h = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: false, reason: "main is 900 frames, expected 1230", frames: 900 } });
   const rec = F.newRunRecord("chosun", "u");
   const r = await F.buildPreview(h.sdk, HOST_ENV, { ...s, preview: old }, preset, "Preview", () => {}, rec);
@@ -501,7 +501,7 @@ test("preview strings exist in both languages", async () => {
 test("a Draft that became the video is never refilled; a new article's refill takes the new title", async () => {
   const F = await import("../src/pipeline/flow.ts");
   const { s, preset } = await planSession();
-  const prev = { draftId: "d-old", name: "Preview · Title", projectId: "p", planRev: "x", presetId: preset.id, narrationId: "n0", plateSeconds: 40.6, plateId: "plate0", plateImage: false, bandsId: null, frames: 1230, scenes: [], at: "" };
+  const prev = { draftId: "d-old", name: "Preview \u00B7 Title", projectId: "p", planRev: "x", presetId: preset.id, narrationId: "n0", plateSeconds: 40.6, plateId: "plate0", plateImage: false, bandsId: null, frames: 1230, scenes: [], at: "" };
   // the video: no refill call at all, a new Draft instead
   const h = fakeHost(DRAFT_ANSWERS);
   const rec = F.newRunRecord("chosun", "u");
@@ -514,8 +514,8 @@ test("a Draft that became the video is never refilled; a new article's refill ta
   const h2 = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230 } });
   const next = await F.buildPreview(h2.sdk, HOST_ENV, { ...s, article: { ...s.article, title: "Second" }, preview: prev, videos: ["d-other"] }, preset, "Preview", () => {}, F.newRunRecord("chosun", "u"));
   assert.equal(next.preview.draftId, "d-old");
-  assert.equal(next.preview.name, "Preview · Second");
-  assert.ok(h2.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Preview · Second")'));
+  assert.equal(next.preview.name, "Preview \u00B7 Second");
+  assert.ok(h2.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Preview \u00B7 Second")'));
 });
 
 test("calls on the preview Draft run one at a time, in order, past a failure", async () => {
@@ -550,7 +550,7 @@ test("preview viewer calls wait their turn behind a build; a still for a replace
   let current = p, release;
   const build = q(() => new Promise((r) => { release = r; }));
   const viewer = F.previewViewer(h.sdk, () => HOST_ENV, q, () => current);
-  const rename = viewer.rename("p", "d", "Preview · New");
+  const rename = viewer.rename("p", "d", "Preview \u00B7 New");
   const still = viewer.still(p, 0);
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(h.calls.length, 0);
@@ -579,4 +579,24 @@ test("refilling the preview Draft drops the stills rendered from it before", asy
   assert.equal((await F.buildPreview(h.sdk, HOST_ENV, edited, preset, "Preview", log, F.newRunRecord("chosun", "u"))).refilled, true);
   assert.equal((await viewer.still(a.preview, 0)).cached, false);
   assert.equal(renders(), 2);
+});
+
+test("a confirmed edit Draft takes a numbered name when the Project already has that name", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const name = "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774 \uC0AC\uC0C1 \uCD5C\uACE0\uAC00";
+  // no Draft of that name: unchanged
+  assert.equal(F.uniqueName(name, []), name);
+  assert.equal(F.uniqueName(name, ["\uBBF8\uB9AC\uBCF4\uAE30 \u00B7 " + name]), name);
+  // one already: (2); (2) taken too: (3)
+  assert.equal(F.uniqueName(name, [name]), name + " (2)");
+  assert.equal(F.uniqueName(name, [name, name + " (2)"]), name + " (3)");
+  assert.equal(F.uniqueName(name, [name + " (2)", name, name + " (3)"]), name + " (4)");
+  // only a numbered one: the plain name is free
+  assert.equal(F.uniqueName(name, [name + " (2)"]), name);
+  // the names come from the Project's other Drafts (the Draft about to be renamed is left out)
+  const { sdk, calls } = fakeHost({ "Read the Project's Draft names": [name, name + " (2)"] });
+  assert.deepEqual(await F.draftNames(sdk, "p", "d-preview"), [name, name + " (2)"]);
+  assert.match(calls[0].script, /selects\.project\("p"\)\.meta\(\)\)\.draftIds/);
+  assert.match(calls[0].script, /if \(id === "d-preview"\) continue;/);
+  assert.ok(!calls[0].allowCommit);
 });
