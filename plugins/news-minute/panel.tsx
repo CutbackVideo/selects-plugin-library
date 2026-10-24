@@ -5414,11 +5414,16 @@ var PartialDraftError = class extends Error {
   }
 };
 function draftQueue() {
-  let tail = Promise.resolve();
-  return (fn) => {
-    const p = tail.then(fn);
-    tail = p.catch(() => {
+  let mutation = Promise.resolve();
+  let navigation = mutation, still = mutation;
+  return (fn, kind2 = "mutation") => {
+    const ahead = kind2 === "navigation" ? [mutation, navigation] : kind2 === "still" ? [mutation, still] : [mutation, navigation, still];
+    const p = Promise.all(ahead).then(fn);
+    const done = p.catch(() => {
     });
+    if (kind2 === "navigation") navigation = done;
+    else if (kind2 === "still") still = done;
+    else mutation = done;
     return p;
   };
 }
@@ -5426,15 +5431,15 @@ var stillBuild = (p) => p.draftId + ":" + p.planRev + ":" + p.at + "#";
 var stillKey = (p, scene) => stillBuild(p) + scene;
 function previewViewer(sdk, env, queue, current) {
   return {
-    open: (projectId, draftId) => queue(() => openPreview(sdk, { projectId, draftId })),
+    open: (projectId, draftId) => queue(() => openPreview(sdk, { projectId, draftId }), "navigation"),
     rename: (projectId, draftId, name) => queue(() => renameDraft(sdk, { projectId, draftId, name })),
-    seek: (p, scene) => queue(() => seekScene(sdk, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene] })),
+    seek: (p, scene) => queue(() => seekScene(sdk, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene] }), "navigation"),
     still: (p, scene) => queue(async () => {
       const cur = current(), e = env();
       if (!cur || cur.draftId !== p.draftId || cur.at !== p.at) throw new Error("the preview Draft changed");
       if (!e) throw new Error("no environment");
       return sceneStill(sdk, { tmp: e.tmp, sep: e.sep }, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene], key: stillKey(p, scene) });
-    })
+    }, "still")
   };
 }
 async function assemble(sdk, env, s, preset, log, rec, target) {

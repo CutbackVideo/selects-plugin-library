@@ -473,13 +473,19 @@ export class PartialDraftError extends Error {
   constructor(message: string, draft: Omit<PreviewDraft, "name" | "planRev" | "at">) { super(message); this.draft = draft; }
 }
 
-// Calls on the preview Draft (build, refill, rename, open, seek, stills) run one at a time in the order asked;
-// a failed call does not stop the ones queued after it.
+// Mutations (build, refill, rename) wait for all earlier work. Navigation and stills each
+// keep their own order, but a thumbnail must not delay a seek until after playback starts.
+// Both wait for earlier mutations, and later mutations wait for both. Failures release the queue.
 export function draftQueue() {
-  let tail: Promise<unknown> = Promise.resolve();
-  return <T>(fn: () => Promise<T>): Promise<T> => {
-    const p = tail.then(fn);
-    tail = p.catch(() => {});
+  let mutation: Promise<unknown> = Promise.resolve();
+  let navigation: Promise<unknown> = mutation, still: Promise<unknown> = mutation;
+  return <T>(fn: () => Promise<T>, kind: "mutation" | "navigation" | "still" = "mutation"): Promise<T> => {
+    const ahead = kind === "navigation" ? [mutation, navigation] : kind === "still" ? [mutation, still] : [mutation, navigation, still];
+    const p = Promise.all(ahead).then(fn);
+    const done = p.catch(() => {});
+    if (kind === "navigation") navigation = done;
+    else if (kind === "still") still = done;
+    else mutation = done;
     return p;
   };
 }
@@ -488,19 +494,19 @@ export function draftQueue() {
 export const stillBuild = (p: PreviewDraft) => p.draftId + ":" + p.planRev + ":" + p.at + "#";
 export const stillKey = (p: PreviewDraft, scene: number) => stillBuild(p) + scene;
 
-// The panel's calls on the preview Draft, each queued on the same queue as the builds and refills. A still asked
-// for a preview that is no longer the recorded one is dropped when its turn comes instead of rendering.
+// Navigation can run during thumbnail rendering; both remain ordered against builds and refills.
+// A still for a replaced preview is dropped when its turn comes instead of rendering.
 export function previewViewer(sdk: PanelSdk, env: () => Env | null, queue: ReturnType<typeof draftQueue>, current: () => PreviewDraft | null | undefined) {
   return {
-    open: (projectId: string, draftId: string) => queue(() => openPreview(sdk, { projectId, draftId })),
+    open: (projectId: string, draftId: string) => queue(() => openPreview(sdk, { projectId, draftId }), "navigation"),
     rename: (projectId: string, draftId: string, name: string) => queue(() => renameDraft(sdk, { projectId, draftId, name })),
-    seek: (p: PreviewDraft, scene: number) => queue(() => seekScene(sdk, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene] })),
+    seek: (p: PreviewDraft, scene: number) => queue(() => seekScene(sdk, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene] }), "navigation"),
     still: (p: PreviewDraft, scene: number) => queue(async () => {
       const cur = current(), e = env();
       if (!cur || cur.draftId !== p.draftId || cur.at !== p.at) throw new Error("the preview Draft changed");
       if (!e) throw new Error("no environment");
       return sceneStill(sdk, { tmp: e.tmp, sep: e.sep }, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene], key: stillKey(p, scene) });
-    }),
+    }, "still"),
   };
 }
 

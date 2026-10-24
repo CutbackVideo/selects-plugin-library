@@ -4,6 +4,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { sceneFrames, entranceSec, openPreview, seekScene, renameDraft, sceneStill, clearPreviewCache, FPS } from "../src/pipeline/preview.ts";
 import { ENTRANCE } from "../src/templates/entrance.generated.ts";
 import { SCENE_TYPES } from "../src/prompts/index.ts";
+import { draftQueue, previewViewer } from "../src/pipeline/flow.ts";
 
 const target = { projectId: "p", draftId: "d" };
 const scene = { ...target, frames: 300, scene: { startSec: 1, endSec: 3 }, key: "d:0:rev1" };
@@ -54,6 +55,60 @@ test("open and seek confirm actual tab and playhead", async () => {
   assert.equal(await openPreview(h.sdk, target), true);
   assert.deepEqual(await seekScene(h.sdk, scene), { confirmed: true, frame: 30 });
   assert.ok(h.calls.every((x) => !x.allowCommit));
+});
+
+test("selecting a scene does not wait for a thumbnail or rewind playback when it finishes", async () => {
+  const h = host();
+  let release, started;
+  const rendering = new Promise((r) => { started = r; });
+  const hold = new Promise((r) => { release = r; });
+  h.beforeExport = async () => { started(); await hold; };
+  const p = { ...target, frames: 300, scenes: [scene.scene], at: "t1", planRev: "r1" };
+  const viewer = previewViewer(h.sdk, () => env, draftQueue(), () => p);
+  const still = viewer.still(p, 0);
+  await rendering;
+  const seek = viewer.seek(p, 0);
+  try {
+    await new Promise(setImmediate);
+    assert.equal(h.state.playhead?.resolvedFrame, 30, "the scene must be selected while the thumbnail is still rendering");
+    h.state.playhead.resolvedFrame = 45; // The user starts playing the selected scene.
+    release();
+    await Promise.all([still, seek]);
+    assert.equal(h.state.playhead.resolvedFrame, 45, "finishing a thumbnail must not send a delayed seek");
+  } finally {
+    release();
+    await Promise.allSettled([still, seek]);
+  }
+});
+
+test("a refill waits for active thumbnails and later navigation waits for the refill", async () => {
+  const h = host(), q = draftQueue();
+  let releaseStill, releaseRefill, started;
+  const rendering = new Promise((r) => { started = r; });
+  const stillHold = new Promise((r) => { releaseStill = r; });
+  const refillHold = new Promise((r) => { releaseRefill = r; });
+  h.beforeExport = async () => { started(); await stillHold; };
+  const p = { ...target, frames: 300, scenes: [scene.scene], at: "t1", planRev: "r1" };
+  const viewer = previewViewer(h.sdk, () => env, q, () => p);
+  const still = viewer.still(p, 0);
+  await rendering;
+  let refilling = false;
+  const refill = q(async () => { refilling = true; await refillHold; });
+  const seek = viewer.seek(p, 0);
+  try {
+    await new Promise(setImmediate);
+    assert.equal(refilling, false);
+    assert.equal(h.state.playhead, null);
+    releaseStill(); await still;
+    await new Promise(setImmediate);
+    assert.equal(refilling, true);
+    assert.equal(h.state.playhead, null);
+    releaseRefill(); await refill;
+    assert.deepEqual(await seek, { confirmed: true, frame: 30 });
+  } finally {
+    releaseStill(); releaseRefill();
+    await Promise.allSettled([still, refill, seek]);
+  }
 });
 
 test("requested alone does not confirm open or seek", async () => {

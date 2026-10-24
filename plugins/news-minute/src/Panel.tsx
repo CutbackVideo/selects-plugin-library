@@ -100,7 +100,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const env = useRef<F.Env | null>(null);
   const latest = useRef<F.Session | null>(null);
   latest.current = s;
-  // Every call on the preview Draft goes through one queue, so a rename never overlaps a refill.
+  // Draft mutations stay ordered with navigation and thumbnails; navigation need not wait for a thumbnail.
   const onDraft = useRef(F.draftQueue()).current;
   const renameNow = (projectId: string, draftId: string, name: string) => renameDraft(sdk, { projectId, draftId, name });
   const viewer = F.previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
