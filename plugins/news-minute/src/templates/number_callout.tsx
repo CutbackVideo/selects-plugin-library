@@ -15,6 +15,8 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // column stays centred. A new value on several lines, or one whose count would run out of x 60..1020, shows its final
 // text without the count-up.
 const LBL = 52, FL = 104, FU = 86, TL = 160, TU = 120, W = 900;
+// A count down ends right of centre; once it rests, its line moves to the centre over SLIDE seconds (spec 5-1).
+const SLIDE = 0.8;
 const show = (v) => {
   if (typeof v === 'number') {
     const str = String(v);
@@ -29,19 +31,13 @@ export default function NumberCallout({ data }) {
   const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
   // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts (label and header brushes end earlier
   // unless the reveal is very short).
-  const s = useScene(data, Math.max(toAt + 1.6, brushEnd(data?.label, 0.95), headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? ''))));
-  const k = s.k;
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
   const unit = String(data?.unit ?? '');
   const from = show(data?.from), raw = show(data?.to);
   const cf = countable(from), ct = countable(raw);
-  const cp = smooth(prog(s.t, toAt, toAt + 1.2));
   // Count from the old value when both hold one number in the same format, else from 0.
   const same = cf && ct && cf.head === ct.head && cf.tail === ct.tail;
-  const running = !ct ? raw : same
-    ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1)
-    : counted(ct, cp);
   // The text the count-up lands on ("1000000" -> 1,000,000): the lines and the layout check use it.
   const to = !ct ? raw : same ? counted({ ...ct, decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, 1);
   const top = title ? 150 : 40;
@@ -59,14 +55,26 @@ export default function NumberCallout({ data }) {
   const last = (l) => l[l.length - 1];
   const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
   const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > toVW;
-  // The count runs from the old value to the new one in the new value's format. Counting up, it is right-aligned in the
-  // final value's slot, so the line does not move. Counting down from a longer number shows more digits than it lands
-  // on, so the line is centred on whatever the count shows and the final value ends centred. It counts only on one line
-  // with the unit beside it, and only when that line at its longest (`widest`, one of the two ends) still fits
-  // x 60..1020 at the popped size; else the value pops in its final text.
+  // The count runs from the old value to the new one in the new value's format, right-aligned in a slot as wide as the
+  // longest text it shows (`widest`, one of its two ends), so the unit and triangle do not move while it counts.
+  // Counting up, that is the final value. Counting down from a longer number, the final value lands right of centre by
+  // `shift`; once the count rests, the line (value, unit, triangle) moves left by `shift` over SLIDE and ends where it
+  // would without the slot. It counts only on one line with the unit beside it, and only when that line at its
+  // longest still fits x 60..1020 at the popped size; else the value pops in its final text.
   const widest = same ? [counted({ ...ct, num: cf.num, decimals: Math.max(cf.decimals, ct.decimals) }, 1), to].reduce((a, b) => (toW(b) > toW(a) ? b : a)) : to;
   const counts = toLines.length === 1 && !toOwn && toW(widest) + (unit ? 6 + toUnitW(-4) : 0) + (dir ? 62 : 0) <= toVW;
   const down = counts && widest !== to;
+  const shift = down ? (toW(widest) - toW(to)) / 2 : 0;
+  const countEnd = toAt + 1.2, slideEnd = countEnd + SLIDE;
+  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts, or the count down's move to the centre
+  // (label and header brushes end earlier unless the reveal is very short).
+  const s = useScene(data, Math.max(down ? slideEnd : toAt + 1.6, brushEnd(data?.label, 0.95), headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? ''))));
+  const k = s.k;
+  const cp = smooth(prog(s.t, toAt, countEnd));
+  const running = !ct ? raw : same
+    ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1)
+    : counted(ct, cp);
+  const slid = down ? smooth(prog(s.t, countEnd, slideEnd)) : 1;
   // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
   const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
   const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
@@ -97,10 +105,11 @@ export default function NumberCallout({ data }) {
   reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
   const toBeside = (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0);
   valueReport('new value', toLines, yTo, TL, 150, toW, toBeside, toOwn, down ? null : [POP_GROW, SAFE, 'safe area']);
-  // A count down pops in at its longest line, centred.
+  // A count down pops in at its longest line, centred; then its final line sweeps from the slot's right end to the centre.
   if (down) {
     const w = toW(widest) + toBeside;
     reportGrown('new value', widest + unit, [540 - w / 2, yTo - 90, 540 + w / 2, yTo + 90], [POP_GROW, SAFE, 'safe area'], 150);
+    report('new value', to + unit, [540 - (toW(to) + toBeside) / 2, yTo - 90, 540 + w / 2, yTo + 90], SAFE, { size: 150, moving: true, room: 'safe area' });
   }
   reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, undefined, [POP_GROW, SAFE, 'safe area']);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
@@ -139,12 +148,12 @@ export default function NumberCallout({ data }) {
       ) : null}
       {toLines.map((l, j) => (
         <Pop key={'t' + j} s={s} t0={toAt} x={540} y={yTo + TL * j}>
-          <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * k }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * k, ...(slid > 0 && slid < 1 ? { transform: 'translateX(' + -shift * slid * k + 'px)' } : null) }}>
             <span style={{ position: 'relative' }}>
-              {/* Counting up, the final value sizes the line and the counting value is laid over it so nothing shifts;
-                  counting down, the counting value is the line. */}
-              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts && !down ? 'hidden' : 'visible' }}>{down ? running : l}</span>
-              {counts && !down ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
+              {/* The slot sizes the line and the counting value is laid over it so nothing shifts. A count down's slot is
+                  its longest text until the line has moved; then the final value's, as without it. */}
+              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts ? 'hidden' : 'visible' }}>{slid < 1 ? widest : l}</span>
+              {counts ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
             </span>
             {unit && !toOwn && j === toLines.length - 1 ? <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
             {!toOwn && j === toLines.length - 1 ? triangle : null}
