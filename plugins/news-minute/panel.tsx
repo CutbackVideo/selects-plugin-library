@@ -1942,12 +1942,14 @@ function fitProblems(type, p) {
   } catch {
     return { errors, warnings };
   }
+  const failed = /* @__PURE__ */ new Set();
   for (const r of reports) {
-    const [x0, y0, x1, y1] = r.box, [ax0, ay0, ax1, ay1] = r.area;
+    const [x0, y0, x1, y1] = r.box, [ax0, ay0, ax1, ay1] = r.area, key = r.what + "\0" + r.text, had = errors.length;
     const text = [...r.text].length > 40 ? [...r.text].slice(0, 39).join("") + "\u2026" : r.text;
     const quoted = `${r.what} "${text}"`;
     const at = r.size ? ` at ${r.size} px` : "";
     if (r.entrance) {
+      if (failed.has(key)) continue;
       if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: it runs out of its ${r.room ?? "room"} while it comes in (${Math.round((r.entrance - 1) * 1e3) / 10} % larger for a moment)${at}, so it would show outside it; shorten it`);
       continue;
     }
@@ -1965,6 +1967,7 @@ function fitProblems(type, p) {
     } else if ((r.lines ?? 0) > (r.maxLines ?? Infinity)) {
       warnings.push(`${quoted} takes ${r.lines} lines${at} (text is never made smaller); shorten it or split the scene`);
     }
+    if (errors.length > had) failed.add(key);
   }
   return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };
 }
