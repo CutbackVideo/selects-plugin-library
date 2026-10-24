@@ -13,6 +13,7 @@ import * as F from "./pipeline/flow.ts";
 import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
+import { issueText } from "./issues.ts";
 
 type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: string } };
 
@@ -30,7 +31,7 @@ const thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize:
 const thumbNumber = { position: "absolute", left: 3, top: 3, zIndex: 1, fontSize: 10, lineHeight: "14px", padding: "0 3px", borderRadius: 3, color: "#fff", background: "rgba(0,0,0,0.7)" } as const;
 const oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 // A scene's sentence: up to two lines, then an ellipsis.
-const twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" } as const;
+const twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "keep-all", overflowWrap: "anywhere" } as const;
 // The host stretches buttons to the full width; a button beside a scene row keeps its own size.
 const rowButton = { flex: "none", width: "auto", whiteSpace: "nowrap" } as const;
 // The scene row itself is a button (keyboard and screen readers); it drops the host's button look.
@@ -106,7 +107,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const openNow = (projectId: string, draftId: string) => viewer.open(projectId, draftId).then((ok) => { if (!ok) log("previewNotOpened"); }, () => log("previewNotOpened"));
   useAppUpdateGuard(sdk, context?.language, () => busy);
 
-  const log: F.Log = (k, v) => { const m = T(k, v); setStatus(m); setLines((l) => [...l.slice(-40), new Date().toLocaleTimeString() + "  " + m]); };
+  const note: F.Log = (k, v) => { const m = T(k, v); setLines((l) => [...l.slice(-40), new Date().toLocaleTimeString() + "  " + m]); };
+  const log: F.Log = (k, v) => { setStatus(T(k, v)); note(k, v); };
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
   const update = async (next: F.Session) => { latest.current = next; setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
 
@@ -152,6 +154,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const pv = s?.preview ?? null;
   const view = s ? F.rowsDraft(s) : null;
   const video = !pv ? view : null;
+  // The confirmed edit Draft after the layout changed: kept and still opened, but its scenes no longer match the rows.
+  const videoOff = !!(s && !pv && !view && s.video && s.draftId === s.video.draftId);
   // Finished-frame thumbnails of that Draft, one at a time, the picked scene first; kept for the open panel.
   // Only the current build's thumbnails are kept; a result for an older build is dropped (the copy still re-runs
   // this effect, so the next thumbnail starts).
@@ -172,7 +176,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         const small = await thumbOf(r.dataUrl, 216).catch(() => r.dataUrl);
         rendering.current = false;
         setStills((m) => (key in m ? { ...m, [key]: { state: "ready", dataUrl: small } } : { ...m }));
-        if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) });
+        if (!r.cached) note("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) });
       })
       .catch(() => { rendering.current = false; setStills((m) => (key in m ? { ...m, [key]: { state: "failed" } } : { ...m })); });
   }, [view?.draftId, view?.at, view?.planRev, picked, busy, stills]);
@@ -238,7 +242,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     try { plan = await F.planScenes(sdk, env.current!, s, preset, next, log, rec, thumbOf); }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
-    const next2 = { ...s, plan, draftId: null };
+    const next2 = { ...s, plan };
     await update(next2);
     setFeedback(""); setJsonErr({}); setOpenRow(null); setPicked(null);
     if (plan.timing === "ratio") setError(T("timingRatio"));
@@ -249,7 +253,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const previewInto = async (sess: F.Session) => {
     const v = F.checkPlan(sess.plan!);
     const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e));
-    if (blocking.length) { setError(T("previewBlocked", { errors: blocking.slice(0, 3).join("; ") })); return; }
+    if (blocking.length) { setError(T("previewBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") })); return; }
     const rec = F.newRunRecord(preset.id, sess.article?.url ?? "");
     try {
       const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec));
@@ -287,8 +291,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     const v = F.checkPlan(plan);
     // Text that does not fit (cut off, over the source, out of its card) cannot become the video either.
     const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e) || LAYOUT_ERROR.test(e));
-    if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
-    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
+    if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
+    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n"))) return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     const name = F.finalName(s);
     let draftId: string, placed: F.PreviewDraft;
@@ -329,7 +333,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (!plan) return;
     const scenes = plan.scenes.map((x, k) => (k === i ? sc : x));
     const edited = plan.edited.includes(i) ? plan.edited : [...plan.edited, i];
-    update({ ...s, plan: { ...plan, scenes, edited }, draftId: null });
+    // The confirmed edit Draft stays recorded (it can still be opened); the rows stop going to it (rowsDraft).
+    update({ ...s, plan: { ...plan, scenes, edited } });
   };
 
   // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
@@ -363,6 +368,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         else if (rest) rest.push(e);
       }
     };
+    const say = (x: string) => issueText(lang, x);
     sort(v.errors, rowErrors, general);
     const unfit = v.errors.some((e) => LAYOUT_ERROR.test(e));
     const confirmable = F.previewFresh(s) && !unfit;
@@ -385,19 +391,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
         <span style={muted}>{T("planReviewHint")}</span>
         {plan.fallback ? <span style={warn}>{T("planFallbackNote")}</span> : null}
         {lastRound ? <span style={muted}>{T("rounds", { n: plan.rounds.length })}{lastRound.fallback ? "" : " \u00b7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })}</span> : null}
-        {general.length ? <div style={warn}>{general.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
-        {/* After a change the next step is updating the preview; only a preview the reviewer has seen is confirmed. */}
+        {general.length ? <div style={warn}>{general.map((x, i) => <div key={i}>{"\u2022 " + say(x)}</div>)}</div> : null}
         {pv ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={!pv.planRev || stale ? warn : muted}>{!pv.planRev ? T("previewPartial") : stale ? T("previewStale") : "\u2713 " + T("previewFresh", { n: pv.scenes.length })}</span>
-            {!pv.planRev || stale ? <button disabled={busy} onClick={refreshPreview}>{T("previewRebuild")}</button> : null}
             <button {...SECONDARY} disabled={busy} onClick={() => openNow(s.projectId!, pv.draftId)}>{T("openPreview")}</button>
           </div>
         ) : video ? <span style={muted}>{T("videoRows")}</span>
-          : <>
-            {s.draftId ? <span style={warn}>{T("videoRowsOff")}</span> : null}
-            <button disabled={busy} onClick={refreshPreview}>{T("previewBuild")}</button>
-          </>}
+          : s.draftId ? <span style={warn}>{T("videoRowsOff")}</span> : null}
         {plan.scenes.map((scene, i) => {
           const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean) as F.ScenePlan["sentences"];
           // The graphic's own span (what the viewer jumps to); the sentences' times only while the plan cannot be placed.
@@ -406,7 +407,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
           const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
           const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
           const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-          const still = view && i < view.scenes.length ? stills[F.stillKey(view, i)] : undefined;
+          const shown = view ?? (videoOff ? s.video! : null);
+          const still = shown && i < shown.scenes.length ? stills[F.stillKey(shown, i)] : undefined;
           const canPick = !!view && i < view.scenes.length;
           const photo = scene.assetRef ? plan.thumbs[scene.assetRef] : undefined;
           const open = openRow === i;
@@ -420,7 +422,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
                   {still?.state === "ready" ? <img src={still.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     : photo ? <img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 }} />
                     : <span style={{ ...muted, fontSize: 10, textAlign: "center", padding: 2 }}>{T("type_" + scene.type)}</span>}
-                  {still?.state === "ready" ? (stale ? <span style={{ ...thumbTag, background: "rgba(217,130,43,0.85)" }}>{T("staleBadge")}</span> : null)
+                  {still?.state === "ready" ? (stale || videoOff ? <span style={{ ...thumbTag, background: "rgba(217,130,43,0.85)" }}>{T("staleBadge")}</span> : null)
                     : still?.state === "rendering" ? <span style={thumbTag}>{T("rendering")}</span>
                     : photo ? <span style={thumbTag}>{T("sourcePhoto")}</span> : null}
                 </div>
@@ -441,8 +443,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
               </div>
               {open ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
-                  {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={{ ...warn, fontWeight: 600, overflowWrap: "anywhere" }}>{"\u2716 " + x}</span>)}
-                  {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={{ ...warn, overflowWrap: "anywhere" }}>{"\u26a0 " + x}</span>)}
+                  {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={{ ...warn, fontWeight: 600, overflowWrap: "anywhere" }}>{"\u2716 " + say(x)}</span>)}
+                  {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={{ ...warn, overflowWrap: "anywhere" }}>{"\u26a0 " + say(x)}</span>)}
                   <label style={field}>{T("sceneType")}
                     <select value={scene.type} disabled={busy} onChange={(e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs))}>
                       {SCENE_TYPES.map((t2) => <option key={t2} value={t2}>{T("type_" + t2)}</option>)}
@@ -501,10 +503,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
             <button {...SECONDARY} disabled={busy || !feedback.trim()} onClick={revise}>{T("revise")}</button>
           </div>
         </details>
+        {/* One button under the list (sian): after a change it updates the preview; once the reviewer has that
+            preview it confirms it. A confirm that is not allowed yet stays here, off, with the reason. */}
         {video ? null : (
           <>
-            <button {...(confirmable ? {} : SECONDARY)} disabled={busy || !confirmable} onClick={build}>{T("buildFromPlan")}</button>
-            <span style={unfit ? warn : muted}>{T(unfit ? "confirmNeedsFit" : F.previewFresh(s) ? "confirmHint" : "confirmNeedsPreview")}</span>
+            {!pv || !pv.planRev || stale
+              ? <button disabled={busy} onClick={refreshPreview}>{T(pv ? "previewRebuild" : "previewBuild")}</button>
+              : <button disabled={busy || !confirmable} onClick={build}>{T("buildFromPlan")}</button>}
+            <span style={unfit || videoOff ? warn : muted}>{T(unfit ? "confirmNeedsFit" : F.previewFresh(s) ? "confirmHint" : videoOff ? "confirmAgain" : "confirmNeedsPreview")}</span>
           </>
         )}
       </div>
@@ -512,7 +518,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
   };
 
   return (
-    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
+    // Korean breaks between words, not inside one; a word longer than the line still wraps.
+    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13, wordBreak: "keep-all", overflowWrap: "break-word" }}>
       <strong>{T("title")}</strong>
       <label>{T("preset")}{" "}
         <select value={s.presetId} disabled={busy} onChange={(e) => update({ ...s, presetId: e.target.value })}>
@@ -549,7 +556,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
           {chars > MAX_CHARS ? <span style={{ color: "#d9822b", fontSize: 12 }}>{T("tooLong", { max: MAX_CHARS })}</span> : null}
           {approved ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span>{"\u2713 " + T("approved")}</span>
+              <span style={{ whiteSpace: "nowrap", flex: "none" }}>{"\u2713 " + T("approved")}</span>
               <button {...SECONDARY} disabled={busy || tts?.state === "submitted" || tts?.state === "submitting"} onClick={() => update({ ...s, approved: null })}>{T("edit")}</button>
             </div>
           ) : (
@@ -585,8 +592,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
             </>
           ) : (
             <>
-              <span>{"\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) })}</span>
               {plan ? null : <>
+                <span>{"\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) })}</span>
                 <span style={muted}>{T("buildCredits")}</span>
                 <button disabled={busy} onClick={makePlan}>{T("makePlan")}</button>
               </>}
@@ -600,7 +607,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       {s.draftId ? (
         // A newer preview is open above: this box is the earlier edit Draft, not the preview's result.
         <div style={{ ...box, display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ ...(pv ? muted : {}), flex: 1, minWidth: 0 }}>{T(pv ? "previousVideo" : "done")}</span>
+          <span style={{ ...(pv ? muted : {}), flex: 1, minWidth: 0 }}>{T(pv ? "previousVideo" : videoOff ? "videoChanged" : "done")}</span>
           <button {...SECONDARY} style={rowButton} disabled={busy} onClick={() => run(sdk, openDraftScript(s.draftId!)).catch(() => {})}>{T("openDraft")}</button>
         </div>
       ) : null}
