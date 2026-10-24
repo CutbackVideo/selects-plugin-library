@@ -152,6 +152,21 @@ test('a single value goes to highlight_card; number_callout needs from and to ag
   assert.ok(!P.validatePlan(mk('number_callout', {title: 't', label: 'cash', to: 3592}), sents, []).ok);
 });
 
+test('text that will not sit at its size within two lines is warned about, not shrunk', async () => {
+  const { fitWarnings, lineFit } = await import('../src/prompts/fit.ts');
+  // the review's long line takes two lines at 72 in 960 px
+  assert.deepEqual(lineFit('\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D \uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9', 72, 960), {lines: 2, tooWide: false});
+  assert.deepEqual(fitWarnings('text_card', {text: '\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D \uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9'}), []);
+  const long = Array(6).fill('\uAC00\uB098\uB2E4\uB77C\uB9C8').join(' ');
+  assert.match(fitWarnings('text_card', {text: long})[0], /takes 3 lines at 72 px/);
+  // 1\uC5B55000\uB9CC breaks after \uC5B5; four such cards go two by two and fit
+  const card = {header: 'a', rows: [{label: 'b', value: '1\uC5B55000\uB9CC', unit: '\uC6D0'}]};
+  assert.deepEqual(fitWarnings('stat_cards', {cards: [card, card, card, card]}), []);
+  assert.match(fitWarnings('stat_cards', {cards: [card, card, card, {header: 'a', rows: [card.rows[0], card.rows[0]]}]})[0], /card number .* wider than its box/);
+  const v = P.validatePlan({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card', params: {text: long}, hideCaption: false, disclaimer: false}]}, [{id: 's1', text: 'x', startSec: 0, endSec: 3}], []);
+  assert.ok(v.warnings.some((w) => /scene 1: text line .* takes 3 lines/.test(w)), v.warnings.join('\n'));
+});
+
 test('heritage scene types validate and allow one hero only', () => {
   const sents = [{id: 's1', text: '46 of 105, 43.8 percent.', startSec: 0, endSec: 6}];
   const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});

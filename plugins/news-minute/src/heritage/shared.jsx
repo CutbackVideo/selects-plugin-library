@@ -246,3 +246,44 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at `size` (by ems): '\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \uC5B5/\uB9CC when digits follow
+// (1\uC5B55000\uB9CC -> 1\uC5B5 / 5000\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\uC5B5' || ch === '\uB9CC') && /\d/.test(chars[i - 1] ?? '') && /\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
