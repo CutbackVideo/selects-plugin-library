@@ -1,0 +1,67 @@
+[
+ {
+  "id": "highlight-million-won",
+  "type": "highlight_card",
+  "label": "f106b06 review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\uc9c0\uc6d0\uae08",
+   "value": 1000000,
+   "unit": "\uc6d0",
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  }
+ },
+ {
+  "id": "stat-string-mw",
+  "type": "stat_cards",
+  "label": "f106b06 review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\ubc1c\uc804 \uc124\ube44 \uc6a9\ub7c9",
+   "cards": [
+    {
+     "header": "\ub3d9\ubd80",
+     "rows": [
+      {
+       "label": "\uc6a9\ub7c9",
+       "value": "10000",
+       "unit": "MW"
+      }
+     ]
+    },
+    {
+     "header": "\uc11c\ubd80",
+     "rows": [
+      {
+       "label": "\uc6a9\ub7c9",
+       "value": "10000",
+       "unit": "MW"
+      }
+     ]
+    },
+    {
+     "header": "\ub0a8\ubd80",
+     "rows": [
+      {
+       "label": "\uc6a9\ub7c9",
+       "value": "10000",
+       "unit": "MW"
+      }
+     ]
+    }
+   ],
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  }
+ },
+ {
+  "id": "number-two-lines",
+  "type": "number_callout",
+  "label": "f106b06 review input (CASES.json), allowed: the unit alone on the next line",
+  "data": {
+   "title": "\uc544\ud30c\ud2b8 \uac00\uaca9 \ubcc0\ud654",
+   "label": "\uc11c\uc6b8 \uc544\ud30c\ud2b8",
+   "from": "99\uc5b55000\ub9cc",
+   "to": "199\uc5b55000\ub9cc",
+   "unit": "\uc6d0",
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  }
+ }
+]

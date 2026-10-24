@@ -1,0 +1,119 @@
+// Thin wrappers over the panel SDK: run_script, askAI, storage, and the bundled FFmpeg.
+
+import type { ScriptCall } from "./scripts.ts";
+import { ffmpegScript, mediaJobScript, readChunksScript, writeChunkScript } from "./scripts.ts";
+
+export type PanelSdk = {
+  runScript(input: { summary: string; script: string; allowCommit?: boolean }): Promise<{ isError?: boolean; output?: string; result?: any }>;
+  askAI?(input: { prompt: string; timeoutMs?: number; ephemeral?: boolean; images?: AskImage[] }): Promise<{ text: string }>;
+  storage?: { getItem(k: string): Promise<string | null>; setItem(k: string, v: string): Promise<void>; removeItem(k: string): Promise<void> };
+  updates?: unknown;
+};
+
+// A picture the model looks at. The host takes at most 4 per call, each under 1,500,000 base64 characters and
+// all under 4,000,000 (png, jpeg, gif, webp); it rejects the call before the turn starts otherwise.
+export type AskImage = { dataUrl: string; name?: string };
+export const ASK_MAX_IMAGES = 4;
+export const ASK_MAX_IMAGE_CHARS = 1_500_000;
+export const ASK_MAX_TOTAL_CHARS = 4_000_000;
+
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// The host rejects run_script sources over 262,144 bytes; refuse well before that with a clear message.
+export const SCRIPT_GUARD_BYTES = 240_000;
+export const scriptBytes = (call: ScriptCall) => new TextEncoder().encode(call.script).length;
+
+export async function run<T = any>(sdk: PanelSdk, call: ScriptCall): Promise<T> {
+  const bytes = scriptBytes(call);
+  if (bytes > SCRIPT_GUARD_BYTES) throw new Error(`"${call.summary}" is ${bytes} bytes, over the ${SCRIPT_GUARD_BYTES}-byte script limit`);
+  const r = await sdk.runScript({ summary: call.summary, script: call.script, allowCommit: !!call.allowCommit });
+  if (r.isError) throw new Error(String(r.output || "script failed"));
+  return r.result as T;
+}
+
+// One AI turn, at most 3 minutes; a timed-out turn is tried once more. The host keeps panel turns out of the
+// user's chat history by default (ephemeral, on models that support it), so the option is left at its default.
+export const AI_TIMEOUT_MS = 180000;
+export async function ask(sdk: PanelSdk, prompt: string, onRetry?: () => void, images?: AskImage[]): Promise<string> {
+  if (typeof sdk.askAI !== "function") throw new Error("askAI unavailable");
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await sdk.askAI({ prompt, timeoutMs: AI_TIMEOUT_MS, ...(images?.length ? { images } : {}) });
+      return String(r?.text ?? "");
+    } catch (err: any) {
+      if (attempt === 0 && /did not finish|timed? ?out/i.test(String(err?.message || err))) { onRetry?.(); continue; }
+      throw err;
+    }
+  }
+}
+
+export async function load<T>(sdk: PanelSdk, key: string): Promise<T | null> {
+  if (!sdk.storage) throw new Error("storage unavailable");
+  const raw = await sdk.storage.getItem(key);
+  return raw === null ? null : (JSON.parse(raw) as T);
+}
+export async function save(sdk: PanelSdk, key: string, value: unknown): Promise<void> {
+  if (!sdk.storage) throw new Error("storage unavailable");
+  await sdk.storage.setItem(key, JSON.stringify(value));
+}
+
+// Run the bundled FFmpeg and wait for it (2 minutes at most).
+export async function ffmpeg(sdk: PanelSdk, summary: string, args: string[]): Promise<void> {
+  const { jobId } = await run<{ jobId: string }>(sdk, ffmpegScript(summary, args));
+  let cursor = 0, log = "";
+  for (let i = 0; i < 480; i++) {
+    const s = await run<{ state: string; events: Array<{ cursor: number; text: string }> }>(sdk, mediaJobScript(jobId, cursor));
+    for (const e of s.events) { cursor = Math.max(cursor, e.cursor); log = (log + e.text).slice(-800); }
+    if (s.state === "succeeded") return;
+    if (s.state === "failed" || s.state === "cancelled") throw new Error("ffmpeg " + s.state + ": " + log.slice(-300));
+    await sleep(250);
+  }
+  throw new Error("ffmpeg timed out");
+}
+
+const CHUNK = 49152;
+const READ_PER_CALL = 3;
+// Write text to a file in chunks (replaces the file).
+export async function writeText(sdk: PanelSdk, path: string, text: string): Promise<void> {
+  const bytes = new TextEncoder().encode(text);
+  for (let at = 0; at === 0 || at < bytes.length; at += CHUNK) {
+    const part = bytes.subarray(at, at + CHUNK);
+    let bin = "";
+    for (let i = 0; i < part.length; i += 0x8000) bin += String.fromCharCode(...part.subarray(i, i + 0x8000));
+    await run(sdk, writeChunkScript(path, at, btoa(bin)));
+    if (!bytes.length) break;
+  }
+}
+
+function b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// Whole file as bytes (bounded). A panel run_script result is capped at 256 KB, so 3 chunks (about 196 KB of
+// base64) per call.
+export async function readFileBytes(sdk: PanelSdk, path: string, maxBytes = 8 * 1024 * 1024): Promise<Uint8Array> {
+  const parts: Uint8Array[] = [];
+  let offset = 0, total = 0;
+  for (;;) {
+    const r = await run<{ chunks: string[]; offset: number }>(sdk, readChunksScript(path, offset, READ_PER_CALL));
+    if (!r || !Array.isArray(r.chunks)) throw new Error("reading " + path + " returned no data");
+    for (const c of r.chunks) { const b = b64ToBytes(c); parts.push(b); total += b.length; }
+    if (total > maxBytes) throw new Error("file too large: " + path);
+    if (r.offset === offset || r.chunks.length < READ_PER_CALL) break;
+    offset = r.offset;
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+
+export async function readFileBase64(sdk: PanelSdk, path: string, maxBytes?: number): Promise<string> {
+  const bytes = await readFileBytes(sdk, path, maxBytes);
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
