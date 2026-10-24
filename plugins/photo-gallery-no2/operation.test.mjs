@@ -9,6 +9,20 @@ const effectSha = 'bf1d24dab2ac13a45fcd5a1ce5ff0587de86be31f900ab03976cbbc1fc5eb
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const image = (i) => ({ resourceId: `r${i}`, name: `photo-${i}.png`, type: 'Image' });
 const file = (i) => ({ type: 'image', resourceId: `r${i}`, name: `photo-${i}.png`, path: `/test/photo-${i}.png`, frameSize: { width: 1080, height: 1920 } });
+// Binary originals span more than one SDK chunk; their identity comes from the
+// existing stat/readRange API rather than a fabricated fingerprint capability.
+const sourceBytes = (path) => Buffer.concat([Buffer.from(path), Buffer.alloc(49152, 0x89)]);
+const readableFiles = (nodes) => ({
+  stat: async (path) => nodes.some(node => node.path === path) ?
+    { size: sourceBytes(path).length, isDirectory: false, mtimeMs: 1, ino: 1 } : null,
+  readRange: async ({ path, offset, length }) => {
+    assert.ok(nodes.some(node => node.path === path), `Unknown source: ${path}`);
+    assert.ok(Number.isSafeInteger(offset) && offset >= 0);
+    assert.ok(Number.isSafeInteger(length) && length >= 1 && length <= 49152);
+    const bytes = sourceBytes(path).subarray(offset, offset + length);
+    return { bytesRead: bytes.length, base64: bytes.toString('base64') };
+  },
+});
 function fixture({ shortVideo = false } = {}) {
   const calls = { create: 0, commit: 0 };
   const resources = Array.from({ length: 21 }, (_, i) => shortVideo ? { resourceId: `r${i}`, name: `clip-${i}.mp4`, type: 'Video' } : image(i));
@@ -23,6 +37,7 @@ function fixture({ shortVideo = false } = {}) {
     createDraft: async () => { calls.create++; return draft; },
   };
   const selects = {
+    files: readableFiles(nodes),
     project: (projectId) => { assert.equal(projectId, 'project-1'); return project; },
     draft: (draftId) => { assert.equal(draftId, 'draft-1'); return draft; },
     media: { probe: async ({ filePaths }) => ({ files: filePaths.map((path) => ({ path })), errors: [], summary: { failed: 0 } }) },
@@ -30,6 +45,14 @@ function fixture({ shortVideo = false } = {}) {
   const run = (input) => new AsyncFunction('selects', buildScript(input))(selects);
   return { run, calls, nodes, resources, draft, project };
 }
+
+test('held import cannot round a physically short file up to the requested duration',async()=>{
+ const f=fixture({shortVideo:true});
+ f.resources.push({resourceId:'held',type:'Video'});
+ f.nodes.push({type:'video',resourceId:'held',path:'/cache/held.mp4',frameSize:{width:128,height:96},durationSeconds:854/60-.001});
+ const result=await f.run({operation:'importConverted',projectId:'project-1',durationFrames:854,converted:[{sourceResourceId:'r0',sourcePath:f.nodes[0].path,path:'/cache/held.mp4'}]});
+ assert.equal(result.status,'notSaved');assert.match(result.message,/length.*verified/i);assert.equal(f.calls.commit,0);
+});
 
 test('the effect identity readback matches the actual bundled source', () => {
   const source = readFileSync(new URL('./operation-runtime.js', import.meta.url), 'utf8');
@@ -212,7 +235,7 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
       }
       const trackKind = resource.resourceId === 'song' ? 'audio' : 'video';
       const endOffset = trackKind === 'video' ? videoEndOffsets[resource.resourceId]?.(over.startFrame) ?? 0 : 0;
-      inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `v${inserted.length}`, trackKind, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame + endOffset, sourceStartSeconds });
+      inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `v${inserted.length}`, trackKind, audioSourceIndexes:null, playbackSpeed:{numerator:1,denominator:1}, preserveAudioPitch:true, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame + endOffset, sourceStartSeconds });
       if (videoAudio && trackKind === 'video' && videoIndices.includes(Number(resource.resourceId.slice(1)))) {
         inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `a${inserted.length}`, trackKind: 'audio',
           resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame });
@@ -238,11 +261,15 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
     setClipTransform: async (entry) => transforms.push(entry),
     clipTransform: async (clip) => {
       const value = transforms.find((entry) => entry.clip.clipId === clip.clipId);
-      return value ? { enabled: true, position: value.position, scale: value.scale } :
+      return value ? { enabled: true, position: value.position, scale: value.scale, rotation:0,anchor:{x:0,y:0},flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[] } :
         { enabled: true, position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, anchor: { x: 0, y: 0 } };
     },
     videoEffects: async (clip) => effects.filter((effect) => effect.clip.clipId === clip.clipId)
-      .map((effect) => ({ name: effect.label, enabled: true })),
+      .map((effect,effectIndex) => ({ clipId:clip.clipId,trackId:clip.trackId,effectIndex,name: effect.label, enabled: true })),
+    videoEffectProgram: async ref => {const {clip,label,...program}=effects.filter(e=>e.clip.clipId===ref.clipId)[ref.effectIndex];return program;},
+    motionGraphics:async()=>[],motionGraphicProgram:async()=>null,
+    clipAudio:async clip=>({clipId:clip.clipId,volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0}),
+    clipSourceWindow:async clip=>({clipId:clip.clipId,startSeconds:clip.sourceStartSeconds??0,endSeconds:(clip.sourceStartSeconds??0)+(clip.endFrame-clip.startFrame)/60}),
     commitAll: async () => {
       if (failCommit) throw new Error('transport lost after commit started');
       return createCount ? { createdDraftId: 'draft-new' } : { commitId: 'commit-style' };
@@ -263,6 +290,7 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
     resource: (resourceId) => ({ resourceId }),
   };
   const selects = {
+    files: readableFiles(files),
     project: () => project,
     draft: () => draft,
     media: { probe: async ({ filePaths }) => ({ files: filePaths.map((path) => ({ path })), errors: [], summary: { failed: 0 } }) },
@@ -454,7 +482,7 @@ test('mixed gallery places Video through the public SDK while preserving preplac
   assert.equal(result.status, 'videosPlaced', result.message);
   assert.equal(result.tileCount, 1);
   assert.equal(f.inserted.length, 21);
-  assert.deepEqual(f.inserted[20], { clipId: 21, trackId: 'v20', trackKind: 'video',
+  assert.deepEqual(f.inserted[20], { clipId: 21, trackId: 'v20', trackKind: 'video', audioSourceIndexes:null, playbackSpeed:{numerator:1,denominator:1}, preserveAudioPitch:true,
     resourceId: 'r20', startFrame: 205, endFrame: 853, sourceStartSeconds: undefined });
   assert.equal((await f.run({ operation: 'styleExisting', projectId: 'project-1',
     draftId: 'known', media, manualBpm: 113 })).status, 'styled');
@@ -489,6 +517,10 @@ test('21 original photos become 21 independent Image clips over a black gap', as
   const input = { projectId: 'project-1', media, manualBpm: 113 };
   const created = await f.run({ ...input, operation: 'create' });
   assert.equal(created.status, 'saved', created.message);
+  assert.deepEqual(created.sourceGuard.files, media.map(({ path }) => ({
+    path, size: sourceBytes(path).length,
+    sha256: createHash('sha256').update(sourceBytes(path)).digest('hex'),
+  })));
   assert.equal(f.gapCalls, 1);
   assert.equal(f.inserted.length, 21);
   assert.deepEqual(f.inserted.map(row => row.resourceId), media.map(item => item.resourceId));
@@ -506,7 +538,7 @@ test('a Selects build without native Image overlays stops before commit without 
     path: `/test/photo-${i}.png`, kind: 'image' }));
   const result = await f.run({ operation: 'create', projectId: 'project-1', media, manualBpm: 113 });
   assert.equal(result.status, 'notSaved');
-  assert.match(result.message, /plugin SDK cannot place original Image Resources on video tracks/i);
+  assert.match(result.message, /Video\/Audio asset|cannot place original Image/i);
   assert.equal(f.inserted.length, 0);
 });
 

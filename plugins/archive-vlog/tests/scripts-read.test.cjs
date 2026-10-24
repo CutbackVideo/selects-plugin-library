@@ -48,8 +48,8 @@ const keepAlive = setInterval(() => {}, 50);
     assert.equal(reads, 1, 'analysedOnly: no resource read');
   }
 
-  // Photos: Image resources come back with kind 'photo', respecting `only`; sourceFiles has no size for them, so an
-  // unsaved scratch Draft measures each (it adopts the photo's size); known sizes are reused and nothing is committed.
+  // Photos preserve selection and native source metadata. Unknown metadata stays
+  // unknown; neither a cached value nor an unsaved Draft canvas measures it.
   const res2 = resources.concat([
     { resourceId: 'r4', name: 'IMG_1.jpeg', type: 'Image', hasAnalysis: false, status: 'analysisNotApplicable', durationSeconds: 0, recording: { recordedAt: '2026-09-27T10:00:00Z' } },
     { resourceId: 'r5', name: 'IMG_2.jpeg', type: 'Image', hasAnalysis: false, status: 'analysisNotApplicable', durationSeconds: 0 }]);
@@ -63,18 +63,19 @@ const keepAlive = setInterval(() => {}, 50);
   const inv2 = await load('inventory.js', { projectId: 'p', only: null })(sel2);
   assert.deepEqual(inv2.resources.map(r => [r.rid, r.kind]), [['r0', 'video'], ['r3', 'video']]);
   assert.deepEqual(inv2.photos, [
-    { rid: 'r4', name: 'IMG_1.jpeg', width: 898, height: 898, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo' },
-    { rid: 'r5', name: 'IMG_2.jpeg', width: 2268, height: 4032, recordedAt: null, kind: 'photo' }]);
+    { rid: 'r4', name: 'IMG_1.jpeg', width: null, height: null, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo', path: '/p/1.jpeg' },
+    { rid: 'r5', name: 'IMG_2.jpeg', width: null, height: null, recordedAt: null, kind: 'photo', path: '/p/2.jpeg' }]);
   assert.equal(inv2.skipped.unanalysed, 1, 'photos never count as unanalysed');
   assert.ok(!('latestYear' in inv2), 'no latestYear with photos either');
-  assert.equal(drafts.length, 2);
-  assert.ok(drafts.every(d => !d.committed), 'scratch Drafts are not committed');
+  assert.equal(drafts.length, 0, 'inventory creates no measurement Drafts');
   const inv3 = await load('inventory.js', { projectId: 'p', only: ['r5'], known: { r5: { width: 10, height: 20 } } })(sel2);
-  assert.deepEqual(inv3.photos.map(r => [r.rid, r.width, r.height]), [['r5', 10, 20]]);
+  assert.deepEqual(inv3.photos.map(r => [r.rid, r.width, r.height]), [['r5', null, null]]);
   assert.equal(inv3.resources.length, 0);
-  assert.equal(drafts.length, 2, 'a known size is not measured again');
+  assert.equal(drafts.length, 0, 'cached dimensions cannot authorize a scratch measurement');
+  const native = await load('inventory.js', { projectId: 'p', only: ['r5'], known: { r5: { width: 10, height: 20 } } })({ project: () => ({ resources: async () => res2, sourceFiles: async () => ({ fileTree: [{ resourceId: 'r5', type: 'image', path: '/p/2.jpeg', frameSize: { width: 96, height: 160 } }] }) }) });
+  assert.deepEqual(native.photos.map(r => [r.rid, r.width, r.height]), [['r5', 96, 160]], 'fresh source facts win over a stale cached size');
   const inv4 = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(sel2);
-  assert.deepEqual(inv4.photos.map(r => r.width), [null, null], 'no measuring past the budget');
+  assert.deepEqual(inv4.photos.map(r => r.width), [null, null], 'missing native metadata stays unknown regardless of the old measurement budget');
 
   assert.equal(inv.incomplete, false, 'a fully loaded Project is complete');
 
@@ -107,7 +108,7 @@ const keepAlive = setInterval(() => {}, 50);
   const invQ = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(selL({ resources: async () => partial, sourceFiles: async () => ({ fileTree: [] }) }));
   assert.deepEqual(invQ.resources, [{ rid: 'q0', name: 'q0', duration: 8, width: null, height: null, recordedAt: null, kind: 'video', analysed: true, path: null }], 'missing name and recording');
   assert.equal(invQ.skipped.missing, 1, 'a non-numeric duration counts as missing');
-  assert.deepEqual(invQ.photos, [{ rid: 'q2', name: 'q2', width: null, height: null, recordedAt: null, kind: 'photo' }]);
+  assert.deepEqual(invQ.photos, [{ rid: 'q2', name: 'q2', width: null, height: null, recordedAt: null, kind: 'photo', path: null }]);
   assert.equal(invQ.incomplete, false, 'malformed entries are dropped, not a loading Project');
   // resources() itself failing still throws: with nothing read, the panel retries instead of showing an empty Project.
   await assert.rejects(load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => { throw Error('bridge not ready'); } })), /bridge not ready/);
@@ -163,13 +164,19 @@ const keepAlive = setInterval(() => {}, 50);
   }
 
   // ensure-audio.js: the cue's path matches the host's stored path after normalising (NFC, backslashes as slashes,
-  // case-folded), else by file name; only a cue the Project lacks is imported.
+  // case-folded on Windows). A basename/length match cannot identify selected Audio.
   const audioProject = (stored, name, durationSeconds = 152.3) => {
-    const imports = [];
+    const imports = [], nodes = [{ type: 'audio', name, resourceId: 'a1', path: stored }];
+    const rows = [{ resourceId: 'v1', type: 'Video', name: 'x.mov' }, { resourceId: 'a1', type: 'Audio', name, durationSeconds }];
     return { imports, sel: { project: () => ({
-      sourceFiles: async () => ({ fileTree: [{ type: 'dir', name: 'cues', children: [{ type: 'audio', name, resourceId: 'a1', path: stored }] }] }),
-      resources: async () => [{ resourceId: 'v1', type: 'Video', name: 'x.mov' }, { resourceId: 'a1', type: 'Audio', name, durationSeconds }],
-      importFiles: async ({ paths }) => { imports.push(...paths); return { addedResourceIds: ['a9'] }; },
+      sourceFiles: async () => ({ fileTree: [{ type: 'dir', name: 'cues', children: nodes }] }),
+      resources: async () => rows,
+      importFiles: async ({ paths }) => {
+        imports.push(...paths);
+        rows.push({ resourceId: 'a9', type: 'Audio', name: paths[0].split(/[\\/]/).pop(), durationSeconds: 152.3 });
+        nodes.push({ type: 'audio', resourceId: 'a9', path: paths[0] });
+        return { addedResourceIds: ['a9'] };
+      },
     }) } };
   };
   const winCue = 'D:\\Data\\AppData\\Selects\\skills\\archive-vlog\\assets\\cues\\peaceful-drift.mp3';
@@ -186,11 +193,12 @@ const keepAlive = setInterval(() => {}, 50);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/x/cues/' + ko })(a.sel), { resourceId: 'a1', imported: false });
   }
   {
-    // Same cue file in another folder (the plugin moved): matched by its file name when its length is the cue's
-    // (cfg.duration from the manifest, within 0.5 s).
+    // A same-name, same-length file at another path is not the selected cue.
+    // Confirm the actual imported path; a repeated read reuses that Resource.
     const a = audioProject('/old/place/peaceful-drift.mp3', 'peaceful-drift.mp3');
-    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a1', imported: false });
-    assert.deepEqual(a.imports, []);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a9', imported: true });
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a9', imported: false });
+    assert.deepEqual(a.imports, [winCue]);
   }
   for (const [label, cfgDuration, stored] of [['another length', 152, 160], ['no cue length in cfg', undefined, 152.3], ['an unknown resource length', 152, null]]) {
     // A file that only shares the cue's name is not the cue: imported.
@@ -199,7 +207,7 @@ const keepAlive = setInterval(() => {}, 50);
     assert.deepEqual(a.imports, [winCue], label);
   }
   {
-    // The exact path needs no length check.
+    // The exact path uses positive Audio metadata, without approximate name/length identity.
     const a = audioProject(winCue, 'peaceful-drift.mp3', 999);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a1', imported: false });
   }

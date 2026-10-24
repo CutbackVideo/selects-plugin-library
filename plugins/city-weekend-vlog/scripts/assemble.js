@@ -82,7 +82,7 @@ if (cfg.clipSound === 'ambient') {
 }
 if (cfg.music) {
   const audioBefore = new Set((await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio').map(c => c.clipId));
-  await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame), sourceStartSeconds: cfg.music.sectionStart });
+  await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame), sourceStartSeconds: cfg.music.sectionStart, playbackSpeed: { numerator: 1, denominator: 1 } });
   // Find the clip the overlay just created: new audio clips only, preferring the music resource.
   const added = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio' && !audioBefore.has(c.clipId));
   const music = added.find(c => c.resourceId === cfg.music.resourceId) || added[0];

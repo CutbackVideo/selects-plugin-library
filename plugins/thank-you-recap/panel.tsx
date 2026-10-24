@@ -12,8 +12,8 @@
 // @collection visual-highlights
 // @icon video
 // Builds a "Thank you <year>" recap Draft on the template's fixed 16:9 timeline:
-// a rapid montage cut on every hit of the opening bass roll, one held hero shot
-// under a small "THANK YOU" and a flickering year, a second montage while the trumpet's
+// the shipped preview's held hero shot under a small "THANK YOU" and a
+// flickering year, a montage while the trumpet's
 // held note plays and the frame closes to a line, then beat-cut footage to the end.
 // The source sound is muted and the template's own music plays underneath.
 // Every cut stays an editable clip; the titles are one editable Motion Graphic.
@@ -262,24 +262,24 @@ type Media = {
   height: number | null;
 };
 
-// Cut points (seconds) measured on the template music. The opening montage
-// cuts on each of the 15 bass-roll hits; the hero shot holds through the
-// murmur and the trumpet phrase; while the trumpet holds its last note the
+// Cut points measured on the shipped preview, which starts 5.25 seconds into
+// the bundled song. Its first shot is the held hero, not the preceding bass
+// roll. While the trumpet holds its last note the
 // frame closes over a montage cut on the eighth-note pulse (0.222s), and it
 // reopens on the first note of the solo piano after a short breath. Piano
 // cuts fall on its notes (snapped to the pulse), then on quarter notes of the
-// 134.5 BPM groove, with the salsa entry at 23.024.
-const ROLL = [0, 0.15, 0.289, 0.444, 0.604, 0.748, 0.893, 1.053, 1.202, 1.397, 1.581, 1.791, 1.985, 2.2, 2.39];
-const HERO = 2.584;
-const HOLD = 8.55;
-const CLOSING = [8.792, 9.014, 9.236, 9.458, 9.68, 9.902, 10.124, 10.346, 10.568, 10.79, 11.012, 11.234, 11.456, 11.678];
-const PIANO_START = 11.9;
-const PIANO = [12.347, 12.797, 13.017, 13.458, 13.905, 14.126, 14.344, 14.567];
-const GROOVE = [14.89, 15.253, 15.697, 16.141, 16.585, 17.029, 17.473, 17.917, 18.361, 18.805, 19.249, 19.693, 20.137, 20.581, 21.025, 21.469, 21.913, 22.357, 23.024, 23.466, 23.908, 24.35, 24.792, 25.234];
-const END = 25.883;
+// 134.5 BPM groove, with the salsa entry at 17.774.
+const ROLL = [];
+const HERO = 0;
+const HOLD = 3.3;
+const CLOSING = [3.542, 3.764, 3.986, 4.208, 4.43, 4.652, 4.874, 5.096, 5.318, 5.54, 5.762, 5.984, 6.206, 6.428];
+const PIANO_START = 6.65;
+const PIANO = [7.097, 7.547, 7.767, 8.208, 8.655, 8.876, 9.094, 9.317];
+const GROOVE = [9.64, 10.003, 10.447, 10.891, 11.335, 11.779, 12.223, 12.667, 13.111, 13.555, 13.999, 14.443, 14.887, 15.331, 15.775, 16.219, 16.663, 17.107, 17.774, 18.216, 18.658, 19.1, 19.542, 19.984];
+const END = 20.633;
 const STARTS = [...ROLL, HERO, HOLD, ...CLOSING, PIANO_START, ...PIANO, ...GROOVE];
 // The year appears with the trumpet; BEAT is the groove's quarter note.
-const YEAR_AT = 5.3;
+const YEAR_AT = 0.05;
 const BEAT = 0.444;
 const HERO_SECONDS = HOLD - HERO;
 const FRAME = { width: 1920, height: 1080 };
@@ -288,6 +288,7 @@ const PLUGIN_ID = "thank-you-recap";
 const MUSIC_FILE = "assets/music.mp3";
 // Its length in seconds (ffprobe), used when its Resource reports none.
 const MUSIC_SECONDS = 25.913469;
+const MUSIC_SOURCE_START = 5.25;
 
 // Titles over the hero shot and the closing montage. Times are seconds from
 // the graphic's first frame. The year cycles through six faces (embedded as
@@ -515,7 +516,7 @@ return added;`,
     return { id: v.id, seconds: v.seconds, hero: false, use, of: 0 };
   });
   for (const s of slots) if (!s.hero) s.of = uses.get(s.id)!;
-  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name, musicId, musicSeconds: MUSIC_SECONDS };
+  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name, musicId, musicSeconds: MUSIC_SECONDS, musicSourceStart: MUSIC_SOURCE_START };
   // Every clip and the music are placed before the one commit: a clip or the
   // music Selects can't place yet ends the run with nothing saved.
   const script = `
@@ -549,9 +550,9 @@ const main = (await draft.clips({ trackScope: "main" })).sort((a, b) => a.startF
 const endFrame = main.reduce((a, c) => Math.max(a, c.endFrame), 0);
 const edges = [...main.map((c) => c.startFrame), endFrame];
 // The music may not run past its own end (Selects refuses the whole overlay).
-const musicSeconds = Math.min((await project.resources()).find((r) => r.resourceId === plan.musicId)?.durationSeconds || Infinity, plan.musicSeconds);
+const musicSeconds = Math.max(0, Math.min((await project.resources()).find((r) => r.resourceId === plan.musicId)?.durationSeconds || Infinity, plan.musicSeconds) - plan.musicSourceStart);
 const musicEnd = Math.min(endFrame, Math.floor(musicSeconds * fps + 1e-3));
-try { await draft.overlayResource({ resource: project.resource(plan.musicId), over: await draft.rangeAtFrames(0, musicEnd) }); }
+try { await draft.overlayResource({ resource: project.resource(plan.musicId), over: await draft.rangeAtFrames(0, musicEnd), sourceStartSeconds: plan.musicSourceStart }); }
 catch (e) { return failure(plan.musicId, e); }
 const saved = await draft.commitAll("Cut recap montage");
 return { draftId: saved.createdDraftId, cuts: main.length, endFrame, fps, edges };`;

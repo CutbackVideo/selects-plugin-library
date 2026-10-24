@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "id": "bundled-assets",
+      "source": "shared/bundled-assets.js",
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/archive-vlog/operation-builder.mjs"
+      ],
+      "targets": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ]
+    },
+    {
+      "id": "native-image-input",
+      "source": "shared/native-image-input.mjs",
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/archive-vlog/operation-builder.mjs"
+      ],
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "requires": [
+        "file-observation"
+      ]
+    },
+    {
+      "id": "ai-job-client",
+      "source": "shared/ai-job-client.cjs",
+      "targets": [
+        "plugins/depth-type-captions/panel.tsx",
+        "plugins/travel-beat-vlog/panel.tsx",
+        "plugins/jude-kinetic-style/panel.tsx",
+        "plugins/portrait-beat-montage/panel.tsx",
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
+      ],
+      "compatibilityTargets": [
+        "plugins/cutout-beat-gallery/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "native-image-authoring",
+      "source": "shared/native-image-authoring.js",
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/archive-vlog/operation-builder.mjs"
+      ],
+      "requires": [
+        "draft-observation"
+      ]
+    },
+    {
+      "id": "template-run",
+      "source": "shared/template-run.js",
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ],
+      "requires": [
+        "file-observation",
+        "draft-observation"
+      ]
+    },
+    {
+      "id": "analysis-worker",
+      "source": "shared/analysis-worker.js",
+      "targets": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/city-weekend-vlog/panel.tsx",
+        "plugins/torn-paper-love/panel.tsx",
+        "plugins/summer-trip/panel.tsx",
+        "plugins/the-end-credits/panel.tsx"
+      ]
+    },
+    {
+      "id": "media-inventory",
+      "source": "shared/media-inventory.js",
+      "targets": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ]
+    },
+    {
+      "id": "clip-analysis",
+      "source": "shared/clip-analysis.js",
+      "requires": [
+        "bundled-assets"
+      ],
+      "targets": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ]
+    },
+    {
+      "id": "audio-beat-analysis",
+      "source": "shared/audio-beat-analysis.cjs",
+      "targets": [
+        "plugins/selfie-aesthetic/panel.tsx"
+      ],
+      "fileTargets": [
+        "plugins/mini-vlog/beat-detect.cjs",
+        "plugins/archive-vlog/beat-detect.cjs",
+        "plugins/selfie-aesthetic/beat-detect.cjs",
+        "plugins/city-weekend-vlog/beat-detect.cjs"
+      ]
+    },
+    {
+      "id": "render-fonts",
+      "source": "shared/render-fonts.js",
+      "targets": [
+        "plugins/archive-vlog/assets/decode-title.tsx",
+        "plugins/archive-vlog/assets/archived-credit.tsx"
+      ]
+    },
+    {
+      "id": "render-color-filter",
+      "source": "shared/render-color-filter.js",
+      "targets": [
+        "plugins/archive-vlog/assets/cinematic-look.tsx",
+        "plugins/mini-vlog/assets/soft-look.tsx",
+        "plugins/the-end-credits/assets/cinematic-look.tsx"
+      ]
+    },
+    {
+      "id": "host-files",
+      "source": "shared/host-files.js",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx"
+      ],
+      "compatibilityTargets": [
+        "plugins/medical-explainer/panel.tsx"
+      ]
+    },
+    {
+      "id": "template-text",
+      "source": "shared/template-text.ts",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/city-weekend-vlog/panel.tsx",
+        "plugins/selfie-aesthetic/panel.tsx",
+        "plugins/summer-trip/panel.tsx",
+        "plugins/the-end-credits/panel.tsx",
+        "plugins/torn-paper-love/panel.tsx"
+      ]
+    },
+    {
+      "id": "file-observation",
+      "source": "shared/file-observation.js",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/archive-vlog/operation-builder.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "draft-observation",
+      "source": "shared/draft-observation.js",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/archive-vlog/operation-builder.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "ai-resources",
+      "source": "shared/ai-resources.cjs",
+      "targets": [
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "cover-focus",
+      "source": "shared/cover-focus.cjs",
+      "targets": [
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/recap-2026/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "face-result-pages",
+      "source": "shared/face-result-pages.cjs",
+      "targets": [
+        "plugins/jude-kinetic-style/panel.tsx"
+      ]
+    },
+    {
+      "id": "template-progress",
+      "source": "shared/template-progress.cjs",
+      "targets": [
+        "plugins/jude-kinetic-style/panel.tsx",
+        "plugins/chris-williamson-style/panel.tsx",
+        "plugins/doac-style/panel.tsx",
+        "plugins/depth-type-captions/panel.tsx",
+        "plugins/chris-williamson-style/src/panel.template.tsx"
+      ]
+    }
+  ]
+}

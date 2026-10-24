@@ -1,5 +1,55 @@
 # Validation
 
+## Current repair checkpoint: 0.1.12
+
+The canonical original-Image source is now an explicit `.mjs` build input
+shared with Photo Grid Reveal. This panel has only the synchronized function
+export prefix; its source-check behavior, public interface and recipe are
+unchanged. See `docs/template-repair/gallery-input.md` for packaging and
+existing-consumer regressions.
+
+## Earlier repair checkpoint: 0.1.11
+
+The hidden app-run launcher now uses shared durable ownership, SDK-side result
+receipts and independent persisted recovery. Same-run Project/library replacement
+stops later work. Unsupported codecs/claim capabilities stop before preparation;
+already saved recovery does not need a new UUID or SDK file writes. The initial
+23 Polaroid cases failed 22 with one control against unchanged preceding source;
+four-consumer capability regressions also failed before the shared fix. Full
+current regression, TypeScript, source/package and pre-push evidence is recorded
+in `docs/template-repair/polaroid-run.md`. This is not installed-app/Windows or
+whole AV/export verification; client #7828 remains a publication prerequisite.
+
+## Earlier repair checkpoint: 0.1.10
+
+Normal creation now uses the existing atomic Image authoring feature, with one
+complete commit and a separate persisted readback. The initial 18 cases produced
+16 failures and two controls on unchanged preceding source; ten additional
+missing-capability/ignored-mutation/stale-dispatch regressions also failed there.
+The current 30-case suite includes whole-panel compilation and real minification
+with the actual bundled PNG/M4A bytes, simulated Project/Draft state, repeated
+photos and independent framing at supported integer/fractional frame rates.
+This is not installed-app or playback/export evidence. Durable app-run recovery
+remains pending, and Audio verification requires client #7828 before publication.
+See `docs/template-repair/polaroid-atomic.md` in the source repository.
+
+## Earlier repair checkpoint: 0.1.9
+
+The generalized bundled-asset feature adds manifest/hash/byte verification,
+content-addressed PNG/M4A publication and bounded confirmed Resource imports.
+These new compiled-panel checks supplement the input/connection repair below;
+they are not installed playback/export evidence. See
+`docs/template-repair/bundled-assets.md` in the source repository.
+
+The historical reference/export runs below belong to their stated older versions.
+They do not validate this shared input/connection repair in an installed app.
+The current version checks original-photo availability before asset preparation,
+checks originals plus the frame before Draft creation and rejects generated
+assets as user inputs on all entry paths. Mounted-panel Windows/UNC/POSIX and
+bootstrap tests are simulated-host evidence. Installed-app/Windows, full saved
+output, playback/export and original-versus-changed-input quality remain open.
+See `docs/template-repair/polaroid-input.md` in the source repository.
+
 ## Reference
 
 A trending "polaroid photo dump" short-form template (1080x1920, 60 fps, 835 frames), measured with ffmpeg and librosa:

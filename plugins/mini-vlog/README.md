@@ -67,7 +67,7 @@ everything uses what Selects brings.
 - The clips' own sound plays quietly under the music by default (**Clip
   sound**: Ambient, see [Advanced](#advanced)).
 - No transitions and no end card. The picture stops on the last beat, and
-  the music ends there with a short 0.12 s fade.
+  the music ends there with a short 0.12 s fade, rounded to the Draft frame grid.
 
 The video lasts (shots x beats per shot) beats and is always whole groups of
 four shots. **Length** Short, Standard (the default) or Long asks for 12, 24
@@ -132,14 +132,15 @@ search that finds drinks, streets, food and the other shot roles.
   Build ("Checking clips N/M" on the progress line; **Cancel** takes the Build
   button's place while it runs and stops the build, nothing saved). The
   check decodes a small grey preview of each clip with the ffmpeg built into
-  Selects, three clips at a time, all within 20 s, while the analysed clips
+  Selects, three clips at a time, with a shared 20 s decoder budget, while the analysed clips
   are searched, and finds the moments that
   are sharp and well exposed, with movement, and free of black or fading
   frames, flashes and cuts. Moments start at least half a second into a clip.
-  The result is kept per clip in the data folder (see INSTALL.md), so the next
-  build reads it instead of decoding again. Measured on a Mac with the same
-  decode outside Selects: 20 clips of 1080p (10 to 20 s each) took 1.9 s in
-  all (0.2 to 0.4 s per clip), and no time at all the second time.
+  The result is kept in the data folder (see INSTALL.md). Each Build confirms
+  complete original file contents before reusing scores. Replacing a file at the
+  same path, size and modification time triggers a new check. A missing or
+  unreadable original stops the build. File confirmation and private copying are
+  separate from the decoder budget and can take longer on large or slow files.
 - Their moments have no shot role, so they rank after a moment that matches
   the shot's role but before an evenly spaced filler moment, and an unused
   clip without analysis still comes before reusing any clip. Their scores are
@@ -150,15 +151,14 @@ search that finds drinks, streets, food and the other shot roles.
   can open it).
 - The moments are picked as montage shots, moving ones first, not steady
   ones, on purpose: Mini Vlog opens on movement.
-- If this Selects lacks what the check needs, or a clip cannot be decoded in
-  time, that clip's moments are evenly spaced (one a second, the first
-  starting half a second in) and the build still goes ahead; the next Build
-  checks that clip again. After such a build the panel says "This Selects can't check
-  clips without analysis, so their shots are evenly spaced. A newer Selects
-  picks better shots."
-- **Clip highlights** (the template run) builds from clips without analysis
-  too, with evenly spaced moments that start half a second in (it does not
-  run the quick check).
+- An ordinary decode failure, unavailable decoder, or budget exhausted before
+  dispatch can use uncached evenly spaced moments, then try analysis on the
+  next Build. This requires confirmed original contents. Unknown source access,
+  changed contents, cancellation, an active decoder timeout or unconfirmed
+  temporary cleanup stops the build. Existing file stat/readRange support is required; the plugin computes the full
+  fingerprint itself. No new SDK method is required.
+- **Clip highlights** (the selected-file template run) uses the same local
+  check, persistent source-bound cache and original-file checks.
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
@@ -200,6 +200,10 @@ Project while it runs, it stops without writing anything more.
 
 ## Music
 
+Music preparation uses the selected file's Project path. Another file with
+the same name and duration is not substituted. If Selects cannot confirm an
+import, check the Project files before starting another build.
+
 Choose a **Track**. The list shows the reference tracks, then the
 alternatives under an "Alternatives" heading, each with its tempo (for example
 "112 bpm"), then **Your own music** and **No music**:
@@ -220,6 +224,12 @@ The reference tracks suit the style best; the alternatives are slower. The
 bundled tracks are instrumentals at -11 LUFS integrated, about as loud as
 short-form reference edits, with a fixed gain and a true-peak limiter at
 -1 dBTP (not a dynamic leveller, so the swells keep their shape).
+
+Build verifies a bundled track against its recorded byte count and content
+hash, then uses a preserved copy outside the installation folder. Updating or
+removing the template's installed music does not replace that copy in newly
+created Drafts. Earlier Drafts that already referenced installation files are
+not migrated. Your own music continues to use the file you selected.
 
 **Beat and bar.** Bedroom Pop, Acoustic Pop, Sunny Soul Strut and Easy
 Sunday Lo-fi have clear bars: the first beat of a bar is 1.70, 1.71, 3.09
@@ -347,8 +357,10 @@ analysis and are never scene-searched.
   crop. Frame previews made with Selects' frame capture tool can fail or show
   bars on photos with effects; the exported video is correct.
 
-Selects reports no frame size for some photos. The size of such a photo is
-read once, by placing it on an unsaved scratch Draft; nothing is saved.
+The source Image metadata supplies its native dimensions. Build independently
+checks the selected originals before importing music or creating a Draft. A
+missing/unreadable original or unknown native size stops the build; a Draft's
+canvas size and cached preview dimensions cannot replace that source fact.
 
 **Beat punch.** With **Beat punch** on (in Advanced, on by default), every
 video clip gets a "Beat punch" Video Effect: on the strong beats (the
@@ -480,6 +492,28 @@ Edit it in the Inspector's **Adjust** tab:
 - **Music**: select the music clip to change its volume.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
+
+## Assembly verification
+
+New assembly operations observe each selected source on an independent, unsaved
+Draft before laying out the edit. A 25 fps or 30 fps source and the output Draft
+can use different frame grids. The operation inserts a source-frame-aligned cover,
+checks its source and interval, and trims only the declared surplus to the planned
+output cut. Unexpected writes stop before saving. Source windows, crop, canvas,
+Audio routing and music fades are checked against the plan before the sole
+assembly commit. Ambient volume remains best effort, with only confirmed writes
+counted. Music overlays explicitly request normal (1x) speed; their source start
+and fade use the output Draft grid. Beat punch uses the placed source window.
+
+The allocator uses each photo Resource at most once; assembly now also rejects a
+plan that violates that rule. Video Resources may repeat. Older pending workflows
+retain their original operation code: updating the plugin does not silently
+replace that frozen code or repair historical Drafts. Historical unstarted runs
+are terminally retired; saved assemblies must match their original cut/source/
+crop/music plan before finishing. Unknown saves are only checked, never replayed.
+See [historical recovery](../../docs/template-repair/mini-frozen-recovery.md).
+See [the assembly checkpoint](../../docs/template-repair/mini-assembly-intent.md)
+for the test scope and remaining acceptance work.
 
 ## Limitations
 

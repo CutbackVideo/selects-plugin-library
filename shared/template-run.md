@@ -1,0 +1,230 @@
+# Durable template run ownership and saved receipts
+
+`template-run.js` owns one app-supplied `runId` across panel remounts. Its first
+consumers are Four Photo Reveal and Camera Shutter Dump, now also used by Four
+Photo Stop Motion and Polaroid Photo Dump. It reuses the existing
+`shared/local-client.ts` file adapter and public SDK; no new client IPC, SDK
+capability, global runtime module loader or cross-plugin file import is added.
+Polaroid's app-run launcher now claims the run before selected-media/asset
+preparation, passes the claim into its single complete authoring request and
+verifies the persisted receipt on recovery. Its normalized request includes the
+ordered picked IDs/kinds and effective framing/caption/grade defaults. Display
+names are not request identity. Its liveness predicate pins run, Project and
+library, including a same-run context replacement.
+
+## Input and lifetime contract
+
+`executeTemplateRun` receives the original SDK object, its initialized local file
+adapter, `{pluginId, libraryId, projectId, runId}`, a normalized request, a liveness
+predicate, a performer and an independent saved-result verifier. Requests contain
+ordered picked Resource IDs/kinds and effective output choices; display names and
+incidental transport paths are not identity. The scope is canonicalized and
+hashed separately from the request. A changed request under the same run ID is
+refused rather than silently replacing the old work.
+
+The public `getProjectDraftScaffold` owner must match the pinned library/Project
+before preparing the run and again immediately before authoring or saved-result
+recovery. The panel's liveness check pins run, Project and library. These are
+observations, not a host transaction locking a Project against relocation.
+
+The record is under the existing installation-independent plugin data root:
+`.selects/plugin-data/<pluginId>/template-runs/<scope-sha256>.json`. It contains
+version, scope, normalized request digest, unique owner and status. A saved record
+adds only the Draft ID, fps, duration, canvas, Image clip receipts and optional
+graphic clip/parameter and normalized visual-transform receipts, not original
+paths, image bytes, full template recipes or private diagnostics. Transform records
+must cover exactly the recorded Image/graphic identities and carry finite,
+well-formed values with positive scale. They remain optional for generic users;
+Image recovery requires the graphic and transform evidence its current verifier
+needs. Optional Audio receipts carry disjoint clip identities, Audio Resource IDs,
+Draft intervals, explicit source routing and level/key/fade settings. Optional per-Audio `source` evidence adds immediate Resource start/end seconds and exact playback-rate/pitch intent. Legacy eight-field Audio rows remain valid for generic record readers, but current Image recovery requires source evidence before SDK dispatch. Source evidence requires finite increasing boundaries, bounded positive integer rate terms and a boolean pitch policy. They have
+bounded counts, valid frame intervals, routing indexes and finite SDK-domain
+settings. Current Image recovery also requires this evidence, including an empty
+array for Music Off. An older record without it is inspected without replay. Reads check file size
+before loading and are limited to 48 KiB, matching the existing atomic file API.
+
+Optional program evidence now stores a deduplicated TSX source table and a
+complete visual identity set with ordered effect/graphic references, parameter
+values and editable definitions. Source indexes, identity coverage, control keys,
+stack lengths and source use are validated; per-placement source duplication is
+avoided. Current Image recovery requires this evidence as well. The authoring
+feature checks the whole encoded prospective journal before its final commit,
+so a larger program snapshot cannot silently bypass the existing file limit.
+Source text in the record is compared with live SDK programs, never evaluated.
+
+## Exclusive claim and SDK-side completion
+
+1. Read an existing record. A valid saved receipt gets independent persisted
+   readback and returns the same Draft. Active, failed, unknown, mismatched,
+   unreadable or corrupt records never cause a fresh authoring write.
+2. Check hashing and encoding/decoding support before the first claim or read.
+   New claims additionally require a callable UUID generator and callable SDK
+   `writeChunk`/`compareAndReplace`; property presence alone is insufficient.
+   Saved-result recovery does not require a new UUID or SDK write capability.
+   Check existing SDK file capabilities, then create a claim using
+   `files.writeFile(..., {flag:'wx'})`. The canonical adapter sends one SDK
+   `writeChunk` in exclusive mode. Filesystem exclusive creation, rather than a
+   per-panel mutex or check-then-write, admits one owner across local clients.
+3. If the claim response is lost, reread it. This invocation can proceed only
+   when its unique owner was durably recorded; no authoring was dispatched yet.
+   A concurrent different owner observes the existing state.
+4. The performer prepares its existing inputs/assets and serializes the complete
+   authoring script, then awaits the dispatch callback. That callback rechecks
+   target ownership/liveness and records that authoring may now have been sent.
+5. `writeTemplateRunResult` is serialized into the same SDK script after the
+   complete Draft authoring operation. Before replying to the panel, it attempts
+   a conditional replacement of the exact owned claim with `saved`, `notSaved`
+   or `outcomeUnknown`. The generic image authoring module provides the minimal
+   receipt. The existing SDK `compareAndReplace` is reused; its per-renderer
+   serialization is sufficient here because exclusive creation admitted only
+   one authoring owner. An unrelated changed record is never overwritten.
+6. If the script response is lost, reread the journal. A positive saved record
+   permits readback and recovery without another save. Otherwise leave the
+   original claim intact so a late SDK-side receipt may still land. A proven
+   failure before dispatch can conditionally mark its claim `notSaved`.
+
+JSON is escaped to ASCII and encoded by a small explicitly supplied function
+inside the SDK script; that environment has no browser/Node encoding globals.
+Functions are passed explicitly when serialized, preserving real minification.
+
+## Outcome policy and boundaries
+
+- `claimed`: the owner may be preparing, authoring or awaiting an unknown
+  response. No automatic timeout takeover or lease expiration is safe.
+- `saved`: recover only after Project/Draft ownership, frame grid and all Image
+  identities/intervals/count are independently read back. A manual edit that no
+  longer matches is reported for inspection, never overwritten.
+- `notSaved`: no Draft commit was confirmed or started by that operation. Start
+  a new app run to explicitly retry; remount is not a retry command. Preparation
+  may still have registered reusable Project audio.
+- `retired`: an opt-in retirement exclusively claimed a never-dispatched or
+  positively no-save operation and revoked it permanently. This is not a
+  retryable failure. Earlier owners reject the unrecognized terminal status,
+  preventing an obsolete look from retrying. Saved/claimed/unknown operations
+  are never relabeled as retired. Start a new app run for corrected code.
+- `outcomeUnknown`: commit may have happened without a usable receipt. Inspect
+  the Project; do not automatically re-author.
+
+A positively acknowledged Draft whose receipt write fails remains a known saved
+Draft in the current invocation. The old claim prevents blind remount retry;
+future receipt repair/reconciliation remains a separate concern. These two local
+file updates and the Draft commit are not one database transaction. An already
+issued commit cannot be canceled by closing the panel. A process crash before
+dispatch can conservatively leave a claimed run; do not invent proof it is dead.
+
+The contract covers local SDK clients sharing the same plugin data filesystem.
+It is not a distributed lock across machines or a tamper-proof record against
+external file deletion/replacement. Standalone panel Create Revised actions
+remain explicit new operations without an app run ID; they are not deduplicated
+by this feature. Other template migrations, audio-import ownership, complete
+design readback, installed execution, playback/export and Windows execution
+remain separate acceptance gates.
+
+## Gallery mixed visual consumer
+
+Gallery now uses the same durable app-run owner and receipt recovery for its
+15-photo/6-video contract. Its normalized request records ordered IDs/kinds and
+effective music, duration and BPM. Host deadline and saved-result readers are
+checked before claiming or preparing media. Its generator keeps browser-owned
+hashing/file functions in the panel and serializes only JSON, ASCII Base64 and
+the SDK-side receipt writer into SDK requests. The Gallery working-copy recipe
+passes the claim envelope into the existing pre-commit program-size check.
+Preparation/import dispatch is distinct from possible Draft persistence, so a
+preparation failure can record `notSaved` without claiming that no Project asset
+was imported. Existing canonical bodies and four previous durable-run consumers
+are unchanged. The module pool remains five registered features across ten
+consumers; this does not certify full installed execution or all source clocks.
+
+An `outcomeUnknown` receipt can additionally contain `savedDraftId` when the
+host positively acknowledged that identity before a later verification failed.
+This optional identity is validated and retained for inspection, never treated
+as a successful receipt or permission to replay. Recovery raises a controlled
+pending error with `.draftId` and names the acknowledged Draft. Older unknown
+records without an ID retain their existing behavior. A malformed known identity
+cannot be used to write a receipt. The app's finishTemplate error contract stays
+unchanged; Gallery includes the identity in its existing failure message.
+
+## Staged assembly adapter
+
+`executeTemplateAssembly(sdk, files, scope, config, source, isCurrent)` reuses the
+same durable run owner for a script which commits an assembly before a separate
+title/look phase. Mini Vlog is its first consumer. Scope binds plugin, current
+Project/library and run ID. The module checks the actual scaffold owner; a
+standalone caller mints one run ID and retains its frozen attempt in its current
+panel realm, while the hidden entry uses the app-supplied run ID. Full standalone
+realm-remount discovery remains open.
+
+The request captures JSON config and script source before awaits. `draftName` is
+a display label and is excluded from the request digest: regenerating a timestamp
+must not defeat recovery or rename an existing result. All other assembly config
+and source changes under one run ID reject. The existing 49,152-character ASCII
+request/record limit applies; source and final SDK requests are separately bounded
+at 128 KiB and 256 KiB.
+
+Scripts using this adapter declare `// @template-assembly 1` and await
+`Object(cfg).__beforeCommit(draft)` once immediately before their only persistent
+commit. This is a reviewed internal authoring contract, not a security sandbox
+for arbitrary scripts. Direct legacy/development script execution without the
+adapter retains its existing optional-hook behavior. The adapter passes all
+serialized dependencies explicitly, including after minification.
+
+Before dispatch it checks SDK file/readback capabilities, using an existing Draft
+handle or an uncommitted capability probe. Before save the hook reads and validates
+Main media identities, intervals, routing, playback rate/pitch, source windows,
+transforms and Main audio. It proves that an owned saved record, including a
+worst-case Draft ID, fits the existing record budget. An oversized state cannot
+commit first and discover the record limit afterward.
+
+After save the same SDK invocation reads the actual created Draft's Project
+membership and state, compares it with the prepared state and conditionally
+publishes the exact owner receipt before replying. A failure proven before save
+publishes `notSaved`; a known saved identity with incomplete confirmation publishes
+`outcomeUnknown`. Otherwise keep the unresolved claim so a late Main receipt can
+still land. The core owner now recognizes a positively recorded `notSaved` after
+dispatch and preserves its private cause. No unknown outcome authorizes replay.
+
+A positive saved receipt is independently read back before returning or recovery.
+Different same-name Drafts are never searched or adopted. Changed owned Main
+state rejects without rewriting it. This is assembly ownership/readback, not
+approval of other tracks, original-file content, title/effect completion, playback
+or export. Existing image authoring consumers retain their API and generated
+source; see `docs/template-repair/mini-assembly-receipts.md` for caller and SDK
+evidence and remaining phase/discovery work.
+
+## Standalone assembly continuation discovery
+
+`openTemplateAssemblyContinuations(sdk, files, target, isCurrent)` extends this
+same feature for callers that otherwise lose their assembly request on realm
+remount. `target` binds plugin/Project and optionally the expected library;
+scaffold ownership supplies the actual library. `read()` returns the single
+verified pending payload or null. Multiple unresolved attempts are an explicit
+ambiguity. `store(pending)` freezes its scope/config/source and JSON caller data
+before dispatch. `run(pending)` uses the existing assembly owner and acknowledges
+only a positive assembly confirmation or proven no-save; unknown saves remain
+indexed. A completion tombstone prevents an old callback from republishing that
+run. Pending payloads are bounded at 256 KiB and published atomically before the
+48 KiB exclusive manifest; existing local file methods supply chunking. Discovery
+is bounded to 4096 directory entries and 64 manifests. All identity/path names
+are hashes; no name/time inference or automatic timeout expiry is used.
+
+The original run reader now repeats a changing stat/read/stat observation at
+most three times. Continued replacement remains pending, never an authoring
+retry. Stable malformed records still fail. Existing Image callers keep their
+public API. See [the discovery checkpoint](../docs/template-repair/mini-pending-discovery.md) for TDD, consumer, actual restart
+readback evidence and the explicit title/Finish phase boundary.
+
+## Historical staged-run admission
+
+Mini now opts into `workflow(pending, prepareLook, onAssembly, options)` with
+`retireUnstarted` and an asynchronous `verifyAssembly` policy. Defaults for
+assembly-only and photo/Gallery consumers remain unchanged. Options are copied
+before awaits. The original source/request identity and frozen finish recipe
+remain immutable. A known saved historical assembly is compared with Mini's
+original plan before any look mutation, including on remount with a saved look
+recipe. Only a declared `TEMPLATE_ASSEMBLY_MISMATCH` permits terminal retirement of a
+rejected unstarted/retryable look. Read/transport failures preserve the phase for
+read-only retry; saved or
+unknown phases keep their actual status. See
+[`mini-frozen-recovery.md`](../docs/template-repair/mini-frozen-recovery.md) for
+I/O, side effects, exclusive retirement races, old-client refusal and runtime
+boundaries. This is not a generic migration engine or a whole-template verdict.

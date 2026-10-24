@@ -13,13 +13,18 @@
 // @icon image
 // Build a native, editable 3×7 photo/video gallery in the current Selects project.
 import React from 'react';
+// file-observation:start
+// file-observation:end
+// draft-observation:start
+// draft-observation:end
 /*__SHARED_SCRIPT_BUILDER__*/
+const galleryFaceFocus=sharedCoverFocus.faceSafeCoverFocus;
 
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
 function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
-function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member,...code==='host-missing'?{publicMessage:message}:{} }); }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
   const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
@@ -40,33 +45,6 @@ function hostJoin(...parts) {
   const sep = hostIsWindows() ? "\\" : "/";
   return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
 }
-// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
-// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
-// the internal [[Class]] tag and array-likeness instead.
-function hostBytes(v) {
-  const tag = (x) => Object.prototype.toString.call(x);
-  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
-  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
-    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
-  }
-  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
-  throw hostError("read-failed", "the file could not be read");
-}
-// A file's bytes (FileSystem.readFile without an encoding).
-async function hostReadBytes(path) {
-  const v = await hostNeed("FileSystem", "readFile").readFile(path);
-  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
-  return hostBytes(v);
-}
-// A text file (some host builds return text directly, others bytes).
-async function hostReadText(path) {
-  const v = await hostNeed("FileSystem", "readFile").readFile(path);
-  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
-}
-// Cleanup is best effort; all disk operations cross the async SDK bridge.
-async function hostRemove(path) {
-  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
-}
 async function hostRoots(sdk, id, marker) {
   hostUseSdk(sdk);
   const fs = hostNeed("FileSystem", "exists");
@@ -76,77 +54,42 @@ async function hostRoots(sdk, id, marker) {
   try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
-// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
-// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
-// throws when ffmpeg fails or `signal` (optional) aborts it.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
-  const rt = hostApi("Runtime", "runFFmpeg");
-  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
-  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
-  const controller = typeof AbortController === "undefined" ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const relay = () => { if (controller) controller.abort(); };
-  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
-  try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
-    const bytes = await hostReadBytes(tmp);
-    // A copy, so the samples sit on a 4-byte boundary.
-    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
-    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
-    return samples;
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    await hostRemove(tmp);
-  }
-}
-// An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path) {
-  try {
-    const rt = hostApi("Runtime", "runFFprobe");
-    if (!rt) return null;
-    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
-    const v = parseFloat(String(r?.stdout || "").trim());
-    return v > 0 ? v : null;
-  } catch { return null; }
-}
 // av-host:end
 
 // hold:start
 // Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
 // video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
-// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v2. Long videos are never touched. A cache
-// entry is keyed by the source path, size and modification time; it is reused only when its metadata matches and
-// ffprobe still counts the expected frames. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched. Full
+// source/output hashes and private source snapshots belong to the shared asset owner. Domain callbacks own
+// the encoding and whole-output validation. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
-const HOLD_ALGORITHM = 'photo-gallery-hold-v2-max1920-h264-crf18';
-function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed' }); }
+const HOLD_ALGORITHM = 'photo-gallery-hold-v3-sha256-frozen-max1920-h264-crf18';
+function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed',publicMessage:message }); }
 // Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
 function holdPathKey(path) {
   const text = String(path ?? '').normalize('NFC');
   return /^[A-Za-z]:(?:[\\/]|$)/.test(text) || text.includes('\\') ? text.replace(/\\/g, '/').toLowerCase() : text;
 }
 // Runs Runtime.runFFmpeg/runFFprobe with a deadline. The host rejects with a JSON string, not an Error.
-async function holdTool(kind, argv, seconds) {
-  const rt = hostNeed('Runtime', kind);
-  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), seconds * 1000) : null;
-  try { return await rt[kind](argv, true, controller ? controller.signal : undefined); }
-  catch (error) {
-    if (controller?.signal.aborted) throw holdError('Media conversion timed out');
-    if (error?.code === 'host-missing') throw error;
-    throw Object.assign(holdError(kind + ' failed'), { detail: String(error?.message ?? error).slice(0, 600) });
-  } finally { if (timer) clearTimeout(timer); }
+async function holdTool(kind, argv, seconds, options = {}) {
+  const rt = options.client ? options.client.media : hostNeed('Runtime', kind);
+  if(typeof rt?.[kind]!=='function')throw hostError('host-missing','Update Selects to prepare media: missing '+kind);
+  try{return await runAssetMediaTool(rt,kind,argv,{isCurrent:options.isCurrent,signal:options.signal,deadline:options.deadline,timeoutMs:seconds*1000});}
+  catch(error){
+    if(error?.code==='host-missing')throw error;
+    if(error?.code==='BUNDLED_ASSET_UNSUPPORTED')throw hostError('host-missing',error.publicMessage);
+    throw Object.assign(holdError(error?.publicMessage||'Media preparation failed.'),{terminal:!!error?.terminal,cause:error});
+  }
 }
-async function holdProbe(path, countFrames = false) {
+async function holdProbe(path, countFrames = false, options = {}) {
   let result;
   try {
     result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
       'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames:stream_side_data=rotation:stream_tags=rotate',
-      '-of', 'json', path], 45);
-  } catch (error) { if (error.code === 'host-missing' || /timed out/.test(error.message)) throw error; throw holdError('Video cannot be decoded'); }
+      '-of', 'json', path], 45, options);
+  } catch (error) { if (error.code === 'host-missing' || error.terminal) throw error; throw holdError('Video cannot be decoded'); }
   let streams, video;
   try { streams = JSON.parse(String(result?.stdout || '')).streams; video = streams.find(item => item?.codec_type === 'video'); } catch { video = null; }
   if (!video) throw holdError('Media has no readable picture stream');
@@ -175,30 +118,23 @@ function holdDimensions(width, height) {
   const w = Math.max(1, round(width * factor)), h = Math.max(1, round(height * factor));
   return [w + w % 2, h + h % 2];
 }
-async function holdValidate(path, frames, dimensions, decode = false) {
-  const { video, streams } = await holdProbe(path, true);
+async function holdValidate(path, frames, dimensions, decode = false, options = {}) {
+  const { video, streams } = await holdProbe(path, true, options);
   if (streams.length !== 1 || video.codec_name !== 'h264') throw holdError('Cached video has the wrong stream format');
   if (video.r_frame_rate !== '60/1' || video.avg_frame_rate !== '60/1') throw holdError('Cached video has the wrong frame rate');
   if (video.nb_read_frames !== String(frames)) throw holdError('Cached video has the wrong frame count');
   if (video.width !== dimensions[0] || video.height !== dimensions[1]) throw holdError('Cached video has the wrong dimensions');
   if (decode) {
-    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30)); }
-    catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('Generated video contains undecodable frames'); }
+    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30), options); }
+    catch (error) { if (error.terminal) throw error; throw holdError('Generated video contains undecodable frames'); }
   }
   return video;
-}
-// { size, mtimeMs } of a file (FileSystem.stat crosses IPC, so only its plain fields are used), or null.
-async function holdStat(path) {
-  try {
-    const stat = (await hostNeed('FileSystem', 'stat').stat(path));
-    return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
-  } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
 }
 async function holdKey(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function holdEncode(source, target, frames) {
+async function holdEncode(source, target, frames, options = {}) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
   // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
@@ -206,73 +142,53 @@ async function holdEncode(source, target, frames) {
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
-      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
-  } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
+      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)), options);
+  } catch (error) { if (error.terminal) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
-async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
-  const fs = hostNeed('FileSystem', 'exists');
-  try {
-    if (!(await fs.exists(videoPath)) || !(await fs.exists(metaPath))) return false;
-    const data = JSON.parse(await hostReadText(metaPath));
-    const stat = (await holdStat(videoPath));
-    if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
-        data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
-        !stat || data.outputSize !== stat.size) return false;
-    await holdValidate(videoPath, frames, dimensions);
-    return true;
-  } catch (error) { if (error?.code === 'host-missing') throw error; return false; }
+async function holdFileHash(path,options) {
+  const result=await holdTool('runFFmpeg',['-nostdin','-v','error','-f','data','-i',path,'-map','0:0','-c','copy','-f','hash','-hash','sha256','-'],900,options);
+  const match=String(result?.stdout??'').trim().match(/^SHA256=([0-9a-f]{64})$/i);
+  if(!match)throw holdError('The complete media file hash could not be confirmed');
+  return match[1].toLowerCase();
 }
-async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot) {
-  const key = await holdKey([HOLD_ALGORITHM, holdPathKey(source), identity.size, identity.mtimeMs, frames, HOLD_FPS].join('\0'));
-  const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
+async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
+  const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
-  const fs = hostNeed('FileSystem', 'rename');
-  const writer = hostNeed('FileSystem', 'writeFile');
-  const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
-  const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
-  const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
-  const unchanged = async () => { const now = (await holdStat(source)); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
-  try {
-    await holdEncode(source, temporary, frames);
-    if (!(await unchanged())) throw holdError('A video changed during extension');
-    await holdValidate(temporary, frames, dimensions, true);
-    const output = (await holdStat(temporary));
-    if (!output) throw holdError('ffmpeg could not extend the short video');
-    await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
-      sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
-    (await fs.rename(temporary, videoPath));
-    (await fs.rename(temporaryMeta, metaPath));
-  } finally {
-    await hostRemove(temporary);
-    await hostRemove(temporaryMeta);
-  }
-  return { videoPath, dimensions, reused: false };
+  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,hashFile:path=>holdFileHash(path,options),
+    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
+    verify:path=>holdValidate(path,frames,dimensions,true,options)});
+  return {videoPath:result.path,dimensions,reused:result.reused};
 }
 // `request` is { videos: [{ path }], durationFrames }; `dataDir` is the plugin's data folder.
-async function holdVideos(request, dataDir) {
+async function holdVideos(request, dataDir, options = {}) {
   const videos = request?.videos, frames = request?.durationFrames;
   if (!Array.isArray(videos) || videos.length < 1 || videos.length > HOLD_MAX_VIDEOS) throw holdError('Provide between 1 and 21 short videos');
   if (!Number.isSafeInteger(frames) || frames < 1 || frames > HOLD_MAX_FRAMES) throw holdError('durationFrames must be a positive integer at most 36000');
   if (!dataDir) throw holdError('The plugin data folder is unavailable');
-  hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
-  const cacheRoot = hostJoin(dataDir, 'held-v2');
-  (await hostNeed('FileSystem', 'mkdir').mkdir(cacheRoot, { recursive: true }));
-  const exists = hostNeed('FileSystem', 'exists');
+  if(!options||typeof options!=='object'||Array.isArray(options)||options.isCurrent!==undefined&&typeof options.isCurrent!=='function')throw holdError('Media preparation options need a callable liveness predicate');
+  options={...options,client:options.client??hostSdk,isCurrent:options.isCurrent??(()=>true)};
+  const current=()=>{if(!options.isCurrent()||options.signal?.aborted)throw holdError('The template run ended during media preparation');};
+  const paths=videos.map((item,index)=>{const path=item?.path;if(typeof path!=='string')throw holdError('Video '+(index+1)+' needs a file path');if(!path||path.includes('\0')||path.length>8192)throw holdError('Video '+(index+1)+' has an invalid path');return path;});
+  const files=options.client?.files;
+  for(const [service,names,label] of [[options.client?.media,['runFFmpeg','runFFprobe'],'Runtime'],[files,['copyFile','rename','join'],'FileSystem']]){
+    for(const name of names)if(typeof service?.[name]!=='function')throw hostError('host-missing','Update Selects to prepare media: missing '+label+'.'+name,label+'.'+name);
+  }
+  if(typeof globalThis.crypto?.subtle?.digest!=='function')throw holdError('Update Selects to verify complete source media contents');
+  const cacheRoot = files.join(dataDir, 'held-v3'),selected=new Map();
+  // Observe every requested source before generating any derived file.
+  for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
+    const identity=await readAssetFileIdentity(files,raw,path=>holdFileHash(path,options),current);
+    const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
+  }
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
-    const raw = videos[index]?.path;
-    if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
-    if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
+    const raw = paths[index];
     try {
-      const identity = (await exists.exists(raw)) ? (await holdStat(raw)) : null;
-      if (!identity) throw holdError('Video is missing');
-      const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
+      current();const {identity,sourceDimensions}=selected.get(holdPathKey(raw));
+      const id = holdPathKey(raw) + '\0' + identity.sha256;
       if (!completed.has(id)) {
-        const { video } = await holdProbe(raw, true);
-        if (!(Number(video.nb_read_frames) >= 1)) throw holdError('Video has no readable frames');
-        const sourceDimensions = holdUpright(video);
-        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot);
+        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot, options);
+        current();
         completed.set(id, { ...done, sourceDimensions });
       }
       const done = completed.get(id);
@@ -280,16 +196,16 @@ async function holdVideos(request, dataDir) {
         sourceHeight: done.sourceDimensions[1], outputWidth: done.dimensions[0], outputHeight: done.dimensions[1], cacheHit: done.reused });
     } catch (error) {
       if (error?.code === 'host-missing') throw error;
-      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail });
+      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail,...error?.publicMessage?{publicMessage:error.publicMessage}:{} });
     }
   }
-  return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
+  current();return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
 }
 // hold:end
 
 // tempo:start
 // Bounded local BPM suggestion (formerly tempo.py), plain JS so tests can run it in node:vm. The first 30 s are
-// decoded by the host's ffmpeg to mono samples at 11025 Hz (hostDecodePcm), quantized to 16-bit as tempo.py read
+// decoded from a verified source snapshot to mono samples at 11025 Hz, quantized to 16-bit as tempo.py read
 // them, then a ~10 ms RMS onset envelope is autocorrelated over 70-180 BPM. Ambiguous or silent input yields no BPM.
 const TEMPO_RATE = 11025, TEMPO_HOP = 110, TEMPO_MIN_BPM = 70, TEMPO_MAX_BPM = 180, TEMPO_SECONDS = 30;
 // Python's round(): halves go to the even neighbour.
@@ -328,16 +244,57 @@ function tempoEstimate(samples) {
   if (best[0] < 0.12 || best[0] < runnerUp * 1.08) return { status: 'uncertain', reason: 'Tempo is ambiguous; enter BPM manually' };
   return { status: 'estimated', bpm: tempoRoundEven(best[1] * 10) / 10 };
 }
-// The estimate for an audio file, decoded through the host's ffmpeg into `dataDir`; never throws for bad audio.
-async function tempoOfFile(path, dataDir) {
-  let samples;
-  try { samples = await hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS, undefined, 45000); }
-  catch (error) {
-    if (error?.code === 'host-missing') throw error;
-    return { status: 'uncertain', reason: 'Audio could not be decoded' };
+// Analyze a verified private source through the existing derived-file owner.
+// No Resource-ID memo: every invocation checks source and cached PCM bytes.
+async function analyzeMusicFile(path, dataDir, options = {}) {
+  const client=options.client??hostSdk,files=client?.files;
+  const issue=(message,code='tempo-invalid')=>Object.assign(new Error(message),{code,publicMessage:message,terminal:true,safeNotSaved:true});
+  if(typeof options.isCurrent!=='undefined'&&typeof options.isCurrent!=='function')throw issue('The music analysis scope is invalid.');
+  const timeout=options.timeoutMs??45000;
+  if(!Number.isFinite(timeout)||timeout<=0||timeout>45000)throw issue('The music analysis deadline is invalid.');
+  const deadline=Date.now()+timeout;
+  const live=()=>{try{return !options.signal?.aborted&&(options.isCurrent?.()??true);}catch{return false;}};
+  const current=()=>{if(!live())throw issue('The music analysis ended before completion.','tempo-stopped');if(Date.now()>=deadline)throw issue('The music analysis timed out.','tempo-timeout');};
+  current();
+  if(!dataDir)throw issue('The music analysis folder is unavailable. Check storage and file access.','tempo-storage');
+  if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function')||typeof client?.media?.runFFmpeg!=='function'||!globalThis.crypto?.subtle||typeof globalThis.crypto?.randomUUID!=='function')throw hostError('host-missing','Update Selects to verify and analyze the selected music.');
+  const work={client,isCurrent:live,signal:options.signal,deadline};
+  const hashFile=path=>holdFileHash(path,work);
+  let decodeFailed=false;
+  try{
+    const source=await readAssetFileIdentity(files,path,hashFile,current);current();
+    const key=await holdKey(['gallery-tempo-v1-f32le',holdPathKey(path),source.sha256,source.bytes,TEMPO_RATE,TEMPO_SECONDS].join('\0'));current();
+    const maxBytes=TEMPO_RATE*TEMPO_SECONDS*4;
+    const read=async(file,expected)=>{
+      const bytes=await readBundledAssetBytes(files,file,maxBytes,current);current();
+      if(expected){
+        const digest=await crypto.subtle.digest('SHA-256',bytes);current();
+        const sha256=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+        if(bytes.length!==expected.bytes||sha256!==expected.sha256)throw issue('The decoded music PCM contents changed before analysis.','tempo-pcm');
+      }
+      if(bytes.length%4!==0)throw issue('The decoded music PCM length is invalid.','tempo-pcm');
+      const values=new Float32Array(bytes.length/4),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+      for(let i=0;i<values.length;i++){values[i]=view.getFloat32(i*4,true);if(!Number.isFinite(values[i]))throw issue('The decoded music PCM contains an invalid sample.','tempo-pcm');}
+      return values;
+    };
+    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},signal:options.signal,hashFile,
+      produce:async(snapshot,target)=>{
+        try{await holdTool('runFFmpeg',['-nostdin','-v','error','-y','-t',String(TEMPO_SECONDS),'-i',snapshot,'-vn','-ac','1','-ar',String(TEMPO_RATE),'-f','f32le',target],45,work);}
+        catch(error){if(!error?.terminal&&error?.code==='hold-failed')decodeFailed=true;throw error;}
+      },verify:read});
+    current();const samples=await read(prepared.path,prepared.output);current();
+    const result=tempoEstimate(samples);current();
+    const after=await readAssetFileIdentity(files,path,hashFile,current);current();
+    if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw issue('The selected music source changed during analysis.','tempo-changed');
+    return {estimate:result,source:{size:source.bytes,sha256:source.sha256}};
+  }catch(error){
+    current();if(decodeFailed&&!error?.terminal)return {estimate:{status:'uncertain',reason:'Audio could not be decoded'},source:null};
+    if(error?.code==='host-missing'||typeof error?.publicMessage==='string'){error.safeNotSaved=true;throw error;}
+    throw Object.assign(issue('Music analysis could not be completed. Check the source file and media tools.','tempo-read'),{cause:error});
   }
-  if (!samples) return { status: 'uncertain', reason: 'This Selects build cannot decode audio for the estimate' };
-  return tempoEstimate(samples);
+}
+async function tempoOfFile(path,dataDir,options={}) {
+  return (await analyzeMusicFile(path,dataDir,options)).estimate;
 }
 // tempo:end
 
@@ -348,6 +305,7 @@ const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, foc
 const preparing = { say: null };
 const STRINGS = {
   "ko": {
+    "focusHint": "\uc790\ub3d9 \ucd08\uc810\uc774 \uc5bc\uad74\uc744 \ub193\uce60 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uac01 \uce78\uc744 \ud655\uc778\ud558\uace0 \ud544\uc694\ud558\uba74 \ucd08\uc810 \uc2ac\ub77c\uc774\ub354\ub85c \uc870\uc815\ud558\uc138\uc694. \uba40\ub9ac \ub5a8\uc5b4\uc9c4 \uc5ec\ub7ec \uc0ac\ub78c\uc740 \ud55c \uce78\uc5d0 \ubaa8\ub450 \ub2f4\uae30 \uc5b4\ub824\uc6b8 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     "title": "Photo Grid Reveal",
     "description": "3\uc5f4 \u00d7 7\ud589\uc774 \ucc28\ub840\ub85c \ucc44\uc6cc\uc9c0\uace0 \uc804\uccb4\uac00 \ud751\ubc31\uc5d0\uc11c \uceec\ub7ec\ub85c \ubc14\ub01d\ub2c8\ub2e4. \uc0c8 \ud3b8\uc9d1\ubcf8\uc758 21\uce78\uc5d0 \uc0ac\uc9c4\uacfc \uc601\uc0c1\uc744 \uac01\uac01 \uc9c0\uc815\ud569\ub2c8\ub2e4.",
     "noProject": "\uba3c\uc800 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
@@ -390,6 +348,7 @@ const STRINGS = {
     "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c."
   },
   "en": {
+    "focusHint": "Automatic face focus can miss faces. Inspect each tile and use the focus sliders when needed; widely separated people may not fit one tile.",
     "title": "Photo Grid Reveal",
     "description": "A 3 \u00d7 7 gallery fills in order, then all tiles switch from monochrome to color. Assign a photo or video to each tile when creating a Draft.",
     "noProject": "Open a project first.",
@@ -769,32 +728,120 @@ const STRINGS = {
   }
 };
 
-// The bundled track, imported into the Project once; `durationFrames` is the
-// length it must cover.
-async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
-  // The installed asset through the host FileSystem (no shell), the same on macOS and Windows.
-  let musicPath = null;
+// The packaged excerpt is pinned to this template release. Existing Drafts keep
+// their old content paths; installation paths are never newly registered.
+const GALLERY_MUSIC={bytes:457308,sha256:'70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0',seconds:853/60};
+async function prepareBundledMusic(sdk, t, { projectId, durationFrames, fps: knownFps, isCurrent, onImportStarted }) {
+  if(typeof sdk?.runScript!=='function'){
+    const message='Update Selects to prepare bundled music.';
+    throw Object.assign(new Error(message),{publicMessage:message,safeNotSaved:true});
+  }
+  let importStarted=false;
   try {
-    const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
-    const path = hostJoin(plugin, 'assets', 'music.mp3');
-    if ((await hostNeed('FileSystem', 'exists').exists(path))) musicPath = path;
-  } catch (error) { if (error?.code === 'host-missing') throw error; musicPath = null; }
-  if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
-  if (!isCurrent()) throw new Error(t.changed);
-  onImportStarted();
-  const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
-    script: buildScript({ operation: 'importBundledMusic', projectId, path: musicPath, durationFrames }) });
-  if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
-  if (response.isError || response.result?.status !== 'musicReady') throw new Error(response.result?.message || response.output || t.unknown);
-  return response.result.music;
+    if(!Number.isSafeInteger(durationFrames)||durationFrames<1||durationFrames>36000)throw templateIssue('Music length must be an integer from 1 to 36000 frames.');
+    if(!isCurrent())throw templateIssue(t.changed);
+    const fps=knownFps??await readImageDraftFps(sdk,projectId),{minimumSeconds}=galleryFrameClock(durationFrames,fps);
+    if(!isCurrent())throw templateIssue(t.changed);
+    if(minimumSeconds<=0)throw templateIssue('The requested duration is shorter than one frame on the Project frame grid.');
+    if(minimumSeconds>GALLERY_MUSIC.seconds+1e-9)throw templateIssue('Bundled music is too short for this result on the Project frame grid. Choose No music, another track or a shorter duration.');
+    const {plugin}=await hostRoots(sdk,'photo-gallery-no2','SKILL.md'),client=panelLocalClient(sdk);
+    const observe={runScript:async request=>{
+      if(request.allowCommit){await onImportStarted();if(!isCurrent())throw templateIssue(t.changed);importStarted=true;}
+      return sdk.runScript(request);
+    }};
+    const music=await prepareBundledAsset(observe,client.files,{projectId,pluginId:'photo-gallery-no2',sourcePath:hostJoin(plugin,'assets','music.mp3'),type:'Audio',extension:'mp3',expectedBytes:GALLERY_MUSIC.bytes,expectedSha256:GALLERY_MUSIC.sha256,minimumSeconds,platform:client.environment.platform,normalizeUnicode:true,label:'music',isCurrent});
+    return {...music,durationFrames:Math.round(music.durationSeconds*60),startFrame:0};
+  }catch(error){
+    if(error?.code==='not-found')throw templateIssue('Bundled music could not be located. Reinstall Photo Grid Reveal.');
+    if(error&&typeof error==='object')error.safeNotSaved=!importStarted;throw error;
+  }
 }
 
-async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted, isCurrent) {
-  const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
-  if (videos.some(item => !Number.isSafeInteger(item.durationFrames) || item.durationFrames < 1)) {
-    throw new Error('A selected video has no verified duration.');
+function requireGalleryAuthoringHost(sdk) {
+  if(typeof sdk?.runScript!=='function'){
+    const message='Update Selects to create a complete Photo Grid Reveal Draft.';
+    throw Object.assign(new Error(message),{safeNotSaved:true,publicMessage:message});
   }
-  const shortVideos = videos.filter(item => item.durationFrames < frames);
+}
+
+async function verifyGalleryInputs(sdk, t, input, isCurrent) {
+  requireGalleryAuthoringHost(sdk);
+  const stopped = () => Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
+  if (!isCurrent()) throw stopped();
+  const reply = await sdk.runScript({ script: buildScript({ ...input, operation: 'verifyInputs' }), summary: 'Verify Gallery original inputs', allowCommit: false });
+  if (!isCurrent()) throw stopped();
+  if (reply.isError || reply.result?.status !== 'inputsReady' || !Array.isArray(reply.result.media) || reply.result.media.length !== 21) {
+    const result = reply.result, error = Object.assign(new Error(result?.message || reply.output || t.failed), { safeNotSaved: true });
+    if (/^source-file-/.test(result?.code??'')) error.publicMessage=result.message;
+    else if (['image-source-missing', 'image-source-unreadable', 'image-source-unknown', 'image-source-changed'].includes(result?.code)) error.publicMessage = result.message + '. Check the original file in the Project, then try again.';
+    throw error;
+  }
+  return { ...input, media: reply.result.media.map((row,i)=>({...row,manualFocus:input.media[i].manualFocus===true})), music: reply.result.music };
+}
+
+// Only original still Images are analyzed here. Video motion needs its own source-window contract.
+async function galleryFaceScript(sdk,script,summary,allowCommit=false) {
+  const response=await sdk.runScript({script,summary,allowCommit});
+  if(response?.isError||response?.result==null)throw Error(response?.output||'Face analysis could not be read.');
+  return response.result;
+}
+async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
+  const current=()=>{if(!isCurrent())throw Object.assign(Error('Gallery context changed during face analysis.'),{contextChanged:true,safeNotSaved:true});};
+  current();
+  const diagnostics=[],faceFingerprints=[],media=input.media.map(item=>({...item}));
+  const candidates=media.filter(item=>item.kind==='image'&&!item.manualFocus&&item.focusX===0.5&&item.focusY===0.5);
+  if(!candidates.length)return {...input,media,faceFocus:diagnostics,faceFingerprints};
+  let capability;
+  try{capability=await galleryFaceScript(sdk,"return {supported:selects.ai?.imageSourceSupported===true&&typeof selects.ai?.submit==='function'};",'Check original-photo face analysis');}catch{}
+  current();
+  if(!capability?.supported||!sdk.storage?.getItem||!sdk.storage?.setItem)return {...input,media,faceFocus:[{status:'unavailable',reason:'host-support'}],faceFingerprints};
+  const aliases=await sharedAiResources.resolveSharedAiResources(sdk,input.projectId,candidates.map(item=>item.resourceId));current();
+  const storageKey='photo-gallery-no2:face-focus-v1:'+input.projectId,scope='photo-gallery-no2:face-focus-v1';
+  const jobs=sharedAiJobs.createSharedAiJobClient({projectId:input.projectId,scope,
+    runScript:(code,summary,write)=>{current();return galleryFaceScript(sdk,code,summary,write)},
+    load:async()=>{const value=await sdk.storage.getItem(storageKey);return value==null?null:JSON.parse(value)},
+    save:journal=>sdk.storage.setItem(storageKey,JSON.stringify(journal)),maxWaitMs:120000,readTimeoutMs:10000,pollMs:500});
+  const observations=new Map(),failures=new Map(),deadline=Date.now()+120000;
+  for(let index=0;index<media.length;index++){
+    const item=media[index];
+    if(item.kind!=='image'||item.manualFocus||item.focusX!==0.5||item.focusY!==0.5)continue;
+    current();const rawId=aliases.get(item.resourceId);
+    if(Date.now()>=deadline){diagnostics.push({slot:index+1,resourceId:rawId,status:'unavailable',reason:'observation-budget'});continue;}
+    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+    if(!fingerprint)throw Object.assign(Error('The original photo is missing.'),{safeNotSaved:true});
+    faceFingerprints.push({path:item.path,...fingerprint});
+    const identity=JSON.stringify({resourceId:rawId,path:item.path,...fingerprint,width:item.width,height:item.height});
+    let observed=observations.get(identity),workflowId;
+    if(failures.has(identity)){diagnostics.push({slot:index+1,resourceId:rawId,...failures.get(identity)});continue;}
+    if(!observed){
+      try{
+        const result=await jobs.run({task:'faces.detect',resourceId:rawId,options:{provider:'cpu',scoreThreshold:0.8}},{identity,maxWaitMs:Math.max(1,deadline-Date.now())});current();
+        workflowId=result.workflowId;const artifact=result.result?.files?.detections;
+        if(!artifact)throw Error('Photo face analysis returned no coordinates.');
+        observed=await galleryFaceScript(sdk,`return await selects.ai.readJSON(${JSON.stringify(artifact)},${JSON.stringify(input.projectId)});`,'Read original-photo face coordinates');current();
+        if(observed?.contractVersion!==1||observed.task!=='faces.detect'||observed.sourceKind!=='image'||observed.samples?.length!==1||observed.samples[0]?.sourceTimeSeconds!==0)throw Error('Original-photo face coordinates do not match the Image contract.');
+      }catch(error){
+        current();const failure={status:'unavailable',reason:error.code||'face-analysis',message:String(error.message||error).slice(0,160)};
+        failures.set(identity,failure);diagnostics.push({slot:index+1,resourceId:rawId,...failure});continue;
+      }
+      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+      if(JSON.stringify(after)!==JSON.stringify(fingerprint))throw Object.assign(Error('Original photo changed during face analysis.'),{safeNotSaved:true});
+      observations.set(identity,observed);
+    }
+    const row=Math.floor(index/3),height=Math.round((row+1)*1920/7)-Math.round(row*1920/7)-4;
+    const focus=galleryFaceFocus(item,{width:356,height},observed);
+    diagnostics.push({slot:index+1,resourceId:rawId,...workflowId?{workflowId}:{},...focus});
+    if(focus.status==='focused')Object.assign(item,{focusX:focus.focusX,focusY:focus.focusY});
+  }
+  current();return {...input,media,faceFocus:diagnostics,faceFingerprints};
+}
+
+async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, isCurrent) {
+  const frames = clock.durationFrames;
+  const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
+  const shortVideos = videos.filter(item => gallerySourceSeconds(item, 'Video') + 1e-9 < clock.minimumSeconds);
+  if(!shortVideos.length)return media;
+  const client=panelLocalClient(sdk);
   const groups = [{ sources: shortVideos, key: 'videos' }];
   const requestPaths = [];
   for (const group of groups) {
@@ -804,8 +851,8 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
     preparing.say?.('Extending short videos…');
     let converted;
-    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data); }
-    catch (error) { throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
+    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent,client}); }
+    catch (error) { if(error?.publicMessage)throw error;throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
     const output = converted[group.key];
     if (converted.status !== 'converted' || output?.length !== group.sources.length) {
       throw new Error(converted.message || 'Media conversion failed.');
@@ -820,11 +867,12 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
   if (!requestPaths.length) return media;
   if (!isCurrent()) throw new Error(t.changed);
   const prepared = [];
-  // Panel runScript has a fixed 30-second deadline. Keep persistent imports small.
+  // Keep reusable media imports small; they are separate from complete Draft authoring.
   for (let start = 0; start < requestPaths.length; start += 3) {
     if (!isCurrent()) throw new Error(t.changed);
     const chunk = requestPaths.slice(start, start + 3);
-    onImportStarted();
+    await onImportStarted();
+    if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
     const imported = await sdk.runScript({ script: buildScript({ operation: 'importConverted', projectId,
       converted: chunk, durationFrames: frames }), summary: 'Import independent Photo Gallery tile videos', allowCommit: true });
     if (imported.isError || imported.result?.status === 'outcomeUnknown' || !imported.result) throw new Error(t.unknown);
@@ -845,60 +893,68 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     : item);
 }
 
-function scriptFailure(t, response, phase, draftId) {
-  const detail = response.result?.message || response.output || t.unknown;
-  return new Error(phase + (draftId ? ' [' + draftId + ']' : '') + ': ' + String(detail).slice(0, 1200));
-}
-
 // Builds the Draft once its inputs are settled (21 tiles, music, BPM), shared by
 // the Panel and a template run. `isCurrent` says the run still belongs to its
-// Project; `onDispatched` marks the first step that may save; `onDraft` gets the
-// new Draft. `libraryId` is a template run's library. A context change before
-// anything is created throws with `contextChanged`.
-async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDraft, libraryId = null }) {
-  const projectId = input.projectId;
-  const clock=await sdk.runScript({script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery frame grid'});return {fps:(await d.meta()).fps};`,summary:'Read Project frame grid',allowCommit:false});
-  if(clock.isError||!Number.isFinite(clock.result?.fps)||clock.result.fps<=0)throw new Error('Project frame rate is unavailable');
-  input.fps=clock.result.fps;
-  input.media = await prepareVisuals(sdk, t, input.media, input.durationFrames, projectId, onDispatched, isCurrent);
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true });
-  input.media = (await galleryNativeResources(sdk, projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
-  const preflight = await sdk.runScript({ script: buildScript({ ...input, operation: 'preflight' }),
-    summary: 'Check Photo Gallery media and timing', allowCommit: false });
-  if (preflight.isError || preflight.result?.status !== 'ready') throw Object.assign(
-    new Error(preflight.result?.message || preflight.output || t.failed), { safeNotSaved: true });
-  const plan = preflight.result.plan;
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { safeNotSaved: true });
-  onDispatched();
-  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase', durationFrames: plan.durationFrames }),
-    summary: 'Create Photo Gallery Draft', allowCommit: true });
-  if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw scriptFailure(t, base, 'Create Photo Gallery Draft');
-  const draftId = base.result.draftId;
-  onDraft(draftId);
-  await galleryNativePlace(sdk, projectId, draftId, input.media, plan, libraryId);
-  // Each panel script has a fixed 30-second deadline. Cold video analysis
-  // and effect compilation must not accumulate across all 21 tiles.
-  for (const tile of plan.tiles.filter(item => item.kind === 'video')) {
-    const videos = await sdk.runScript({ script: buildScript({ ...input, operation: 'placeVideosExisting', draftId,
-      slotKeys: [tile.slotKey] }),
-      summary: 'Place Gallery video tiles', allowCommit: true });
-    if (videos.isError || videos.result?.status !== 'videosPlaced') throw scriptFailure(t, videos, 'Place Gallery video tiles', draftId);
+// Project; `onDispatched` marks possible Draft persistence, while imports have
+// their own observer. `onDraft` gets the complete saved identity. `libraryId`
+// is a template run's library. A stale context stops before Draft dispatch.
+async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false,fitBundledDefault=false) {
+  const stopped=()=>Object.assign(new Error('The Gallery context changed before preparation.'),{contextChanged:true,safeNotSaved:true});
+  if(!isCurrent())throw stopped();
+  input.fps=await readImageDraftFps(sdk,input.projectId);
+  if(!isCurrent())throw stopped();
+  // Only an untouched bundled default may end on the last complete frame
+  // inside the pinned excerpt. Explicit lengths retain the strict music guard.
+  if(fitBundledDefault&&input.durationFrames===853){
+    while(input.durationFrames>1&&galleryFrameClock(input.durationFrames,input.fps).minimumSeconds>GALLERY_MUSIC.seconds+1e-9)input.durationFrames--;
   }
-  for (let start = 0; start < plan.tiles.length; start += 3) {
-    const styled = await sdk.runScript({ script: buildScript({ ...input, operation: 'styleExisting', draftId,
-      slotKeys: plan.tiles.slice(start, start + 3).map(tile => tile.slotKey),
-      placeMusic: start + 3 >= plan.tiles.length }),
-      summary: 'Style Photo Gallery tiles', allowCommit: true });
-    if (styled.isError || styled.result?.status !== 'styled') throw scriptFailure(t, styled, 'Style Photo Gallery tiles', draftId);
+  try{return planGallery(input,{preparing:true,pendingBpm});}
+  catch(error){error.safeNotSaved=true;throw error;}
+}
+
+async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{}}) {
+  Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
+  const plan=await planGalleryPreparation(sdk,input,isCurrent);
+  input.media=await prepareVisuals(sdk,t,input.media,plan.preparation,input.projectId,onImportStarted,isCurrent);
+  if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
+  const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
+  if(preflight.isError||preflight.result?.status!=='ready')throw Object.assign(new Error(preflight.result?.message||preflight.output||t.failed),{safeNotSaved:true});
+  await onDispatched();
+  if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  const response=await sdk.runScript({script:buildScript({...input,operation:'create',...runReceipt?{runReceipt}:{}}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
+  if(typeof response.result?.draftId==='string'&&response.result.draftId)await onDraft(response.result.draftId);
+  if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
+    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null});
   }
-  let verified = false, readReturned = false;
-  try {
-    const read = await sdk.runScript({ script: buildScript({ ...input, operation: 'verifyCreated', draftId }),
-      summary: 'Read saved Photo Gallery Draft', allowCommit: false });
-    readReturned = true;
-    verified = !read.isError && read.result?.status === 'verified' && read.result.tileCount === 21;
-  } catch { /* The mutating call already returned a saved Draft ID. */ }
-  return { draftId, verified, readReturned };
+  const result=response.result;
+  await verifyGallerySavedDraft(sdk,input.projectId,result);
+  return {...result,verified:true,readReturned:true};
+}
+
+// Independent post-save source reads use separate invocations so the original
+// Project cache cannot masquerade as fresh facts. Keep saved identity on failure.
+async function verifyGallerySavedDraft(sdk,projectId,result){
+ const unverified=cause=>Object.assign(Error('The Gallery was saved, but its sources could not be confirmed. Inspect the saved Draft before retrying.'),{code:'IMAGE_SAVE_UNVERIFIED',draftId:result?.draftId,cause});
+ try{
+  await verifyAtomicImageDraft(sdk,projectId,result);
+  let sourceGuard=result.sourceGuard;
+  if(!sourceGuard)throw Error('Saved Gallery source evidence is unavailable.');
+  if(sourceGuard.version===2){
+   const files=panelLocalClient(sdk).files,before=await files.stat(sourceGuard.path);
+   if(!before||before.isDirectory!==false||before.size!==sourceGuard.size||before.size<1||before.size>8388608)throw Error('Saved Gallery source evidence is unavailable.');
+   const bytes=await files.readRange(sourceGuard.path,0,before.size),after=await files.stat(sourceGuard.path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==before.size||!after||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw Error('Saved Gallery source evidence changed.');
+   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
+   if(digest!==sourceGuard.sha256)throw Error('Saved Gallery source evidence changed.');
+   sourceGuard=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+  }
+  for(const operation of ['verifySourceFiles','verifySourceMetadata']){
+   const response=await sdk.runScript({summary:'Verify saved Gallery original sources',allowCommit:false,script:buildScript({operation,projectId,sourceGuard})});
+   if(response.isError||response.result?.status!=='verified')throw Error('Saved Gallery sources changed or could not be read.');
+  }
+ }catch(cause){throw unverified(cause);}
+ return result;
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
@@ -919,17 +975,24 @@ function GalleryPanel({ sdk, context, ui }) {
   const [manualBpm, setManualBpm] = React.useState(113);
   const [estimated, setEstimated] = React.useState(null);
   const [durationFrames, setDurationFrames] = React.useState(853);
+  const durationEdited = React.useRef(false);
   const [name, setName] = React.useState('Photo Grid Reveal');
   const [busy, setBusy] = React.useState(false);
   const [unknown, setUnknown] = React.useState(false);
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
+  const [resourceRevision, setResourceRevision] = React.useState(0);
+  const resourceScope = React.useRef(null), inventoryState = React.useRef(null);
   const running = React.useRef(false);
+  const alive = React.useRef(true);
+  const musicScope = React.useRef(null);
+  React.useEffect(()=>()=>{musicScope.current?.abort();},[context.projectId,context.sequenceId]);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
+    alive.current = true;
     const say = text => setStatus({ tone: 'muted', text });
     preparing.say = say;
-    return () => { if (preparing.say === say) preparing.say = null; };
+    return () => { alive.current = false;if (preparing.say === say) preparing.say = null; };
   }, []);
   current.current = { projectId: context.projectId, sequenceId: context.sequenceId };
   const key = JSON.stringify([context.projectId, context.sequenceId]);
@@ -944,7 +1007,8 @@ function GalleryPanel({ sdk, context, ui }) {
   const canAssignReferenceMix = inventory?.media?.length === 21 && photos.length === 15 && videos.length === 6;
   const missingMotion = assigned === 21 ? [...REFERENCE_VIDEO_SLOTS].filter(number =>
     inventory.media.find(item => item.resourceId === slots[number - 1].resourceId)?.kind !== 'video') : [];
-  const sameContext = (projectId, sequenceId) => current.current.projectId === projectId && current.current.sequenceId === sequenceId;
+  const sameContext = (projectId, sequenceId) => alive.current && current.current.projectId === projectId && current.current.sequenceId === sequenceId;
+  inventoryState.current = { inventory, slots, musicChoice, key, ready };
 
   React.useEffect(() => {
     // The host opens this new Draft during Create. Retain its frozen inputs
@@ -958,53 +1022,130 @@ function GalleryPanel({ sdk, context, ui }) {
     setEstimated(null); setUnknown(false); setSavedTarget(null); setStatus(null);
   }, [context.projectId, context.sequenceId]);
 
+  React.useEffect(() => {
+    const scope = { projectId: context.projectId, pending: false, active: false, closed: false, revision: 0 };
+    resourceScope.current = scope;
+    const unsubscribe = scope.projectId && typeof sdk.on === 'function' ? sdk.on('resourcesChanged', event => {
+      if (event?.projectId !== scope.projectId || scope.closed || !(event.added?.length || event.removed?.length)) return;
+      scope.pending = true; scope.revision++; setResourceRevision(value => value + 1);
+    }) : null;
+    return () => { scope.closed = true; unsubscribe?.(); if (resourceScope.current === scope) resourceScope.current = null; };
+  }, [sdk, context.projectId]);
+
+  React.useEffect(() => {
+    const scope = resourceScope.current;
+    // Imports made by an in-progress Create must not change its frozen inputs
+    // or its save verification. Coalesce them until that operation settles.
+    if (!scope || scope.closed || !scope.pending || scope.active || running.current || busy || !ready) return;
+    scope.pending = false; scope.active = true;
+    const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key, revision = scope.revision;
+    const live = () => !scope.closed && resourceScope.current === scope && sameContext(projectId, sequenceId);
+    (async () => {
+      try {
+        const next = await readInventory(projectId, () => live() && scope.revision === revision && !running.current);
+        if (!live()) return;
+        if (scope.revision !== revision || running.current || inventoryState.current.key !== requestedKey) { scope.pending = true; return; }
+        const before = inventoryState.current;
+        const sameSource = (old, fresh) => old && fresh && old.path === fresh.path && old.kind === fresh.kind;
+        const changed = before.slots.some(slot => slot.resourceId && !sameSource(before.inventory.media.find(row => row.resourceId === slot.resourceId), next.media.find(row => row.resourceId === slot.resourceId)));
+        const selectedAudio = !['bundled', 'none'].includes(before.musicChoice);
+        const oldAudio = before.inventory.audio.find(row => row.resourceId === before.musicChoice), newAudio = next.audio.find(row => row.resourceId === before.musicChoice);
+        if (changed || selectedAudio && (!oldAudio || !newAudio || oldAudio.path !== newAudio.path)) {
+          // Preserve the choice for inspection; never retarget a tile or drop
+          // its selected music silently when aliases or membership changed.
+          setLoadedKey(''); setStatus({ tone: 'error', text: t.changed }); return;
+        }
+        setInventory(next);
+      } catch (error) {
+        if (live() && !running.current) setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) });
+      } finally {
+        scope.active = false;
+        if (!scope.closed && resourceScope.current === scope && scope.pending) setResourceRevision(value => value + 1);
+      }
+    })();
+  }, [sdk, resourceRevision, busy, ready, key]);
+
   function updateSlot(patch) {
+    if ('focusX' in patch || 'focusY' in patch) patch={...patch,manualFocus:true};
     setSlots(previous => previous.map((item, i) => i === slotIndex ? { ...item, ...patch } : item));
+  }
+
+  function deferActiveRefresh() {
+    const scope = resourceScope.current;
+    if (scope?.active) { scope.pending = true; scope.revision++; }
+  }
+
+  async function readInventory(projectId, isCurrent = () => true) {
+    const input = { operation: 'inspect', projectId };
+    const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
+    if (!isCurrent()) return null;
+    if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) throw new Error(response.result?.message || response.output || t.failed);
+    const native = await galleryNativeResources(sdk, projectId, response.result.media);
+    return { ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) };
   }
 
   async function load() {
     if (running.current || !context.projectId) return;
     const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key;
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     try {
-      const input = { operation: 'inspect', projectId };
-      const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
-      if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
-        throw new Error(response.result?.message || response.output || t.failed);
-      }
-      const native = await galleryNativeResources(sdk, projectId, response.result.media);
+      const next = await readInventory(projectId);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
-      setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
+      setInventory(next); setLoadedKey(requestedKey);
+      setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);durationEdited.current=false;
       setMusicChoice('bundled'); setManualEnabled(true); setManualBpm(113); setEstimated(null);
       setStatus(null);
     } catch (error) { setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) }); }
     finally { running.current = false; setBusy(false); }
   }
 
-  async function estimateMusic(audio) {
+  function beginMusicScope(isCurrent=()=>true) {
+    if(typeof AbortController!=='function')throw hostError('host-missing','Update Selects to cancel music analysis safely.');
+    musicScope.current?.abort();
+    setEstimated(null);
+    const controller=new AbortController(),projectId=context.projectId,sequenceId=context.sequenceId;
+    musicScope.current=controller;
+    return {client:panelLocalClient(sdk),signal:controller.signal,isCurrent:()=>!controller.signal.aborted&&musicScope.current===controller&&sameContext(projectId,sequenceId)&&isCurrent()};
+  }
+
+  async function estimateMusic(audio,scope) {
     if (!audio?.path) throw new Error(t.uncertain);
-    if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
-    const value = await tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data);
+    const current=()=>{if(!scope.isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});};
+    const read=async()=>{
+      current();const response=await sdk.runScript({script:buildScript({operation:'verifyMusic',projectId:context.projectId,music:audio}),summary:'Verify selected Gallery music',allowCommit:false});current();
+      if(response.isError||response.result?.status!=='musicReady'||!response.result.music)throw new Error(response.result?.message||'Selected music could not be verified.');
+      return response.result.music;
+    };
+    const before=await read(),roots=await hostRoots(sdk,'photo-gallery-no2','SKILL.md');current();
+    const analysis=await analyzeMusicFile(before.path,roots.data,scope),value=analysis.estimate;current();
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
-    setEstimated({ resourceId: audio.resourceId, bpm: value.bpm });
-    return value.bpm;
+    const after=await read();current();
+    if(before.resourceId!==after.resourceId||holdPathKey(before.path)!==holdPathKey(after.path)||before.durationSeconds!==after.durationSeconds)throw new Error('Selected music changed during analysis. Start a new estimate.');
+    const musicFingerprint={path:after.path,...analysis.source};
+    setEstimated({ resourceId: after.resourceId, path:after.path, bpm: value.bpm,musicFingerprint });
+    return {bpm:value.bpm,musicFingerprint};
   }
 
   async function estimateOnClick() {
     if (running.current || !selectedMusic) return;
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
-    try { const bpm = await estimateMusic(selectedMusic); setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
-    catch (error) { setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.message || error) }); }
-    finally { running.current = false; setBusy(false); }
+    let scope;
+    try { scope=beginMusicScope();const {bpm} = await estimateMusic(selectedMusic,scope);if(scope.isCurrent())setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
+    catch (error) { if(!scope||scope.isCurrent())setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.publicMessage||error?.message || error) }); }
+    finally { running.current = false;if(alive.current)setBusy(false); }
   }
 
-  async function resolveBpm(audio) {
+  async function resolveBpm(audio,isCurrent) {
     if (manualEnabled) {
       if (!Number.isFinite(manualBpm) || manualBpm <= 0) throw new Error(t.bpmMissing);
       return { manualBpm };
     }
-    if (audio) return { estimatedBpm: await estimateMusic(audio) };
+    if (audio) {
+      try{const analysis=await estimateMusic(audio,beginMusicScope(isCurrent));return {estimatedBpm:analysis.bpm,musicFingerprint:analysis.musicFingerprint};}
+      catch(error){if(error&&typeof error==='object')error.safeNotSaved=true;throw error;}
+    }
     throw new Error(t.bpmMissing);
   }
 
@@ -1015,23 +1156,29 @@ function GalleryPanel({ sdk, context, ui }) {
     try {
       if (assigned !== 21) throw new Error(t.missing);
       input = { operation: 'create', projectId, name: name.trim(), durationFrames,
-        media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY })),
+        media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY, manualFocus:item.manualFocus===true })),
         music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
-          durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
+          durationFrames: selectedMusic.durationFrames, durationSeconds: selectedMusic.durationSeconds, startFrame: 0 } : null,
+        ...(manualEnabled?{manualBpm}:{}) };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
     const isCurrent = () => sameContext(projectId, sequenceId) && requestedKey === key;
     try {
+      input = await verifyGalleryInputs(sdk, t, input, isCurrent);
+      input = await focusGalleryPhotos(sdk,input,isCurrent);
+      await planGalleryPreparation(sdk,input,isCurrent,!manualEnabled,musicChoice==='bundled'&&!durationEdited.current);
+      if(input.durationFrames!==durationFrames)setDurationFrames(input.durationFrames);
       const audio = musicChoice === 'bundled' ? await prepareBundledMusic(sdk, t, { projectId,
-        durationFrames: input.durationFrames, isCurrent, onImportStarted: () => { dispatched = true; } }) : selectedMusic;
-      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 } : null;
-      Object.assign(input, await resolveBpm(audio));
+        durationFrames: input.durationFrames, fps:input.fps, isCurrent, onImportStarted: () => { dispatched = true; } }) : input.music;
+      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, durationSeconds: audio.durationSeconds, startFrame: 0 } : null;
+      Object.assign(input, await resolveBpm(audio,isCurrent));
       if (!isCurrent()) { setStatus({ tone: 'error', text: t.changed }); return; }
       const built = await buildGalleryDraft(sdk, t, { input, isCurrent,
-        onDispatched: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });
+        onDispatched: () => { dispatched = true; }, onImportStarted: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });
       // Selects may open the just-created Draft while its readback runs. That
       // expected sequence change must not turn a verified save into an error.
       if (built.verified) {
@@ -1075,6 +1222,7 @@ function GalleryPanel({ sdk, context, ui }) {
       {inventory.media.length === 0 && <ui.Message tone="error">{t.noMedia}</ui.Message>}
       <ui.Select label={t.slot} value={selectedSlot} onChange={setSelectedSlot} options={SLOT_KEYS.map((value, i) => ({ value: String(i), label: String(i + 1).padStart(2, '0') + ' · ' + (slots[i].resourceId ? (inventory.media.find(media => media.resourceId === slots[i].resourceId)?.name || slots[i].resourceId) : t.choose) }))}/>
       <ui.Select label={t.media} value={slot.resourceId || null} onChange={resourceId => updateSlot({ resourceId })} options={inventory.media.map(item => ({ value: item.resourceId, label: item.name + ' · ' + item.kind }))} placeholder={t.choose} disabled={busy}/>
+      <small>{t.focusHint || STRINGS.en.focusHint}</small>
       <ui.Slider label={t.focusX} value={slot.focusX} onChange={focusX => updateSlot({ focusX })} min={0} max={1} step={0.01} disabled={busy || !slot.resourceId}/>
       <ui.Slider label={t.focusY} value={slot.focusY} onChange={focusY => updateSlot({ focusY })} min={0} max={1} step={0.01} disabled={busy || !slot.resourceId}/>
     </ui.Section>}
@@ -1089,7 +1237,7 @@ function GalleryPanel({ sdk, context, ui }) {
       {manualEnabled && <ui.NumberField label={t.bpm} value={manualBpm} onChange={setManualBpm} min={1} max={300} step={0.1} disabled={busy}/>}
       {!manualEnabled && selectedMusic && <ui.Button variant="secondary" onClick={estimateOnClick} disabled={busy}>{t.estimate}</ui.Button>}
       {estimated && selectedMusic && estimated.resourceId === selectedMusic.resourceId && <small>{t.estimated}: {estimated.bpm}</small>}
-      <ui.NumberField label={t.duration} value={Number((durationFrames / 60).toFixed(3))} onChange={seconds => setDurationFrames(Math.max(1, Math.round(seconds * 60)))} min={1 / 60} step={1 / 60} unit="s" disabled={busy}/>
+      <ui.NumberField label={t.duration} value={Number((durationFrames / 60).toFixed(3))} onChange={seconds => {durationEdited.current=true;setDurationFrames(Math.max(1, Math.round(seconds * 60)));}} min={1 / 60} step={1 / 60} unit="s" disabled={busy}/>
       <small>{t.durationNote}</small>
     </ui.Section>}
     {ready && <ui.Section title={t.createMode}>
@@ -1193,6 +1341,28 @@ async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   return native.selected.map(({ nativeResource, ...item }) => ({ ...item, focusX: 0.5, focusY: 0.5 }));
 }
 
+// Identity uses effective input choices, never display names or transient paths.
+// Validate before a durable claim; invalid input cannot reserve an app run.
+function galleryRunRequest(template) {
+  const group=(key,count,kind)=>{
+    const rows=template?.inputs?.[key];
+    if(!Array.isArray(rows)||rows.length!==count||rows.some(p=>p?.kind!==kind||typeof p.resourceId!=='string'||!p.resourceId))throw templateIssue(`Pick exactly ${count} ${key==='photos'?'photos':'videos'}, then try again.`);
+    return rows.map(({resourceId,kind})=>({resourceId,kind}));
+  };
+  const music=template?.options?.music??'bundled';
+  if(!['none','bundled'].includes(music))throw templateIssue('Choose bundled music or no music, then try again.');
+  return {photos:group('photos',15,'image'),clips:group('clips',6,'video'),music,durationFrames:TEMPLATE_DURATION_FRAMES,bpm:TEMPLATE_BPM};
+}
+
+// Read-only, unsaved capability probe before claiming or preparing Project assets.
+// Music Off has no Audio reader dependency. Existing saved receipts still need
+// the readers used to independently verify the persisted result.
+async function requireGalleryRunReaders(sdk,projectId,music) {
+  const methods=['motionGraphics','motionGraphicProgram','clipTransform','videoEffects','videoEffectProgram',...music==='none'?[]:['clipAudio']];
+  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')return {supported:false};const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
+  if(reply.isError||reply.result?.supported!==true)throw templateIssue('Update Selects to create and verify Photo Grid Reveal safely.');
+}
+
 // One plain sentence for the person, from a failure before anything was saved.
 function templateMessage(error) {
   if (error?.publicMessage) return error.publicMessage;
@@ -1200,13 +1370,12 @@ function templateMessage(error) {
   if (/no verified (image )?dimensions|no unique Project Resource/.test(said)) return 'A picked file is not ready yet; wait for it to finish importing, then try again.';
   if (/no verified duration/.test(said)) return 'A picked video is not ready yet; wait for it to finish importing, then try again.';
   if (/^(Could not download .+|The download of .+ did not match its pinned checksum|Could not prepare Python for .+)\.$/.test(said)) return said;
-  if (/does not expose native Image placement/.test(said)) return 'This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.';
+  if (/does not expose native Image placement|does not support original photo file checks/.test(said)) return 'This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.';
   return TEMPLATE_FAILED;
 }
 
-// Nobody sees this frame, so it shows one status line. It starts once per run id
-// and reports once, unless a newer run replaced it; a save that began is reported
-// as a possibly incomplete Draft and never retried.
+// The shared durable owner survives a new panel realm. Save receipts are read
+// back independently; an unknown run is inspected rather than authored again.
 function GalleryTemplateRun({ sdk, context }) {
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
   const t = STRINGS[context.language] || STRINGS.en;
@@ -1218,38 +1387,45 @@ function GalleryTemplateRun({ sdk, context }) {
   React.useEffect(() => {
     if (!runId || started.current === runId) return;
     started.current = runId;
-    const live = () => alive.current && latest.current.template?.runId === runId;
+    const projectId = context.projectId, template = context.template;
+    const live = () => alive.current && latest.current.template?.runId === runId && latest.current.projectId === projectId && latest.current.template?.libraryId === template?.libraryId;
     let ended = false;
     const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
     const say = text => { if (live()) setStatus(text); };
     preparing.say = say;
-    const projectId = context.projectId, template = context.template;
     let dispatched = false, draftId = null;
     (async () => {
       try {
         if (!projectId) throw templateIssue('Open a Project, then try again.');
+        requireGalleryAuthoringHost(sdk);
         const app = window.parent, libraryId = templateLibrary(app, projectId, template);
-        say('Finding your photos and videos…');
-        const media = await templateTiles(sdk, app, projectId, libraryId, template?.inputs);
-        if (!live()) throw templateIssue('The template run ended before the Draft was made.');
-        const input = { operation: 'create', projectId, name: TEMPLATE_NAME, durationFrames: TEMPLATE_DURATION_FRAMES,
-          media, music: null, manualBpm: TEMPLATE_BPM };
-        if (template?.options?.music !== 'none') {
-          say('Adding the music…');
-          const audio = await prepareBundledMusic(sdk, t, { projectId, durationFrames: input.durationFrames,
-            isCurrent: live, onImportStarted: () => { dispatched = true; } });
-          input.music = { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 };
-        }
-        say('Building the gallery…');
-        const built = await buildGalleryDraft(sdk, t, { input, isCurrent: live, libraryId,
-          onDispatched: () => { dispatched = true; }, onDraft: id => { draftId = id; } });
-        if (!built.verified) console.warn('[photo-gallery-no2] the saved Draft was not read back:', built.draftId);
+        const request=galleryRunRequest(template);
+        await requireGalleryRunReaders(sdk,projectId,request.music);
+        const built=await executeTemplateRun(sdk,panelLocalClient(sdk).files,{pluginId:'photo-gallery-no2',libraryId,projectId,runId},request,live,async(runReceipt,onDispatch)=>{
+          say('Finding your photos and videos…');
+          const media=await templateTiles(sdk,app,projectId,libraryId,template?.inputs);
+          if(!live())throw templateIssue('The template run ended before the Draft was made.');
+          const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
+          Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          Object.assign(input,await focusGalleryPhotos(sdk,input,live));
+          await planGalleryPreparation(sdk,input,live,false,request.music==='bundled');
+          if(request.music!=='none'){
+            say('Adding the music…');
+            const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,fps:input.fps,isCurrent:live,onImportStarted:()=>{}});
+            input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,durationSeconds:audio.durationSeconds,startFrame:0};
+          }
+          say('Building the gallery…');
+          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
+        },result=>verifyGallerySavedDraft(sdk,projectId,result));
+        draftId=built.draftId;
+        if(!draftId||!Array.isArray(built.clips)||built.clips.length!==21)throw templateIssue('The saved Gallery could not be confirmed. Inspect the Project before starting a new run.');
         say('Done.');
         finish({ sequenceId: built.draftId });
       } catch (error) {
+        if(!draftId&&typeof error?.draftId==='string'&&error.draftId)draftId=error.draftId;
         console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), { draftId, dispatched });
         say('Stopped.');
-        finish({ error: draftId ? TEMPLATE_PARTIAL : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
+        finish({ error: draftId ? TEMPLATE_PARTIAL+' ('+draftId+')' : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
       } finally {
         finish({ error: TEMPLATE_FAILED });
       }
@@ -1349,33 +1525,64 @@ function panelLocalPaths(platform: string) {
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
 async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    // Direct arguments keep object literals contextually typed by the SDK signature.
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script: string, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+      script,
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     // A clipped report has no result. Every read returning data rejects that case below.
     return response.result;
   };
+  // Direct arguments keep object literals contextually typed by the SDK signature.
+  const run = (method: string, args: unknown[], write = false) =>
+    runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
   const environment = await run("files.environment", []);
   if (!environment || typeof environment.platform !== "string" || !environment.homedir)
     throw new Error("Update Selects to use this plugin's local media workspace.");
   const paths = panelLocalPaths(environment.platform);
   const CHUNK_BYTES = 48 * 1024;
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // budget. The same script still awaits each canonical file operation in order.
+  const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
+    let count = Math.min(3, inputs.length), script = "";
+    while (count > 0) {
+      script = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script, method === "writeChunk") };
+  };
   const readRange = async (path: string, offset: number, length: number) => {
     const parts: Uint8Array[] = [];
     let total = 0;
     while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) =>
+        ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map(input => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes); total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
     }
     const output = new Uint8Array(total);
     let position = 0;
@@ -1388,8 +1595,13 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
+    // One script owns every read and its deadline; only the compact digest returns.
+    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
+    // SDK-shaped requests support the same shared observation in SDK scripts and
+    // the panel. Positional reads retain their existing byte/partial-EOF contract.
+    readRange: (path: string | {path: string; offset: number; length: number}, offset?: number, length?: number) =>
+      typeof path === "string" ? readRange(path, offset!, length!) : run("files.readRange", [path]),
     async readFile(path: string, encoding?: string) {
       const stat = await run("files.stat", [path]);
       if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
@@ -1411,18 +1623,31 @@ async function createPanelLocalClient(sdk: any) {
       const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
       let published = false;
       try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...(mode ? { mode } : {}) });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
       }
     },
     async compareAndReplace(path: string, expectedText: string | null, text: string) {
@@ -1438,51 +1663,113 @@ async function createPanelLocalClient(sdk: any) {
       return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from: string, to: string) => run("files.rename", [from, to], true),
     copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
     downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
     pathToLocalURL: (path: string) => run("files.localUrl", [path]),
     localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
   };
-  const activeJobs = new Set<string>();
+  const activeJobs = new Map<string, () => Promise<void>>();
   let disposed = false;
+  const SETTLEMENT_MS = 5000, OUTPUT_BYTES = 4 * 1024 * 1024;
+  const mediaIssue = (code: string, message: string, cause?: unknown, uncertain = false) =>
+    Object.assign(new Error(message), { code: "LOCAL_MEDIA_" + code, publicMessage: message, terminal: true, cause,
+      ...(uncertain ? { preserveTemporaryFiles: true } : {}) });
   const cancel = async (jobId: string) => {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
+  const observeMedia = (read: () => Promise<any>, deadline: number): Promise<any> => new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) { reject(mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
+    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+    Promise.resolve().then(read).then(
+      value => { clearTimeout(timer); resolve(value); },
+      cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
+  });
+  const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
   const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
+      signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
+    let started: any;
+    const starting = runSource(startSource, true);
+    try { started = await observeMedia(() => starting, Date.now() + SETTLEMENT_MS); }
+    catch (cause) {
+      // A late start identity can only stop that original job. Never start again
+      // or authorize cleanup from this background cancellation acknowledgement.
+      void starting.then(value => validJob(value) ? cancel(value.jobId) : undefined, () => {}).catch(() => {});
+      throw mediaIssue("START_UNKNOWN", "The media job start could not be confirmed. Its temporary workspace is retained for inspection.", cause, true);
+    }
+    if (!validJob(started))
+      throw mediaIssue("START_UNKNOWN", "The media job identity could not be confirmed. Its temporary workspace is retained for inspection.", undefined, true);
     const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    let cancellation: Promise<void> | null = null, cancellationDeadline: number | null = null, settled = false;
+    const requestCancel = () => {
+      if (!cancellation) {
+        cancellationDeadline = Date.now() + SETTLEMENT_MS;
+        cancellation = cancel(jobId);
+        void cancellation.catch(() => {});
+      }
+      return cancellation;
+    };
+    const abort = () => { void requestCancel(); };
+    activeJobs.set(jobId, requestCancel);
     signal?.addEventListener("abort", abort, { once: true });
     if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
+    let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
+    const knownState = (status: any) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
+    // Read-only observations may time out; a late reply cannot authorize cleanup.
+    const statusAt = (deadline: number) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const settleAfterFailure = async (cause: unknown) => {
+      requestCancel();
+      const deadline = cancellationDeadline!;
+      while (Date.now() < deadline) {
+        try {
+          const status = await statusAt(deadline);
+          if (knownState(status) && status.state !== "running") { settled = true; return; }
+        } catch { /* Only independent status reads may recover an unknown reply. */ }
+        if (Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+      }
+      throw Object.assign(mediaIssue("SETTLEMENT_UNKNOWN", "The media job exit could not be confirmed. Its temporary workspace is retained for inspection.", cause, true), { jobId });
+    };
     try {
       while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
+          throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
+        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
+        settled = status.state !== "running";
+        if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
+          throw mediaIssue("STATUS", "The media job returned an incomplete status.");
+        if (status.truncated) throw mediaIssue("OUTPUT", "Media output was truncated; no incomplete result was accepted.");
+        let position = cursor;
         for (const event of status.events) {
+          if (!event || !["stdout", "stderr"].includes(event.stream) || typeof event.text !== "string" || event.text.length > 4096 || !Number.isSafeInteger(event.cursor) || event.cursor !== position + 1 || event.cursor > status.nextCursor)
+            throw mediaIssue("OUTPUT", "The media job returned incomplete output.");
+          outputBytes += new TextEncoder().encode(event.text).byteLength;
+          if (outputBytes > OUTPUT_BYTES) throw mediaIssue("OUTPUT_LIMIT", "The media output exceeds its 4 MiB byte budget.");
+          position = event.cursor;
           if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
           else { stderr += event.text; onStderr?.(event.text); }
         }
+        if (position !== status.nextCursor) throw mediaIssue("OUTPUT", "The media job returned an incomplete output cursor.");
         cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (settled && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted || disposed) throw new DOMException("Aborted", "AbortError");
           if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
           return { stdout, stderr };
         }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+        if (!settled) await new Promise(resolve => setTimeout(resolve, 150));
       }
     } catch (error) {
-      await cancel(jobId).catch(() => {});
+      if (!settled) await settleAfterFailure(error);
       throw error;
     } finally {
       signal?.removeEventListener("abort", abort);
@@ -1501,7 +1788,7 @@ async function createPanelLocalClient(sdk: any) {
       pickDirectoryPath: () => run("editor.pickDirectory", []),
       pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
     },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+    dispose() { disposed = true; for (const requestCancel of activeJobs.values()) void requestCancel().catch(() => {}); },
   };
 }
 
@@ -1514,25 +1801,53 @@ function panelLocalClient(sdk: any): any {
 function withPanelLocalClient(Component: any) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
+    const reported = React.useRef(new WeakMap<object, Set<string>>());
+    const key = JSON.stringify([props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client: any;
+      const fail = (timeout: boolean, cause?: unknown) => {
+        if (!active || settled) return;
+        settled = true; clearTimeout(timer);
+        const error = timeout
+          ? "Connecting to Selects took too long. Reopen the Project and try again."
+          : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        // Diagnostics stay private; neither the DOM nor finishTemplate receives
+        // raw SDK output, paths or an exception stack.
+        setState({sdk: props.sdk, key, error, cause});
+      };
+      // This is a read-only bootstrap observation, not a mutation retry or cancel.
+      const timer = setTimeout(() => fail(true), 30000);
       createPanelLocalClient(props.sdk).then(value => {
         client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
+        if (!active || settled) { value.dispose(); return; }
+        settled = true; clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+        setState({sdk: props.sdk, key});
+      }).catch(error => fail(false, error));
       return () => {
-        active = false;
+        active = false; clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? new Set<string>();
+      if (seen.has(key)) return;
+      seen.add(key); reported.current.set(props.sdk, seen);
+      // A failed connection never mounts the child, so the wrapper must finish
+      // a hidden app run itself. Visible standalone panels keep an alert only.
+      try { Promise.resolve(props.sdk.finishTemplate({error: state.error})).catch(() => {}); }
+      catch { /* Do not replay completion or expose a transport exception. */ }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     return React.createElement(Component, props);
   };
 }

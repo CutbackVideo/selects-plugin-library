@@ -14,6 +14,51 @@
 // Creates an editable portrait gallery montage from a project folder and a fixed soundtrack.
 import React from "react";
 
+// media-duration:start
+// Source-media seconds only: never derive these from a Draft's frame rate.
+// Zero, missing, non-numeric and non-finite values are unknown, not short clips.
+// This pure function is also serialized into read-only run_script queries.
+function mediaDurationFact(resourceSeconds = null, treeSeconds = null) {
+  if (typeof resourceSeconds === "number" && Number.isFinite(resourceSeconds) && resourceSeconds > 0) {
+    return { durationSeconds: resourceSeconds, durationSource: "resource" };
+  }
+  if (typeof treeSeconds === "number" && Number.isFinite(treeSeconds) && treeSeconds > 0) {
+    return { durationSeconds: treeSeconds, durationSource: "source-tree" };
+  }
+  return { durationSeconds: null, durationSource: "unknown" };
+}
+
+// Keep each row's identity, name and path together; do not mutate caller snapshots.
+// The caller supplies its existing read-only host probe, not an import or analysis.
+async function resolveMediaDurations(rows, probeSeconds) {
+  const resolved = [];
+  for (const row of rows) {
+    let fact = mediaDurationFact(row.durationSeconds);
+    if (fact.durationSeconds !== null) {
+      fact.durationSource = row.durationSource || "provided";
+    } else if (row.path) {
+      try {
+        const seconds = await probeSeconds(row.path);
+        if (typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0) {
+          fact = { durationSeconds: seconds, durationSource: "probe" };
+        }
+      } catch { /* A failed observation remains unknown. */ }
+    }
+    resolved.push({ ...row, ...fact });
+  }
+  return resolved;
+}
+
+function requireMediaDurations(rows) {
+  const unknown = rows.find(row => mediaDurationFact(row.durationSeconds).durationSeconds === null);
+  if (unknown) {
+    throw Object.assign(new Error(`Could not read the duration of ${unknown.name || "a picked video"}. Try again.`), {
+      code: "media-duration-unknown", resourceId: unknown.resourceId,
+    });
+  }
+}
+// media-duration:end
+
 const T = {
   title: "pov: you open my gallery",
   folder: "Footage folder",
@@ -68,7 +113,28 @@ function chooseShots(files, mode) {
 
 // Every video and audio file in the project, with its folder, path, length and size.
 function mediaScript(projectId, resourceIds = null) {
-  return `const selected = ${JSON.stringify(resourceIds)};const p=selects.project(${JSON.stringify(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,frameSize:node.frameSize,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"&&(!selected||selected.includes(x.resourceId))),audios:items.filter(x=>x.type==="audio")};`;
+  return `${mediaDurationFact.toString()};
+const selected = ${JSON.stringify(resourceIds)};
+const p=selects.project(${JSON.stringify(projectId)});
+const [meta,overview,resources]=await Promise.all([p.meta(),p.sourceFiles(),p.resources()]);
+const byId=new Map(resources.map(row=>[row.resourceId,row]));
+const items=[];
+function walk(nodes,parts){
+  for(const node of nodes){
+    if(node.type==="dir") walk(node.children,parts.concat(node.name));
+    else {
+      const resource=byId.get(node.resourceId);
+      items.push({name:resource?.name||node.name,type:node.type,resourceId:node.resourceId,path:node.path,
+        ...mediaDurationFact(resource?.durationSeconds,node.durationSeconds),frameSize:node.frameSize,folder:parts.join("/")||"(root)"});
+    }
+  }
+}
+if("fileTree" in overview) walk(overview.fileTree,[]);
+else for(const folder of overview.folders){
+  const page=await p.sourceFiles({folder:folder.name});
+  if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]);
+}
+return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"&&(!selected||selected.includes(x.resourceId))),audios:items.filter(x=>x.type==="audio")};`;
 }
 
 // Host paths compared the Windows way too: NFC, "/" separators, and case-folded on win32.
@@ -310,10 +376,12 @@ function TemplateRun({ sdk, context }) {
       const reply = await readMediaPages(sdk, { summary: "Find gallery media", script: mediaScript(projectId, [...ids.values()]) });
       if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
       const byId = new Map((reply.result.videos || []).map((item) => [item.resourceId, item]));
-      const files = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
-      const missing = picks.find((pick, index) => !files[index]?.path);
+      const selectedFiles = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
+      const missing = picks.find((pick, index) => !selectedFiles[index]?.path);
       if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project. Try again.`);
-      const short = picks.find((pick, index) => !(files[index].durationSeconds >= 1.3));
+      const files = await resolveMediaDurations(selectedFiles, hostProbeSeconds);
+      requireMediaDurations(files);
+      const short = files.find((file) => file.durationSeconds < 1.3);
       if (short) throw new Error(`${short.name || "A picked video"} is shorter than 1.3 seconds. Pick longer videos.`);
       const mode = template.options?.order === "random" ? "random" : "ordered";
       const chosen = chooseShots(files, mode);

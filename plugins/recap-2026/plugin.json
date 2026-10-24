@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "recap-2026",
-  "version": "1.1.1",
+  "version": "1.1.3",
   "name": "2026 Recap",
   "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 8.1-second title intro plus 157 fast cuts locked to a bundled 68.6-second soundtrack.",
   "status": "experimental",
@@ -55,7 +55,15 @@
     },
     "ko": {
       "name": "2026 \ub9ac\ucea1",
-      "summary": "\uc5f4\ub824 \uc788\ub294 \ud504\ub85c\uc81d\ud2b8\uc758 \ud478\ud2f0\uc9c0\ub85c \ube44\ud2b8\uc5d0 \ub9de\ucd98 1080x1920 \ub9ac\ucea1 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. 8.1\ucd08 \ud0c0\uc774\ud2c0 \uc778\ud2b8\ub85c\uc640, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 68.6\ucd08 \uc0ac\uc6b4\ub4dc\ud2b8\ub799\uc5d0 \uace0\uc815\ub41c 157\uac1c\uc758 \ube60\ub978 \ucef7\uc73c\ub85c \uad6c\uc131\ub429\ub2c8\ub2e4."
+      "summary": "\uc5f4\ub824 \uc788\ub294 \ud504\ub85c\uc81d\ud2b8\uc758 \ud478\ud2f0\uc9c0\ub85c \ube44\ud2b8\uc5d0 \ub9de\ucd98 1080x1920 \ub9ac\ucea1 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. 8.1\ucd08 \ud0c0\uc774\ud2c0 \uc778\ud2b8\ub85c\uc640, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 68.6\ucd08 \uc0ac\uc6b4\ub4dc\ud2b8\ub799\uc5d0 \uace0\uc815\ub41c 157\uac1c\uc758 \ube60\ub978 \ucef7\uc73c\ub85c \uad6c\uc131\ub429\ub2c8\ub2e4.",
+      "inputs": {
+        "intro": {
+          "hint": "\ud544\uc218: 8.5\ucd08 \uc774\uc0c1 \uc778\ud2b8\ub85c \uc601\uc0c1 1\uac1c. \uc778\ud2b8\ub85c\uc640 \ube60\ub978 \ucef7 \uc601\uc0c1\uc744 \ubaa8\ub450 \uc120\ud0dd\ud558\uba74 Apply\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
+        },
+        "clips": {
+          "hint": "\ud544\uc218: \uac01 1.7\ucd08 \uc774\uc0c1 \uc601\uc0c1 1–50\uac1c. \ubd80\uc871\ud55c \ucef7\uc740 \ubc18\ubcf5\ub429\ub2c8\ub2e4. \ub450 \uc785\ub825\uc744 \ubaa8\ub450 \ucc44\uc6b0\uba74 Apply\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
+        }
+      }
     },
     "pt": {
       "name": "Retrospectiva de 2026",
@@ -76,7 +84,7 @@
     {
       "id": "intro",
       "label": "Select intro clip",
-      "hint": "Plays under the title for the first 8.1 seconds.",
+      "hint": "Required: 1 intro video, at least 8.5 seconds. Apply is enabled after both required inputs are filled.",
       "accepts": [
         "video"
       ],
@@ -88,7 +96,7 @@
     {
       "id": "clips",
       "label": "Select clips",
-      "hint": "Cut into 157 fast shots; fewer clips repeat.",
+      "hint": "Required: 1–50 videos, each at least 1.7 seconds. Fewer videos repeat; fill both inputs to enable Apply.",
       "accepts": [
         "video"
       ],

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {webcrypto} from 'node:crypto';
+import {asyncMediaFiles} from './async_media_files.cjs';
 import { panelSource, hostBlock, loadPanelFunctions, fakeHost, hostGlobals, asyncSdk } from './windows_host.mjs';
 
 const common = ['archive-vlog', 'camera-shutter-dump', 'cinema-vlog-studio', 'city-weekend-vlog', 'cutout-beat-gallery',
@@ -14,23 +16,36 @@ for (const id of common) test(`${id}: roots and media use the asynchronous SDK w
   const host = fakeHost();
   const source = panelSource(id);
   const sdk = asyncSdk(host.di);
+  const scopedMedia=['mini-vlog','archive-vlog'].includes(id);
+  if(scopedMedia)sdk.files=asyncMediaFiles(sdk.files).files;
   const marker = sdk.files.join(sdk.files.homedir(), '.selects', 'skills', id, 'planner.js');
   host.store.set(marker, host.RealmBytes.from([65]));
   const calls = [];
   const exists = sdk.files.exists, mkdir = sdk.files.mkdir;
   sdk.files.exists = async path => { await tick(); calls.push('exists'); return exists(path); };
   sdk.files.mkdir = async (...args) => { await tick(); calls.push('mkdir'); return mkdir(...args); };
-  const functions = loadPanelFunctions(source, [], { ...hostGlobals(host), __sdk: sdk, AbortController });
+  // Gallery retired the legacy random PCM helpers. Exercise the actual bounded
+  // reader and shared media adapter there; other consumers retain their helpers.
+  const featureNames=id==='photo-gallery-no2'?['holdError','holdTool','runAssetMediaTool','bundledAssetIssue','readBundledAssetBytes']:[];
+  const functions = loadPanelFunctions(source, featureNames, { ...hostGlobals(host), __sdk: sdk, AbortController, crypto:webcrypto });
   const roots = await functions.hostRoots(sdk, id, 'planner.js');
   assert.deepEqual(calls, ['exists', 'mkdir']);
   assert.equal(roots.plugin, sdk.files.dirname ? sdk.files.dirname(marker) : marker.slice(0, -11));
   assert.equal(functions.hostIsWindows(), true);
-  assert.equal(await functions.hostReadText(marker), 'A');
+  if(id==='photo-gallery-no2'){
+    const ranges=[],read=sdk.files.readRange;sdk.files.readRange=async(...args)=>{ranges.push(args);return read(...args);};
+    sdk.files.readFile=async()=>{throw Error('The bounded reader must not load a whole file.');};
+    assert.deepEqual(Array.from(await functions.readBundledAssetBytes(sdk.files,marker,1,()=>{})),[65]);
+    assert.deepEqual(ranges,[[marker,0,1]],'the async fixture observes the exact bounded request');
+  }
+  else assert.equal(await functions.hostReadText(marker), 'A');
   await assert.rejects(functions.hostRoots(sdk, 'missing-plugin', 'planner.js'), { code: 'not-found' });
   const signal = new AbortController().signal;
   let relayed;
   sdk.media.runFFmpeg = async (_args, _quiet, receivedSignal) => { relayed = receivedSignal; throw Error('test decode failure'); };
-  await assert.rejects(functions.hostDecodePcm('C:\\media\\clip.mp4', roots.data, 22050, 5, signal), /test decode failure/);
+  if(id==='photo-gallery-no2')await assert.rejects(functions.holdTool('runFFmpeg',['-version'],5,{client:sdk,signal}),e=>e.code==='hold-failed'&&!e.publicMessage.includes('test decode failure')&&e.cause?.cause?.message==='test decode failure');
+  else if(scopedMedia)await assert.rejects(functions.hostDecodePcm('C:\\media\\clip.mp4',roots.data,22050,5,signal),e=>e.code==='BUNDLED_ASSET_MEDIA'&&e.cause?.message==='test decode failure'&&!e.publicMessage.includes('test decode failure'));
+  else await assert.rejects(functions.hostDecodePcm('C:\\media\\clip.mp4', roots.data, 22050, 5, signal), /test decode failure/);
   assert.ok(relayed instanceof AbortSignal);
   assert.equal(Object.keys(sdk.files).some(name => name.endsWith('Sync')), false);
 });

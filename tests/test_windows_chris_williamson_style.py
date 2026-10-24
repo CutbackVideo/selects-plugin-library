@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Windows safety of chris-williamson-style (static checks).
 
 The panel is generated from src/ by build.py. On Windows `sdk.runShell` is cmd.exe, so the runtime text (panel.tsx and
@@ -98,8 +99,8 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_collection_header(self):
         self.assertIn('// @collection visual-highlights', self.panel.split('\n')[:24])
 
-    def test_av_host_block_matches_archive_vlog(self):
-        reference = av_block((ROOT / 'plugins' / 'archive-vlog' / 'panel.tsx').read_text(encoding='utf-8'))
+    def test_av_host_block_matches_legacy_reference(self):
+        reference = av_block((ROOT / 'plugins' / 'city-weekend-vlog' / 'panel.tsx').read_text(encoding='utf-8'))
         self.assertIsNotNone(reference)
         self.assertEqual(av_block(self.panel), reference)
 
@@ -197,7 +198,8 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.2.17')
+        # Version syntax is checked centrally by tools/plugin_files.py; a release bump does not alter this contract.
+        self.assertEqual(manifest['id'], 'chris-williamson-style')
         self.assertIn('Shared YuNet', manifest['compatibility']['selects'])
         self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 

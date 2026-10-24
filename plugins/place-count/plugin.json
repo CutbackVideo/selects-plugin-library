@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "place-count",
-  "version": "0.1.0-alpha.11",
+  "version": "0.1.0-alpha.12",
   "name": "Place Count",
   "summary": "Group trip footage into places by capture time and GPS, then build an editable travel-story timeline with separate source clips, titles, descriptions, and optional music.",
   "status": "experimental",
@@ -30,7 +30,7 @@
       "macOS development builds",
       "Windows x64"
     ],
-    "selects": "Requires generated-media authoring and the host FileSystem, CutbackMediaPicker, and ProjectFileTree adapters. Released-version compatibility is unverified. Windows x64 runs the same code (host FileSystem, no shell commands) but has not been run on a Windows PC yet; HEVC or ProRes sources there depend on the system video decoders."
+    "selects": "Requires public run_script Draft authoring, asynchronous SDK file access, project inventory reads, and persistent panel storage. Released-version compatibility is unverified. Windows x64 runs the same code (SDK file access, no shell commands) but has not been run on a Windows PC yet; HEVC or ProRes sources there depend on the system video decoders."
   },
   "preview": {
     "video": "preview.mp4",

@@ -12,9 +12,9 @@ assert.ok(a >= 0 && b > a, 'quick-score block present');
 const block = panel.slice(a, b);
 assert.ok(!/:\s*(any|string|number|boolean)\b|Promise<|\bas any\b/.test(block), 'the block is plain JS');
 assert.ok(!/runShell|child_process|require\(/.test(block), 'no shell, no node');
-const ctx = { console, setTimeout, clearTimeout, AbortController, TextDecoder, Uint8Array, Map, Promise, Date, Math, JSON, Object, Number, String, Array, Error };
+const ctx = { crypto:require('node:crypto').webcrypto,TextEncoder,console, setTimeout, clearTimeout, AbortController, TextDecoder, Uint8Array, Map, Promise, Date, Math, JSON, Object, Number, String, Array, Error };
 vm.createContext(ctx);
-vm.runInContext(block + '\nthis.Q = { quickScore, quickScoreAll, pickWindowsLocal, qsCandidates, qsFrameStats, qsSceneCuts, qsWindowScores, qsBins, qsFallback, QS_HEAD, QS_W, QS_H, QS_FPS, QS_BIN };', ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../../../shared/bundled-assets.js'),'utf8')+'\n'+block + '\nthis.Q = { quickScore, quickScoreAll, pickWindowsLocal, qsCandidates, qsFrameStats, qsSceneCuts, qsWindowScores, qsBins, qsFallback, QS_HEAD, QS_W, QS_H, QS_FPS, QS_BIN };', ctx);
 const Q = ctx.Q;
 const plain = x => JSON.parse(JSON.stringify(x));
 
@@ -80,13 +80,9 @@ const checker = (t, x, y, shift = 0) => (((Math.floor((x + shift) / 4) + Math.fl
 
 // --- No host: quickScore falls back, never throws; an aborted signal throws -------------------------------------------
 (async () => {
-  const none = await Q.quickScore({ rid: 'a', path: '/x.mp4', durationSeconds: 12 }, { io: {}, dataDir: '/tmp' });
-  assert.equal(none.fallback, true);
-  const failing = { runFFmpeg: async () => { throw new Error('ffmpeg failed'); }, readBytes: async () => null, join: (...p) => p.join('/'), remove: async () => {} };
-  const r = await Q.quickScore({ rid: 'b', path: '/x.mp4', durationSeconds: 12 }, { io: failing, dataDir: '/tmp' });
-  assert.equal(r.fallback, true, 'an ffmpeg failure falls back');
+  await assert.rejects(Q.quickScore({rid:'a',path:'/x.mp4',durationSeconds:12},{client:{},dataDir:'/tmp'}),/Update Selects/);
   const ac = new AbortController(); ac.abort();
-  await assert.rejects(Q.quickScore({ rid: 'c', path: '/x.mp4', durationSeconds: 12 }, { io: failing, dataDir: '/tmp', signal: ac.signal }), /cancelled/);
+  await assert.rejects(Q.quickScore({rid:'c',path:'/x.mp4',durationSeconds:12},{client:{},dataDir:'/tmp',signal:ac.signal}),/ended|cancelled/);
 
   // --- Real clips through ffmpeg (skipped without ffmpeg) -----------------------------------------------------------
   const probe = spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' });
@@ -101,14 +97,17 @@ const checker = (t, x, y, shift = 0) => (((Math.floor((x + shift) / 4) + Math.fl
   ff(['-f', 'lavfi', '-i', src, '-t', '8', '-vf', "drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='between(t,4,4.1)'", '-pix_fmt', 'yuv420p', path.join(dir, 'flash.mp4')]);
   ff(['-f', 'lavfi', '-i', src, '-t', '8', '-vf', 'boxblur=20:2', '-pix_fmt', 'yuv420p', path.join(dir, 'blurry.mp4')]);
   ff(['-f', 'lavfi', '-i', src + ':d=4', '-f', 'lavfi', '-i', 'mandelbrot=size=640x360:rate=30', '-filter_complex', '[1]trim=duration=4,setpts=PTS-STARTPTS[b];[0][b]concat=n=2:v=1[v]', '-map', '[v]', '-pix_fmt', 'yuv420p', path.join(dir, 'cut.mp4')]);
-  const io = {
-    runFFmpeg: (args, signal) => new Promise((res, rej) => { const p = execFile('ffmpeg', args, (e) => (e ? rej(e) : res({}))); if (signal) signal.addEventListener('abort', () => p.kill()); }),
-    readBytes: async (p) => new Uint8Array(fs.readFileSync(p)), remove: async (p) => { try { fs.unlinkSync(p); } catch {} },
-    join: (...p) => path.join(...p), mkdir: (d) => fs.mkdirSync(d, { recursive: true }), mtimeMs: (p) => fs.statSync(p).mtimeMs,
-    readText: async (p) => fs.readFileSync(p, 'utf8'), writeText: async (p, t) => fs.writeFileSync(p, t),
-  };
+  const client={files:{
+    join:path.join,exists:async p=>fs.existsSync(p),stat:async p=>{if(!fs.existsSync(p))return null;const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};},
+    fingerprint:async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:require('node:crypto').createHash('sha256').update(fs.readFileSync(p)).digest('hex')}:null,
+    readRange:async(p,o,n)=>new Uint8Array(fs.readFileSync(p).subarray(o,o+n)),readFile:async p=>new Uint8Array(fs.readFileSync(p)),
+    mkdir:async p=>fs.mkdirSync(p,{recursive:true}),writeFile:async(p,t,o)=>fs.writeFileSync(p,t,o),copyFile:async(a,b)=>fs.copyFileSync(a,b),rename:async(a,b)=>fs.renameSync(a,b),removeFile:async({filePath})=>fs.rmSync(filePath,{force:true}),
+    compareAndReplace:async(p,wanted,next)=>{if(fs.readFileSync(p,'utf8')!==wanted)return false;fs.writeFileSync(p,next);return true;}
+  },media:{runFFmpeg:async(args,_quiet,signal)=>new Promise((resolve,reject)=>{
+    if(signal?.aborted)return reject(Error('cancelled'));const child=execFile('ffmpeg',args,error=>{signal?.removeEventListener('abort',abort);error?reject(error):resolve({stdout:'',stderr:''});});const abort=()=>child.kill();signal?.addEventListener('abort',abort,{once:true});
+  })}};
   const data = path.join(dir, 'data');
-  const run = (name) => Q.quickScore({ rid: name, path: path.join(dir, name + '.mp4'), durationSeconds: 8 }, { io, dataDir: data, budgetMs: 20000 }).then(plain);
+  const run = (name) => Q.quickScore({ rid: name, path: path.join(dir, name + '.mp4'), durationSeconds: 8 }, { client, dataDir: data, budgetMs: 20000 }).then(plain);
   const t0 = Date.now();
   const [st, pan, fade, flash, blur, cut] = await Promise.all(['static', 'pan', 'fadein', 'flash', 'blurry', 'cut'].map(run));
   const wall = Date.now() - t0;
@@ -123,17 +122,18 @@ const checker = (t, x, y, shift = 0) => (((Math.floor((x + shift) / 4) + Math.fl
   for (const p of Q.pickWindowsLocal(flash, 'montage', 1.67)) assert.ok(!(p.start < 4.1 && p.end > 4), 'picks skip the flash');
   assert.ok(Q.pickWindowsLocal(pan, 'montage', 1.67)[0].score > Q.pickWindowsLocal(st, 'montage', 1.67)[0].score, 'montage prefers motion');
   // Cache: a second run of the same file is read from the data folder.
-  const again = plain(await Q.quickScore({ rid: 'static', path: path.join(dir, 'static.mp4'), durationSeconds: 8 }, { io, dataDir: data }));
+  const again = plain(await Q.quickScore({ rid: 'static', path: path.join(dir, 'static.mp4'), durationSeconds: 8 }, { client, dataDir: data }));
   assert.equal(again.cached, true);
   assert.deepEqual(again.windows, st.windows);
   // No temporary files left behind.
-  assert.deepEqual(fs.readdirSync(path.join(data, 'quick-score')).filter(f => !f.endsWith('.json')), []);
+  assert.deepEqual(fs.readdirSync(data,{recursive:true}).filter(f=>/\.(?:media|source|output)-/.test(f)), []);
+  const unavailable=plain(await Q.quickScore({rid:'missing-decoder',path:path.join(dir,'static.mp4'),durationSeconds:8},{client:{files:client.files,media:{}},dataDir:data}));assert.equal(unavailable.fallback,true);
   // quickScoreAll: bounded concurrency with progress, and a cancelled run throws.
   const seen = [];
-  const all = await Q.quickScoreAll(['pan', 'flash', 'blurry'].map(n => ({ rid: n + '-2', path: path.join(dir, n + '.mp4'), durationSeconds: 8 })), { io, dataDir: data, concurrency: 2, onProgress: p => seen.push(p.done) });
+  const all = await Q.quickScoreAll(['pan', 'flash', 'blurry'].map(n => ({ rid: n + '-2', path: path.join(dir, n + '.mp4'), durationSeconds: 8 })), { client, dataDir: data, concurrency: 2, onProgress: p => seen.push(p.done) });
   assert.equal(all.size, 3); assert.deepEqual(seen, [1, 2, 3]);
   const ac2 = new AbortController(); ac2.abort();
-  await assert.rejects(Q.quickScoreAll([{ rid: 'z', path: path.join(dir, 'pan.mp4'), durationSeconds: 8 }], { io, dataDir: data, signal: ac2.signal }), /cancelled/);
+  await assert.rejects(Q.quickScoreAll([{ rid: 'z', path: path.join(dir, 'pan.mp4'), durationSeconds: 8 }], { client, dataDir: data, signal: ac2.signal }), /ended|cancelled/);
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(JSON.stringify({ quickScore: 'ok', ffmpeg: 'ran', clips: 6, wallMs: wall, perClipMs: [st, pan, fade, flash, blur, cut].map(r => r.ms) }));
 })().catch((e) => { console.error(e); process.exit(1); });

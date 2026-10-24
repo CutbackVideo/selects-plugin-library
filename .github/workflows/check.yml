@@ -17,17 +17,69 @@ jobs:
       - run: python3 tools/check_public.py
       - run: python3 tools/check_templates.py
       - run: python3 tools/plugin_files.py check
+      - run: node tools/sync_panel_modules.mjs --check
+      - name: Install shared JavaScript test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/shortform-test" --no-package-lock --ignore-scripts typescript@5.8.3 esbuild@0.25.0 @noble/hashes@2.2.0 react@18.3.1 react-dom@18.3.1 jsdom@24.1.3 @testing-library/react@16.3.0
+          printf 'SELECTS_TSC=%s/shortform-test/node_modules/typescript/bin/tsc\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'MV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'AV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Test complete panel module fixtures
+        run: node --test tests/panel_module_fixture.test.mjs
+      - name: Test SDK-free template observation and saved-result compatibility
+        run: |
+          SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node tools/build_file_observation.mjs --check
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/file_observation.test.mjs tests/draft_observation.test.mjs tests/photo_sdk_free_sources.test.mjs tests/gallery_sdk_free.test.mjs tests/sdk_free_vlog_state.test.mjs tests/sdk_free_template_run.test.mjs
+      - name: Test original Image input preflight and module consumers
+        run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_media_selection.test.mjs tests/native_image_preflight.test.mjs tests/source_file_bindings.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check
+      - run: node tools/sync_media_durations.mjs --check
+      - name: Test media duration preflight
+        run: node --test tests/media_duration.test.mjs tests/gongju_gallery_duration.test.mjs tests/gongju_gallery_fps.test.mjs
       - run: python3 -m unittest discover -s tests
       - name: Test Shortform Clips and template packs
         run: |
-          npm install --prefix "$RUNNER_TEMP/shortform-test" --no-package-lock --ignore-scripts typescript@5.8.3 esbuild@0.25.0 react@18.3.1 react-dom@18.3.1 jsdom@24.1.3
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test plugins/shortform-clips/tests/*.test.cjs plugins/shortform-clips/tests/*.test.mjs plugins/selects-ai-runtime/tests/*.test.cjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/app_update_guards.test.cjs
+      - name: Test feature ownership inventory boundaries
+        run: |
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs tests/archive_feature_ownership.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/archive-vlog.json > "$RUNNER_TEMP/archive-feature-ownership.json"
+      - name: Test shared host files and independent media adapters
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/host_files_adapter.test.mjs tests/mini_media_scope.test.mjs tests/common_async_sdk.test.mjs
+      - name: Test shared template text and dictionary isolation
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_text.test.mjs
+      - name: Test shared RGB color-filter rendering
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/render_color_filter.test.mjs
       - name: Test Music
-        run: node --test tests/music.test.mjs tests/music-preview.test.mjs
+        run: |
+          node --test tests/music.test.mjs tests/music-preview.test.mjs tests/audio_beat_engine.test.mjs tests/project_audio.test.mjs tests/archive_audio_adoption.test.mjs
+          node plugins/mini-vlog/operation-builder.mjs --check
+          node plugins/archive-vlog/operation-builder.mjs --check
+      - name: Test complete Image Draft authoring
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_atomic_authoring.test.mjs tests/photo_atomic_compiled.test.mjs tests/polaroid_atomic.test.mjs
+      - name: Test Gallery complete authoring and input/compiled ordering
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test --test-concurrency=2 tests/gallery_input.test.mjs tests/gallery_atomic.test.mjs tests/gallery_run.test.mjs tests/gallery_assets.test.mjs tests/gallery_held_cache.test.mjs tests/gallery_derived_lifetime.test.mjs tests/gallery_stage_ownership.test.mjs tests/gallery_index_observation.test.mjs tests/gallery_timing.test.mjs tests/gallery_tempo.test.mjs tests/gallery_music_inputs.test.mjs tests/gallery_source_guard.test.mjs tests/source_file_observations.test.mjs tests/bundled_media_tool.test.mjs plugins/photo-gallery-no2/*.test.mjs
+      - name: Test Project title and saved visual receipts
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/camera_project_title.test.mjs tests/photo_graphic_receipts.test.mjs tests/photo_transform_receipts.test.mjs
+      - name: Test saved photo-template Audio receipts
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_audio_receipts.test.mjs
+      - name: Test bundled Audio and source-window verification
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/bundled_audio.test.mjs tests/bundled_assets.test.mjs tests/bundled_asset_read_bound.test.mjs tests/photo_audio_source.test.mjs
+      - name: Test saved photo-template programs and evidence budget
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_program_receipts.test.mjs
+      - name: Test durable template run recovery
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_template_run.test.mjs tests/template_run_files.test.mjs tests/template_run_budget.test.mjs
+      - name: Test template bootstrap and scoped local SDK copies
+        run: |
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_bootstrap.test.mjs tests/polaroid_input_paths.test.mjs
+          node --test tests/local_client_sync.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/local_media_settlement.test.mjs tests/media_unconfirmed_workspace.test.mjs tests/archive_media_settlement.test.mjs
+          node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump,photo-gallery-no2,mini-vlog,archive-vlog --check
       - name: Test Place Count
         run: |
+          node --test tests/place_count_authoring.test.mjs
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
           node plugins/place-count/tests/local-sdk.test.cjs
@@ -67,6 +119,9 @@ jobs:
           node plugins/torn-paper-love/tests/windows.test.cjs
       - name: Test Archive Vlog
         run: |
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/archive_input_admission.test.mjs tests/archive_mixed_inventory.test.mjs tests/archive_video_analysis.test.mjs tests/archive_preview_lifetime.test.mjs tests/archive_render_fonts.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/archive_owned_cues.test.mjs tests/archive_own_music_analysis.test.mjs tests/archive_own_music_sources.test.mjs tests/archive_assembly_intent.test.mjs tests/archive_assembly_verification.test.mjs tests/archive_decoration_config.test.mjs tests/archive_program_intent.test.mjs tests/archive_save_recovery.test.mjs tests/archive_look_recovery.test.mjs tests/archive_request_budget.test.mjs tests/archive_finish_admission.test.mjs
+          node plugins/archive-vlog/operation-builder.mjs --check
           node plugins/archive-vlog/tests/allocate.test.cjs
           node plugins/archive-vlog/tests/beat-detect.test.cjs
           node plugins/archive-vlog/tests/cues.test.cjs
@@ -77,15 +132,21 @@ jobs:
           node plugins/archive-vlog/tests/motion.test.cjs
           node plugins/archive-vlog/tests/panel.test.cjs
           node plugins/archive-vlog/tests/planner.test.cjs
-          node plugins/archive-vlog/tests/quick-score.test.cjs
+          SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node plugins/archive-vlog/tests/quick-score.test.cjs
           node plugins/archive-vlog/tests/scripts-edit.test.cjs
           node plugins/archive-vlog/tests/scripts-read.test.cjs
           node plugins/archive-vlog/tests/scripts-types.test.cjs
           node plugins/archive-vlog/tests/title.test.cjs
       - name: Test Vlog Opening
-        run: node plugins/vlog-opening/tests/reference.test.cjs
+        run: |
+          node plugins/vlog-opening/tests/reference.test.cjs
+          node plugins/vlog-opening/tests/orientation.test.cjs
+          node plugins/vlog-opening/tests/style-parameters.test.cjs
       - name: Test Mini Vlog
         run: |
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_source_resolution.test.mjs tests/mini_owned_cues.test.mjs tests/mini_media_scope.test.mjs tests/mini_native_facts.test.mjs tests/analysis_worker.test.mjs tests/analysis_worker_followup.test.mjs tests/media_inventory_observation.test.mjs tests/media_inventory_consumer.test.mjs tests/selected_inventory_scope.test.mjs tests/mini_assembly_receipts.test.mjs tests/mini_execution_ownership.test.mjs tests/mini_pending_discovery.test.mjs tests/mini_program_intent.test.mjs tests/mini_look_phase.test.mjs tests/mini_assembly_intent.test.mjs tests/mini_assembly_verification.test.mjs tests/mini_frozen_recovery.test.mjs tests/mini_analysis_inputs.test.mjs tests/mini_video_sources.test.mjs tests/mini_own_music_sources.test.mjs tests/mini_own_music_analysis.test.mjs tests/mini_own_music_recovery.test.mjs tests/clip_analysis.test.mjs tests/clip_analysis_sources.test.mjs tests/analysis_asset_lifetime.test.mjs
+          node plugins/mini-vlog/operation-builder.mjs --check
+          node --test tests/mini_audio_identity.test.mjs
           node plugins/mini-vlog/tests/allocate.test.cjs
           node plugins/mini-vlog/tests/beat-detect.test.cjs
           node plugins/mini-vlog/tests/cues.test.cjs
@@ -172,9 +233,10 @@ jobs:
           node --test tests/selected_template_media.test.mjs
           node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
+          node --test tests/cinema_vlog_studio_fps.test.mjs
+          node --test tests/thank_you_recap_fps.test.mjs
           node --test tests/cutout_beat_gallery.test.mjs
-          node --test tests/daily_vlog_8.test.mjs
-          node --test tests/daily_vlog_8_reference.test.mjs
+          node --test tests/daily_vlog_8_template.test.mjs
           node --test tests/song_plans.test.mjs
           node --test tests/doac_style_parity.test.mjs
           node --test tests/doac_style_check.test.mjs
@@ -197,18 +259,28 @@ jobs:
         run: node --test tests/medical_explainer.test.mjs
       - name: Test A16z Style Captions
         run: |
+          node plugins/a16z-style-captions/build.cjs "$RUNNER_TEMP/shortform-test/node_modules/esbuild"
+          git diff --exit-code -- plugins/a16z-style-captions/panel.tsx plugins/a16z-style-captions/src/renderers.ts
           node --test plugins/a16z-style-captions/tests/*.test.cjs
       - name: Test shared AI runtime
         run: node --test plugins/selects-ai-runtime/tests/*.test.cjs
       - name: Test shared AI consumer adapters
         run: |
           node --test tests/shared_ai*.test.cjs
+          node --test plugins/ali-abdaal-style/tests/portrait.test.mjs
+          node --test plugins/jude-kinetic-style/tests/sprite-codec.test.mjs
+          node --test tests/jude_face_result_pages.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_progress.test.cjs tests/template_progress_consumers.test.mjs
+          node --test plugins/doac-style/tests/caption-placement.test.mjs
           node --test tests/video_ai_frames.test.mjs
-          node --test tests/travel_beat_vlog.test.mjs tests/cutout_beat_gallery_windows.test.mjs
+          node --test tests/travel_beat_vlog.test.mjs tests/travel_beat_vlog_overlay.test.mjs tests/template_alias_failures.test.mjs tests/cutout_beat_gallery_windows.test.mjs
           node --test tests/portrait_beat_montage*.test.mjs
       - name: Test Podcast Hook Captions shared AI consumer
         run: node --test plugins/podcast-hook-captions/tests/*.test.cjs
+      - name: Test reported-case consumer regressions
+        run: |
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/daily_vlog_8.test.mjs tests/daily_vlog_8_reference.test.mjs tests/daily_font_fallback.test.mjs tests/photo_face*.test.mjs tests/gallery_face*.test.mjs tests/recap_face*.test.mjs tests/recap_manual_source_guard.test.mjs tests/recap_selection_identity.test.mjs tests/recap_input_guidance.test.mjs tests/daily_vlog_8_typography.test.mjs tests/chris_broll_search_recovery.test.mjs tests/chris_broll_context.test.mjs tests/chris_search_retry_full_panel.test.mjs tests/chris_broll_warning_notice.test.mjs tests/chris_verification_capture_reuse.test.mjs tests/chris_phrase_halo.test.mjs tests/chris_target_display.test.mjs tests/doac_target_display.test.mjs tests/caption_target_display.test.mjs tests/ali_graphic_spacing.test.mjs tests/critical_panel_storage.test.mjs plugins/depth-type-captions/tests/*.test.mjs plugins/jude-kinetic-style/tests/*.test.mjs
       - name: Test Chris Williamson shared AI consumer
-        run: node --test tests/chris_williamson*.test.mjs
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/chris_williamson*.test.mjs tests/chris_reported_cases.test.mjs tests/chris_low_motion_video.test.mjs tests/chris_engine_error_notice.test.mjs
       - name: Test EO Shorts
         run: node --experimental-strip-types --test tests/eo_shorts*.test.mjs

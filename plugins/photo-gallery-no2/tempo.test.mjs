@@ -1,6 +1,6 @@
-import { asyncSdk } from '../../tests/windows_host.mjs';
+import { asyncSdk, realFileReservationMethods } from '../../tests/windows_host.mjs';
 // The panel's BPM estimate (the `// tempo:start` block of panel.template.tsx) run in node:vm on the av-host helpers,
-// with window.parent.__DI__ backed by node fs and the local ffmpeg (the host's bundled ffmpeg in Selects). It replaces
+// with an initialized async SDK fixture backed by node fs and local ffmpeg (the bundled ffmpeg in Selects). It replaces
 // tempo.py; dev/tempo.py stays as the parity reference on a dev Mac, on the fixtures of dev/tempo_test.py.
 import assert from 'node:assert/strict';
 import { execFile, spawnSync } from 'node:child_process';
@@ -17,13 +17,17 @@ const section = (start, end) => {
   assert.ok(from >= 0 && to > from, start);
   return template.slice(from, to + end.length);
 };
-const blocks = section('// av-host:start', '// av-host:end') + '\n' + section('// tempo:start', '// tempo:end');
+const blocks = fs.readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8')+'\n'+section('// av-host:start', '// av-host:end') + '\n' + section('// hold:start','// hold:end')+'\n'+section('// tempo:start', '// tempo:end');
 const ffmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 const python = spawnSync('python3', ['--version']).status === 0;
 
 function load({ calls = [], withFFmpeg = true } = {}) {
   const FileSystem = { join: (...parts) => path.join(...parts), homedir: () => os.homedir(),
-    readFile: async p => fs.readFileSync(p), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }) };
+    exists:async p=>fs.existsSync(p),mkdir:async(p,o)=>fs.mkdirSync(p,o),
+    stat:async p=>{try{const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};}catch(e){if(e.code==='ENOENT')return null;throw e;}},
+    copyFile:async(a,b)=>fs.copyFileSync(a,b),rename:async(a,b)=>fs.renameSync(a,b),writeFile:async(p,d,o)=>fs.writeFileSync(p,d,o),
+    readFile: async p => fs.readFileSync(p), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }),
+    ...realFileReservationMethods() };
   const Runtime = { getPlatform: () => process.platform };
   if (withFFmpeg) Runtime.runFFmpeg = (args, _quiet, signal) => new Promise((resolve, reject) => {
     calls.push([...args]);
@@ -31,8 +35,8 @@ function load({ calls = [], withFFmpeg = true } = {}) {
       error ? reject(JSON.stringify({ type: 'FFmpegExecutionError', stderr })) : resolve({ stdout, stderr }));
     signal?.addEventListener('abort', () => child.kill());
   });
-  const context = vm.createContext({ sdk: asyncSdk({ FileSystem, Runtime }), window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: {},
-    AbortController, setTimeout, clearTimeout, TextDecoder, Int16Array, Float32Array, Uint8Array, Math });
+  const context = vm.createContext({ panelLocalClient: sdk => sdk, sdk: asyncSdk({ FileSystem, Runtime }), window: { parent: { __DI__: new Proxy({}, {get(){throw Error('Unexpected DI access');}}) } }, navigator: {},
+    crypto:globalThis.crypto,TextEncoder,AbortController, setTimeout, clearTimeout, TextDecoder, Int16Array, Float32Array, Uint8Array, Math });
   vm.runInContext(blocks + '\nhostUseSdk(sdk); this.tempoEstimate = tempoEstimate; this.tempoOfFile = tempoOfFile;', context);
   return context;
 }
@@ -65,9 +69,8 @@ test('short input and silence give no BPM', () => {
   assert.deepEqual({ ...tempoEstimate(new Float32Array(11025 * 8)) }, { status: 'uncertain', reason: 'No detectable rhythmic audio' });
 });
 
-test('a Selects build without ffmpeg reports an uncertain estimate instead of failing', async () => {
-  const value = await load({ withFFmpeg: false }).tempoOfFile('/x.mp3', os.tmpdir());
-  assert.equal(value.status, 'uncertain');
+test('a Selects build without ffmpeg stops with an update instruction', async () => {
+  await assert.rejects(load({ withFFmpeg: false }).tempoOfFile('/x.mp3', os.tmpdir()),e=>e.code==='host-missing'&&/Update Selects/.test(e.publicMessage));
 });
 
 test('synthetic click tracks are estimated within 2 BPM', { skip: !ffmpeg && 'ffmpeg required' }, async () => {
@@ -79,12 +82,12 @@ test('synthetic click tracks are estimated within 2 BPM', { skip: !ffmpeg && 'ff
     assert.equal(value.status, 'estimated', JSON.stringify(value));
     assert.ok(Math.abs(value.bpm - bpm) <= 2, JSON.stringify(value));
   }
-  // The same decode as tempo.py: the first 30 s, mono, 11025 Hz; the temporary PCM file is removed.
-  for (const args of calls) {
+  // The same decode as tempo.py; other invocations hash source/cache bytes.
+  for (const args of calls.filter(args=>args.includes('f32le'))) {
     assert.deepEqual(args.slice(args.indexOf('-t'), args.indexOf('-t') + 2), ['-t', '30']);
     assert.deepEqual(args.slice(args.indexOf('-ar'), args.indexOf('-ar') + 2), ['-ar', '11025']);
   }
-  assert.deepEqual(fs.readdirSync(dir).filter(name => name.endsWith('.f32')), []);
+  assert.deepEqual(fs.readdirSync(path.join(dir,'tempo-v1')).filter(name=>/^\.source-|^\.output-/.test(name)),[]);
 });
 
 test('undecodable audio is uncertain, not an error', { skip: !ffmpeg && 'ffmpeg required' }, async () => {

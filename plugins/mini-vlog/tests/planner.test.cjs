@@ -412,7 +412,7 @@ for (const cue of manifest.cues) {
     assert.deepStrictEqual(q.schedule.slots.map(x => x.endFrame), SEMIN.map(f => Math.round(f * fps / 25)), 'reference cuts at ' + fps + ' fps');
   }
   const asm = fs.readFileSync(__dirname + '/../scripts/assemble.js', 'utf8'), ui = fs.readFileSync(__dirname + '/../panel.tsx', 'utf8');
-  assert.ok(asm.includes('cfg.music && !cfg.music.referenceCuts ?'), 'assemble.js places reference cuts without the offset');
+  assert.ok(asm.includes('cfg.music&&!cfg.music.referenceCuts?'), 'assemble.js places reference cuts without the offset');
   assert.strictEqual(ui.split('tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts }').length, 3, 'both assemble configs say so');
   const short = build({ requested: 12 }).schedule;
   assert.strictEqual(short.cuts.length, 13);
@@ -484,5 +484,6 @@ console.log('planner ok');
   const cue = manifest.cues.find(c => c.id === 'buant-hook'), end = cue.referenceCuts[24] + cue.referenceTail;
   assert.strictEqual(Math.round(end * 25), 351);
   assert.strictEqual(Math.round(end * 24000 / 1001), 337, '23.976 fps tail end');
-  assert.ok(fs.readFileSync(__dirname + '/../scripts/assemble.js', 'utf8').includes('Math.round((cfg.boundaries[cfg.boundaries.length - 1] + offset(fps) + cfg.music.tailSeconds) * fps) - endFrame'), 'assemble.js aims the tail end');
+  // Actual assembly tail placement is checked through the generated operation
+  // in tests/mini_assembly_intent.test.mjs, independently of source spelling.
 }

@@ -54,7 +54,8 @@ test('a failed page or changing inventory never returns a partial list',async()=
 });
 for(const id of inventories)test(`${id}: paged inventory equals the original, including synced exclusions and counters`,async()=>{
  const {readInventoryPages}=loadPanelFunctions(panelSource(id),['readInventoryPages']);
- assert.equal(topLevel(panelSource(id),'readInventoryPages').trim(),topLevel(panelSource(inventories[0]),'readInventoryPages').trim());
+ const reference=['mini-vlog','archive-vlog'].includes(id)?'mini-vlog':'city-weekend-vlog';
+ assert.equal(topLevel(panelSource(id),'readInventoryPages').trim(),topLevel(panelSource(reference),'readInventoryPages').trim());
  const f=fixture(),script=fs.readFileSync(new URL(`../plugins/${id}/scripts/inventory.js`,import.meta.url),'utf8');
  const cfg={projectId:'p',only:null,known:{},measureMs:0,probeMs:0};
  const expected=await f.run(fill(script,cfg));
@@ -85,6 +86,7 @@ for(const [id,count] of [['four-photo-stop-motion',4],['polaroid-photo-dump',17]
  const f=fixture();
  const source=panelSource(id),names=['readMediaPages','INVENTORY','inventory','templateIssue','TEMPLATE_UNSUPPORTED','templateSelection'];
  if(id!=='no14-still-video')names.push('SLOTS');
+ if(id==='polaroid-photo-dump')names.push('isPolaroidAssetPath');
  const {templateSelection}=loadPanelFunctions(source,names);
  const app={__DI__:{ProjectRepository:{findById:async()=>({getResources:()=>f.rows.map(r=>'app-'+r.resourceId)})},ResourceRepository:{findById:async(lib,id)=>{
   const index=Number(id.replace('app-r',''));return {getType:()=>f.rows[index].type,getMedia:()=>({path:f.nodes[index].path,...(converted&&index%2===0?{originalPath:`/imports/${index}.heic`}:{})})};
@@ -101,8 +103,10 @@ for(const id of ['four-photo-stop-motion','polaroid-photo-dump','no14-still-vide
  const {prepareNativeImages}=loadPanelFunctions(panelSource(id),['nativeImageSources','nativeImageRun','prepareNativeImages']);
  const nodes=[{resourceId:'a',path:'/derived/a.jpg',originalPath:'/imports/a.heic',frameSize:{width:1920,height:1080}},{resourceId:'b',path:'/imports/b.jpg',frameSize:{width:1920,height:1080}}];
  const project={resources:async()=>nodes.map(n=>({resourceId:n.resourceId,type:'Image'})),sourceFiles:async()=>({fileTree:nodes})};
- const sdk={runScript:async({script})=>({result:await new Function('selects',`return (async()=>{${script}})()`)({project:()=>project})})};
- const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:nodes[i].path}));
+ const sdk={runScript:async({script})=>({result:await new Function('selects',`return (async()=>{${script}})()`)({project:()=>project,files:{stat:async()=>({size:32,isDirectory:false,mtimeMs:1,ino:1}),readRange:async()=>({bytesRead:1,base64:'iQ=='})}})})};
+ // templateSelection returns both the picked Resource ID and its working path.
+ // Keep that identity here too; HEIC conversion does not remove it.
+ const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:nodes[i].path,resourceId:nodes[i].resourceId}));
  const ready=await prepareNativeImages(sdk,'p',photos);
  assert.deepEqual(Array.from(ready.sources,s=>s.resourceId),['a','b','a']);
  await assert.rejects(prepareNativeImages(sdk,'p',[{name:'Missing',path:'/missing.jpg'}]),/missing or ambiguous/);
@@ -117,7 +121,8 @@ test('paging keeps one photo-measurement budget and measures no photo twice',asy
   f.project.createDraft=async()=>({insertResource:async({resourceId})=>{measured.push(resourceId);now+=1000},meta:async()=>({frameSize:{width:1920,height:1080}})});
   const script=fs.readFileSync(new URL(`../plugins/${id}/scripts/inventory.js`,import.meta.url),'utf8');
   await readInventoryPages(async(summary,make)=>vm.runInNewContext(`(async()=>{${make(0)}})()`,{selects:{project:()=>f.project},Date:{now:()=>now}}),script,cfg,fill);
-  assert.equal(measured.length,8,id);assert.equal(new Set(measured).size,8,id);
+  const expected = ['mini-vlog','archive-vlog'].includes(id) ? 0 : 8;
+  assert.equal(measured.length,expected,id);assert.equal(new Set(measured).size,expected,id);
  }
 });
 test('Summer Trip shares its capture-date probe limit across pages',async()=>{

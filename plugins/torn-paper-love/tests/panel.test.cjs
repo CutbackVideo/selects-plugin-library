@@ -64,7 +64,7 @@ assert.ok(panel.includes('async function readText(root: string, rel: string) { r
 // Own music: the host's ffmpeg decodes mono f32le at 22.05 kHz, the kit's beat-detect.cjs analyses it in a Web Worker.
 assert.ok(panel.includes('const OWN_RATE = 22050;') && panel.includes('const OWN_MAX_SECONDS = 360;'), 'own-music decode settings (dev/beat-parity.cjs reads them)');
 assert.ok(panel.includes('samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort ? abort.signal : null);'), 'own music decoded by the host ffmpeg');
-assert.ok(panel.includes('const g = await analyseBeat(source, samples, abort ? abort.signal : null);'), 'own music analysed in the worker');
+assert.ok(panel.includes('const g = await analyseBeat(source, samples, abort ? abort.signal : null, BEAT_TIMEOUT_MS, current);'), 'own music analysed in the worker');
 assert.ok(panel.includes('const BEAT_TIMEOUT_MS = 60000;') && panel.includes('err.code = "beat-timeout"'), 'a worker that never answers times out');
 // Cancellable: a new track, a Project switch or unmount aborts the analysis; stale results are dropped.
 assert.ok(panel.includes('const request = ++ownRequestRef.current;') && panel.includes('ownRequestRef.current === request') && (panel.match(/ownAbortRef\.current\?\.abort\(\)/g) || []).length === 3, 'own-music request id and aborts');

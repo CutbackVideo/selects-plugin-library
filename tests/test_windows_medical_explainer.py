@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins' / 'medical-explainer'
 PANEL = PLUGIN / 'panel.tsx'
 AV_START, AV_END = '// av-host:start', '// av-host:end'
+HOST_START, HOST_END = '// host-files:start', '// host-files:end'
 LANGS = ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh']
 
 FORBIDDEN = [
@@ -33,6 +34,15 @@ FORBIDDEN_RE = [
 def block(text, start, end):
     a, b = text.find(start), text.find(end)
     return text[a:b + len(end)] if a >= 0 and b > a else None
+
+
+def shared_host_body(text):
+    if text.count(HOST_START) != 1 or text.count(HOST_END) != 1:
+        raise ValueError('Expected one shared host source boundary')
+    a, b = text.index(HOST_START) + len(HOST_START), text.index(HOST_END)
+    if b <= a or not text[a:b].strip():
+        raise ValueError('Empty or reversed shared host source boundary')
+    return text[a:b].strip('\n')
 
 
 def runtime_text(text):
@@ -56,10 +66,20 @@ class MedicalExplainerTest(unittest.TestCase):
 
     def test_shared_blocks_match_their_sources(self):
         vox = (ROOT / 'plugins' / 'vox-explainer' / 'panel.tsx').read_text(encoding='utf-8')
-        archive = (ROOT / 'plugins' / 'archive-vlog' / 'panel.tsx').read_text(encoding='utf-8')
-        self.assertEqual(block(self.panel, AV_START, AV_END), block(archive, AV_START, AV_END))
+        canonical = (ROOT / 'shared' / 'host-files.js').read_text(encoding='utf-8').rstrip('\n')
+        for plugin in ['medical-explainer', 'archive-vlog', 'mini-vlog']:
+            panel = (ROOT / 'plugins' / plugin / 'panel.tsx').read_text(encoding='utf-8')
+            self.assertEqual(shared_host_body(panel), canonical, plugin)
+        # Media adapters intentionally retain distinct behavior; real adapter
+        # tests cover PCM cleanup/cancellation and probe parsing for each owner.
         for start, end in [('// generation-sdk:start', '// generation-sdk:end'), ('// local-sdk:start', '// local-sdk:end')]:
             self.assertEqual(block(self.panel, start, end), block(vox, start, end), start)
+
+    def test_missing_duplicate_empty_and_reversed_host_boundaries_fail(self):
+        for invalid in ['', HOST_START + HOST_END, HOST_END + 'body' + HOST_START,
+                        HOST_START + 'body' + HOST_END + HOST_START]:
+            with self.subTest(source=invalid), self.assertRaises(ValueError):
+                shared_host_body(invalid)
 
     def test_no_shell_at_all(self):
         self.assertNotIn('runShell', self.panel)

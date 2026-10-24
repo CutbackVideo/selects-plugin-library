@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { randomUUID } from 'node:crypto';
 
 const PLUGINS = path.resolve(import.meta.dirname, '../plugins');
 const START = '// av-host:start', END = '// av-host:end';
@@ -19,11 +20,11 @@ export function hostBlock(source) {
   return source.slice(s, e + END.length);
 }
 
-// Archive Vlog's block, which every copy must match byte for byte.
-export const REFERENCE_BLOCK = hostBlock(panelSource('archive-vlog'));
+// Unmigrated copies retain this baseline; Mini/Archive use the asset owner.
+export const REFERENCE_BLOCK = hostBlock(panelSource('city-weekend-vlog'));
 
 // Shell syntax that cmd.exe does not run. The copied host block is left out
-// (it is checked against Archive Vlog's byte for byte instead).
+// (it is checked against the legacy baseline byte for byte instead).
 export const POSIX = [
   /\bprintf\b/, /\$HOME\b/, /\$\{?SELECTS_USER/, /\bcommand -v\b/, /\bmkdir -p\b/, /\brm -f\b/,
   /(?<![.\w])base64 /, /\bexport PATH\b/, /\bshasum\b/, /\bcat "/, /\bpwd -P\b/, /\bmv -f\b/, /\|\s*grep\b/,
@@ -52,6 +53,13 @@ export function loadPanelFunctions(source, names, globals = {}) {
     } };
   }
   const parts = [hostBlock(source) || ''];
+  // Load the actual cohesive asset feature when a named consumer is inspected.
+  // Serialized SDK readers are still executed independently by each test host.
+  if (source.includes('// bundled-assets:start')) parts.push(source.slice(source.indexOf('// bundled-assets:start'),source.indexOf('// bundled-assets:end')));
+  // Production panels inline this canonical helper; execute that same block in fixtures.
+  if (source.includes('// media-duration:start')) {
+    parts.push(source.slice(source.indexOf('// media-duration:start'), source.indexOf('// media-duration:end')));
+  }
   if (source.includes('// sdk-selected-media:start') && !names.includes('sdkSelectedMedia')) parts.push(topLevel(source, 'sdkSelectedMedia'));
   if (source.includes('// sdk-media-path:start') && !names.includes('sdkMediaByPath')) parts.push(topLevel(source, 'sdkMediaByPath'));
   for (const name of ['generationApi', 'generationNeed']) if (source.includes('function ' + name + '(') && !names.includes(name)) parts.push(topLevel(source, name));
@@ -110,8 +118,10 @@ export function fakeHost({ platform = 'win32', home = 'C:\\Users\\\uD64D\uAE38\u
     homedir: () => home,
     existsSync: p => store.has(p) || dirs.has(p) || [...store.keys()].some(k => k.startsWith(p + sep)),
     exists: async p => FileSystem.existsSync(p),
+    stat: async p => store.has(p)?{size:store.get(p).byteLength,isDirectory:false}:null,
     mkdirSync: p => { dirs.add(p); },
     readFile: async p => { if (!store.has(p)) throw Error('ENOENT ' + p); return store.get(p); },
+    readRange: async (p, offset, length) => { if (!store.has(p)) throw Error('ENOENT ' + p); return RealmBytes.from(store.get(p).subarray(offset, offset + length)); },
     writeFile: async (p, data) => { calls.push(['writeFile', p]); store.set(p, RealmBytes.from(typeof data === 'string' ? Buffer.from(data) : data)); },
     removeFile: async ({ filePath }) => { store.delete(filePath); },
   };
@@ -143,6 +153,29 @@ export function hostGlobals(host, { shell = null } = {}) {
 // lacks what hostRoots needs, before any lookup that would say "Reinstall".
 export const NEWER_SELECTS="if(!hostApi('FileSystem','join','homedir','exists'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');";
 
+// Existing SDK reservation operations for real-file fixtures. These methods
+// model one renderer, not a filesystem lock across independent writers.
+export function realFileReservationMethods() {
+  return {
+    readRange: async (p, offset, length) => {
+      const handle = fs.openSync(p, 'r');
+      try {
+        const bytes = Buffer.alloc(length), count = fs.readSync(handle, bytes, 0, length, offset);
+        return bytes.subarray(0, count);
+      } finally { fs.closeSync(handle); }
+    },
+    compareAndReplace: async (p, expected, replacement) => {
+      if (!fs.readFileSync(p).equals(Buffer.from(expected))) return false;
+      const temporary = p + '.' + randomUUID() + '.replace';
+      try {
+        fs.writeFileSync(temporary, replacement, { flag: 'wx' });
+        fs.renameSync(temporary, p);
+        return true;
+      } finally { fs.rmSync(temporary, { force: true }); }
+    },
+  };
+}
+
 // Adapts legacy test fixture services to the public asynchronous SDK contract.
 // Production panels must never perform this adaptation or access these services.
 export function asyncSdk(di = {}) {
@@ -152,7 +185,7 @@ export function asyncSdk(di = {}) {
     if (typeof legacy[name] === 'function') files[name] = (...args) => legacy[name](...args);
   }
   const aliases = { exists: 'existsSync', mkdir: 'mkdirSync', stat: 'statSync', rename: 'renameSync', readdir: 'readdirSync', readFile: 'readFileSync', writeFile: 'writeFileSync', rm: 'rmSync' };
-  for (const name of ['exists', 'mkdir', 'stat', 'rename', 'readdir', 'readFile', 'readRange', 'writeFile', 'removeFile', 'rm', 'copyFile', 'downloadFile', 'pathToLocalURL', 'getOrCreateTmpDirPath']) {
+  for (const name of ['exists', 'mkdir', 'stat', 'rename', 'readdir', 'readFile', 'readRange', 'writeFile', 'compareAndReplace', 'removeFile', 'rm', 'copyFile', 'downloadFile', 'pathToLocalURL', 'getOrCreateTmpDirPath']) {
     const method = typeof legacy[name] === 'function' ? name : aliases[name];
     if (method && typeof legacy[method] === 'function') files[name] = async (...args) => legacy[method](...args);
   }

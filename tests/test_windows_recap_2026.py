@@ -96,10 +96,10 @@ class Recap2026WindowsTest(unittest.TestCase):
         # The source-file tree keeps a length from when it was built (missing or 0 on Windows Staging, which made
         # the template run refuse every intro as shorter than 5 s); the Resource's own length comes first.
         self.assertIn("const res=await p.resources();", self.runtime)
-        self.assertIn("durationSeconds:dur[n.resourceId]||n.durationSeconds", self.runtime)
-        self.assertIn("const d=dur[x.resourceId]||x.durationSeconds;", self.runtime)
+        self.assertIn("...mediaDurationFact(dur[n.resourceId],n.durationSeconds)", self.runtime)
+        self.assertIn("const fact=mediaDurationFact(dur[x.resourceId],x.durationSeconds);", self.runtime)
         self.assertRegex(self.runtime, r"selectedVideosScript = \(projectId, resourceIds\) => core\(\{projectId,resourceIds\}\) \+ RESOURCE_SECONDS")
-        self.assertIn("hostProbeSeconds(v.path)", body(self.runtime, "async function withDurations("))
+        self.assertIn("resolveMediaDurations(list, hostProbeSeconds)", body(self.runtime, "async function withDurations("))
         run = body(self.runtime, "function TemplateRun(")
         self.assertLess(run.index("withDurations("), run.index("introVideo.durationSeconds >= introNeed"), "probe before the gate")
         self.assertIn("withDurations(scriptResult(r))", body(self.runtime, "function RecapPanel("))
@@ -121,7 +121,7 @@ class Recap2026WindowsTest(unittest.TestCase):
         # Selects type-checks run_script strings: a source-file node is a union with directories, so
         # resourceId/durationSeconds are read only after the `type` check (tests/recap_2026_scripts_types.test.mjs
         # runs the full check against the SDK typings when they are installed).
-        self.assertIn("if(x.type!=='video')continue;const d=dur[x.resourceId]", self.source)
+        self.assertIn("if(x.type!=='video')continue;const fact=mediaDurationFact(dur[x.resourceId]", self.source)
         self.assertNotIn("{const d=dur[x.resourceId]||x.durationSeconds;if(x.type==='video'", self.source)
 
     def test_slow_host_scripts_get_a_longer_deadline(self):

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "portrait-beat-montage",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],

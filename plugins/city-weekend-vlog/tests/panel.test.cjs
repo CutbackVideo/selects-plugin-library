@@ -63,10 +63,10 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
     assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(runtime) : runtime.includes(bad)), 'POSIX shell in the runtime: ' + bad);
   assert.ok(!/["'`]\s*node\s/.test(runtime.replace(/\/\/.*$/gm, '')), 'no node subprocess');
   const host = code.slice(code.indexOf('// av-host:start'), code.indexOf('// av-host:end'));
-  const av = fs.readFileSync(path.join(root, '..', 'archive-vlog', 'panel.tsx'), 'utf8');
-  assert.equal(host, av.slice(av.indexOf('// av-host:start'), av.indexOf('// av-host:end')), 'av-host is Archive Vlog\'s block, unchanged');
+  const av = fs.readFileSync(path.join(root, '..', 'fast-switching-stopmotion', 'panel.tsx'), 'utf8');
+  assert.equal(host, av.slice(av.indexOf('// av-host:start'), av.indexOf('// av-host:end')), 'legacy av-host matches the unmigrated Fast Switching copy');
   for (const phrase of ['hostRoots(sdk, PLUGIN_ID, "planner.js")', 'hostReadText(hostJoin(root, ...rel.split("/")))', 'hostJoin(roots.plugin, "assets", "cues", cue.file)',
-    'decodeOwnMusic(file.path, roots.data, abort.signal)', 'analyseBeat(assets.beatWorker, samples, abort.signal)', 'beatWorker: cwvBeatWorkerSource(beatDetect)', 'hostProbeSeconds(file.path)',
+    'decodeOwnMusic(file.path, roots.data, abort.signal)', 'analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live)', 'beatWorker: cwvBeatWorkerSource(beatDetect)', 'hostProbeSeconds(file.path)',
     'const bytes = await hostReadBytes(file);', 'audio.currentTime = from;', 'duration: bundled ? bundled.duration : null']) assert.ok(code.includes(phrase), phrase);
   // The beat Worker runs the kit's beat-detect.cjs unmodified.
   assert.equal(fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8'), fs.readFileSync(path.join(root, '..', 'archive-vlog', 'beat-detect.cjs'), 'utf8'), 'beat-detect.cjs is the kit copy');
@@ -163,7 +163,7 @@ assert.ok(/cwvSchedule\(\{ bpm: grid\.bpm, fps: a\.fps, montageShots: plan\.mont
 assert.ok(panel.includes('grid.onsets, grid.accepted]);'), 'the readiness plan follows the onsets');
 // Own music: decoded mono at 22050 Hz (at most 360 s), analysed by beat-detect.cjs in a Web Worker; aborted on a Project
 // switch; any failure falls back to fixed timing with the track's length.
-assert.ok(code.includes('const OWN_RATE = 22050, OWN_MAX_SECONDS = 360;') && code.includes('ownAbortRef.current.abort()') && code.includes('worker.postMessage({ samples, rate: OWN_RATE })'), 'own music in a Worker');
+assert.ok(code.includes('const OWN_RATE = 22050, OWN_MAX_SECONDS = 360;') && code.includes('ownAbortRef.current.abort()') && code.includes('runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })'), 'own music in a Worker');
 // Finish title and look retries with the inputs of the build, and clips whose scene search failed are reported.
 assert.ok(panel.includes('result.mute !== false, result.look, check)') && panel.includes('const { line1, connector, place, preset, warm, clipSound } = look;'), 'retry uses the build-time look');
 assert.ok(code.includes('unchecked: found.failed.length'), 'unchecked clips are reported');

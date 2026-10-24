@@ -5,17 +5,69 @@ description: Create a 21-tile Photo Gallery Draft in Selects from ordered origin
 
 # Photo Grid Reveal
 
-Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). Recreate the grid, reveal order, and simultaneous grayscale-to-color switch; the 21 tile contents may differ. Each chosen JPG/PNG remains its original Image Resource and becomes a separate editable Image clip. Do not convert photos to MP4, flatten the gallery, or silently fill a missing slot. A black Main video is unnecessary: the shared operation creates a 853-frame gap-backed Draft.
+Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). Recreate the grid, reveal order, and simultaneous grayscale-to-color switch; the 21 tile contents may differ. Each chosen JPG/PNG remains its original Image Resource and becomes a separate editable Image clip. Do not convert photos to MP4, flatten the gallery, or silently fill a missing slot. A black Main video is unnecessary: the shared operation creates a gap-backed Draft whose default reference duration is 853/60 seconds, rounded onto the Project frame grid.
 
 The original has visible movement in tiles **4, 6, 11, 17, 19, and 21** (one-based, left-to-right then top-to-bottom). For a motion-faithful result, assign Video Resources to those six slots and Images to the other 15; the actual content may differ. The panel offers a reference-mix assignment button when the Project contains exactly 15 Images and 6 Videos, and warns if the selected complete set has still Images in moving slots. Users may deliberately choose another mix, but an all-Image output only validates the grid and timing, not the original movement.
 
 ## Shared operations
 
-The panel and chat use the same `planGallery` contract, preflight, styling, and readback operations from `operation-runtime.js` and `format.mjs`; do not recreate these rules in a prompt. The panel alone can access Selects' native Image-placement service. `run_script` cannot call it. Build each `run_script` source the way `operation-builder.mjs` does: the text of `format.mjs` with the `export` keyword removed from `REFERENCE` and `planGallery`, then the text of `operation-runtime.js`, then `return await galleryOperation(selects, <operation JSON>);`. This needs no Node or shell, so it is the same on macOS and Windows; never interpolate user text into a shell command. Run `inspect`, `preflight`, and `verifyCreated` with `allowCommit:false`; mutating operations require `allowCommit:true`. Read [INSTALL.md](INSTALL.md) for current capability limits.
+The panel and chat use the same `planGallery` contract, input checks, styling, and readback operations; do not recreate these rules in a prompt. Original Images use the public `draft.overlayResource` SDK, with no internal app service. Build each `run_script` source the way `operation-builder.mjs` does: the text of `format.mjs` with the `export` keyword removed from `REFERENCE` and `planGallery`, then all four functions (`fingerprintTemplateFile`, `nativeImageSources`, `requireSourceFileSupport`, `observeSourceFiles`) from installed `input-facts.generated.mjs` without its header comment or function-declaration `export` keywords, then the decoded JSON string values `IMAGE_AUTHORING_SOURCE`, `TEMPLATE_RUN_SOURCE` and `ASSET_RESOURCE_SOURCE` from installed `authoring.generated.mjs`, then the text of `operation-runtime.js`, then `return await galleryOperation(selects, <operation JSON>);`. The installed input-facts copy is generated from the shared original-Image feature; never hand-edit it or import a repository path in an installed script. `PANEL_ASSET_SOURCE` and `PANEL_RUN_SOURCE` are browser-side functions and must not be copied into SDK scripts. This needs no Node or shell, so it is the same on macOS and Windows; never interpolate user text into a shell command. Run `inspect`, `verifyInputs`, `verifyMusic`, `preflight`, and `verifyCreated` with `allowCommit:false`; mutating operations require `allowCommit:true`. Read [INSTALL.md](INSTALL.md) for current capability limits.
 
-1. Call `{"operation":"inspect","projectId":"CURRENT_PROJECT_ID"}`. Get exactly 21 visual choices in left-to-right, top-to-bottom order. The same Resource may occupy multiple slots only if the user explicitly chose it. Keep each original photo path. The panel verifies Image dimensions from the app-owned Resource; the public SDK's source-file listing alone does not provide them.
-2. Only a selected **Video** Resource shorter than the requested output needs its last frame held. The panel does this on Create with Selects' bundled ffmpeg (no Python, the same on macOS and Windows), so for a short Video operate the panel (step 4); `run_script` has no ffmpeg. The panel imports the held MP4s through the shared `importConverted` operation in batches of at most three, supplying each original video's `sourceResourceId`, `sourcePath`, and held MP4 `path`, and uses the returned Video Resource and path in every slot that uses that source. Long videos stay original.
-3. Unless the user selects another track or silence, use the bundled **Unexplored (long ver.) — TAD MILLER** excerpt, 39.650–53.866667 seconds, and manual timing BPM 113. This control preserves the reference events; do not call it a measured music BPM. Locate `assets/music.mp3` beneath the installed Skill folder, then call the shared `importBundledMusic` operation with `projectId`, absolute `path`, and `durationFrames` using `allowCommit:true`. Reuse its returned `music` object. The panel does this on Create. Preserve the credits from [THIRD_PARTY.md](THIRD_PARTY.md) in shared outputs; B2 is CC BY 4.0, not CC0. With selected music and automatic BPM explicitly requested, use the panel's **Estimate music BPM** (it decodes the track with Selects' ffmpeg; `run_script` cannot) and accept only an estimated value. Ask for manual BPM when the estimate is uncertain. Without music, manual BPM is required. The music must cover the full result; do not loop or pad it silently.
+Creation uses existing SDK `files.stat`/`files.readRange` and the installed
+`fingerprintTemplateFile` helper to compute complete SHA-256 observations. No SDK
+change is required. Capture `{path,size,sha256}` for each distinct selected
+visual/music file and recheck complete contents before the sole commit. Project
+metadata reads are cached within one invocation: metadata changes during assembly
+are checked in separate read-only invocations after saving, then again after file
+verification. A failed saved check preserves the saved Draft ID and reports an
+unconfirmed result; inspect it before starting a new run. Durable runs retain the complete guard in an owned source-evidence file; the
+small journal stores only its path, size and SHA-256. Recovery compares those
+exact bytes before using it. These independent reads
+are not an atomic check-and-save or a filesystem lock. Actual saved Audio source
+windows use existing Panel Draft reads; precommit source values are intent only.
+Automatic music estimates carry `musicFingerprint` from the exact original
+contents analyzed into creation; a mismatch requires a new estimate. Do not
+invent an estimate or its fingerprint in a chat request.
+
+1. Call `{"operation":"inspect","projectId":"CURRENT_PROJECT_ID"}`. Get exactly 21 visual choices in left-to-right, top-to-bottom order. The same Resource may occupy multiple slots only if the user explicitly chose it. Keep each original photo path. Current Project source-file metadata must supply verified dimensions; caller-provided sizes cannot replace missing metadata. Run `verifyInputs` with the selected 21 rows and optional selected Project music before preparing bundled music or held videos. It preserves selected order/reuse, resolves frozen paths to current aliases, probes selected files and checks original Images with stat, a one-byte read and stat again. The returned dimensions must still match after probing. Missing, unknown, unreadable or changing originals stop before asset work. All-Video inputs do not need unused Image checks. Unavailable or ambiguous unrelated resources are not selected automatically.
+2. Only a selected **Video** Resource shorter than the requested output needs its last frame held. Use the panel's Create path with Selects' bundled ffmpeg (no Python, the same on macOS and Windows): it orchestrates the public media jobs, file ownership and cancellation. The raw `importConverted` operation only registers already verified files; it is not a substitute for that preparation. The panel imports the held MP4s in batches of at most three, supplying each original video's `sourceResourceId`, `sourcePath`, and held MP4 `path`, and uses the returned Video Resource and path in every slot that uses that source. Long videos stay original.
+
+Short-video cache publication is panel-owned. The shared asset owner hashes entire
+files through streaming FFmpeg data/hash output, freezes a verified private source
+copy, and publishes a complete decoded/hashed MP4 before its atomic cache index.
+The held-v3 cache rechecks source/output bytes and metadata each invocation; size
+and timestamp alone do not establish identity. Do not replace this with a raw
+rename pair, a seen-cache flag, or an SDK script that registers an unverified file.
+An unknown publication is inspected rather than re-encoded inside the same call.
+Ending the run or unmounting the panel cancels active media preparation and stops
+later imports; already issued filesystem operations can finish. Old held-v2 files
+and published objects are retained because earlier Drafts may still use them.
+
+Coverage is measured in exact `durationSeconds` from current Project metadata,
+including after a held-video import. Rounded `durationFrames` alone cannot prove
+source coverage. Preparation and final operations use the same format planner:
+round the requested reference duration onto the Project grid, then cover those
+actual seconds with complete prepared 60 fps frames. Default 30/50/90 fps needs
+854 prepared frames, while the input reference duration remains 853. The panel
+checks known timing/BPM options before asset work. Pending automatic BPM may pass
+structural checks only; the full plan must pass after estimation. Standalone
+frame-only planner inputs remain supported, but live Project readers require
+exact duration facts. Preparation supports at most 36000 prepared frames.
+
+Automatic BPM belongs to a live panel invocation. The panel uses read-only
+`verifyMusic` before and after analysis, then the existing derived-asset owner
+creates bounded, content-verified PCM from a private music snapshot. The common
+media runner captures its client and relays cancellation/deadlines for both PCM
+and held Videos. Never reuse an estimate solely because a Resource ID matches.
+Closing the panel or changing Project/Draft ends analysis, even if the context
+later changes back; a late response is discarded. The actual PCM bytes and
+original music contents are checked at the end. Silence/ambiguous tempo remains
+uncertain, and the nominal reference BPM 113 remains an explicit manual timing
+choice. Do not copy this browser ownership/PCM implementation into `run_script`.
+The PCM cache is not Project media and is retained as verified derived data.
+
+
+3. Unless the user selects another track or silence, use the bundled **Unexplored (long ver.) — TAD MILLER** excerpt, 39.650–53.866667 seconds, and manual timing BPM 113. This control preserves the reference events; do not call it a measured music BPM. Use the installed panel's Create path for bundled asset preparation: the existing common asset feature checks the release bytes/hash, atomically publishes an owned content-addressed copy, confirms Audio metadata, and returns its Project identity. Never register an installation-folder file directly. The low-level `importBundledMusic` compatibility operation now accepts only an already prepared owned asset path beneath `.selects/plugin-data/photo-gallery-no2/assets/<sha256>.mp3`; it does not replace byte verification/publication. The agent SDK worker has existing read-only `selects.files.stat`/`readRange` and the installed fingerprint helper, but lacks the browser file-owner globals used for asset preparation; do not recreate that preparation there. Preserve the credits from [THIRD_PARTY.md](THIRD_PARTY.md) in shared outputs; B2 is CC BY 4.0, not CC0. With selected music and automatic BPM explicitly requested, use the panel's **Estimate music BPM** and accept only an estimated value. Without music, manual BPM is required. The music must cover the actual rounded Project duration: default 30 fps needs 14.233333 seconds and cannot use this 14.216667-second excerpt. Choose No music, another sufficient track, or an explicit shorter duration. Never silently change timing, loop or pad it.
 4. Use the shared `buildScript` operation through `sdk.runScript` for both Image and Video Resources. The existing `draft.overlayResource` holds original Images for an exact Draft interval without creating a still-video surrogate. Resolve the Project frame rate first with an unsaved `project.createDraft({name:"Gallery frame grid"})` and `draft.meta().fps`, and pass it as `fps` to the operation. Input durations and music offsets remain in the 60 fps reference clock; the plan converts them to the Project frame grid. The panel uses the same operation and verifies saved clips after placement. Example shape, to be extended to exactly 21 media entries:
 
 ```json
@@ -26,11 +78,28 @@ The default reveals are frames `0,12,23,36,45,52,62,73,81,90,100,113,122,133,143
 
 Always pass an absolute Project file path alongside each Resource ID, including music. Resource aliases can shift after media changes or an app restart; the operation resolves each path against the current inventory and rejects a missing or ambiguous match before creating a Draft. Do not silently convert photos to MP4. Never claim a Draft was made when only a manifest was prepared. When a panel Create response is interrupted by navigation, inspect Project Drafts and the saved target before clicking again.
 
-The panel respects the host's 30-second script deadline by placing one Video slot per call and styling at most three slots per call. Each call retains the full 21-slot input, exact paths, and explicit target Draft. `placeVideosExisting` accepts `slotKeys:["tile-04"]`; `styleExisting` accepts up to three `slotKeys`, with `placeMusic:false` for intermediate batches and `placeMusic:true` for the final batch. A repeated or already edited target is rejected before mutation. Do not replace a failed operation with hand-written placement code or copy `rN` aliases from another session. Keep the frozen file-path specification as the independent expected result; verifying copied aliases against themselves is not verification. A partial or repaired run remains a failed first attempt.
+Normal panel creation uses the existing `sdk.runScript` capability without
+requiring a new host timeout fact. A request may specify `timeoutSeconds:120`, but
+older hosts can retain their normal deadline. A timeout is never permission to
+replay an uncertain save: inspect the saved Draft identity and durable run record.
+A working copy places all 21 visuals, effects, transforms and optional music, checks their receipts, then commits once. The panel independently reopens and verifies the saved result. Never split a new creation into seed/video/style saves to avoid a deadline. The low-level `createBase`, `fillBase`, `placeVideosExisting` and `styleExisting` operations remain for compatibility with explicit legacy repair procedures; the normal panel/app run does not use them. Do not replace a failed operation with handwritten placement code or copy session-local aliases from another run. Inspect a possibly saved result before an explicit new run.
 
 5. After a saved Draft, call `verifyCreated` in a new read-only script with the same input, `operation:"verifyCreated"`, and the returned `draftId`. The panel does this automatically. `verified` checks 21 independent clips, gap-backed duration, timing, effect labels, transforms, and optional music. It is structural only: check actual Selects playback and native export separately, then compare boundaries, reveal frames, and color cut to `reference-oracle.json`.
 
 ## Editing and uncertainty
+
+App-supplied template run IDs use the existing durable run feature before
+preparing selected media or bundled music. A saved receipt returns its original
+Draft only after independent persisted readback; concurrent/remounted clients
+cannot author it again. The same ID with changed picks/music is refused. Start
+an explicit new app run to retry a proven failure; never delete or replace the
+run journal to force another save. SDK-side conditional receipt publication
+precedes the authoring reply. Pending/unknown/corrupt records require inspection.
+This does not deduplicate ordinary panel Create or separate agent-created
+operations without an app run ID, and does not make reusable asset imports part
+of the Draft transaction. `PANEL_RUN_SOURCE` in the generated artifact is for the
+panel only; SDK scripts use `TEMPLATE_RUN_SOURCE`, which contains no browser
+hashing, file-adapter or ownership functions.
 
 The current plugin does not yet automate one-slot replacement in an existing Draft. Do not rebuild a Draft as an undisclosed substitute or claim manual effects/crop are preserved. The 21 individual clips can be edited directly in the Selects timeline. Existing-Draft `update` requests are rejected before mutation until the native Image replacement and semantic slot-binding APIs pass this plugin's tests.
 

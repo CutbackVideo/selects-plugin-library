@@ -11,6 +11,11 @@ if(cfg.sequenceId){if(!meta.draftIds.includes(cfg.sequenceId))throw Error('Draft
 if(matches.length>1)throw Error('More than one draft matches this build.');
 if(cfg.recoverOnly&&!matches.length)throw Error('No saved draft matches this build. Start a new story only after checking the project.');
 const d=matches.length?selects.draft(matches[0]):await p.createDraft({name:cfg.draftName});
+// Check the actual SDK handle, without calling a renderer-only capability name.
+// This working copy has not been edited or saved; an unsupported host must stop
+// before assembling a base Draft that it cannot finish styling.
+const missingMethods=['addMotionGraphic','rangeAtFrames'].filter(name=>!(name in d)||typeof d[name]!=='function');
+if(missingMethods.length)return {unsupportedAuthoring:true,missingMethods};
 const expectedAliases=[];
 if(!matches.length){
  const rate=(await d.meta()).fps;let at=0;

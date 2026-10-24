@@ -9,6 +9,36 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 
+// render-color-filter:start
+// RGB-only grades share a stable source surface and preserve original coverage.
+// The caller owns its color policy and supplies a graph from input to output.
+function useColorFilter(React,{AbsoluteFill,Source,children,idPrefix,enabled,render}){
+ // React's document identity is independent of settings and compiled programs.
+ // Older React callers retain an entropy-backed per-mount fallback, not a module
+ // counter that can restart when a second independently compiled program loads.
+ const token=typeof React.useId==='function'?React.useId():React.useMemo(()=>{
+  if(!globalThis.crypto?.getRandomValues)throw Error('Color filter identity is unavailable.');
+  return Array.from(globalThis.crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16).padStart(8,'0')).join('');
+ },[]);
+ const id=idPrefix+'-'+Array.from(token,c=>c.codePointAt(0).toString(16)).join('-');
+ const h=React.createElement,input='colorInput',output='colorOutput';
+ return h(AbsoluteFill,null,
+  h('svg',{width:0,height:0,'aria-hidden':true,style:{position:'absolute',width:0,height:0}},
+   h('defs',null,enabled?h('filter',{id,x:0,y:0,width:'100%',height:'100%',colorInterpolationFilters:'sRGB'},
+    // Color matrices read unpremultiplied RGB. Grade an opaque copy so arithmetic
+    // additions cannot multiply the source alpha or darken translucent colors.
+    h('feColorMatrix',{in:'SourceGraphic',type:'matrix',values:'1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 1',result:input}),
+    render(input,output),
+    h('feComposite',{in:output,in2:'SourceGraphic',operator:'in'})
+   ):null)),
+  // Keep both container positions even when disabled. Only the filter changes;
+  // the original Source/children stay mounted until their real owner retires.
+  h(AbsoluteFill,{style:enabled?{filter:'url(#'+id+')'}:undefined},Source?h(Source):children)
+ );
+}
+// render-color-filter:end
+
+
 // tec-look:start
 const TEC_LOOK_DEFAULT = 0.5;
 // Tone at strength 1, per channel (r, g, b): the shadow/mid shift peaks at v = 1/3, the highlight shift at v = 3/4.
@@ -87,31 +117,22 @@ const fmt = (m) => m.map((v) => v.toFixed(5)).join(" ");
 
 export default function CinematicLook({ Source, children, data }) {
   const s = tecLookStrength(data?.strength);
-  const content = Source ? <Source /> : children;
-  if (s === 0) return <AbsoluteFill>{content}</AbsoluteFill>;
-  // The same strength always builds the same filter, so clips that share an id share an identical definition.
-  const id = `tec-cinematic-look-v2-${Math.round(s * 1000)}`;
-  return (
-    <AbsoluteFill>
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-        <defs>
-          <filter id={id} colorInterpolationFilters="sRGB" x="0" y="0" width="100%" height="100%">
-            <feColorMatrix in="SourceGraphic" type="matrix" values={fmt(tecLookWarmMatrix(s))} result="warmMuted" />
-            <feColorMatrix in="SourceGraphic" type="matrix" values={fmt(tecLookMaskMatrix(false))} result="warmMask" />
-            <feColorMatrix in="SourceGraphic" type="matrix" values={fmt(tecLookMaskMatrix(true))} result="keepMask" />
-            <feComposite in="SourceGraphic" in2="keepMask" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="kept" />
-            <feComposite in="warmMuted" in2="warmMask" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="muted" />
-            <feComposite in="kept" in2="muted" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="blended" />
-            <feColorMatrix in="blended" type="matrix" values={fmt(tecLookSaturateMatrix(s))} result="desaturated" />
-            <feComponentTransfer in="desaturated">
-              <feFuncR type="table" tableValues={tecLookTable(0, s).join(" ")} />
-              <feFuncG type="table" tableValues={tecLookTable(1, s).join(" ")} />
-              <feFuncB type="table" tableValues={tecLookTable(2, s).join(" ")} />
-            </feComponentTransfer>
-          </filter>
-        </defs>
-      </svg>
-      <AbsoluteFill style={{ filter: `url(#${id})` }}>{content}</AbsoluteFill>
-    </AbsoluteFill>
-  );
+  return useColorFilter(React,{AbsoluteFill,Source,children,idPrefix:"tec-cinematic-look",enabled:s !== 0,render:(input,output)=>{
+    return (
+      <>
+        <feColorMatrix in={input} type="matrix" values={fmt(tecLookWarmMatrix(s))} result="warmMuted" />
+        <feColorMatrix in={input} type="matrix" values={fmt(tecLookMaskMatrix(false))} result="warmMask" />
+        <feColorMatrix in={input} type="matrix" values={fmt(tecLookMaskMatrix(true))} result="keepMask" />
+        <feComposite in={input} in2="keepMask" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="kept" />
+        <feComposite in="warmMuted" in2="warmMask" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="muted" />
+        <feComposite in="kept" in2="muted" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="blended" />
+        <feColorMatrix in="blended" type="matrix" values={fmt(tecLookSaturateMatrix(s))} result="desaturated" />
+        <feComponentTransfer in="desaturated" result={output}>
+          <feFuncR type="table" tableValues={tecLookTable(0, s).join(" ")} />
+          <feFuncG type="table" tableValues={tecLookTable(1, s).join(" ")} />
+          <feFuncB type="table" tableValues={tecLookTable(2, s).join(" ")} />
+        </feComponentTransfer>
+      </>
+    );
+  }});
 }

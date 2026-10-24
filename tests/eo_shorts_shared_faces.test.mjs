@@ -22,11 +22,12 @@ test('production EO bundle uses shared jobs and preserves FFmpeg cut and style f
 
 function sharedFixture(observations) {
   const files=new Map(), jobs=new Map(); let submitted=0, canceled=0, complete=true;
+  let cancellationSaved;const savedCancellation=new Promise(resolve=>{cancellationSaved=resolve;});
   const root='/job/speaker', resourceId='11111111-1111-4111-8111-111111111111';
-  const fs={join:(...p)=>p.join('/'),dirname:p=>p.slice(0,p.lastIndexOf('/')),exists:async p=>files.has(p),mkdir:async()=>{},writeFile:async(p,v)=>files.set(p,v),readFile:async p=>{if(!files.has(p))throw Error('The file is unavailable.');return files.get(p);},rename:async(a,b)=>{files.set(b,files.get(a));files.delete(a);},unlink:async p=>files.delete(p)};
+  const fs={join:(...p)=>p.join('/'),dirname:p=>p.slice(0,p.lastIndexOf('/')),exists:async p=>files.has(p),mkdir:async()=>{},writeFile:async(p,v)=>files.set(p,v),readFile:async p=>{if(!files.has(p))throw Error('The file is unavailable.');return files.get(p);},rename:async(a,b)=>{files.set(b,files.get(a));files.delete(a);if(JSON.parse(files.get(b)).records?.some(r=>r.status==='canceled'))cancellationSaved();},unlink:async p=>files.delete(p)};
   const selects={ai:{submit:async input=>{submitted++; const id='ai:'+submitted;jobs.set(id,{input,status:'running'});return{workflowId:id};},job:(id,pid)=>({status:async()=>{const j=jobs.get(id);return{workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'faces.detect',status:complete?'succeeded':j.status};},cancel:async()=>{canceled++;jobs.get(id).status='canceled';return{workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'faces.detect',status:'canceled'};},result:async()=>({workflowId:id,task:'faces.detect',files:{detections:{id,mediaType:'application/json'}}})}),readJSON:async artifact=>{const input=jobs.get(artifact.id).input;return{contractVersion:1,task:'faces.detect',coordinateSpace:'display-pixels',boxFormat:'xyxy',parameters:{sourceRange:input.sourceRange,scoreThreshold:input.options.scoreThreshold,sampleEverySeconds:input.options.sampleEverySeconds},...(observations?observations(input):page)};}}};
   const host={fs, sdk:{runScript:async({script,allowCommit})=>{const {stripTypeScriptTypes}=await import('node:module');const body=stripTypeScriptTypes('async function run(){'+script+'}',{mode:'strip'});try{const result=await new Function('selects',body+';return run();')(selects);return{isError:false,result,output:JSON.stringify({result})};}catch(e){return{isError:true,output:JSON.stringify({error:e.message})};}}}};
-  return {host,options:{projectId:'project',journalPath:root+'/ai-jobs.json',scope:'run:speaker',resources:{'source.mp4':{resourceId,duration:300}}},get inputs(){return [...jobs.values()].map(j=>j.input);},get submitted(){return submitted;},get canceled(){return canceled;},set complete(v){complete=v;}};
+  return {host,savedCancellation,options:{projectId:'project',journalPath:root+'/ai-jobs.json',scope:'run:speaker',resources:{'source.mp4':{resourceId,duration:300}}},get inputs(){return [...jobs.values()].map(j=>j.input);},get submitted(){return submitted;},get canceled(){return canceled;},set complete(v){complete=v;}};
 }
 test('EO shared source adapter submits once and reuses the durable workflow after reopen',async()=>{
   const f=sharedFixture();
@@ -35,13 +36,16 @@ test('EO shared source adapter submits once and reuses the durable workflow afte
   await sharedFaces(f.host,f.options)('source.mp4',[240,240.5],30);
   assert.equal(f.submitted,1);
 });
-test('EO explicit Cancel stops shared inference; panel detach preserves it for Resume',async()=>{
+test('EO explicit Cancel stops shared inference; panel detach preserves it for Resume',{timeout:3000},async()=>{
   for(const explicit of [false,true]){
     const f=sharedFixture();f.complete=false;
     const controller=new AbortController();let observed;const started=new Promise(r=>observed=r);
     const run=sharedFaces(f.host,{...f.options,signal:controller.signal,progress:()=>observed()})('source.mp4',[240,240.5],30);
     await started;controller.abort(new Error(explicit?'Canceled.':'Panel closed.'));
     await assert.rejects(run,/observation stopped|canceled/i);
+    // Observation now detaches immediately. Explicit cancellation is an
+    // independent background write; await its durable receipt, not a poll delay.
+    if(explicit)await f.savedCancellation;
     assert.equal(f.canceled,explicit?1:0);
     f.complete=true;await sharedFaces(f.host,f.options)('source.mp4',[240,240.5],30);
     assert.equal(f.submitted,explicit?2:1);

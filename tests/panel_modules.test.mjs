@@ -1,0 +1,131 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import test from 'node:test';
+
+const root=path.resolve(import.meta.dirname,'..');
+function fixture(fn){
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'panel-modules-'));
+ try{
+  for(const sub of ['tools','shared','plugins/no14-still-video','plugins/camera-shutter-dump','plugins/shortform-clips'])fs.mkdirSync(path.join(dir,sub),{recursive:true});
+  fs.copyFileSync(path.join(root,'tools/sync_panel_modules.mjs'),path.join(dir,'tools/sync_panel_modules.mjs'));
+  const module='function sourceFact() { return 19; }\n';
+  const targets=['no14-still-video','camera-shutter-dump'];
+  fs.writeFileSync(path.join(dir,'shared/example.js'),module);
+  fs.writeFileSync(path.join(dir,'shared/panel-modules.json'),JSON.stringify({schemaVersion:1,modules:[{id:'example',source:'shared/example.js',targets:targets.map(id=>`plugins/${id}/panel.tsx`)}]}));
+  for(const id of targets){
+   fs.writeFileSync(path.join(dir,`plugins/${id}/plugin.json`),JSON.stringify({id,collection:'visual-highlights'}));
+   fs.writeFileSync(path.join(dir,`plugins/${id}/panel.tsx`),'// HEADER\n// example:start\n'+module+'// example:end\n// KEEP TAIL\n');
+  }
+  fs.writeFileSync(path.join(dir,'plugins/shortform-clips/panel.tsx'),'excluded sentinel');
+  const file=id=>path.join(dir,`plugins/${id}/panel.tsx`);
+  const run=(...args)=>spawnSync(process.execPath,[path.join(dir,'tools/sync_panel_modules.mjs'),...args],{encoding:'utf8'});
+  fn({dir,file,run});
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+}
+test('module check is read-only and detects a stale second consumer',()=>fixture(({file,run})=>{
+ assert.equal(run('--check').status,0);
+ fs.writeFileSync(file('camera-shutter-dump'),fs.readFileSync(file('camera-shutter-dump'),'utf8').replace('return 19','return 0'));
+ const before=fs.readFileSync(file('camera-shutter-dump'),'utf8'),r=run('--check');
+ assert.equal(r.status,1);assert.match(r.stderr,/out.of.date/i);assert.equal(fs.readFileSync(file('camera-shutter-dump'),'utf8'),before);
+}));
+test('sync updates declared consumers and preserves the surrounding code and excluded panel',()=>fixture(({dir,file,run})=>{
+ fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact() { return 20; }\n');
+ assert.equal(run().status,0);
+ for(const id of ['no14-still-video','camera-shutter-dump'])assert.equal(fs.readFileSync(file(id),'utf8'),'// HEADER\n// example:start\nfunction sourceFact() { return 20; }\n// example:end\n// KEEP TAIL\n');
+ assert.equal(fs.readFileSync(file('shortform-clips'),'utf8'),'excluded sentinel');
+ assert.equal(run('--check').status,0);
+}));
+test('every target is validated before any earlier file is rewritten',()=>fixture(({dir,file,run})=>{
+ fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact() { return 20; }\n');
+ fs.writeFileSync(file('camera-shutter-dump'),'no markers');
+ const before=fs.readFileSync(file('no14-still-video'),'utf8'),r=run();
+ assert.notEqual(r.status,0);assert.match(r.stderr,/marker/i);
+ assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+test('duplicate markers and unknown options are rejected without mutation',()=>fixture(({file,run})=>{
+ fs.appendFileSync(file('camera-shutter-dump'),'\n// example:start\n// example:end\n');
+ const before=fs.readFileSync(file('no14-still-video'),'utf8');
+ assert.notEqual(run().status,0);assert.notEqual(run('--force').status,0);
+ assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+test('explicit compatibility consumers are checked and synchronized with the same source',()=>fixture(({dir,file,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));
+ const target='plugins/existing-consumer/panel.tsx';
+ fs.mkdirSync(path.join(dir,'plugins/existing-consumer'));
+ fs.writeFileSync(path.join(dir,'plugins/existing-consumer/plugin.json'),JSON.stringify({id:'existing-consumer'}));
+ fs.writeFileSync(path.join(dir,target),'// example:start\nold\n// example:end\n');
+ registry.modules[0].compatibilityTargets=[target];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,1);
+ assert.equal(run().status,0);
+ assert.match(fs.readFileSync(path.join(dir,target),'utf8'),/return 19/);
+ assert.equal(run('--check').status,0);
+}));
+test('excluded compatibility consumers stop synchronization before any file is changed',()=>fixture(({dir,file,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));
+ registry.modules[0].compatibilityTargets=['plugins/shortform-clips/panel.tsx'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact() { return 20; }\n');
+ const before=fs.readFileSync(file('no14-still-video'),'utf8');
+ assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+ assert.equal(fs.readFileSync(file('shortform-clips'),'utf8'),'excluded sentinel');
+}));
+test('declared build-time consumers import the same source without rewriting their builder',()=>fixture(({dir,run})=>{
+ const folder=path.join(dir,'plugins/photo-gallery-no2');fs.mkdirSync(folder);
+ fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify({id:'photo-gallery-no2',collection:'visual-highlights'}));
+ const builder=path.join(folder,'operation-builder.mjs'),source="import {sourceFact} from '../../shared/example.js';\n";fs.writeFileSync(builder,source);
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ const result=run('--check');assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/3 consumers/);assert.equal(fs.readFileSync(builder,'utf8'),source);
+}));
+test('a missing build-time import refuses sync before rewriting any panel',()=>fixture(({dir,file,run})=>{
+ const folder=path.join(dir,'plugins/photo-gallery-no2');fs.mkdirSync(folder);fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify({id:'photo-gallery-no2',collection:'visual-highlights'}));fs.writeFileSync(path.join(folder,'operation-builder.mjs'),"import {sourceFact} from '../../shared/other.js';\n");
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');const before=fs.readFileSync(file('no14-still-video'),'utf8');
+ assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+test('excluded build-time consumers cannot be registered',()=>fixture(({dir,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/shortform-clips/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.notEqual(run('--check').status,0);
+}));
+test('a declared canonical URL read is a valid build-time source edge',()=>fixture(({dir,run})=>{
+ const folder=path.join(dir,'plugins/photo-gallery-no2');fs.mkdirSync(folder);
+ fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify({id:'photo-gallery-no2',collection:'visual-highlights'}));
+ fs.writeFileSync(path.join(folder,'build-panel.mjs'),"const source = readFileSync(new URL('../../shared/example.js', import.meta.url), 'utf8');\n");
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));
+ registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/build-panel.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,0);
+}));
+test('a required runtime module must exist before any source copy is rewritten',()=>fixture(({dir,file,run})=>{
+ const registry=path.join(dir,'shared/panel-modules.json'),row=JSON.parse(fs.readFileSync(registry));row.modules[0].requires=['missing-runtime'];fs.writeFileSync(registry,JSON.stringify(row));const before=fs.readFileSync(file('no14-still-video'),'utf8');const r=run();assert.notEqual(r.status,0);assert.match(r.stderr,/required|dependency/i);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+
+test('standalone engine files are explicit shipped consumers, checked read-only and copied without panel markers',()=>fixture(({dir,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));const target='plugins/no14-still-video/beat-detect.cjs',filename=path.join(dir,target),manifest=path.join(dir,'plugins/no14-still-video/plugin.json');fs.writeFileSync(manifest,JSON.stringify({id:'no14-still-video',collection:'visual-highlights',files:['panel.tsx','beat-detect.cjs']}));fs.writeFileSync(filename,'old standalone code\n');fs.writeFileSync(path.join(dir,'shared/engine.cjs'),'module.exports = {rate: 22050};\n');registry.modules.push({id:'engine',source:'shared/engine.cjs',targets:[],fileTargets:[target]});fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,1);assert.equal(fs.readFileSync(filename,'utf8'),'old standalone code\n');const result=run();assert.equal(result.status,0,result.stderr);assert.equal(fs.readFileSync(filename,'utf8'),'module.exports = {rate: 22050};\n');assert.equal(run('--check').status,0);
+}));
+for(const invalid of ['excluded','undeclared'])test('a '+invalid+' standalone consumer prevents every earlier pending panel write',()=>fixture(({dir,file,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');fs.writeFileSync(path.join(dir,'shared/engine.cjs'),'module.exports = {};\n');const target=invalid==='excluded'?'plugins/shortform-clips/beat-detect.cjs':'plugins/no14-still-video/beat-detect.cjs';registry.modules.push({id:'engine',source:'shared/engine.cjs',targets:[],fileTargets:[target]});fs.writeFileSync(registryPath,JSON.stringify(registry));const before=fs.readFileSync(file('no14-still-video'),'utf8');const result=run();assert.notEqual(result.status,0);assert.match(result.stderr,invalid==='excluded'?/excluded/i:/shipped|declared/i);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+
+test('declared standalone render programs share managed source without importing repository paths',()=>fixture(({dir,run})=>{
+ const target='plugins/no14-still-video/assets/title.tsx',file=path.join(dir,target),registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));
+ fs.mkdirSync(path.dirname(file));fs.writeFileSync(file,'// render-fonts:start\nold\n// render-fonts:end\nexport default function Title(){}\n');
+ fs.writeFileSync(path.join(dir,'plugins/no14-still-video/plugin.json'),JSON.stringify({id:'no14-still-video',collection:'visual-highlights',files:['panel.tsx','assets/title.tsx']}));
+ fs.writeFileSync(path.join(dir,'shared/render-fonts.js'),'function prepareFonts() { return true; }\n');registry.modules.push({id:'render-fonts',source:'shared/render-fonts.js',targets:[target]});fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,1);const result=run();assert.equal(result.status,0,result.stderr);assert.ok(fs.readFileSync(file,'utf8').includes('function prepareFonts()'));assert.ok(fs.readFileSync(file,'utf8').endsWith('export default function Title(){}\n'));assert.equal(run('--check').status,0);
+}));
+test('unshipped render programs cannot be managed and prevent every earlier pending write',()=>fixture(({dir,file,run})=>{
+ const target='plugins/no14-still-video/assets/unshipped.tsx',registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));
+ fs.mkdirSync(path.dirname(path.join(dir,target)));fs.writeFileSync(path.join(dir,target),'// example:start\nold\n// example:end\n');registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');
+ const before=fs.readFileSync(file('no14-still-video'),'utf8');assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+
+test('only the canonical Chris source template can share the registered panel block',()=>fixture(({dir,run})=>{
+ const target='plugins/chris-williamson-style/src/panel.template.tsx',file=path.join(dir,target),registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));
+ fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(path.join(dir,'plugins/chris-williamson-style/plugin.json'),JSON.stringify({id:'chris-williamson-style',collection:'visual-highlights'}));fs.writeFileSync(file,'// example:start\nold\n// example:end\n// ORIGINAL TEMPLATE TAIL\n');registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,1);const result=run();assert.equal(result.status,0,result.stderr);assert.match(fs.readFileSync(file,'utf8'),/return 19/);assert.ok(fs.readFileSync(file,'utf8').endsWith('// ORIGINAL TEMPLATE TAIL\n'));assert.equal(run('--check').status,0);
+}));
+for(const target of ['plugins/no14-still-video/src/panel.template.tsx','plugins/chris-williamson-style/src/other.tsx','plugins/chris-williamson-style/src/../panel.tsx','plugins/chris-williamson-style/../../outside.tsx'])test('nonallowlisted source target rejects without changing an earlier panel: '+target,()=>fixture(({dir,file,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');const before=fs.readFileSync(file('no14-still-video'),'utf8');assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));

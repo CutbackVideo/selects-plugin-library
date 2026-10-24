@@ -36,6 +36,7 @@ for (const c of m.cues) {
   assert.equal(c.group, e.group, c.id + ' group');
   const buf = fs.readFileSync(path.join(dir, c.file));
   assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), c.sha256, c.id + ' hash');
+  assert.equal(c.bytes, buf.length, c.id + ' pinned byte count');
   assert.ok(buf.length < 20 * 1024 * 1024);
   assert.ok(Math.abs(c.bpm - e.bpm) < 0.3, c.id + ' bpm ' + c.bpm);
   // The reused cues start on a beat; a generated cue may start up to a bar in (its first beat moved to the best bar phase).

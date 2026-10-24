@@ -12,8 +12,11 @@ class JudeWindowsTest(unittest.TestCase):
         for retired in ['osascript','vision-helper.js','env.node()','runShell(','WINDOWS_NOTE']:
             self.assertNotIn(retired,self.text)
     def test_keeps_sprite_geometry_and_soft_inversion(self):
-        for value in ['format=gray,negate,tile=','alphamerge','libwebp','coverage:levels.reduce','f.box.xmin/w','f.box.ymin/h']:
+        for value in ['format=gray,negate,tile=','alphamerge','coverage:levels.reduce','f.box.xmin/w','f.box.ymin/h']:
             self.assertIn(value,self.text)
+        for value in ["hostJoin(work,line.key+'.png')", "'-frames:v','1','-c:v','png',sprite]", "'data:image/png;base64,'"]:
+            self.assertIn(value,self.text)
+        self.assertNotIn("'-c:v','libwebp'",self.text)
     def test_source_clock_joins_the_saved_main_binding(self):
         for value in ['canonicalResourceBindings(','getDraftCore','w.sourceResourceId===persistentSources[c.clipId]','sourceStartFrame/sourceFps','playbackRate']:
             self.assertIn(value,self.text)
@@ -22,6 +25,7 @@ class JudeWindowsTest(unittest.TestCase):
             self.assertIn(value,self.text)
     def test_installed_package_has_no_private_inference_runtime(self):
         manifest=json.loads((ROOT/'plugins/jude-kinetic-style/plugin.json').read_text())
-        self.assertEqual(manifest['version'],'0.4.10')
+        # Version syntax is checked centrally by tools/plugin_files.py; a release bump does not alter this contract.
+        self.assertEqual(manifest['id'],'jude-kinetic-style')
         self.assertEqual(manifest['compatibility']['platforms'],['macOS arm64','Windows x64'])
         for old in ['engine.mjs','runtime.sh','vision-helper.js']:self.assertNotIn(old,manifest['files'])

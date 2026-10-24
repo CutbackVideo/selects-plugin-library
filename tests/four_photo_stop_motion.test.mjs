@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {webcrypto,createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import {spawnSync} from 'node:child_process';
 import {loadPanelOperation} from './panel_operation.mjs';
+import {fixture as authoringFixture} from './photo_authoring_fixture.mjs';
 import {hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
 const {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK}=loadPanelOperation('four-photo-stop-motion');
@@ -79,7 +81,7 @@ test('bundled music outlasts the Draft',()=>{
 // earlier import is reused whatever the path's case or slashes.
 const W_HOME='C:\\Users\\\uD64D\uAE38\uB3D9';
 const W_MUSIC=W_HOME+'\\.selects\\skills\\four-photo-stop-motion\\assets\\music.mp3';
-const loadMusic=host=>loadPanelFunctions(panelSource,['readMediaPages','inventory','isBundledMusic','ensureMusic'],{...hostGlobals(host),INVENTORY:''});
+const loadMusic=host=>loadPanelFunctions(panelSource,['prepareBundledAudio','readBundledAudioResource','ensureMusic'],{...hostGlobals(host),crypto:webcrypto});
 
 test('the host I/O block is Archive Vlog\'s, unchanged, and no POSIX shell is left',()=>{
  assert.equal(hostBlock(panelSource),REFERENCE_BLOCK);
@@ -91,21 +93,14 @@ test('Windows: the music resolves through FileSystem and is imported once',async
  const host=fakeHost({files:{[W_MUSIC]:'x'}});
  const {ensureMusic}=loadMusic(host);
  const imports=[];let rows=[];
- const sdk={runShell:()=>{throw Error('no shell on this path')},runScript:async({script})=>{
-  if(script.includes('importFiles')){imports.push(JSON.parse(/paths:(\[.*?\])/.exec(script)[1])[0]);rows=[{resourceId:'m1',type:'Audio',path:imports[0]}];return{result:{}};}
-  return{result:{array:true,page:{rows},total:rows.length}};
- }};
+ const dataPath=W_HOME+'\\.selects\\plugin-data\\four-photo-stop-motion\\assets\\'+createHash('sha256').update('x').digest('hex')+'.mp3';
+ const project={resources:async()=>rows,sourceFiles:async()=>({fileTree:rows}),importFiles:async({paths})=>{imports.push(...paths);rows=[{resourceId:'m1',type:'Audio',durationSeconds:60,path:paths[0]}];return {addedResourceIds:['m1']};}};
+ const sdk={runShell:()=>{throw Error('no shell on this path')},runScript:async({script})=>({result:await new Function('selects','return (async()=>{'+script+'})();')({project:()=>project})})};
  assert.equal(await ensureMusic(sdk,'p'),'m1');
- assert.deepEqual(imports,[W_MUSIC]);
- rows=[{resourceId:'m1',type:'Audio',path:W_MUSIC.toLowerCase().replaceAll('\\','/')}];
+ assert.deepEqual(imports,[dataPath]);
+ rows=[{resourceId:'m1',type:'Audio',durationSeconds:60,path:dataPath.toLowerCase().replaceAll('\\','/')}];
  assert.equal(await ensureMusic(sdk,'p'),'m1');
  assert.equal(imports.length,1,'an earlier import is reused');
-});
-
-test('an import through a linked install folder is reused, other music.mp3 files are not',()=>{
- const {isBundledMusic}=loadMusic(fakeHost());
- assert.ok(isBundledMusic('/Volumes/dev/plugins/four-photo-stop-motion/assets/music.mp3','~/.selects/skills/four-photo-stop-motion/assets/music.mp3'));
- assert.ok(!isBundledMusic('~/Music/music.mp3','~/.selects/skills/four-photo-stop-motion/assets/music.mp3'));
 });
 
 test('a missing install says the music is missing',async()=>{
@@ -163,4 +158,43 @@ const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
 
 test('an old Selects build gets the update message, not "Reinstall"',()=>{
  assert.ok(panelSource.includes(NEWER_SELECTS));
+});
+
+// The existing SDK's addMotionGraphic receipt has no trackId. Its live clip
+// identity must come from a fresh read, rather than from an invented receipt.
+function graphicReceiptFixture(fault=null){
+ const f=authoringFixture('four-photo-stop-motion'),project=f.selects.project('p'),create=project.createDraft;
+ project.createDraft=async options=>{
+  const d=await create(options),add=d.addMotionGraphic,clips=d.clips;
+  let added=null;
+  d.addMotionGraphic=async input=>{
+   const placed=await add(input);added=placed.clipId;
+   return {clipId:placed.clipId,startFrame:placed.startFrame,endFrame:placed.endFrame,diff:{},...(fault==='wrong receipt track'?{trackId:'not-the-live-track'}:{})};
+  };
+  d.clips=async options=>{
+   const rows=await clips(options);if(added===null)return rows;
+   const actual=rows.find(r=>r.clipId===added);
+   if(fault==='missing')return rows.filter(r=>r.clipId!==added);
+   if(fault==='duplicate')return [...rows,{...actual,trackId:'duplicate-live-track'}];
+   if(fault==='moved')actual.endFrame++;
+   if(fault==='missing live track')delete actual.trackId;
+   return rows;
+  };
+  return d;
+ };
+ return f;
+}
+
+for(const fault of [null,'wrong receipt track'])test('Stop Motion binds the outro to its live clip when receipt track is '+String(fault),async()=>{
+ const f=graphicReceiptFixture(fault),result=await f.create();
+ assert.equal(result.status,'saved');assert.equal(f.commits.length,1);
+ const graphic=result.graphics[0],state=f.saved.get(result.draftId),live=state.clips.find(c=>c.clipId===graphic.clipId);
+ assert.equal(graphic.trackId,live.trackId);assert.notEqual(graphic.trackId,'not-the-live-track');
+ assert.equal(graphic.startFrame,live.startFrame);assert.equal(graphic.endFrame,live.endFrame);
+});
+
+for(const fault of ['missing','duplicate','moved','missing live track'])test('Stop Motion refuses an unconfirmed outro '+fault+' before committing',async()=>{
+ const f=graphicReceiptFixture(fault);
+ await assert.rejects(f.create(),/Outro placement could not be confirmed/);
+ assert.equal(f.commits.length,0);
 });

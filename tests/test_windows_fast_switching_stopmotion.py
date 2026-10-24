@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Windows checks for fast-switching-stopmotion: no POSIX shell in the runtime path.
 
 The panel must build on Windows, where sdk.runShell is cmd.exe: ffmpeg goes through the host's Runtime.runFFmpeg
@@ -17,7 +18,7 @@ from windows_static import assert_no_shell_token, shell_token_present
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "fast-switching-stopmotion"
 PANEL = Path(os.environ.get("FSS_PANEL") or PLUGIN / "panel.tsx")
-REFERENCE = ROOT / "plugins" / "archive-vlog" / "panel.tsx"
+REFERENCE = ROOT / "plugins" / "city-weekend-vlog" / "panel.tsx"
 
 AV_START, AV_END = "// av-host:start", "// av-host:end"
 FORBIDDEN = [
@@ -57,7 +58,7 @@ class FastSwitchingStopMotionWindowsTest(unittest.TestCase):
         cls.panel = PANEL.read_text(encoding="utf-8")
         cls.runtime = without_regions(cls.panel, "// mac-only:start", "// mac-only:end")
 
-    def test_av_host_block_is_byte_identical_to_archive_vlog(self):
+    def test_av_host_block_is_byte_identical_to_legacy_reference(self):
         ours = av_block(self.panel)
         self.assertIsNotNone(ours, "panel has no av-host block")
         self.assertEqual(ours, av_block(REFERENCE.read_text(encoding="utf-8")))

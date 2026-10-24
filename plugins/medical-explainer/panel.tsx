@@ -499,6 +499,7 @@ function hostFs(): any {
   return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
 }
 // av-host:start
+// host-files:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
 function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
@@ -559,6 +560,7 @@ async function hostRoots(sdk, id, marker) {
   try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
+// host-files:end
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
 // temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
 // throws when ffmpeg fails or `signal` (optional) aborts it.

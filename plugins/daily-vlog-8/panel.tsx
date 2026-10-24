@@ -444,11 +444,11 @@ const ASSETS = ["relaxed-urban-bed.wav", "transition-w2.wav", "shutter-s2.wav", 
 // Each sound's length in seconds (ffprobe), used when its Resource reports none: no overlay may run past it.
 const ASSET_SECONDS = {"relaxed-urban-bed.wav": 69.84, "transition-w2.wav": 1.389977, "shutter-s2.wav": 0.516984, "camera-r2.wav": 0.940726, "shutter-c2.wav": 1, "shutter-s6-1.wav": 0.213991, "typing-k3.wav": 2.5};
 
-const OPENING = "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\nconst KNOT_FRAMES = [0, 3, 4, 6, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 115, 120, 124, 128, 129, 132, 135, 138];\nconst D_CENTERS = [-550, -447, -353, -269, -195, -131, -87, -41, -11, 15, 36, 54, 72, 91, 112, 143, 166, 198, 242, 322, 350, 480, 630, 780];\nconst DEFAULT_OFFSETS = [0, 69, 113, 150, 201, 245, 291, 351, 412, 479];\n\nfunction pathAt(x) {\n  const phase = 2 * Math.PI * x / 595;\n  const y = 155.29 + 38.84 * Math.sin(phase) + 6.42 * Math.cos(phase);\n  const slope = (2 * Math.PI / 595) * (38.84 * Math.cos(phase) - 6.42 * Math.sin(phase));\n  return {y, angle: Math.atan(slope) * 180 / Math.PI};\n}\n\nexport default function OpeningTitle({data}) {\n  const frame = useCurrentFrame();\n  const {durationInFrames, width, height} = useVideoConfig();\n  const text = String(data.text || 'DAILY VLOG');\n  const chars = text.split('');\n  const anchor = interpolate(frame, KNOT_FRAMES, D_CENTERS, {\n    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',\n  });\n  const offsets = text === 'DAILY VLOG'\n    ? DEFAULT_OFFSETS\n    : chars.map((_, i) => i * 54);\n\n  return <AbsoluteFill style={{overflow: 'hidden'}}>\n    {chars.map((ch, i) => {\n      if (ch === ' ') return null;\n      const x = anchor + offsets[i];\n      const {y, angle} = pathAt(x);\n      return <div key={i} style={{position: 'absolute', left: x * width / 576,\n        top: y * height / 324, transform: `translate(-50%, -50%) rotate(${angle}deg) scaleX(0.84)`,\n        fontFamily: data.fontFamily || 'Gill Sans, Arial Black, sans-serif',\n        fontSize: data.fontSize || 255, fontWeight: 900, lineHeight: 1,\n        color: data.color || '#FEDC5E'}}>{ch}</div>;\n    })}\n  </AbsoluteFill>;\n}\n";
+const OPENING = "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\nconst KNOT_FRAMES = [0, 3, 4, 6, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 115, 120, 124, 128, 129, 132, 135, 138];\nconst D_CENTERS = [-550, -447, -353, -269, -195, -131, -87, -41, -11, 15, 36, 54, 72, 91, 112, 143, 166, 198, 242, 322, 350, 480, 630, 780];\nconst DEFAULT_OFFSETS = [0, 69, 113, 150, 201, 245, 291, 351, 412, 479];\n\nfunction pathAt(x) {\n  const phase = 2 * Math.PI * x / 595;\n  const y = 155.29 + 38.84 * Math.sin(phase) + 6.42 * Math.cos(phase);\n  const slope = (2 * Math.PI / 595) * (38.84 * Math.cos(phase) - 6.42 * Math.sin(phase));\n  return {y, angle: Math.atan(slope) * 180 / Math.PI};\n}\n\nexport default function OpeningTitle({data}) {\n  const frame = useCurrentFrame();\n  const {durationInFrames, width, height} = useVideoConfig();\n  // Typography uses the 1920×1080 reference units; positions already follow the canvas.\n  const scale = Math.min(width / 1920, height / 1080);\n  const text = String(data.text || 'DAILY VLOG');\n  const chars = text.split('');\n  const anchor = interpolate(frame, KNOT_FRAMES, D_CENTERS, {\n    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',\n  });\n  const offsets = text === 'DAILY VLOG'\n    ? DEFAULT_OFFSETS\n    : chars.map((_, i) => i * 54);\n\n  return <AbsoluteFill style={{overflow: 'hidden'}}>\n    {data.fontCss && <style>{String(data.fontCss)}</style>}\n    {chars.map((ch, i) => {\n      if (ch === ' ') return null;\n      const x = anchor + offsets[i];\n      const {y, angle} = pathAt(x);\n      return <div key={i} style={{position: 'absolute', left: x * width / 576,\n        top: y * height / 324, transform: `translate(-50%, -50%) rotate(${angle}deg) scaleX(0.84)`,\n        fontFamily: data.fontFamily || 'Gill Sans, Arial Black, sans-serif',\n        fontSize: (data.fontSize || 255) * scale, fontWeight: 900, lineHeight: 1,\n        color: data.color || '#FEDC5E'}}>{ch}</div>;\n    })}\n  </AbsoluteFill>;\n}\n";
 
-const MIDDLE = "import React from 'react';\nimport {AbsoluteFill, useCurrentFrame} from 'remotion';\n\n// The source video is 30 fps. This graphic begins on draft frame 136.\n// Each value is the first local frame on which that character is visible.\nconst REVEAL_FRAMES = [7, 9, 10, 18, 19, 21, 22, 29, 30, 31, 32, 34, 35, 35, 36, 38, 40, 48, 49, 51, 51];\n\nexport default function Middle({data}) {\n  const frame = useCurrentFrame();\n  const phrase = String(data.text || 'JUST EVERYDAY MOMENTS');\n  const schedule = phrase === 'JUST EVERYDAY MOMENTS'\n    ? REVEAL_FRAMES\n    : Array.from({length: phrase.length}, (_, i) => 7 + i * 2);\n  const count = schedule.filter(at => frame >= at).length;\n  const visible = phrase.slice(0, count);\n  const fontSize = data.fontSize || 73;\n  return <AbsoluteFill style={{overflow: 'hidden'}}>\n    <div style={{\n      position: 'absolute', left: '50%', top: '50%',\n      transform: 'translate(-50%, -50%)', width: 'max-content',\n      fontFamily: data.fontFamily || 'Georgia, serif', fontSize,\n      fontWeight: 700, color: data.color || '#FFFFFF',\n      textShadow: '0 2px 6px rgba(0,0,0,.25)', whiteSpace: 'nowrap',\n    }}>\n      <span style={{visibility: 'hidden'}}>{phrase}</span>\n      <div style={{position: 'absolute', left: 0, top: 0, display: 'flex', alignItems: 'center'}}>\n        <span>{visible}</span>\n        {frame < 59 && <span style={{display: 'inline-block', width: 4, height: fontSize * .88, backgroundColor: '#fff', marginLeft: 2}} />}\n      </div>\n    </div>\n  </AbsoluteFill>;\n}\n";
+const MIDDLE = "import React from 'react';\nimport {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';\n\n// The source video is 30 fps. This graphic begins on draft frame 136.\n// Each value is the first local frame on which that character is visible.\nconst REVEAL_FRAMES = [7, 9, 10, 18, 19, 21, 22, 29, 30, 31, 32, 34, 35, 35, 36, 38, 40, 48, 49, 51, 51];\n\nexport default function Middle({data}) {\n  const frame = useCurrentFrame();\n  const {width, height} = useVideoConfig();\n  const scale = Math.min(width / 1920, height / 1080);\n  const phrase = String(data.text || 'JUST EVERYDAY MOMENTS');\n  const schedule = phrase === 'JUST EVERYDAY MOMENTS'\n    ? REVEAL_FRAMES\n    : Array.from({length: phrase.length}, (_, i) => 7 + i * 2);\n  const count = schedule.filter(at => frame >= at).length;\n  const visible = phrase.slice(0, count);\n  const fontSize = (data.fontSize || 73) * scale;\n  return <AbsoluteFill style={{overflow: 'hidden'}}>\n    <div style={{\n      position: 'absolute', left: '50%', top: '50%',\n      transform: 'translate(-50%, -50%)', width: 'max-content',\n      fontFamily: data.fontFamily || 'Georgia, serif', fontSize,\n      fontWeight: 700, color: data.color || '#FFFFFF',\n      textShadow: `0 ${2 * scale}px ${6 * scale}px rgba(0,0,0,.25)`, whiteSpace: 'nowrap',\n    }}>\n      <span style={{visibility: 'hidden'}}>{phrase}</span>\n      <div style={{position: 'absolute', left: 0, top: 0, display: 'flex', alignItems: 'center'}}>\n        <span>{visible}</span>\n        {frame < 59 && <span style={{display: 'inline-block', width: 4 * scale, height: fontSize * .88, backgroundColor: '#fff', marginLeft: 2 * scale}} />}\n      </div>\n    </div>\n  </AbsoluteFill>;\n}\n";
 
-const ENDING = "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\n// Source-video frame numbers minus the graphic's placement at draft frame 527.\nconst REVEAL_FRAMES = [3, 5, 6, 13, 14, 15, 21, 22, 23, 24, 25, 26, 26, 27, 28, 30, 31, 38, 39];\n\nexport default function Ending({data}) {\n  const frame = useCurrentFrame();\n  const {durationInFrames} = useVideoConfig();\n  const phrase = String(data.text || 'THANKS FOR WATCHING');\n  const schedule = phrase === 'THANKS FOR WATCHING'\n    ? REVEAL_FRAMES\n    : Array.from({length: phrase.length}, (_, i) => 3 + i * 2);\n  const count = schedule.filter(at => frame >= at).length;\n  const visible = phrase.slice(0, count);\n  const fontSize = data.fontSize || 43;\n  const black = interpolate(frame, [0, 34, durationInFrames], [0, 0, .9], {\n    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',\n  });\n  return <AbsoluteFill style={{backgroundColor: `rgba(0,0,0,${black})`}}>\n    <div style={{\n      position: 'absolute', left: '50%', top: '50%',\n      transform: 'translate(-50%, -50%)', width: 'max-content',\n      fontFamily: data.fontFamily || 'Avenir Next Demi Bold, Avenir Next, sans-serif', fontSize,\n      fontWeight: 700, lineHeight: 1, letterSpacing: data.letterSpacing ?? 1.2,\n      color: data.color || '#FFFFFF', whiteSpace: 'nowrap',\n    }}>\n      <span style={{visibility: 'hidden'}}>{phrase}</span>\n      <div style={{position: 'absolute', left: 0, top: 0, display: 'flex', alignItems: 'center'}}>\n        <span>{visible}</span>\n        {frame < 43 && <span style={{display: 'inline-block', width: 3, height: fontSize * .9, backgroundColor: '#fff', marginLeft: 1}} />}\n      </div>\n    </div>\n  </AbsoluteFill>;\n}\n";
+const ENDING = "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\n// Source-video frame numbers minus the graphic's placement at draft frame 527.\nconst REVEAL_FRAMES = [3, 5, 6, 13, 14, 15, 21, 22, 23, 24, 25, 26, 26, 27, 28, 30, 31, 38, 39];\n\nexport default function Ending({data}) {\n  const frame = useCurrentFrame();\n  const {durationInFrames, width, height} = useVideoConfig();\n  const scale = Math.min(width / 1920, height / 1080);\n  const phrase = String(data.text || 'THANKS FOR WATCHING');\n  const schedule = phrase === 'THANKS FOR WATCHING'\n    ? REVEAL_FRAMES\n    : Array.from({length: phrase.length}, (_, i) => 3 + i * 2);\n  const count = schedule.filter(at => frame >= at).length;\n  const visible = phrase.slice(0, count);\n  const fontSize = (data.fontSize || 43) * scale;\n  const black = interpolate(frame, [0, 34, durationInFrames], [0, 0, .9], {\n    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',\n  });\n  return <AbsoluteFill style={{backgroundColor: `rgba(0,0,0,${black})`}}>\n    <div style={{\n      position: 'absolute', left: '50%', top: '50%',\n      transform: 'translate(-50%, -50%)', width: 'max-content',\n      fontFamily: data.fontFamily || 'Avenir Next Demi Bold, Avenir Next, sans-serif', fontSize,\n      fontWeight: 700, lineHeight: 1, letterSpacing: (data.letterSpacing ?? 1.2) * scale,\n      color: data.color || '#FFFFFF', whiteSpace: 'nowrap',\n    }}>\n      <span style={{visibility: 'hidden'}}>{phrase}</span>\n      <div style={{position: 'absolute', left: 0, top: 0, display: 'flex', alignItems: 'center'}}>\n        <span>{visible}</span>\n        {frame < 43 && <span style={{display: 'inline-block', width: 3 * scale, height: fontSize * .9, backgroundColor: '#fff', marginLeft: 1 * scale}} />}\n      </div>\n    </div>\n  </AbsoluteFill>;\n}\n";
 
 const SWISH = `import React from 'react'; import {AbsoluteFill} from 'remotion';
 export default function Swish({children,presentationDirection,presentationProgress}){const p=Math.max(0,Math.min(1,presentationProgress||0));const exiting=presentationDirection==='exiting';const q=exiting?p:1-p;
@@ -659,6 +659,40 @@ const cast=${JSON.stringify(cast)};
 const REF=${JSON.stringify(REFERENCE)};
 const assetPaths=${JSON.stringify(assetPaths)};
 const assetNames=${JSON.stringify(ASSETS)};
+// Read once inside this script; never return large font bytes through the SDK.
+const openingFontPath=${JSON.stringify(hostJoin(roots.plugin, "assets", "fonts", "chelseamarket", "ChelseaMarket-Regular.ttf.b64"))};
+const openingLicensePath=${JSON.stringify(hostJoin(roots.plugin, "assets", "fonts", "chelseamarket", "OFL.txt"))};
+// The run_script realm intentionally has no browser atob/btoa globals.
+function decodeOpeningBase64(text){
+ const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+ if(typeof text!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text))throw new Error('The bundled opening font has invalid base64.');
+ let decoded='';
+ for(let i=0;i<text.length;i+=4){
+  const a=alphabet.indexOf(text[i]),b=alphabet.indexOf(text[i+1]),c=text[i+2]==='='?0:alphabet.indexOf(text[i+2]),d=text[i+3]==='='?0:alphabet.indexOf(text[i+3]);
+  if((text[i+2]==='='&&(b&15)!==0)||(text[i+3]==='='&&(c&3)!==0))throw new Error('The bundled opening font has noncanonical padding.');
+  decoded+=String.fromCharCode((a<<2)|(b>>4));
+  if(text[i+2]!=='=')decoded+=String.fromCharCode(((b&15)<<4)|(c>>2));
+  if(text[i+3]!=='=')decoded+=String.fromCharCode(((c&3)<<6)|d);
+ }
+ return decoded;
+}
+async function readOpeningAsset(path, expectedSize){
+ const stat=await selects.files.stat(path);
+ if(!stat||stat.isDirectory||stat.size!==expectedSize)throw new Error('The bundled opening font file is unavailable or incomplete.');
+ let base64='';
+ for(let offset=0;offset<stat.size;offset+=49152){
+  const length=Math.min(49152,stat.size-offset),part=await selects.files.readRange({path,offset,length});
+  if(!part||part.bytesRead!==length||typeof part.base64!=='string'||decodeOpeningBase64(part.base64).length!==length)throw new Error('The bundled opening font read is incomplete.');
+  base64+=part.base64;
+ }
+ return base64;
+}
+const openingFontData=decodeOpeningBase64(await readOpeningAsset(openingFontPath,230568));
+const openingFontBytes=decodeOpeningBase64(openingFontData);
+if(openingFontBytes.length!==172924||!openingFontData.startsWith('AAEAAA'))throw new Error('The bundled opening font is not the expected TrueType file.');
+const openingFontLicense=decodeOpeningBase64(await readOpeningAsset(openingLicensePath,4397));
+if(!openingFontLicense.includes('SIL OPEN FONT LICENSE Version 1.1'))throw new Error('The bundled opening font license is unavailable.');
+const openingFontCss='/*'+openingFontLicense+'*/\\n@font-face{font-family:"Chelsea Market";font-style:normal;font-weight:400;src:url(data:font/ttf;base64,'+openingFontData+') format("truetype");}';
 const assetSeconds=${JSON.stringify(ASSET_SECONDS)};
 const OPENING=${JSON.stringify(OPENING)};
 const MIDDLE=${JSON.stringify(MIDDLE)};
@@ -670,15 +704,17 @@ const resourceById=new Map(rows.map(x=>[x.resourceId,x]));
 for(const shot of cast){const r=resourceById.get(shot.id);if(!r||r.type!=='Video'||!(r.durationSeconds>0.1))throw new Error('A picked clip is not a usable video');}
 let audioByName=new Map(rows.filter(x=>x.type==='Audio').map(x=>[x.name,x.resourceId]));
 for(let i=0;i<assetNames.length;i++){if(!audioByName.has(assetNames[i])){const imported=await project.importFiles({paths:[assetPaths[i]]});if(!imported.addedResourceIds[0])throw new Error('Template sound missing: '+assetNames[i]);audioByName.set(assetNames[i],imported.addedResourceIds[0]);}}
-const draft=await project.createDraft({name});
+let draft;
 // Reference frames (25 fps) on the Draft's rate; the rate is read again after each insert (a Draft can adopt its
 // first clip's rate). Ducking offsets (at) stay 30000/1001 fps frames. A shot longer than its clip repeats the clip.
 const rate=async()=>{const reported=(await draft.meta()).fps;const r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error('Unsupported draft frame rate: '+reported);return r;};
-let dfps=await rate();
+let dfps;
 const F=(f)=>Math.round(f*dfps/REF.fps);
 const at=(f)=>Math.round(f*1001/30000*dfps);
 const OFFSETS=[0.45,0.15,0.75,0.3,0.6];
 let placed=0;
+const lay=async(aim=null)=>{
+ draft=await project.createDraft({name});dfps=aim||await rate();placed=0;
 for(const shot of cast){
   const r=resourceById.get(shot.id);
   const len=(shot.end-shot.start+shot.skip)/REF.fps;
@@ -691,10 +727,18 @@ for(const shot of cast){
       const end=Math.min(r.durationSeconds-0.003,start+(wanted-placed)/dfps);more=end<start+(wanted-placed)/dfps-1e-6;
       if(end-start<1/dfps)throw new Error('Video '+r.name+' is too short');
       await draft.insertResource({resourceId:shot.id,sourceRange:{startSeconds:start,endSeconds:end}});
-      dfps=await rate();placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=more?0:end;
+      const actual=await rate();
+      // The first insert can adopt a different source rate. Discard this unsaved attempt before effects/commit;
+      // aiming its first range at the adopted rate keeps the first cut on the same frame as its transition.
+      if(placed===0&&actual!==dfps)return actual;
+      dfps=actual;placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=more?0:end;
     }
   }
 }
+ return null;
+};
+const adopted=await lay();
+if(adopted&&await lay(adopted))throw new Error('The opening clip frame rate changed during the build.');
 let main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
 const endFrame=Math.max(...main.map(c=>c.endFrame));
 for(const original of main){const current=(await draft.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current)await draft.setClipAudio({clip:current,volumeDb:-60});}
@@ -708,7 +752,7 @@ const canvas=(await draft.meta()).frameSize;
 const targetAspect=canvas.width/canvas.height;
 for(const original of main){const shot=cast.find(s=>original.startFrame<F(s.end))||cast[cast.length-1];const size=sourceSizes.get(original.resourceId);const sourceAspect=size?size.width/size.height:targetAspect;const scale=(sourceAspect<targetAspect?targetAspect/sourceAspect:1)*shot.scale;if(scale>1.001||shot.x){const current=(await draft.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current)await draft.setClipTransform({clip:current,scale:{x:scale,y:scale},...(shot.x?{position:{x:shot.x,y:0}}:{})});}}
 const [t1,t2,t3]=REF.titles;
-await draft.addMotionGraphic({label:'DAILY VLOG',tsxCode:OPENING,within:await draft.rangeAtFrames(F(t1[0]),F(t1[1])),parameters:{text:'DAILY VLOG',fontFamily:'Chelsea Market Pro',fontSize:255,color:'#FEDC5E'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'DAILY VLOG'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Chelsea Market Pro'},{key:'fontSize',label:'Size',type:'number',defaultValue:255,min:100,max:450,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FEDC5E'}]});
+await draft.addMotionGraphic({label:'DAILY VLOG',tsxCode:OPENING,within:await draft.rangeAtFrames(F(t1[0]),F(t1[1])),parameters:{text:'DAILY VLOG',fontFamily:'"Chelsea Market Pro", "Chelsea Market"',fontCss:openingFontCss,fontSize:255,color:'#FEDC5E'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'DAILY VLOG'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'"Chelsea Market Pro", "Chelsea Market"'},{key:'fontSize',label:'Size',type:'number',defaultValue:255,min:100,max:450,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FEDC5E'}]});
 await draft.addMotionGraphic({label:'JUST EVERYDAY MOMENTS',tsxCode:MIDDLE,within:await draft.rangeAtFrames(F(t2[0]),F(t2[1])),parameters:{text:'JUST EVERYDAY MOMENTS',fontFamily:'Courier New',fontSize:73,color:'#FFFFFF'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'JUST EVERYDAY MOMENTS'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Courier New'},{key:'fontSize',label:'Size',type:'number',defaultValue:73,min:28,max:120,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
 await draft.addMotionGraphic({label:'THANKS FOR WATCHING',tsxCode:ENDING,within:await draft.rangeAtFrames(F(t3[0]),Math.min(F(t3[1]),endFrame)),parameters:{text:'THANKS FOR WATCHING',fontFamily:'Courier New',fontSize:60,color:'#FFFFFF',letterSpacing:1.2},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'THANKS FOR WATCHING'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Courier New'},{key:'fontSize',label:'Size',type:'number',defaultValue:60,min:18,max:90,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
 for(const [frame,label,code,before,after] of REF.cuts){
@@ -772,6 +816,8 @@ function DailyTemplateRun({ sdk, context }) {
         const picked = id => (inputs[id] || []).filter(x => x?.kind === "video" && x.resourceId);
         let [opening] = picked("opening"), clips = picked("clips");
         if (!opening) throw templateIssue("Pick an opening clip, then try again.");
+        const seen = new Set([opening.resourceId]);
+        clips = clips.filter(pick => { if (seen.has(pick.resourceId)) return false; seen.add(pick.resourceId); return true; });
         if (clips.length < 7) throw templateIssue("Pick at least seven more clips, then try again.");
         say("Finding your clips…");
         const ids = await scriptResourceIds(sdk, projectId, [opening, ...clips].map(x => x.resourceId));
@@ -793,7 +839,7 @@ function DailyTemplateRun({ sdk, context }) {
       } catch (e) {
         console.warn("[daily-vlog-8] template run failed:", e?.message || String(e));
         const said = String(e?.message || "");
-        finish({ error: e?.publicMessage || (/too short/.test(said) ? "A picked clip is too short for its slot; pick longer clips, then try again." : TEMPLATE_FAILED) });
+        finish({ error: e?.publicMessage || (/too short/.test(said) ? "A picked clip is too short for its slot; pick longer clips, then try again." : said.trim().slice(0, 500) || TEMPLATE_FAILED) });
       } finally { finish({ error: TEMPLATE_FAILED }); }
     })();
   }, [runId]);

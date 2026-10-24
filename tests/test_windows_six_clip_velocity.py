@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Static Windows checks for the Six Clip Velocity panel.
 
 The panel must build its Draft on Windows and macOS with no Node.js and no shell: the plan and
@@ -15,7 +16,7 @@ from windows_static import assert_no_shell_token, shell_token_present
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "six-clip-velocity")
 PANEL = os.environ.get("SIX_CLIP_VELOCITY_PANEL") or os.path.join(PLUGIN, "panel.tsx")
-ARCHIVE = os.path.join(ROOT, "plugins", "archive-vlog", "panel.tsx")
+LEGACY_REFERENCE = os.path.join(ROOT, "plugins", "city-weekend-vlog", "panel.tsx")
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"// mac-only:start\n.*?// mac-only:end\n", re.S)
@@ -43,9 +44,9 @@ class SixClipVelocityWindowsTest(unittest.TestCase):
         self.source = read(PANEL)
         self.runtime = runtime_text(self.source)
 
-    def test_av_host_block_is_byte_identical_to_archive_vlog(self):
+    def test_av_host_block_is_byte_identical_to_legacy_reference(self):
         mine = AV_HOST.search(self.source)
-        theirs = AV_HOST.search(read(ARCHIVE))
+        theirs = AV_HOST.search(read(LEGACY_REFERENCE))
         self.assertIsNotNone(mine, "panel has no av-host block")
         self.assertIsNotNone(theirs)
         self.assertEqual(mine.group(0), theirs.group(0))

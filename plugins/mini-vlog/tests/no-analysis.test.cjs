@@ -17,14 +17,10 @@ const block = (name) => {
 const hook = block('mv-hook'), local = block('mv-local'), qs = block('quick-score');
 assert.ok(!/:\s*(any|string|number|boolean)\b|Promise<|\bas any\b/.test(local), 'mv-local is plain JS');
 assert.ok(!/runShell|child_process|require\(|\bwindow(\.parent|\[)|__DI__/.test(local), 'mv-local has no host access');
-// The kit block is pasted verbatim. Hermetic (CI has no kit checkout): the block from its start marker up to (not
-// including) its end marker must hash to the recorded copy of selects-app-kit tools/panel/quick-score.js. To take a kit
-// update, paste the new block over this one and record the kit commit and the new hash here.
-const QS_KIT_COMMIT = '753eb81';
-const QS_KIT_SHA256 = 'b99a7847f21a07b8848ce138f722e59c1119b8d34ce785b13e83cfbeec009218';
-assert.equal(require('node:crypto').createHash('sha256').update(qs).digest('hex'), QS_KIT_SHA256,
-  'panel.tsx quick-score block equals selects-app-kit ' + QS_KIT_COMMIT + ' tools/panel/quick-score.js');
-assert.ok(/var QS_VERSION = (\d+);/.test(qs) && Number(/var QS_VERSION = (\d+);/.exec(qs)[1]) >= 2, 'QS_VERSION >= 2 (duration in the cache key)');
+// The current runtime is distributed from one reviewed canonical source.
+const canonical=fs.readFileSync(path.join(root,'..','..','shared','clip-analysis.js'),'utf8').trimEnd();
+assert.equal(qs.slice(qs.indexOf('// clip-analysis:start')+'// clip-analysis:start'.length,qs.indexOf('// clip-analysis:end')).trim(),canonical.trim());
+assert.match(qs,/var QS_VERSION = 3;/);
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, isFinite, Promise, Date, setTimeout, clearTimeout, AbortController, TextDecoder, Uint8Array };
 vm.createContext(box);
 vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + '\n' + hook + '\n' + local + '\n' + qs

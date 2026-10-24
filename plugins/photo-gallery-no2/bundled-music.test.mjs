@@ -3,7 +3,7 @@ import test from 'node:test';
 import { buildScript } from './operation-builder.mjs';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const path = '/installed/photo-gallery-no2/assets/music.mp3';
+const path = '/profile/.selects/plugin-data/photo-gallery-no2/assets/70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0.mp3';
 // `hostPath` is the form the host reports back for the imported file (Windows may differ in case or separators).
 function fixture({ existing = false, duration = 853 / 60, corrupt = false, lostResponse = false, hostPath = path } = {}) {
   const resources = [], nodes = [], calls = [];
@@ -21,7 +21,7 @@ function fixture({ existing = false, duration = 853 / 60, corrupt = false, lostR
 test('bundled B2 imports as one full-length Audio without creating a Draft', async () => {
   const f = fixture(), result = await f.run();
   assert.equal(result.status, 'musicReady', result.message);
-  assert.deepEqual(result.music, { resourceId: 'music', name: 'music.mp3', path, durationFrames: 853, startFrame: 0 });
+  assert.deepEqual(result.music, { resourceId: 'music', name: 'music.mp3', path, durationFrames: 853, durationSeconds:853/60, startFrame: 0 });
   assert.equal(f.calls.length, 1);
 });
 test('repeat preparation reuses the exact Project path without another import', async () => {
@@ -50,8 +50,8 @@ test('invalid paths and result lengths fail before import', async () => {
   }
 });
 test('a Windows path matches the host form of the same file without a second import', async () => {
-  const winPath = 'C:\\Users\\\uD64D\uAE38\uB3D9\\.selects\\skills\\photo-gallery-no2\\assets\\music.mp3';
-  const f = fixture({ hostPath: 'c:/users/\uD64D\uAE38\uB3D9/.selects/skills/photo-gallery-no2/assets/MUSIC.mp3' });
+  const winPath = 'C:\\Users\\\uD64D\uAE38\uB3D9\\.selects\\plugin-data\\photo-gallery-no2\\assets\\70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0.mp3';
+  const f = fixture({ hostPath: 'c:/users/\uD64D\uAE38\uB3D9/.selects/plugin-data/photo-gallery-no2/assets/70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0.MP3' });
   const first = await f.run({ path: winPath });
   assert.equal(first.status, 'musicReady', first.message);
   assert.equal((await f.run({ path: winPath })).status, 'musicReady');

@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Travel Beat Vlog uses the same shared image-matte path on Windows and macOS."""
 import json
 from pathlib import Path
@@ -6,7 +7,7 @@ import unittest
 from windows_static import assert_no_shell_token
 ROOT = Path(__file__).resolve().parents[1]
 PANEL = ROOT / 'plugins/travel-beat-vlog/panel.tsx'
-REFERENCE = ROOT / 'plugins/archive-vlog/panel.tsx'
+REFERENCE = ROOT / 'plugins/city-weekend-vlog/panel.tsx'
 BLOCK = re.compile(r'^// av-host:start\n.*?^// av-host:end\n', re.S | re.M)
 FORBIDDEN = ['mkdir -p', '$HOME', '$SELECTS_USER', 'swiftc', 'osascript', 'tools/cutout.js']
 class TravelBeatVlogWindows(unittest.TestCase):

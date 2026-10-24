@@ -1,24 +1,22 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
-import { webcrypto } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createRequire, stripTypeScriptTypes } from 'node:module';
+import { createRequire } from 'node:module';
+import {loadPanelModule} from './panel_module_fixture.mjs';
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 
 const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8');
 function load(React = {}, clientSource = source) {
-  const plain = stripTypeScriptTypes(clientSource.replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
-  const context = vm.createContext({React, console, crypto:webcrypto, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
-  vm.runInContext(plain + '\nthis.api={createPanelLocalClient,panelLocalClient,withPanelLocalClient};', context);
-  return context.api;
+  return loadPanelModule(clientSource, {names:['createPanelLocalClient','panelLocalClient','withPanelLocalClient'], React,
+    modules:{'./file-observation.js':{fingerprintTemplateFile}}});
 }
 function host({platform='darwin', clipRead=false, onStart}={}) {
   const files = new Map(), calls=[], jobs=new Map(), fileCalls=[];
   const fileService={
     environment:async()=>({platform,version:'test',homedir:platform==='win32'?'C:\\Users\\\ud64d\uae38\ub3d9':'/user',tempDirectory:platform==='win32'?'C:\\temp':'/tmp'}),
-    stat:async path=>files.has(path)?{size:files.get(path).length}:null,
+    stat:async path=>files.has(path)?{size:files.get(path).length,mtimeMs:1,ino:2,isDirectory:false}:null,
     exists:async path=>files.has(path),
     readRange:async({path,offset,length})=>{
       fileCalls.push({method:'readRange',path,offset,length});
@@ -71,30 +69,40 @@ for (const directory of [process.cwd(), process.env.SELECTS_DEV_REPO,
   catch { /* Try the next local installation. */ }
 }
 
-test('shared, Card News Maker and a16z file scripts pass the host SDK TypeScript check', {
+let scriptsFromConsumers;
+function consumerScripts() {
+  return scriptsFromConsumers ||= (async () => {
+    const scripts = [];
+    const panels = ['card-news-maker','a16z-style-captions','no14-still-video','camera-shutter-dump']
+      .map(id => fs.readFileSync(id === 'a16z-style-captions' && process.env.A16Z_STYLE_CAPTIONS_PANEL ||
+        new URL('../plugins/'+id+'/panel.tsx', import.meta.url), 'utf8'));
+    for (const clientSource of [source, ...panels]) {
+      for (const platform of ['darwin','win32']) {
+        const h = host({platform}), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
+        const file = platform === 'win32' ? 'C:\\tmp\\\uD55C\uAE00 "quoted".bin' : '/tmp/\uD55C\uAE00 "quoted".bin';
+        await client.files.writeFile(file, new Uint8Array(100000));
+        assert.deepEqual(await client.files.readFile(file), new Uint8Array(100000));
+        await client.files.writeFile(file, '', 'utf8');
+        await client.files.writeFile('/lease', 'owner', {flag:'wx'});
+        await client.files.writeFile('/lease', '\nnext', {flag:'a'});
+        assert.equal(await client.files.readFile('/lease', 'utf8'), 'owner\nnext');
+        scripts.push(...h.calls.map(call => call.script));
+        client.dispose();
+      }
+    }
+    return scripts;
+  })();
+}
+// This behavior check must run even when optional installed-app typings are absent.
+test('complete shared and four consumer modules round-trip bounded binary/text files on macOS and Windows', async () => {
+  assert.ok((await consumerScripts()).length > 0);
+});
+test('all consumer scripts pass the installed host SDK TypeScript check', {
   skip: !typescript || !sdkTypes ? 'requires local TypeScript and Selects SDK declarations' : false,
 }, async () => {
-  const panel = fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx', import.meta.url), 'utf8');
-  const embedded = panel.split('// local-sdk:start\n')[1].split('// local-sdk:end')[0]
-    .replace(/^export default withPanelLocalClient\(\w+\);\s*$/m, '');
-  const a16zPanel = fs.readFileSync(process.env.A16Z_STYLE_CAPTIONS_PANEL ||
-    new URL('../plugins/a16z-style-captions/panel.tsx', import.meta.url), 'utf8');
-  const a16zClient = a16zPanel.split('// shared/local-client.ts\n')[1]
-    .split('// plugins/a16z-style-captions/')[0];
   const directory = fs.mkdtempSync(path.join(tmpdir(), 'local-client-types-'));
   try {
-    const scripts = [];
-    for (const clientSource of [source, embedded, a16zClient]) {
-      const h = host(), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
-      const file = '/tmp/\ud55c\uae00 "quoted"\\file.bin';
-      await client.files.writeFile(file, new Uint8Array(100000));
-      assert.deepEqual(await client.files.readFile(file), new Uint8Array(100000));
-      await client.files.writeFile(file, '', 'utf8');
-      await client.files.writeFile('/lease', 'owner', {flag:'wx'});
-      await client.files.writeFile('/lease', '\nnext', {flag:'a'});
-      assert.equal(await client.files.readFile('/lease', 'utf8'), 'owner\nnext');
-      scripts.push(...h.calls.map(call => call.script));
-    }
+    const scripts = await consumerScripts();
     const file = path.join(directory, 'scripts.ts');
     fs.writeFileSync(file, 'declare const selects: {files: LocalFilesService};\n' +
       scripts.map((script, index) => `async function run${index}() { ${script} }`).join('\n'));
@@ -236,7 +244,7 @@ test('a signal already aborted never starts the host process',async()=>{
   assert.equal(h.jobs.size,0);
 });
 test('wrapper waits for environment, keeps original public sdk, and removes the private client on unmount',async()=>{
-  let state=null,effect,cleanup;const React={useState:()=>[state,value=>{state=value;}],useEffect:fn=>{effect??=fn;},createElement:(type,props,...children)=>({type,props,children})};
+  let state=null,effect,cleanup;const React={useState:()=>[state,value=>{state=value;}],useRef:value=>({current:value}),useEffect:fn=>{effect??=fn;},createElement:(type,props,...children)=>({type,props,children})};
   const api=load(React),h=host();let release;
   const original=h.sdk.runScript;
   h.sdk.runScript=async input=>{if(input.script.includes('environment'))await new Promise(resolve=>{release=resolve;});return original(input);};
@@ -394,4 +402,20 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
     await client.files.rm(folder,{recursive:true,force:true});assert.equal(fs.existsSync(folder),false);
     assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
+});
+test('local client observes full originals in one read-only SDK script without a fingerprint API',async()=>{
+ const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/large-original',bytes);
+ const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
+ const row=await client.files.fingerprint('/large-original');
+ assert.deepEqual(JSON.parse(JSON.stringify(row)),{size:bytes.length,sha256:(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex')});
+ assert.equal(h.calls.length-before,1,'all chunks share one script deadline');
+ assert.equal(await client.files.fingerprint('/missing'),null);
+ const calls=h.calls.slice(before);assert(calls.every(call=>call.allowCommit===false));assert(calls.every(call=>!call.script.includes('files.fingerprint')));
+ assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,4);
+});
+test('the private canonical read overload supports source observations without changing positional EOF reads',async()=>{
+ const h=host();h.files.set('/a',Buffer.from('alpha'));const client=await load().createPanelLocalClient(h.sdk);
+ const sdkRead=await client.files.readRange({path:'/a',offset:1,length:2});assert.deepEqual(sdkRead,{bytesRead:2,base64:'bHA='});
+ assert.equal(Buffer.from(await client.files.readRange('/a',3,10)).toString(),'ha');
+ const {observeSourceFiles}=await import('../shared/native-image-input.mjs');const rows=await observeSourceFiles(client.files,['/a']);assert.equal(rows[0].sha256,(await import('node:crypto')).createHash('sha256').update('alpha').digest('hex'));
 });
