@@ -33,9 +33,10 @@ export default function FlowCauseEffect({ data }) {
   const cause = { word: String(data?.cause?.word ?? ''), caption: String(data?.cause?.caption ?? '') };
   const effect = { word: String(data?.effect?.word ?? ''), caption: String(data?.effect?.caption ?? '') };
   const tCause = 0.5, tArrow = 1.6, tEffect = 2.2;
-  // Last entrance: the effect word, 0.45 + 0.8 s after its card.
-  const s = useScene(data, tEffect + 1.25);
   const subtitle = String(data?.subtitle ?? '');
+  // Last entrance: the effect word, 0.45 + 0.8 s after its card, or a caption/word brush (0.8 / 1.0 + 0.9 s after it).
+  const cardEnd = (c, t0) => Math.max(brushEnd(c.caption, t0 + 0.8), brushEnd(c.word, t0 + 1.0));
+  const s = useScene(data, Math.max(tEffect + 1.25, cardEnd(cause, tCause), cardEnd(effect, tEffect), headerEnd(String(data?.title ?? ''), subtitle)));
   const cy = (subtitle ? 190 : 150) + (794 - (subtitle ? 190 : 150)) / 2;
   const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
   const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;

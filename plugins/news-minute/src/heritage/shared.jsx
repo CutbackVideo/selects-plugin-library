@@ -180,6 +180,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the
+// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\{[^}]*\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (

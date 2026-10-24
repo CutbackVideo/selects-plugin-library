@@ -143,7 +143,14 @@ test("each scene template's entrance length comes from the template itself", () 
   assert.equal(ENTRANCE.news_photo({}, FPS, 300), 1.1);
   assert.equal(ENTRANCE.flow_cause_effect({}, FPS, 300), 3.45);
   assert.equal(ENTRANCE.number_callout({}, FPS, 300), 3.35);
-  assert.equal(ENTRANCE.bar_compare_h({ bars: [{ value: 1 }, { value: 2, tone: "accent" }] }, FPS, 300), 4.1);
+  // bars: 4.1 s at the tightest spacing; a 10 s clip spaces the second bar 1 s later, a 5 s clip cannot
+  const bars = { bars: [{ value: 1 }, { value: 2, tone: "accent" }] };
+  assert.equal(ENTRANCE.bar_compare_h(bars, FPS, 300), 5.1);
+  assert.equal(ENTRANCE.bar_compare_h(bars, FPS, 150), 4.1);
+  // a {phrase} brush counts as part of the entrance
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + " vs " + b);
+  near(ENTRANCE.highlight_card({ subtitle: "{x}" }, FPS, 300), 2.65);
+  near(ENTRANCE.flow_cause_effect({ effect: { word: "{x}" } }, FPS, 300), 4.1);
   // quote lines spread over the clip, so a longer clip ends its entrance later
   const q = { lines: ["a", "{b}", "c"] };
   assert.ok(ENTRANCE.quote_card(q, FPS, 450) > ENTRANCE.quote_card(q, FPS, 150));

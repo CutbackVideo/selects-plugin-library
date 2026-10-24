@@ -29,14 +29,19 @@ export default function BarCompareH({ data }) {
   const gap = (i) => (i === hero ? 1.5 : 1.0);
   const tail = (i) => (i === hero ? 2.5 : 1.4);
   const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));
-  // Last entrance: the hero count-up (bar start + 1.2 + 1.3 s) or a grey value pop (start + 0.6 + 0.8 s).
-  const natural = Math.max(1.2, ...base.map((t0, i) => t0 + tail(i)));
-  const s = useScene(data, natural);
-  const k = s.k;
+  // Last entrance at the tightest spacing: the hero count-up (bar start + 1.2 + 1.3 s), a grey value pop
+  // (start + 0.6 + 0.8 s) or a name/sub brush (start + 0.6/0.72 + 0.9 s).
+  const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));
+  const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));
   // A clip with room to spare spaces the bars out (up to +1 s each, half the slack) so they follow the
-  // narration; a sped-up clip has no slack.
-  const extra = n > 1 && s.speed === 1 ? Math.min(1, Math.max(0, s.end - HOLD - natural) * 0.5 / (n - 1)) : 0;
+  // narration; a clip too short for the tight timeline has no slack. Worked out before useScene so its
+  // `natural` (where the preview seeks to) includes the spacing.
+  const { fps, durationInFrames } = useVideoConfig();
+  const end = durationInFrames / fps;
+  const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;
   const start = base.map((t0, i) => t0 + extra * i);
+  const s = useScene(data, Math.max(tight + extra * (n - 1), headerEnd(String(data?.title ?? ''), subtitle)));
+  const k = s.k;
   // Equal gaps between the bars and the margins x 60..1020.
   const ws = bars.map((_, i) => (i === hero ? 290 : 200));
   const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);

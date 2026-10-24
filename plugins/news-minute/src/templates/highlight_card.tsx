@@ -8,11 +8,11 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // up from 0 and slows to a stop so its last digits read; text around it (a "$" prefix, a word before it) stays fixed.
 // `subtitle` sits under the card, `source` bottom-right.
 export default function HighlightCard({ data }) {
-  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s.
-  const s = useScene(data, 2.0);
-  const k = s.k;
   const title = String(data?.title ?? '');
   const subtitle = String(data?.subtitle ?? '');
+  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s, or a brush in the title or sub line.
+  const s = useScene(data, Math.max(2.0, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
+  const k = s.k;
   const value = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
   const unit = String(data?.unit ?? '');
   const W = 860, H = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
