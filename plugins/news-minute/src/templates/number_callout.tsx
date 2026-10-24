@@ -59,13 +59,14 @@ export default function NumberCallout({ data }) {
   const last = (l) => l[l.length - 1];
   const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
   const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > toVW;
-  // The count runs from the old value to the new one in the new value's format, right-aligned in a slot as wide as the
-  // longest text it shows (one of its two ends: counting down from a longer number shows more digits than it lands on),
-  // so the new value lands at the right of that slot. It counts only on one line with the unit beside it, and only when
-  // that line still fits x 60..1020 at the popped size; else the value pops in its final text, laid out as without it.
+  // The count runs from the old value to the new one in the new value's format. Counting up, it is right-aligned in the
+  // final value's slot, so the line does not move. Counting down from a longer number shows more digits than it lands
+  // on, so the line is centred on whatever the count shows and the final value ends centred. It counts only on one line
+  // with the unit beside it, and only when that line at its longest (`widest`, one of the two ends) still fits
+  // x 60..1020 at the popped size; else the value pops in its final text.
   const widest = same ? [counted({ ...ct, num: cf.num, decimals: Math.max(cf.decimals, ct.decimals) }, 1), to].reduce((a, b) => (toW(b) > toW(a) ? b : a)) : to;
   const counts = toLines.length === 1 && !toOwn && toW(widest) + (unit ? 6 + toUnitW(-4) : 0) + (dir ? 62 : 0) <= toVW;
-  const slot = counts ? widest : to;
+  const down = counts && widest !== to;
   // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
   const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
   const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
@@ -94,7 +95,13 @@ export default function NumberCallout({ data }) {
   };
   valueReport('old value', fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
   reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-  valueReport('new value', toLines, yTo, TL, 150, (t) => toW(counts ? slot : t), (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, 'safe area']);
+  const toBeside = (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0);
+  valueReport('new value', toLines, yTo, TL, 150, toW, toBeside, toOwn, down ? null : [POP_GROW, SAFE, 'safe area']);
+  // A count down pops in at its longest line, centred.
+  if (down) {
+    const w = toW(widest) + toBeside;
+    reportGrown('new value', widest + unit, [540 - w / 2, yTo - 90, 540 + w / 2, yTo + 90], [POP_GROW, SAFE, 'safe area'], 150);
+  }
   reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, undefined, [POP_GROW, SAFE, 'safe area']);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
@@ -134,9 +141,10 @@ export default function NumberCallout({ data }) {
         <Pop key={'t' + j} s={s} t0={toAt} x={540} y={yTo + TL * j}>
           <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * k }}>
             <span style={{ position: 'relative' }}>
-              {/* The slot (the longest text the count shows) sizes the line; the counting value is laid over it so nothing shifts. */}
-              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts ? 'hidden' : 'visible' }}>{counts ? slot : l}</span>
-              {counts ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
+              {/* Counting up, the final value sizes the line and the counting value is laid over it so nothing shifts;
+                  counting down, the counting value is the line. */}
+              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts && !down ? 'hidden' : 'visible' }}>{down ? running : l}</span>
+              {counts && !down ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
             </span>
             {unit && !toOwn && j === toLines.length - 1 ? <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
             {!toOwn && j === toLines.length - 1 ? triangle : null}
