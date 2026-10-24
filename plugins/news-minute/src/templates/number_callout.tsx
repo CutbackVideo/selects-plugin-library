@@ -52,11 +52,12 @@ export default function NumberCallout({ data }) {
   // the unit's margin; the new value's triangle takes 62 px (18 + 44). Values may use the whole graphic area x 60..1020.
   const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
   const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
-  const VW = X1 - X0;
-  const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, VW, toW);
+  // The new value pops in 3 % wider for a moment, so its lines and its unit's place fit x 60..1020 at that size.
+  const VW = X1 - X0, toVW = VW / POP_GROW;
+  const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, toVW, toW);
   const last = (l) => l[l.length - 1];
   const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
-  const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > VW;
+  const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > toVW;
   // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
   const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
   const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
@@ -86,8 +87,8 @@ export default function NumberCallout({ data }) {
   };
   valueReport('old value', fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
   reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, WINDOW, 'window']);
-  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, undefined, [POP_GROW, WINDOW, 'window']);
+  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, 'safe area']);
+  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, undefined, [POP_GROW, SAFE, 'safe area']);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   const triangle = dir ? (

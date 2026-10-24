@@ -130,7 +130,7 @@ export default function LineTrendCallout({ data }) {
   const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
   if (n && endText !== '') {
     report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
-    reportGrown('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, WINDOW, 'window'], 84);
+    reportGrown('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, SAFE, 'safe area', 'r'], 84);
   }
   // A text end label without one number pops in as the last segment starts, at rest before the hold.
   const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);

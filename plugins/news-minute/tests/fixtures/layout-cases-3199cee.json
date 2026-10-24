@@ -1,0 +1,517 @@
+[
+ {
+  "id": "number-safe-boundary",
+  "type": "number_callout",
+  "label": "3199cee review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\uc9c0\uc6d0\uae08 \ubcc0\ud654",
+   "label": "\uc9c0\uc6d0\uae08",
+   "from": 0,
+   "to": 100000000,
+   "unit": "\uc6d0",
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  },
+  "narration": "\uc9c0\uc6d0\uae08\uc774 0\uc6d0\uc5d0\uc11c 100000000\uc6d0\uc73c\ub85c \ub298\uc5c8\uc2b5\ub2c8\ub2e4.",
+  "frame": 70,
+  "plan": {
+   "assetSummaries": [],
+   "scenes": [
+    {
+     "sentenceIds": [
+      "s1"
+     ],
+     "type": "number_callout",
+     "params": {
+      "title": "\uc9c0\uc6d0\uae08 \ubcc0\ud654",
+      "label": "\uc9c0\uc6d0\uae08",
+      "from": 0,
+      "to": 100000000,
+      "unit": "\uc6d0",
+      "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+     },
+     "hideCaption": false,
+     "disclaimer": false
+    }
+   ],
+   "sentences": [
+    {
+     "id": "s1",
+     "text": "\uc9c0\uc6d0\uae08\uc774 0\uc6d0\uc5d0\uc11c 100000000\uc6d0\uc73c\ub85c \ub298\uc5c8\uc2b5\ub2c8\ub2e4.",
+     "startSec": 0,
+     "endSec": 10
+    }
+   ],
+   "assets": []
+  },
+  "fit": {
+   "errors": [],
+   "warnings": []
+  },
+  "validate": {
+   "ok": true,
+   "errors": [],
+   "warnings": [],
+   "stats": {
+    "scenes": 1,
+    "maxSceneSec": 10,
+    "photosUsed": 0,
+    "assetSummaries": {}
+   }
+  },
+  "check": {
+   "ok": true,
+   "errors": [],
+   "warnings": [],
+   "stats": {
+    "scenes": 1,
+    "maxSceneSec": 10,
+    "photosUsed": 0,
+    "assetSummaries": {}
+   }
+  },
+  "reports": [
+   {
+    "what": "label",
+    "text": "\uc9c0\uc6d0\uae08",
+    "box": [
+     482.976,
+     155.6,
+     597.024,
+     208.4
+    ],
+    "area": [
+     90,
+     150,
+     990,
+     750
+    ],
+    "size": 44,
+    "lines": 1,
+    "maxLines": 2,
+    "overlap": false
+   },
+   {
+    "what": "old value",
+    "text": "0\uc6d0",
+    "box": [
+     485.04,
+     234.4,
+     594.96,
+     349.6
+    ],
+    "area": [
+     60,
+     150,
+     1020,
+     750
+    ],
+    "size": 96,
+    "lines": 1,
+    "maxLines": 2
+   },
+   {
+    "what": "new value",
+    "text": "100,000,000",
+    "box": [
+     67.2999999999999,
+     492,
+     1012.7,
+     672
+    ],
+    "area": [
+     60,
+     150,
+     1020,
+     750
+    ],
+    "size": 150,
+    "lines": 1,
+    "maxLines": 2
+   },
+   {
+    "what": "new value",
+    "text": "100,000,000",
+    "box": [
+     53.118999999999886,
+     492,
+     1026.881,
+     672
+    ],
+    "area": [
+     0,
+     null,
+     1080,
+     null
+    ],
+    "size": 150,
+    "entrance": 1.03,
+    "room": "window"
+   },
+   {
+    "what": "new value unit",
+    "text": "\uc6d0",
+    "box": [
+     474.44,
+     654,
+     605.56,
+     750
+    ],
+    "area": [
+     60,
+     150,
+     1020,
+     750
+    ],
+    "size": 80,
+    "lines": 1,
+    "maxLines": 1,
+    "overlap": false
+   },
+   {
+    "what": "new value unit",
+    "text": "\uc6d0",
+    "box": [
+     472.4732,
+     654,
+     607.5268,
+     750
+    ],
+    "area": [
+     0,
+     null,
+     1080,
+     null
+    ],
+    "size": 80,
+    "entrance": 1.03,
+    "room": "window"
+   }
+  ]
+ },
+ {
+  "id": "number-spaced-boundary",
+  "type": "number_callout",
+  "label": "3199cee review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\uc9c0\uc6d0\uae08 \ubcc0\ud654",
+   "label": "\uc9c0\uc6d0\uae08",
+   "from": "99\uc5b55000\ub9cc",
+   "to": "199\uc5b5 5000\ub9cc",
+   "unit": "\uc6d0",
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  },
+  "narration": "\uc9c0\uc6d0\uae08\uc774 99\uc5b55000\ub9cc\uc6d0\uc5d0\uc11c 199\uc5b5 5000\ub9cc\uc6d0\uc73c\ub85c \ub298\uc5c8\uc2b5\ub2c8\ub2e4.",
+  "frame": 70,
+  "plan": {
+   "assetSummaries": [],
+   "scenes": [
+    {
+     "sentenceIds": [
+      "s1"
+     ],
+     "type": "number_callout",
+     "params": {
+      "title": "\uc9c0\uc6d0\uae08 \ubcc0\ud654",
+      "label": "\uc9c0\uc6d0\uae08",
+      "from": "99\uc5b55000\ub9cc",
+      "to": "199\uc5b5 5000\ub9cc",
+      "unit": "\uc6d0",
+      "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+     },
+     "hideCaption": false,
+     "disclaimer": false
+    }
+   ],
+   "sentences": [
+    {
+     "id": "s1",
+     "text": "\uc9c0\uc6d0\uae08\uc774 99\uc5b55000\ub9cc\uc6d0\uc5d0\uc11c 199\uc5b5 5000\ub9cc\uc6d0\uc73c\ub85c \ub298\uc5c8\uc2b5\ub2c8\ub2e4.",
+     "startSec": 0,
+     "endSec": 10
+    }
+   ],
+   "assets": []
+  },
+  "fit": {
+   "errors": [],
+   "warnings": []
+  },
+  "validate": {
+   "ok": true,
+   "errors": [],
+   "warnings": [],
+   "stats": {
+    "scenes": 1,
+    "maxSceneSec": 10,
+    "photosUsed": 0,
+    "assetSummaries": {}
+   }
+  },
+  "check": {
+   "ok": true,
+   "errors": [],
+   "warnings": [],
+   "stats": {
+    "scenes": 1,
+    "maxSceneSec": 10,
+    "photosUsed": 0,
+    "assetSummaries": {}
+   }
+  },
+  "reports": [
+   {
+    "what": "label",
+    "text": "\uc9c0\uc6d0\uae08",
+    "box": [
+     482.976,
+     155.6,
+     597.024,
+     208.4
+    ],
+    "area": [
+     90,
+     150,
+     990,
+     750
+    ],
+    "size": 44,
+    "lines": 1,
+    "maxLines": 2,
+    "overlap": false
+   },
+   {
+    "what": "old value",
+    "text": "99\uc5b55000\ub9cc\uc6d0",
+    "box": [
+     248.776,
+     234.4,
+     831.2239999999999,
+     349.6
+    ],
+    "area": [
+     60,
+     150,
+     1020,
+     750
+    ],
+    "size": 96,
+    "lines": 1,
+    "maxLines": 2
+   },
+   {
+    "what": "new value",
+    "text": "199\uc5b5 5000\ub9cc",
+    "box": [
+     62.824999999999875,
+     492,
+     1017.1750000000002,
+     672
+    ],
+    "area": [
+     60,
+     150,
+     1020,
+     750
+    ],
+    "size": 150,
+    "lines": 1,
+    "maxLines": 2
+   },
+   {
+    "what": "new value",
+    "text": "199\uc5b5 5000\ub9cc",
+    "box": [
+     48.509749999999855,
+     492,
+     1031.4902500000003,
+     672
+    ],
+    "area": [
+     0,
+     null,
+     1080,
+     null
+    ],
+    "size": 150,
+    "entrance": 1.03,
+    "room": "window"
+   },
+   {
+    "what": "new value unit",
+    "text": "\uc6d0",
+    "box": [
+     505.44,
+     654,
+     574.56,
+     750
+    ],
+    "area": [
+     60,
+     150,
+     1020,
+     750
+    ],
+    "size": 80,
+    "lines": 1,
+    "maxLines": 1,
+    "overlap": false
+   },
+   {
+    "what": "new value unit",
+    "text": "\uc6d0",
+    "box": [
+     504.40319999999997,
+     654,
+     575.5967999999999,
+     750
+    ],
+    "area": [
+     0,
+     null,
+     1080,
+     null
+    ],
+    "size": 80,
+    "entrance": 1.03,
+    "room": "window"
+   }
+  ]
+ },
+ {
+  "id": "trend-safe-boundary",
+  "type": "line_trend_callout",
+  "label": "3199cee review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\ube44\uc728 \ucd94\uc774",
+   "points": [
+    {
+     "x": "2024",
+     "y": 1
+    },
+    {
+     "x": "2025",
+     "y": 2
+    },
+    {
+     "x": "2026",
+     "y": 3
+    }
+   ],
+   "unit": "%",
+   "endLabel": "\uc0ac\uc0c1 \ucd5c\uace0",
+   "accentFrom": 1,
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  },
+  "narration": "\ube44\uc728\uc774 2024\ub144 1%, 2025\ub144 2%, 2026\ub144 3%\ub85c \uc62c\ub77c \uc0ac\uc0c1 \ucd5c\uace0\ub97c \uae30\ub85d\ud588\uc2b5\ub2c8\ub2e4.",
+  "frame": 123,
+  "plan": {
+   "assetSummaries": [],
+   "scenes": [
+    {
+     "sentenceIds": [
+      "s1"
+     ],
+     "type": "line_trend_callout",
+     "params": {
+      "title": "\ube44\uc728 \ucd94\uc774",
+      "points": [
+       {
+        "x": "2024",
+        "y": 1
+       },
+       {
+        "x": "2025",
+        "y": 2
+       },
+       {
+        "x": "2026",
+        "y": 3
+       }
+      ],
+      "unit": "%",
+      "endLabel": "\uc0ac\uc0c1 \ucd5c\uace0",
+      "accentFrom": 1,
+      "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+     },
+     "hideCaption": false,
+     "disclaimer": false
+    }
+   ],
+   "sentences": [
+    {
+     "id": "s1",
+     "text": "\ube44\uc728\uc774 2024\ub144 1%, 2025\ub144 2%, 2026\ub144 3%\ub85c \uc62c\ub77c \uc0ac\uc0c1 \ucd5c\uace0\ub97c \uae30\ub85d\ud588\uc2b5\ub2c8\ub2e4.",
+     "startSec": 0,
+     "endSec": 10
+    }
+   ],
+   "assets": []
+  },
+  "fit": {
+   "errors": [],
+   "warnings": []
+  },
+  "validate": {
+   "ok": true,
+   "errors": [],
+   "warnings": [],
+   "stats": {
+    "scenes": 1,
+    "maxSceneSec": 10,
+    "photosUsed": 0,
+    "assetSummaries": {}
+   }
+  },
+  "check": {
+   "ok": true,
+   "errors": [],
+   "warnings": [],
+   "stats": {
+    "scenes": 1,
+    "maxSceneSec": 10,
+    "photosUsed": 0,
+    "assetSummaries": {}
+   }
+  },
+  "reports": [
+   {
+    "what": "end value",
+    "text": "\uc0ac\uc0c1 \ucd5c\uace0",
+    "box": [
+     720.796,
+     120,
+     1020,
+     220
+    ],
+    "area": [
+     60,
+     112,
+     1020,
+     560
+    ],
+    "size": 84,
+    "lines": 1,
+    "maxLines": 1
+   },
+   {
+    "what": "end value",
+    "text": "\uc0ac\uc0c1 \ucd5c\uace0",
+    "box": [
+     716.30794,
+     120,
+     1024.48806,
+     220
+    ],
+    "area": [
+     0,
+     null,
+     1080,
+     null
+    ],
+    "size": 84,
+    "entrance": 1.03,
+    "room": "window"
+   }
+  ]
+ }
+]
