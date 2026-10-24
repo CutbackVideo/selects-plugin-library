@@ -217,7 +217,7 @@ test('language-driven provider re-registration retains the checked release for i
 test('opts into a host-managed opening nudge without initiating installation or shell work', async () => {
   const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
   const register=source.indexOf('    return sdk.updates.register({');
-  const end=source.indexOf('\n  }, [sdk, lang, updateRegistration]);',register);
+  const end=source.indexOf('\n  }, [sdk, lang, updateRegistration, templatesReady]);',register);
   const code=source.slice(register,end).replaceAll(': any','').replaceAll(': string','');
   let options,provider,called=0;
   const cleanup=()=>{};
@@ -233,19 +233,21 @@ test('opts into a host-managed opening nudge without initiating installation or 
 test('legacy hosts without updates remain inert and legacy register ignores nudge options', async () => {
   const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
   const register=source.indexOf('    return sdk.updates.register({');
-  const guard=source.lastIndexOf('    if (!sdk.updates?.register || !sdk.runShell) return;',register);
-  const end=source.indexOf('\n  }, [sdk, lang, updateRegistration]);',register);
+  const guard=source.lastIndexOf('    if (!templatesReady || !sdk.updates?.register || !sdk.runShell) return;',register);
+  const end=source.indexOf('\n  }, [sdk, lang, updateRegistration, templatesReady]);',register);
   const code=source.slice(guard,end).replaceAll(': any','').replaceAll(': string','');
-  const effect=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN','catalogWaiters','updateRegistration',code);
+  const effect=new Function('templatesReady','sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN','catalogWaiters','updateRegistration',code);
   let calls=0,provider;
   const runShell=()=>{calls++;throw Error('legacy host must not execute update work on registration');};
   for(const sdk of [{runShell},{updates:{},runShell},{updates:{register:()=>{throw Error('missing shell');}}}]) {
-    assert.equal(effect(sdk,'en',{current:null},{current:false},false),undefined);
+    assert.equal(effect(true,sdk,'en',{current:null},{current:false},false),undefined);
   }
   const cleanup=()=>{};
   // Historical register takes one argument: JS ignores the extra option.
   const legacy={runShell,updates:{register:function(p){provider=p;return cleanup;}}};
-  assert.equal(effect(legacy,'en',{current:null},{current:false},false),cleanup);
+  assert.equal(effect(false,legacy,'en',{current:null},{current:false},false),undefined);
+  assert.equal(provider,undefined,'the update provider waits for the template list');
+  assert.equal(effect(true,legacy,'en',{current:null},{current:false},false),cleanup);
   assert.equal(typeof provider.checkUpdate,'function');
   assert.equal(typeof provider.prepareUpdate,'function');
   assert.equal(calls,0);

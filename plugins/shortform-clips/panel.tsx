@@ -9986,6 +9986,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [templateSaving, setTemplateSaving] = React.useState(false);
   const [historyLoading, setHistoryLoading] = React.useState(true);
   const [templatesLoading, setTemplatesLoading] = React.useState(true);
+  // Release secondary host work only after this repository's first list attempt settles.
+  // Keep this separate from loading/error UI so a failed list cannot strand other features.
+  const [startupRepository, setStartupRepository] = React.useState<any>(null);
+  const templatesReady = startupRepository === repository;
   const templateLoadRevision = React.useRef(0);
   const [packMessage, setPackMessage] = React.useState("");
   const [packError, setPackError] = React.useState("");
@@ -10141,6 +10145,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     let live=true;
     const scope=overlayScope.current;
     const isCurrent=()=>live&&overlayScope.current===scope;
+    if(!templatesReady){setOverlayLoading(!!projectId);return;}
     if(!projectId||busy||overlayBusy){setOverlayLoading(false);return;}
     setOverlayLoading(true);
     (async()=>{
@@ -10160,7 +10165,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       finally{if(isCurrent())setOverlayLoading(false);}
     })();
     return ()=>{live=false;};
-  },[projectId,context.sequenceId,busy,overlayBusy,overlayRefresh]);
+  },[projectId,context.sequenceId,busy,overlayBusy,overlayRefresh,templatesReady]);
 
   // ---- Templates: installed packs, user overrides and independent copies ----
   const loadTemplates = React.useCallback(async () => {
@@ -10177,7 +10182,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     } catch (e: any) {
       if (revision === templateLoadRevision.current) setPackError(String(e?.message || e));
       return null;
-    } finally { if (revision === templateLoadRevision.current) setTemplatesLoading(false); }
+    } finally {
+      if (revision === templateLoadRevision.current) { setTemplatesLoading(false); setStartupRepository(repository); }
+    }
   }, [repository]);
   const templateDirty = !!tplEdit && JSON.stringify(tplEdit) !== tplBase;
   const updateBlocked = React.useRef(false);
@@ -10202,7 +10209,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     });
   }
   React.useEffect(() => {
-    if (!sdk.updates?.register || !sdk.runShell) return;
+    if (!templatesReady || !sdk.updates?.register || !sdk.runShell) return;
     return sdk.updates.register({
       async checkUpdate(checkContext: any) {
         for (const waiter of catalogWaiters?.current.splice(0) || []) waiter(checkContext?.latest || null);
@@ -10221,7 +10228,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedUpdateContext.current, IS_WIN, lang), timeoutMs: 300000};
       },
     }, { checkOnMount: true });
-  }, [sdk, lang, updateRegistration]);
+  }, [sdk, lang, updateRegistration, templatesReady]);
 
   const [importConflict,setImportConflict]=React.useState<any>(null);
   const [importChoices,setImportChoices]=React.useState<any>({});
@@ -10383,10 +10390,11 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   }, [projectId,sdk]);
   React.useEffect(()=>{
     setResources([]);
+    if(!templatesReady){setResourcesLoading(!!projectId);return;}
     void loadResources();
     const off=typeof sdk?.on==='function'?sdk.on("resourcesChanged",()=>void loadResources()):null;
     return ()=>{inputRevision.current++;if(typeof off==='function')off();};
-  },[loadResources]);
+  },[loadResources,templatesReady]);
   React.useEffect(() => {
     if(resourcesLoading)return;
     const eligible = resources;

@@ -14,7 +14,7 @@ test('SBS overlay follows the visible Draft without stale results or edits', {sk
   const state = source.slice(source.indexOf('  const O=OVERLAY_STRINGS[lang]'), source.indexOf('  const [mode, setMode]',source.indexOf('  const O=OVERLAY_STRINGS[lang]')));
   const start = source.indexOf('  // Follow the visible Draft;');
   const effect = source.slice(start,source.indexOf('  // ---- Templates:',start));
-  const code = dep('esbuild').transformSync(`function Harness({sdk, context, overlayCall, observe, busy=false, O:strings}) {
+  const code = dep('esbuild').transformSync(`function Harness({sdk, context, overlayCall, observe, busy=false, templatesReady=true, O:strings}) {
     const projectId=context.projectId, lang='en', OVERLAY_STRINGS={en:strings};
     ${state}
     ${effect}
