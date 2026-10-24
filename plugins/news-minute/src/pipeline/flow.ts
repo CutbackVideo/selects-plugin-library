@@ -36,6 +36,8 @@ export type Session = {
   preview?: PreviewDraft | null;
   // Drafts that became the video; a preview is never refilled into one of them.
   videos?: string[];
+  // Where the scenes sit on the Draft that became the video (draftId), so its rows still go to each scene.
+  video?: PreviewDraft | null;
 };
 
 // What the preview Draft was built from. planRev differs from previewRev(...) once the plan changes (an outdated
@@ -424,6 +426,12 @@ export function sceneSpans(sp: Pick<ScenePlan, "scenes" | "sentences" | "times" 
 export const previewRev = (s: Pick<Session, "presetId" | "script" | "plan">) =>
   ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
 export const previewFresh = (s: Session) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s) && !s.videos?.includes(s.preview.draftId));
+// The Draft the scene rows show and go to: a placed preview, else the confirmed video while it still shows this plan.
+export function rowsDraft(s: Session): PreviewDraft | null {
+  if (s.preview) return s.preview.planRev ? s.preview : null;
+  const v = s.video;
+  return v && s.plan && s.draftId === v.draftId && v.planRev === previewRev(s) ? v : null;
+}
 export const finalName = (s: Session) => s.script?.headline.line1 || s.article?.title || "News short";
 export const previewName = (s: Session, prefix: string) => prefix + " \u00b7 " + (s.article?.title || finalName(s));
 

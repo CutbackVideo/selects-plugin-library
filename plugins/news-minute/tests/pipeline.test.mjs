@@ -363,6 +363,22 @@ test("preview revision follows the scenes, look, headline and narration only", a
   assert.ok(!canRefill(p, "q", "chosun", 41.1) && !canRefill(p, "p", "generic", 41.1) && !canRefill(p, "p", "chosun", 41.6) && !canRefill(null, "p", "chosun", 41.1));
 });
 
+test("scene rows go to the preview, then to the confirmed video while it shows the plan", async () => {
+  const { previewRev, rowsDraft } = await import("../src/pipeline/flow.ts");
+  const plan = { narrationId: "n1", scenes: [{ type: "text_card", sentenceIds: ["s1"], params: { text: "a" } }], edited: [], thumbs: {} };
+  const s = { presetId: "chosun", script: { headline: { line1: "h", line2: "i" }, sentences: [] }, plan };
+  const rev = previewRev(s);
+  const preview = { draftId: "d1", planRev: rev, scenes: [{}] }, video = { draftId: "d0", planRev: rev, scenes: [{}] };
+  assert.equal(rowsDraft({ ...s, preview, draftId: "d0", video }), preview);
+  // A partly built preview has no scene places; the older video is not shown in its stead.
+  assert.equal(rowsDraft({ ...s, preview: { ...preview, planRev: "" }, draftId: "d0", video }), null);
+  assert.equal(rowsDraft({ ...s, preview: null, draftId: "d0", video }), video);
+  // The plan changed after confirming, the video is another Draft, or an earlier version recorded no places.
+  assert.equal(rowsDraft({ ...s, plan: { ...plan, scenes: [{ ...plan.scenes[0], params: { text: "b" } }] }, preview: null, draftId: "d0", video }), null);
+  assert.equal(rowsDraft({ ...s, preview: null, draftId: "d9", video }), null);
+  assert.equal(rowsDraft({ ...s, preview: null, draftId: "d0" }), null);
+});
+
 // A fake host for the Draft steps: answers each run_script by its summary and records the calls.
 function fakeHost(answers) {
   const calls = [];
