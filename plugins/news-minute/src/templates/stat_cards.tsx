@@ -56,16 +56,29 @@ export default function StatCards({ data }) {
   const d4 = d3 + (most((c) => c.label1.length) - 1) * L2;
   const d5 = d4 + (most((c) => c.v1.length) - 1) * V2;
   // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.
-  // Two by two, the two rows of cards share the room from under the header to y 750 (20 px apart).
+  // Two by two, the two rows of cards share the room from under the header to y 750 (20 px apart), but a card
+  // is never shorter than its text (name, label, number and unit, 280 + d3): cards that then run past y 750 are
+  // left for the layout check to flag rather than drawn with the number outside the card.
   const vgap = 20, top = subtitle ? 176 : 150;
-  const Hc = grid ? Math.min(300 + d3, (750 - top - vgap) / 2) : two ? 450 + d5 : 300 + d3;
+  const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;
   const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
+  const cardAt = (i) => ({ x: X0 + (i % cols) * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });
+  laid.forEach((c, i) => {
+    const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
+    const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: 'c' }));
+    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)]);
+    reportLines('card name', lines(c.header, y0 - 2 + (BAND + d1) / 2 - (BL * (c.header.length - 1)) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
+    reportLines('card label', lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
+    reportLines('card number', lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
+    reportLines('card unit', c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: 'c' }] : [], 36, inCard(14), 1);
+    reportLines('second label', lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));
+    reportLines('second value', lines(c.v1, y0 + 385 + d4, V2), 38, inCard(12));
+  });
   return (
     <Win s={s} data={data}>
       <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
       {laid.map((c, i) => {
-        const x = X0 + (i % cols) * (W + gap), cx = x + W / 2, t0 = at(i);
-        const y0 = top0 + Math.floor(i / cols) * (Hc + vgap);
+        const { x, y0 } = cardAt(i), cx = x + W / 2, t0 = at(i);
         const { r0, r1, v0, u0 } = c;
         return (
           <React.Fragment key={i}>

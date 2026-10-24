@@ -7,3 +7,4 @@ export { TTS_CHARS_PER_SEC, TARGET_CHARS, SENTENCE_COUNT, estimateSeconds, total
 export type * from "./types.ts";
 export { numberTokens } from "./text.ts";
 export { repairPrompt } from "./repair.ts";
+export { LAYOUT_ERROR } from "./fit.ts";

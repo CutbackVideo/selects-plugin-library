@@ -22,12 +22,17 @@ export default function TextCard({ data }) {
   const top = title ? 150 : 0;
   const block = lines.length * lh + (sub ? 36 + 44 * subLines.length : 0);
   const y0 = top + (794 - top - block) / 2;
+  const subY = (j) => y0 + lines.length * lh + 36 + 44 * j + 22;
+  // Under the title rule (or from the window top) to above the source line.
+  const area = [X0, title ? 120 : 10, X1, roomBottom(data)];
+  reportLines('text', lines.map((l, i) => ({ text: l, x: 540, y: y0 + lh * (i + 0.5), anchor: 'c' })), size, area);
+  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: subY(j), anchor: 'c' })), 36, area);
   return (
     <Win s={s} data={data}>
       <Header s={s} title={title} subtitle="" />
       {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
       {subLines.map((l, j) => (
-        <Rise key={'s' + j} s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 44 * j + 22}>
+        <Rise key={'s' + j} s={s} t0={at(lines.length)} dy={10} x={540} y={subY(j)}>
           <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={at(lines.length) + 0.55} /></div>
         </Rise>
       ))}

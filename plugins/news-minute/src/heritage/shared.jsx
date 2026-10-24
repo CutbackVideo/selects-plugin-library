@@ -248,32 +248,46 @@ const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at `size` (by ems): '\n' always breaks; otherwise only at a space outside
-// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \uC5B5/\uB9CC when digits follow
-// (1\uC5B55000\uB9CC -> 1\uC5B5 / 5000\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
-// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+// text into lines at most maxW px wide at `size` (by ems): '\n' always breaks; otherwise at a space, or, in a number,
+// after the Korean unit \uC5B5/\uB9CC when digits follow (1\uC5B55000\uB9CC -> 1\uC5B5 / 5000\uB9CC). A [ ] / { } mark stays on one line
+// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
+// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
+// report() then flags it (the scene's validation uses these same lines).
+const CLOSE = { '[': ']', '{': '}' };
 function wrapLines(text, size, maxW) {
   const out = [];
   for (const para of String(text ?? '').split('\n')) {
-    const words = [];
+    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.
+    const pieces = [];
     let cur = '', depth = 0;
     const chars = [...para];
     chars.forEach((ch, i) => {
       if (ch === '[' || ch === '{') depth += 1;
       else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }
       cur += ch;
-      if (depth === 0 && (ch === '\uC5B5' || ch === '\uB9CC') && /\d/.test(chars[i - 1] ?? '') && /\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+      if (depth === 0 && (ch === '\uC5B5' || ch === '\uB9CC') && /\d/.test(chars[i - 1] ?? '') && /\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }
     });
-    if (cur) words.push({ w: cur, sp: ' ' });
+    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
     const wide = (ws) => ems(plainText(join(ws))) * size;
+    // A mark that fits a line is one word; a longer one stays as its pieces.
+    const words = [];
+    for (let i = 0; i < pieces.length;) {
+      let j = i;
+      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;
+      const group = pieces.slice(i, j + 1);
+      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });
+      else words.push(...group);
+      i = j + 1;
+    }
     const lines = [];
     let line = [];
     for (const w of words) {
       if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
     }
     if (line.length || !words.length) lines.push(line);
+    let texts = lines.map(join);
     if (lines.length === 2) {
       // Two lines: the split whose longer half is shortest.
       const all = words;
@@ -282,8 +296,40 @@ function wrapLines(text, size, maxW) {
         const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
         if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
       }
-      out.push(join(all.slice(0, best)), join(all.slice(best)));
-    } else out.push(...lines.map(join));
+      texts = [join(all.slice(0, best)), join(all.slice(best))];
+    }
+    // A mark cut by a line break is closed at the line's end and opened again on the next line.
+    let carry = '';
+    for (const t of texts) {
+      const full = carry + t;
+      let open = '';
+      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }
+      out.push(full + (open ? CLOSE[open] : ''));
+      carry = open;
+    }
   }
   return out;
 }
+
+// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.
+// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where
+// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,
+// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are
+// [x0, y0, x1, y1].
+function report(what, text, box, area, extra) {
+  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
+}
+// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+function reportLines(what, lines, size, area, maxLines = 2) {
+  if (typeof REPORT !== 'function' || !lines.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
+  lines.forEach((l, i) => {
+    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
+    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
+    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
+  });
+  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
+}
+// Under the source line (26 px, centred on y 772) when the scene has one.
+const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);

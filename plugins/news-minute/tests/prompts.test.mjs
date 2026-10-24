@@ -152,19 +152,33 @@ test('a single value goes to highlight_card; number_callout needs from and to ag
   assert.ok(!P.validatePlan(mk('number_callout', {title: 't', label: 'cash', to: 3592}), sents, []).ok);
 });
 
-test('text that will not sit at its size within two lines is warned about, not shrunk', async () => {
-  const { fitWarnings, lineFit } = await import('../src/prompts/fit.ts');
-  // the review's long line takes two lines at 72 in 960 px
-  assert.deepEqual(lineFit('\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D \uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9', 72, 960), {lines: 2, tooWide: false});
-  assert.deepEqual(fitWarnings('text_card', {text: '\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D \uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9'}), []);
-  const long = Array(6).fill('\uAC00\uB098\uB2E4\uB77C\uB9C8').join(' ');
-  assert.match(fitWarnings('text_card', {text: long})[0], /takes 3 lines at 72 px/);
-  // 1\uC5B55000\uB9CC breaks after \uC5B5; four such cards go two by two and fit
+test('the layout check reads the lines the template draws: overflow is an error, a third line a warning', async () => {
+  const { fitProblems, LAYOUT_ERROR } = await import('../src/prompts/fit.ts');
+  const { readFileSync } = await import('node:fs');
+  // The 14b3d80 re-review inputs, unchanged (RESEARCH/T1M_UI_REREVIEW_14B3D80_2026_10_24/CASES.json).
+  const cases = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-14b3d80.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  const fit = (id) => fitProblems(cases[id].type, cases[id].data);
+  for (const id of ['text-long', 'quote-long', 'stat-four', 'highlight-long']) assert.deepEqual(fit(id), {errors: [], warnings: []}, id);
+  // a { } mark wider than a line breaks at its spaces and stays marked on each line, inside x 60..1020
+  assert.deepEqual(fit('text-marked'), {errors: [], warnings: []});
+  // three lines that fit: a warning only
+  assert.deepEqual(fit('text-three').errors, []);
+  assert.match(fit('text-three').warnings[0], /takes 3 lines at 72 px/);
+  // eight quote lines at the spec's 92 px spacing, nine text lines: past the source line
+  assert.match(fit('quote-wrapped-eight').errors[0], /^quote ".*" does not fit: 8 lines at 66 px run past its room/);
+  assert.match(fit('text-nine').errors[0], /^text ".*" does not fit: 9 lines at 72 px/);
+  // two-line card names: the cards hold their numbers and run past the source line instead
+  const grid = fit('stat-grid-long-header').errors;
+  assert.ok(grid.length && grid.every((e) => /^card ".*" does not fit: the cards run below their room/.test(e)), grid.join('\n'));
+  assert.ok([...Object.keys(cases).flatMap((id) => fit(id).errors)].every((e) => LAYOUT_ERROR.test(e)));
+  // a number wider than a quarter card even on a line of its own (one card has two rows, so no 2x2)
   const card = {header: 'a', rows: [{label: 'b', value: '1\uC5B55000\uB9CC', unit: '\uC6D0'}]};
-  assert.deepEqual(fitWarnings('stat_cards', {cards: [card, card, card, card]}), []);
-  assert.match(fitWarnings('stat_cards', {cards: [card, card, card, {header: 'a', rows: [card.rows[0], card.rows[0]]}]})[0], /card number .* wider than its box/);
-  const v = P.validatePlan({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card', params: {text: long}, hideCaption: false, disclaimer: false}]}, [{id: 's1', text: 'x', startSec: 0, endSec: 3}], []);
-  assert.ok(v.warnings.some((w) => /scene 1: text line .* takes 3 lines/.test(w)), v.warnings.join('\n'));
+  assert.deepEqual(fitProblems('stat_cards', {cards: [card, card, card, card]}), {errors: [], warnings: []});
+  assert.match(fitProblems('stat_cards', {cards: [card, card, card, {header: 'a', rows: [card.rows[0], card.rows[0]]}]}).errors[0], /card number "1\uC5B5 5000\uB9CC" does not fit: wider than its room/);
+  // validatePlan carries them with the scene prefix: overflow as an error, the third line as a warning
+  const plan = (params) => P.validatePlan({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card', params, hideCaption: false, disclaimer: false}]}, [{id: 's1', text: 'x', startSec: 0, endSec: 3}], []);
+  assert.ok(plan(cases['text-three'].data).warnings.some((w) => /^scene 1: text ".*" takes 3 lines/.test(w)));
+  assert.ok(plan(cases['text-nine'].data).errors.some((e) => /^scene 1: text ".*" does not fit/.test(e)));
 });
 
 test('heritage scene types validate and allow one hero only', () => {

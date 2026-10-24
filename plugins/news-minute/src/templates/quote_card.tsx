@@ -84,7 +84,13 @@ export default function QuoteCard({ data }) {
   // (+0.1 s slack, also kept when a short clip speeds the scene up).
   const s = useScene(data, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
   const k = s.k;
-  const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
+  // Lines keep the spec's 92 px spacing (style spec 6-2); lines that run past the source line are flagged by
+  // the layout check rather than squeezed together.
+  const gap = LINE_GAP;
+  const affLines = wrapLines(affiliation, 40, X1 - 332).filter((l) => l);
+  reportLines('name', name ? [{ text: name, x: 330, y: 122, anchor: 'l' }] : [], 76, [330, 0, X1, 180], 1);
+  reportLines('affiliation', affLines.map((l, j) => ({ text: l, x: 332, y: 198 + 50 * j, anchor: 'l' })), 40, [332, 160, X1, 306]);
+  reportLines('quote', lines.map((l, i) => ({ text: l, x: LINE_X, y: LINE_Y + gap * i, anchor: 'l' })), LINE_SIZE, [X0, 330, X1, roomBottom(data)], 4);
   return (
     <Win s={s} data={data}>
       <Medal s={s} headshot={headshot} />
@@ -93,7 +99,7 @@ export default function QuoteCard({ data }) {
           <div style={{ fontSize: 76 * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
         </Rise>
       ) : null}
-      {wrapLines(affiliation, 40, X1 - 332).filter((l) => l).map((l, j) => (
+      {affLines.map((l, j) => (
         <Rise key={'a' + j} s={s} t0={0.5} dy={16} x={332} y={198 + 50 * j} anchor="l">
           <div style={{ fontSize: 40 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={1.05} /></div>
         </Rise>

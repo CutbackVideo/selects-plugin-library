@@ -3,6 +3,7 @@
 
 import type { PlanAsset, PlanScene, TimedSentence } from "../prompts/types.ts";
 import { demoteNumberlessCallouts, sceneMaxSec } from "../prompts/validate.ts";
+import { LAYOUT_ERROR } from "../prompts/fit.ts";
 import { captionChunks, sceneWindows, type Span } from "./timing.ts";
 import type { SceneClip } from "./assemble.ts";
 import { TEMPLATES } from "../templates/generated.ts";
@@ -24,15 +25,17 @@ export const PLAN_LENGTH_GRACE_SEC = 2;
 
 // Settles a plan that still has errors after repair: number callouts without a number become text cards
 // (then the plan is checked again), and a plan whose only remaining errors are scenes at most
-// PLAN_LENGTH_GRACE_SEC over their type's limit is kept. scenes is null when the plan should fall back.
+// PLAN_LENGTH_GRACE_SEC over their type's limit, or text that does not fit (LAYOUT_ERROR: the reviewer shortens
+// it on the scene's row, which keeps "Use this layout" off until then), is kept. scenes is null when the plan
+// should fall back.
 export function settlePlan(json: any, errors: string[], sentences: TimedSentence[], check: (json: any) => { errors: string[] }): { scenes: PlanScene[] | null; demoted: number; longScenes: string[]; errors: string[] } {
   if (!json) return { scenes: null, demoted: 0, longScenes: [], errors };
   if (!errors.length) return { scenes: json.scenes, demoted: 0, longScenes: [], errors };
   const d = demoteNumberlessCallouts(json, sentences);
   if (d.demoted) { json = d.plan; errors = check(json).errors; }
-  const long = errors.map((e) => /^scene (\d+): lasts ([\d.]+) s/.exec(e));
+  const long = errors.filter((e) => !LAYOUT_ERROR.test(e)).map((e) => /^scene (\d+): lasts ([\d.]+) s/.exec(e));
   const onlyLength = long.every((m) => m && Number(m[2]) <= sceneMaxSec(String(json.scenes[Number(m[1]) - 1]?.type)) + PLAN_LENGTH_GRACE_SEC);
-  return { scenes: onlyLength ? json.scenes : null, demoted: d.demoted, longScenes: onlyLength ? errors : [], errors };
+  return { scenes: onlyLength ? json.scenes : null, demoted: d.demoted, longScenes: onlyLength ? errors.filter((e) => !LAYOUT_ERROR.test(e)) : [], errors };
 }
 
 // A caption without its credit: "/Yonhap"-style trailers and "graphic=..." credit lines are dropped, so a
