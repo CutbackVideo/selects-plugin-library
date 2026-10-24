@@ -71,7 +71,7 @@ export default function QuoteCard({ data }) {
   const accentLines = new Set((Array.isArray(data?.accentLines) ? data.accentLines : []).map(Number));
   const marked = raw.some((l) => /\{[^}]*\}/.test(l));
   // Each given line wraps first, so a whole-line brush is drawn per wrapped line.
-  const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X).map((v) => (!marked && accentLines.has(i) ? '{' + v + '}' : v)));
+  const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X, font(LINE_SIZE, 800, -1)).map((v) => (!marked && accentLines.has(i) ? '{' + v + '}' : v)));
   const n = lines.length;
   // Line starts spread over the room before the hold (narration pace), 0.8..1.5 s apart; the last line
   // ends with its brush (0.55 + 0.9 s) or its rise (0.8 s), 0.1 s before the hold.
@@ -87,10 +87,10 @@ export default function QuoteCard({ data }) {
   // Lines keep the spec's 92 px spacing (style spec 6-2); lines that run past the source line are flagged by
   // the layout check rather than squeezed together.
   const gap = LINE_GAP;
-  const affLines = wrapLines(affiliation, 40, X1 - 332).filter((l) => l);
-  reportLines('name', name ? [{ text: name, x: 330, y: 122, anchor: 'l' }] : [], 76, [330, 0, X1, 180], 1);
-  reportLines('affiliation', affLines.map((l, j) => ({ text: l, x: 332, y: 198 + 50 * j, anchor: 'l' })), 40, [332, 160, X1, 306]);
-  reportLines('quote', lines.map((l, i) => ({ text: l, x: LINE_X, y: LINE_Y + gap * i, anchor: 'l' })), LINE_SIZE, [X0, 330, X1, roomBottom(data)], 4);
+  const affLines = wrapLines(affiliation, 40, X1 - 332, font(40, 600)).filter((l) => l);
+  reportLines('name', name ? [{ text: name, x: 330, y: 122, anchor: 'l' }] : [], 76, [330, 0, X1, 180], 1, font(76, 900, -1));
+  reportLines('affiliation', affLines.map((l, j) => ({ text: l, x: 332, y: 198 + 50 * j, anchor: 'l' })), 40, [332, 160, X1, 306], 2, font(40, 600));
+  reportLines('quote', lines.map((l, i) => ({ text: l, x: LINE_X, y: LINE_Y + gap * i, anchor: 'l' })), LINE_SIZE, [X0, 330, X1, roomBottom(data)], 4, font(LINE_SIZE, 800, -1));
   return (
     <Win s={s} data={data}>
       <Medal s={s} headshot={headshot} />

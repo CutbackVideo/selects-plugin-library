@@ -82,10 +82,10 @@ const LONG = {
   // four cards two by two, each number on one line beside its unit
   stat_cards: [{ cards: ["a", "b", "c", "d"].map((header) => ({ header, rows: [{ label: "x", value: "1\uC5B55000\uB9CC", unit: "\uC6D0" }] })) }, [72, 36, 44, 32, 30, 38, 26, 50], 4],
   // two-line bar names (the baseline rises), the hero value inside its bar
-  bar_compare_h: [{ unit: "%", bars: [{ label: "\uD544\uB77C\uB378\uD53C\uC544 \uBC18\uB3C4\uCCB4 \uC9C0\uC218", sub: "\uC62C\uD574 \uB4E4\uC5B4 \uC9C0\uAE08\uAE4C\uC9C0", value: 16.5, tone: "grey" }, { label: "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774 B\uC8FC", value: 9.8, tone: "accent" }] }, [54, 30, 58, 34, 72, 40, 86, 48, 50, 26], 4],
+  bar_compare_h: [{ unit: "%", bars: [{ label: "\uD544\uB77C\uB378\uD53C\uC544 \uBC18\uB3C4\uCCB4 \uC9C0\uC218", sub: "\uC62C\uD574 \uB4E4\uC5B4 \uC9C0\uAE08\uAE4C\uC9C0", value: 16.5, tone: "grey" }, { label: "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774 B\uC8FC", value: 9.8, tone: "accent" }] }, [54, 30, 58, 34, 72, 40, 86, 48, 50, 26], 3],
   number_callout: [{ label: "\uC11C\uC6B8 \uAC15\uB0A8\uAD6C \uB300\uCE58\uB3D9 \uC740\uB9C8\uC544\uD30C\uD2B8 \uC804\uC6A9 84\uC81C\uACF1\uBBF8\uD130 \uB9E4\uB9E4\uAC00", from: "21\uC5B55000\uB9CC", to: "25\uC5B53000\uB9CC", unit: "\uC6D0" }, [44, 96, 53, 150, 80, 50, 30, 26], 2],
   // a three-line cause word next to a two-line effect word
-  flow_cause_effect: [{ cause: { word: "\uAE08\uB9AC \uC778\uD558 \uAE30\uB300\uAC00 \uD06C\uAC8C \uC904\uC5B4\uB4E6", caption: "\uBBF8\uAD6D \uC5F0\uBC29\uC900\uBE44\uC81C\uB3C4" }, effect: { word: "\uAC00\uCE58\uC8FC\uB85C \uC774\uB3D9" } }, [64, 40, 50, 30], 5],
+  flow_cause_effect: [{ cause: { word: "\uAE08\uB9AC \uC778\uD558 \uAE30\uB300\uAC00 \uD06C\uAC8C \uC904\uC5B4\uB4E6", caption: "\uBBF8\uAD6D \uC5F0\uBC29\uC900\uBE44\uC81C\uB3C4" }, effect: { word: "\uAC00\uCE58\uC8FC\uB85C \uC774\uB3D9" } }, [64, 40, 50, 30], 4],
   // the hero label in the hole and two legend names on two lines each
   donut_ratio: [{ unit: "%", slices: [{ label: "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774\uAC00 \uBCF4\uC720\uD55C \uC560\uD50C \uC8FC\uC2DD", value: 43.8, tone: "accent" }, { label: "\uBC45\uD06C\uC624\uBE0C\uC544\uBA54\uB9AC\uCE74\uC640 \uC544\uBA54\uB9AC\uCE78 \uC775\uC2A4\uD504\uB808\uC2A4", value: 30 }, { label: "\uAE30\uD0C0", value: 26.2 }] }, [38, 76, 42, 28, 40, 32, 22, 50, 30, 26], 2],
   // a card value on two lines (the cards grow upwards)

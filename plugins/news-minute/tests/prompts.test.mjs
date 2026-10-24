@@ -161,22 +161,29 @@ test('the layout check reads the lines the template draws: overflow is an error,
   for (const id of ['text-long', 'quote-long', 'stat-four', 'highlight-long']) assert.deepEqual(fit(id), {errors: [], warnings: []}, id);
   // a { } mark wider than a line breaks at its spaces and stays marked on each line, inside x 60..1020
   assert.deepEqual(fit('text-marked'), {errors: [], warnings: []});
-  // three lines that fit: a warning only
-  assert.deepEqual(fit('text-three').errors, []);
-  assert.match(fit('text-three').warnings[0], /takes 3 lines at 72 px/);
+  // three lines that fit: a warning only. The review's six-word input takes two lines at Pretendard's drawn Hangul width
+  // (0.864 em, not the old 0.95 estimate); one more word takes the third.
+  assert.deepEqual(fit('text-three'), {errors: [], warnings: []});
+  const three = fitProblems('text_card', {...cases['text-three'].data, text: cases['text-three'].data.text + ' ' + cases['text-three'].data.text.split(' ')[0]});
+  assert.deepEqual(three.errors, []);
+  assert.match(three.warnings[0], /takes 3 lines at 72 px/);
   // eight quote lines at the spec's 92 px spacing, nine text lines: past the source line
   assert.match(fit('quote-wrapped-eight').errors[0], /^quote ".*" does not fit: 8 lines at 66 px run past its room/);
   assert.match(fit('text-nine').errors[0], /^text ".*" does not fit: 9 lines at 72 px/);
-  // two-line card names: the cards hold their numbers and run past the source line instead
-  const grid = fit('stat-grid-long-header').errors;
-  assert.ok(grid.length && grid.every((e) => /^card ".*" does not fit: its text takes more lines, so every card grows and the cards run below their room .*card repeats/.test(e)), grid.join('\n'));
+  // Card names two by two: at Pretendard's drawn Hangul width (0.864 em) "\uC11C\uC6B8 \uB3D9\uBD81\uBD80 \uC2E0\uCD95 \uC544\uD30C\uD2B8" (396 px) takes one line of
+  // its 438 px band, so the cards fit; the old 0.95 estimate (458 px) broke it onto two and ran the cards past the
+  // source line. A name that does take two lines still grows every card (stat-grid-one-long-header below).
+  assert.deepEqual(fit('stat-grid-long-header'), {errors: [], warnings: []});
   // ba63f5a re-review inputs (RESEARCH/T1M_UI_REREVIEW_BA63F5A_2026_10_24/CASES.json): one long card name grows every
   // card; the error names that card, not only the cards at the bottom. The shortened variant and the customer's own
-  // cards fit.
+  // cards fit. Its long name now takes one line (as above), so the name gets one more word to take two.
   const more = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-ba63f5a.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
-  const one = fitProblems('stat_cards', more['stat-grid-one-long-header'].data).errors;
+  const long1 = more['stat-grid-one-long-header'].data;
+  assert.deepEqual(fitProblems('stat_cards', long1), {errors: [], warnings: []});
+  const longer = {...long1, cards: long1.cards.map((c, i) => (i ? c : {...c, header: c.header + ' \uBCF4\uC99D\uAE08'}))};
+  const one = fitProblems('stat_cards', longer).errors;
   assert.equal(one.length, 1, one.join('\n'));
-  assert.match(one[0], new RegExp('^card "' + more['stat-grid-one-long-header'].data.cards[0].header + '" does not fit: its text takes more lines'));
+  assert.match(one[0], new RegExp('^card "' + longer.cards[0].header + '" does not fit: its text takes more lines'));
   for (const id of ['stat-grid-shortened', 'customer-wolse-three', 'customer-quote']) assert.deepEqual(fitProblems(more[id].type, more[id].data).errors, [], id);
   assert.ok([...Object.keys(cases).flatMap((id) => fit(id).errors)].every((e) => LAYOUT_ERROR.test(e)));
   // a number wider than a quarter card even on a line of its own (one card has two rows, so no 2x2)
@@ -185,7 +192,7 @@ test('the layout check reads the lines the template draws: overflow is an error,
   assert.match(fitProblems('stat_cards', {cards: [card, card, card, {header: 'a', rows: [card.rows[0], card.rows[0]]}]}).errors[0], /card number "1\uC5B5 5000\uB9CC" does not fit: wider than its room/);
   // validatePlan carries them with the scene prefix: overflow as an error, the third line as a warning
   const plan = (params) => P.validatePlan({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card', params, hideCaption: false, disclaimer: false}]}, [{id: 's1', text: 'x', startSec: 0, endSec: 3}], []);
-  assert.ok(plan(cases['text-three'].data).warnings.some((w) => /^scene 1: text ".*" takes 3 lines/.test(w)));
+  assert.ok(plan({...cases['text-three'].data, text: cases['text-three'].data.text + ' ' + cases['text-three'].data.text.split(' ')[0]}).warnings.some((w) => /^scene 1: text ".*" takes 3 lines/.test(w)));
   assert.ok(plan(cases['text-nine'].data).errors.some((e) => /^scene 1: text ".*" does not fit/.test(e)));
 });
 
@@ -197,7 +204,8 @@ test('the layout check measures a value and its unit as drawn: the final count-u
   // inputs ran out of their card in Chrome with no error.
   const cases = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-f106b06.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
   const reps = (type, data) => layoutReports(type, data);
-  const one = (list, what) => list.filter((r) => r.what === what);
+  // The finished frame's reports; the same text a moment larger as it comes in is reported apart (`entrance`).
+  const one = (list, what) => list.filter((r) => r.what === what && !r.entrance);
   const width = (r) => r.box[2] - r.box[0];
   const WON = '\uC6D0';
   // 1000000 counts up to 1,000,000 (752.8 px at 150 px in Chrome): with its unit it is wider than the card's room
@@ -236,6 +244,37 @@ test('the layout check measures a value and its unit as drawn: the final count-u
   const twoReps = reps(two.type, two.data);
   assert.equal(one(twoReps, 'new value')[0].lines, 1);
   assert.equal(one(twoReps, 'new value unit').length, 1);
+});
+
+test('the layout check measures names and labels as drawn and values at their size while they come in', async () => {
+  const { fitProblems } = await import('../src/prompts/fit.ts');
+  const { layoutReports } = await import('../src/templates/entrance.generated.ts');
+  const { readFileSync } = await import('node:fs');
+  // 72d73e5 review inputs (RESEARCH/T1M_UI_REVIEW_72D73E5_2026_10_24/BLOCKING_CASES.json): in Chrome WALMART is 220.52 px
+  // at 44/800/-1 in a 213 px card and SAMSUNG runs past x 1020, both with no error when names were measured by ems.
+  const cases = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-72d73e5.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  const names = (id) => layoutReports(cases[id].type, cases[id].data).filter((r) => r.what === 'card name');
+  const walmart = names('stat-retail-names')[0];
+  // Kerning is left out, so the measure is a little wider than drawn, never narrower.
+  assert.ok(walmart.box[2] - walmart.box[0] >= 220.52 && walmart.box[2] - walmart.box[0] < 220.52 * 1.02, walmart.box.join());
+  const retail = fitProblems(cases['stat-retail-names'].type, cases['stat-retail-names'].data).errors;
+  assert.ok(retail.some((e) => /^card name "WALMART" does not fit: wider than its room at 44 px/.test(e)), retail.join('\n'));
+  const chip = fitProblems(cases['stat-chip-names'].type, cases['stat-chip-names'].data).errors;
+  assert.deepEqual(chip.map((e) => e.split(' does not fit')[0]), ['card name "SAMSUNG"']);
+  // highlight_card pops its value in 3 % wide: 10,000,000 (849.2 px) reaches x 102.9..977.1 and leaves the 860 px card
+  // (x 110..970) for a moment. 1,000,000 keeps the 50 px padding when finished and stays in the card as it grows.
+  const f = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-f106b06.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  const million = f['highlight-million-won'];
+  const grown = (data) => layoutReports('highlight_card', data).filter((r) => r.what === 'value' && r.entrance);
+  const [ten] = grown({ ...million.data, value: 10000000 });
+  assert.ok(Math.abs(ten.box[0] - 102.89) < 0.5 && Math.abs(ten.box[2] - 977.11) < 0.5, ten.box.join());
+  assert.ok(fitProblems('highlight_card', { ...million.data, value: 10000000 }).errors.some((e) => /^value "10,000,000" does not fit: it runs out of its card while it comes in \(3 % larger for a moment\)/.test(e)));
+  for (const v of [1000000, 9999999]) assert.deepEqual(fitProblems('highlight_card', { ...million.data, value: v }), { errors: [], warnings: [] }, String(v));
+  // number_callout's new value pops in too: 199\uC5B55000\uB9CC reaches x 63.8..1016.2, inside the window.
+  const two = f['number-two-lines'];
+  const [to] = layoutReports(two.type, two.data).filter((r) => r.what === 'new value' && r.entrance);
+  assert.ok(Math.abs(to.box[0] - 63.81) < 0.5 && Math.abs(to.box[2] - 1016.19) < 0.5, to.box.join());
+  assert.deepEqual(fitProblems(two.type, two.data), { errors: [], warnings: [] });
 });
 
 test('heritage scene types validate and allow one hero only', () => {
@@ -288,6 +327,7 @@ test('every plan check message has a Korean text for the panel; English panels k
     ...cases.map((c) => [sc(c.type, c.data)]),
     ...P.SCENE_TYPES.map((type) => [sc(type, {})]),
     [sc('highlight_card', {title: 'x'.repeat(30), subtitle: 'y'.repeat(40), value: 35920})],
+    [sc('highlight_card', {title: 't', value: 10000000, unit: '\uC6D0'})],
     [sc('number_callout', {label: 'a', from: 'about', to: 'twice'})],
     [sc('number_callout', {label: 'a', from: 1, to: 3592})],
     [sc('donut_ratio', {title: 't', slices: [{label: 'a', value: 7, tone: 'red'}]})],

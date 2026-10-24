@@ -13,8 +13,8 @@ const FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, 
 
 // A card's text as lines and the height of their stack.
 function laidOut(c) {
-  const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];
-  const word = wrapLines(c.word, 64, IN);
+  const caption = c.caption ? wrapLines(c.caption, 40, IN, font(40, 800)) : [];
+  const word = wrapLines(c.word, 64, IN, font(64, 900, -1));
   return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };
 }
 
@@ -59,8 +59,8 @@ export default function FlowCauseEffect({ data }) {
     const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);
     const inCard = [cx - FW / 2 + 30, cy - H / 2, cx + FW / 2 - 30, cy + H / 2];
     report('card', c.caption.join(' ') + ' ' + c.word.join(' '), [cx - FW / 2, cy - H / 2, cx + FW / 2, cy + H / 2], [X0, top, X1, roomBottom(data)]);
-    reportLines('caption', c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: 'c' })), 40, inCard);
-    reportLines('word', c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: 'c' })), 64, inCard);
+    reportLines('caption', c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: 'c' })), 40, inCard, 2, font(40, 800));
+    reportLines('word', c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: 'c' })), 64, inCard, 2, font(64, 900, -1));
   });
   return (
     <Win s={s} data={data}>
