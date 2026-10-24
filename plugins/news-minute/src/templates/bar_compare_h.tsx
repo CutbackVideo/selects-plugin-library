@@ -103,7 +103,7 @@ export default function BarCompareH({ data }) {
     const vBox = [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)];
     report('bar value', finals[i] + unit, vBox, vArea, { size: v.size, lines: 1, maxLines: 1 });
     // In the bar it counts up (and stays in the bar); above it, it pops in.
-    reportGrown('bar value', finals[i] + unit, vBox, v.inside ? [COUNT_GROW, [cx[i] - ws[i] / 2, -Infinity, cx[i] + ws[i] / 2, Infinity], 'bar'] : [POP_GROW, WINDOW, 'window'], v.size);
+    reportGrown('bar value', finals[i] + unit, vBox, v.inside ? [COUNT_GROW, [cx[i] - ws[i] / 2, -Infinity, cx[i] + ws[i] / 2, Infinity], 'bar'] : [POP_GROW, SAFE, 'safe area'], v.size);
   });
   return (
     <Win s={s} data={data}>

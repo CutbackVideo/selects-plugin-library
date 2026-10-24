@@ -284,6 +284,38 @@ test('the layout check measures names and labels as drawn and values at their si
   assert.deepEqual(fitProblems(two.type, two.data), { errors: [], warnings: [] });
 });
 
+test('text outside a card stays inside x 60..1020 while it comes in; the trend end value grows from its right edge', async () => {
+  const { fitProblems } = await import('../src/prompts/fit.ts');
+  const { layoutReports } = await import('../src/templates/entrance.generated.ts');
+  const { readFileSync } = await import('node:fs');
+  // 3199cee review inputs (RESEARCH/T1M_UI_REVIEW_3199CEE_2026_10_24/BLOCKING_CASES.json): in Chrome, with no error,
+  // 100,000,000 (945.4 px finished) reached x 53.22..1026.78 at frame 70, "199\uC5B5 5000\uB9CC" x 48.52..1031.48, and the text
+  // end value x 1024.44 at frame 123. Style spec 1 keeps large text inside x 60..1020 with no exception for entrances.
+  const cases = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-3199cee.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  const fit = (id) => fitProblems(cases[id].type, cases[id].data);
+  const grown = (id, what) => layoutReports(cases[id].type, cases[id].data).filter((r) => r.what === what && r.entrance);
+  const [hundred] = grown('number-safe-boundary', 'new value');
+  assert.ok(Math.abs(hundred.box[0] - 53.22) < 0.5 && Math.abs(hundred.box[2] - 1026.78) < 0.5, hundred.box.join());
+  assert.deepEqual(fit('number-safe-boundary').errors, ['new value "100,000,000" does not fit: it runs out of its safe area while it comes in (3 % larger for a moment) at 150 px, so it would show outside it; shorten it']);
+  // The new value's lines and its unit's place are chosen at the popped size: with the space it may break there, and
+  // the two lines then run past the source line.
+  const spaced = layoutReports(cases['number-spaced-boundary'].type, cases['number-spaced-boundary'].data).filter((r) => r.what === 'new value' && !r.entrance);
+  assert.equal(spaced[0].lines, 2);
+  assert.match(fit('number-spaced-boundary').errors[0], /^new value ".*" does not fit: 2 lines at 150 px run past its room/);
+  // The reviewed one-line 199\uC5B55000\uB9CC (924.6 px, x 63.8..1016.2 at its largest) keeps its layout.
+  const f = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-f106b06.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  assert.deepEqual(fitProblems(f['number-two-lines'].type, f['number-two-lines'].data), { errors: [], warnings: [] });
+  // The end value is anchored at x 1020 and now grows leftwards from it.
+  const [end] = grown('trend-safe-boundary', 'end value');
+  assert.equal(end.box[2], 1020);
+  assert.deepEqual(fit('trend-safe-boundary'), { errors: [], warnings: [] });
+  // A text end value 957 px wide fits when finished but would reach left of x 60 as it grows: an error.
+  const wide = { ...cases['trend-safe-boundary'].data, endLabel: '\uC0AC\uC0C1 \uCD5C\uACE0 '.repeat(3).trim() + '!' };
+  const wideEnd = layoutReports('line_trend_callout', wide).filter((r) => r.what === 'end value');
+  assert.ok(wideEnd[0].box[0] >= 60 && wideEnd[1].box[0] < 59, wideEnd.map((r) => r.box.join()).join(' / '));
+  assert.match(fitProblems('line_trend_callout', wide).errors[0], /^end value ".*" does not fit: it runs out of its safe area while it comes in/);
+});
+
 test('heritage scene types validate and allow one hero only', () => {
   const sents = [{id: 's1', text: '46 of 105, 43.8 percent.', startSec: 0, endSec: 6}];
   const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});

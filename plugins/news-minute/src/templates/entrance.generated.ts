@@ -84,14 +84,15 @@ function rise(s, t0, dur = 0.8, dy = 20) {
 function Rise({ s, t0, dur, dy, x, y, anchor = "c", style, children }) {
   return /* @__PURE__ */ STUB(At, { s, x, y, anchor, style }, /* @__PURE__ */ STUB("div", { style: rise(s, t0, dur, dy) }, children));
 }
-function pop(s, t0, dur = 0.8) {
+const POP_ORIGIN = { l: "left center", r: "right center" };
+function pop(s, t0, dur = 0.8, anchor = "c") {
   const p = prog(s.t, t0, t0 + dur);
   const sc = lerp(0.9, 1, settle(p, 0.3));
   const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: "scale(" + sc * (1 - st / 2) + "," + sc * (1 + st) + ")" };
+  return { opacity: smooth(p / 0.5), transform: "scale(" + sc * (1 - st / 2) + "," + sc * (1 + st) + ")", transformOrigin: POP_ORIGIN[anchor] ?? "center" };
 }
 function Pop({ s, t0, dur, x, y, anchor = "c", children }) {
-  return /* @__PURE__ */ STUB(At, { s, x, y, anchor }, /* @__PURE__ */ STUB("div", { style: pop(s, t0, dur) }, children));
+  return /* @__PURE__ */ STUB(At, { s, x, y, anchor }, /* @__PURE__ */ STUB("div", { style: pop(s, t0, dur, anchor) }, children));
 }
 function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
   const p = smooth(prog(s.t, t0, t0 + dur));
@@ -263,13 +264,16 @@ function report(what, text, box, area, extra) {
   if (typeof REPORT === "function") REPORT({ what, text: plainText(text), box, area, ...extra });
 }
 const POP_GROW = 1.03, COUNT_GROW = 1.018;
-const WINDOW = [0, -Infinity, 1080, Infinity];
-const grownBox = (box, g) => {
-  const d = (box[2] - box[0]) * (g - 1) / 2;
+const SAFE = [X0, -Infinity, X1, Infinity];
+const grownBox = (box, g, origin = "c") => {
+  const w = box[2] - box[0];
+  if (origin === "r") return [box[2] - w * g, box[1], box[2], box[3]];
+  if (origin === "l") return [box[0], box[1], box[0] + w * g, box[3]];
+  const d = w * (g - 1) / 2;
   return [box[0] - d, box[1], box[2] + d, box[3]];
 };
 function reportGrown(what, text, box, grow, size) {
-  if (grow) report(what, text, grownBox(box, grow[0]), grow[1], { size, entrance: grow[0], room: grow[2] });
+  if (grow) report(what, text, grownBox(box, grow[0], grow[3]), grow[1], { size, entrance: grow[0], room: grow[2] });
 }
 function reportLines(what, lines, size, area, maxLines = 2, width = font(size, 800), grow = null) {
   if (typeof REPORT !== "function" || !lines.length) return;
@@ -279,7 +283,7 @@ function reportLines(what, lines, size, area, maxLines = 2, width = font(size, 8
     x0 = Math.min(x0, left);
     x1 = Math.max(x1, left + w);
     if (grow) {
-      const [g0, , g1] = grownBox([left, 0, left + w, 0], grow[0]);
+      const [g0, , g1] = grownBox([left, 0, left + w, 0], grow[0], grow[3]);
       gx0 = Math.min(gx0, g0);
       gx1 = Math.max(gx1, g1);
     }
@@ -366,7 +370,7 @@ const SCENE = {
         const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
         const vBox = [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size];
         report("bar value", finals[i] + unit, vBox, vArea, { size: v.size, lines: 1, maxLines: 1 });
-        reportGrown("bar value", finals[i] + unit, vBox, v.inside ? [COUNT_GROW, [cx[i] - ws[i] / 2, -Infinity, cx[i] + ws[i] / 2, Infinity], "bar"] : [POP_GROW, WINDOW, "window"], v.size);
+        reportGrown("bar value", finals[i] + unit, vBox, v.inside ? [COUNT_GROW, [cx[i] - ws[i] / 2, -Infinity, cx[i] + ws[i] / 2, Infinity], "bar"] : [POP_GROW, SAFE, "safe area"], v.size);
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), pb > 0 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold } }) : null, bars.map((b, i) => {
         const big = i === hero, t0 = start[i], w = ws[i];
@@ -650,7 +654,7 @@ const SCENE = {
       const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
       if (n && endText !== "") {
         report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
-        reportGrown("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, WINDOW, "window"], 84);
+        reportGrown("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, SAFE, "safe area", "r"], 84);
       }
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
@@ -728,11 +732,11 @@ const SCENE = {
       const labelLines = label ? wrapLines(label, 44, W, font(44, 700)) : [];
       const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
       const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
-      const VW = X1 - X0;
-      const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, VW, toW);
+      const VW = X1 - X0, toVW = VW / POP_GROW;
+      const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, toVW, toW);
       const last = (l) => l[l.length - 1];
       const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
-      const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > VW;
+      const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > toVW;
       const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
       const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
       const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
@@ -764,8 +768,8 @@ const SCENE = {
       };
       valueReport("old value", fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
       reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, WINDOW, "window"]);
-      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, void 0, [POP_GROW, WINDOW, "window"]);
+      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, "safe area"]);
+      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, void 0, [POP_GROW, SAFE, "safe area"]);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const triangle = dir ? /* @__PURE__ */ STUB("svg", { width: 44 * k, height: 40 * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null;

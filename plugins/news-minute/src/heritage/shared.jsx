@@ -89,16 +89,18 @@ function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
   );
 }
 // pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
-function pop(s, t0, dur = 0.8) {
+// A box anchored by its left or right side grows from that side, so a value set against x 60 or x 1020 stays inside.
+const POP_ORIGIN = { l: 'left center', r: 'right center' };
+function pop(s, t0, dur = 0.8, anchor = 'c') {
   const p = prog(s.t, t0, t0 + dur);
   const sc = lerp(0.9, 1, settle(p, 0.3));
   const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
+  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')', transformOrigin: POP_ORIGIN[anchor] ?? 'center' };
 }
 function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
   return (
     <At s={s} x={x} y={y} anchor={anchor}>
-      <div style={pop(s, t0, dur)}>{children}</div>
+      <div style={pop(s, t0, dur, anchor)}>{children}</div>
     </At>
   );
 }
@@ -363,13 +365,20 @@ function report(what, text, box, area, extra) {
 }
 // Entrances that draw text larger for a moment: pop() peaks 3 % wide (x scale 1.03 at 72 % of the move), the
 // in-bar and donut-hole count-up 1.8 % (0.94..1, 30 % past). The finished frame keeps the template's padding; while it
-// grows, text must still stay inside its card, bar or hole, and other text inside the window. `grow` is [scale, that
-// bound, 'card' | 'window']: the report then adds the box widened about each line's middle (the scale's origin).
+// grows, text must still stay inside its card, bar or hole, and other text inside x 60..1020 (style spec 1 has no
+// exception for entrances). `grow` is [scale, that bound, 'card' | 'bar' | 'hole' | 'safe area', origin?]: the report
+// then adds the box widened about the scale's origin, each line's middle unless 'l' or 'r' (Pop's anchored side).
 const POP_GROW = 1.03, COUNT_GROW = 1.018;
-const WINDOW = [0, -Infinity, 1080, Infinity];
-const grownBox = (box, g) => { const d = ((box[2] - box[0]) * (g - 1)) / 2; return [box[0] - d, box[1], box[2] + d, box[3]]; };
+const SAFE = [X0, -Infinity, X1, Infinity];
+const grownBox = (box, g, origin = 'c') => {
+  const w = box[2] - box[0];
+  if (origin === 'r') return [box[2] - w * g, box[1], box[2], box[3]];
+  if (origin === 'l') return [box[0], box[1], box[0] + w * g, box[3]];
+  const d = (w * (g - 1)) / 2;
+  return [box[0] - d, box[1], box[2] + d, box[3]];
+};
 function reportGrown(what, text, box, grow, size) {
-  if (grow) report(what, text, grownBox(box, grow[0]), grow[1], { size, entrance: grow[0], room: grow[2] });
+  if (grow) report(what, text, grownBox(box, grow[0], grow[3]), grow[1], { size, entrance: grow[0], room: grow[2] });
 }
 // Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
 // `width` measures a line (font() of its style); `w` overrides it for a line drawn otherwise (a value with its unit).
@@ -379,7 +388,7 @@ function reportLines(what, lines, size, area, maxLines = 2, width = font(size, 8
   lines.forEach((l, i) => {
     const w = l.w ?? width(plainText(l.text)), left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
-    if (grow) { const [g0, , g1] = grownBox([left, 0, left + w, 0], grow[0]); gx0 = Math.min(gx0, g0); gx1 = Math.max(gx1, g1); }
+    if (grow) { const [g0, , g1] = grownBox([left, 0, left + w, 0], grow[0], grow[3]); gx0 = Math.min(gx0, g0); gx1 = Math.max(gx1, g1); }
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
   });
