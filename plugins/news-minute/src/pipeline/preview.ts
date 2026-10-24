@@ -1,13 +1,15 @@
 // Preview operations use only the public run_script SDK. No extra AI or narration calls.
 import { readFileBytes, run, sleep, type PanelSdk } from "./host.ts";
 import { removeScript } from "./scripts.ts";
+import { ENTRANCE, HOLD } from "../templates/entrance.generated.ts";
 
 export type PreviewTarget = { projectId: string; draftId: string };
-export type PreviewScene = { startSec: number; endSec: number };
+// enterSec: seconds from the scene's first frame until its card has fully come in (0 or absent: the first frame).
+export type PreviewScene = { startSec: number; endSec: number; enterSec?: number };
 export type SceneTarget = PreviewTarget & { frames: number; scene: PreviewScene };
 export type SceneStill = { dataUrl: string; ms: number; cached: boolean };
 const J = (v: unknown) => JSON.stringify(v);
-const FPS = 30000 / 1001;
+export const FPS = 30000 / 1001;
 
 // Match assemble.ts PRELUDE exactly, including its half-open end. Empty windows have no graphic.
 export function sceneFrames(frames: number, scene: PreviewScene) {
@@ -15,7 +17,19 @@ export function sceneFrames(frames: number, scene: PreviewScene) {
   const start = Math.max(0, Math.min(frames - 1, Math.round(scene.startSec * FPS)));
   const end = Math.min(frames, Math.round(scene.endSec * FPS));
   if (end <= start) throw new Error("preview scene range is empty");
-  return { start, end, still: Math.max(start, Math.min(end - 1, end - Math.round(0.5 * FPS))) };
+  const enter = Math.max(0, Number(scene.enterSec) || 0);
+  return { start, end, enter: Math.min(end - 1, start + Math.ceil(enter * FPS - 1e-6)), still: Math.max(start, Math.min(end - 1, end - Math.round(0.5 * FPS))) };
+}
+
+// When a scene graphic `frames` long has finished coming in, in seconds from its first frame: the template's own
+// `natural` (its last entrance at normal speed), or, when the clip is too short for that and the final hold,
+// the earlier point useScene (src/heritage/shared.jsx) speeds the entrances up to.
+export function entranceSec(type: string, params: Record<string, unknown>, frames: number): number {
+  const f = (ENTRANCE as Record<string, (data: unknown, fps: number, durationInFrames: number) => number>)[type];
+  if (!f || !(frames >= 1)) return 0;
+  const natural = Number(f(params, FPS, frames));
+  const end = frames / FPS, room = Math.max(end * 0.5, end - HOLD);
+  return Number.isFinite(natural) && natural > 0 ? Math.min(natural, room) : 0;
 }
 
 function ownership(x: PreviewTarget) {
@@ -47,7 +61,7 @@ export async function openPreview(sdk: PanelSdk, x: PreviewTarget): Promise<bool
 }
 
 export async function seekScene(sdk: PanelSdk, x: SceneTarget): Promise<{ confirmed: boolean; frame: number }> {
-  const frame = sceneFrames(x.frames, x.scene).start;
+  const frame = sceneFrames(x.frames, x.scene).enter;
   await run(sdk, { summary: "Go to the preview scene", script: `${ownership(x)}\nreturn await selects.editor.seekDraftFrame(${J({ projectId: x.projectId, draftSequenceId: x.draftId, resolvedFrame: frame })});` });
   return { confirmed: await confirm(sdk, x, frame), frame };
 }

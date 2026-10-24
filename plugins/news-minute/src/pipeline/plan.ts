@@ -94,11 +94,18 @@ export function placements(scenes: PlanScene[]): Record<string, number[]> {
 }
 
 // Timed clips for the plan. Photos become data URLs on the scene's own params.
-export function sceneClips(plan: PlanScene[], sentences: Sentence[], times: Span[], totalSec: number, photos: PhotoAsset[]): SceneClip[] {
+// Where each scene's graphic goes, in seconds: from just before its first sentence to the next scene's cut.
+export function planWindows(plan: PlanScene[], sentences: Sentence[], times: Span[], totalSec: number): Span[] {
   const index = new Map(sentences.map((s, i) => [s.id, i]));
   const first = plan.map((sc) => Math.min(...sc.sentenceIds.map((id) => index.get(id) ?? Infinity)));
   if (first.some((i) => !Number.isFinite(i))) throw new Error("plan refers to an unknown sentence");
-  const wins = sceneWindows(first, times, totalSec);
+  return sceneWindows(first, times, totalSec);
+}
+
+export function sceneClips(plan: PlanScene[], sentences: Sentence[], times: Span[], totalSec: number, photos: PhotoAsset[]): SceneClip[] {
+  const index = new Map(sentences.map((s, i) => [s.id, i]));
+  const first = plan.map((sc) => Math.min(...sc.sentenceIds.map((id) => index.get(id) ?? Infinity)));
+  const wins = planWindows(plan, sentences, times, totalSec);
   const byRef = new Map(photos.map((p) => [p.ref, p]));
   const labels = TEMPLATES as Record<string, { label: string }>;
   return plan.map((sc, k) => {
