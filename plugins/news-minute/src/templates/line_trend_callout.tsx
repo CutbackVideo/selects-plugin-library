@@ -11,7 +11,9 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // tone}] under the chart. `points: [{x, y}]`, `x` is the axis label, `y` a number.
 const PX0 = 110, PX1 = 950, PLOT_TOP = 238;
 const SWEEP_FROM = 0.6, SWEEP_MAX = 6.4, SWEEP_MIN = 2.6;
-const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24;
+const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24, HL = 30, VL = 46, CARD_PAD = 20;
+// Card text that does not fit keeps its size (style spec 1): a header or value breaks at a space onto more lines,
+// the cards grow upwards together and the chart's baseline rises by the same amount (the cards keep ending at y 738).
 
 // Korean graphics write 5000 but 12,500: group thousands only from five digits up.
 const valueText = (v) => {
@@ -54,7 +56,22 @@ export default function LineTrendCallout({ data }) {
 
   // Value axis from the data (and threshold): the top value sits at PLOT_TOP, the floor leaves room
   // under the lowest point (17.7..52.3 -> floor 10, as in the sian), never below 0 for positive data.
-  const base = cards.length ? 540 : 560;
+  // The cards' text as lines and their shared height.
+  const cardW = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
+  const cardText = cards.map((c) => {
+    const [a, b] = String(c.text).split('\n');
+    const head = b !== undefined ? a : '', value = b !== undefined ? b : a;
+    return { head: head ? wrapLines(head, 26, cardW - 40) : [], value: wrapLines(value, 40, cardW - 40) };
+  });
+  const cardH = Math.max(CARD_H, ...cardText.map((t) => t.head.length * HL + t.value.length * VL + CARD_PAD));
+  const cardTop = CARD_TOP + CARD_H - cardH;
+  const base = cards.length ? 540 - (cardH - CARD_H) : 560;
+  cardText.forEach((t, i) => {
+    const x = X0 + i * (cardW + CARD_GAP), area = [x + 14, cardTop, x + cardW - 14, cardTop + cardH];
+    const y0 = cardTop + (cardH - t.head.length * HL - t.value.length * VL) / 2;
+    reportLines('card header', t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: 'c' })), 26, area);
+    reportLines('card value', t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: 'c' })), 40, area);
+  });
   const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
   const hi = n ? Math.max(...ys) : 1, lo = n ? Math.min(...ys) : 0;
   const span = hi - lo || Math.abs(hi) || 1;
@@ -107,6 +124,9 @@ export default function LineTrendCallout({ data }) {
     </div>
   );
   const endY = n ? P[n - 1][1] - 68 : 0;
+  // The end value runs left from the window's right edge; a text label wider than the window is cut off.
+  const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+  if (n && endText !== '') report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
   // A text end label without one number pops in as the last segment starts, at rest before the hold.
   const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
 
@@ -154,16 +174,13 @@ export default function LineTrendCallout({ data }) {
         )
       ) : null}
       {cards.map((c, i) => {
-        const [a, b] = String(c.text).split('\n');
         const hot = c?.tone === 'accent';
-        const w = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
-        const head = b !== undefined ? a : '';
-        const value = b !== undefined ? b : a;
+        const { head, value } = cardText[i];
         return (
-          <Rise key={i} s={s} t0={sweepEnd + 0.3 + 0.4 * i} dur={0.9} dy={22} x={X0 + i * (w + CARD_GAP)} y={CARD_TOP} anchor="lt">
-            <div style={{ ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 * k }}>
-              {head ? <div style={{ fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 }}><Marked s={s} text={head} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div> : null}
-              <div style={{ fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 }}><Marked s={s} text={value} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>
+          <Rise key={i} s={s} t0={sweepEnd + 0.3 + 0.4 * i} dur={0.9} dy={22} x={X0 + i * (cardW + CARD_GAP)} y={cardTop} anchor="lt">
+            <div style={{ ...cardStyle(s, hot), width: cardW * k, height: cardH * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+              {head.map((l, j) => <div key={'h' + j} style={{ fontSize: 26 * k, fontWeight: 600, color: C.gray, lineHeight: HL * k + 'px' }}><Marked s={s} text={l} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>)}
+              {value.map((l, j) => <div key={'v' + j} style={{ fontSize: 40 * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: VL * k + 'px' }}><Marked s={s} text={l} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>)}
             </div>
           </Rise>
         );

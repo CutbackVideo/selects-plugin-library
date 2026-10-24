@@ -12,6 +12,11 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 const GREYS = ['#968E7E', '#BAB2A0', '#D6CEBC'];
 const DCX = 300, DCY = 472, R = 225, RI = 138;
 const HERO = [0.5, 1.5], REST = [1.9, 3.1];
+// Text that does not fit keeps its size (style spec 1). In the hole: the hero value (76) with its unit (42), the unit
+// on a line of its own when they do not fit side by side, and the hero label (28) on as many lines as it needs, the
+// stack centred on the hole. In the legend: a name breaks at a space and the rows below move down by its extra lines.
+// What still does not fit (a value wider than the hole, rows past the source line) is reported for the layout check.
+const HOLE = 220, VH = 80, UH = 48, LH = 34, LEG_X = 628;
 
 const pt = (a, r) => [DCX + r * Math.cos((a * Math.PI) / 180), DCY + r * Math.sin((a * Math.PI) / 180)];
 function sector(a0, a1) {
@@ -67,9 +72,36 @@ export default function DonutRatio({ data }) {
   const count = countable(fmt(hero.value));
   const cp = prog(s.t, 1.3, 2.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
-  const rowY = (i) => 300 + (i === 0 ? 0 : 82 + (i - 1) * 58);
-  // Legend rows in narration order, the hero row larger.
-  let slot = 0;
+  // The hole: value, unit (beside it or under it) and label lines, centred on the donut's middle.
+  const heroText = fmt(hero.value);
+  const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+  const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
+  const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
+  const vy = DCY - holeH / 2 + VH / 2;
+  const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
+  const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
+  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c' }], 76, holeArea, 1);
+  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c' }] : [], 42, holeArea, 1);
+  reportLines('label', heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: 'c' })), 28, holeArea);
+  // Legend rows: the hero row first and larger, then the others in narration order; a name takes the room left of
+  // its value.
+  const rows = [];
+  let y = 300;
+  [hi, ...all.map((_, i) => i).filter((i) => i !== hi)].forEach((i) => {
+    const x = all[i];
+    if (!x) return;
+    const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
+    const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+    // The name beside its value; a name that would take more than two lines there gets the full width and its value
+    // goes on the line under it.
+    let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
+    if (names.length > 2) { names = wrapLines(x.label, sz, X1 - LEG_X); below = true; }
+    const vy = below ? y + step * names.length : y;
+    rows[i] = { y, names, sz, step, vy };
+    reportLines('legend name', names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: 'l' })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data)]);
+    report('legend value', fmt(x.value) + unit, [X1 - valueW, vy - 0.6 * (big ? 40 : 32), X1, vy + 0.6 * (big ? 40 : 32)], [LEG_X, 150, X1, roomBottom(data)], { size: big ? 40 : 32, lines: 1, maxLines: 1 });
+    y += (big ? 82 : 58) + (names.length - 1 + (below ? 1 : 0)) * step;
+  });
   return (
     <Win s={s} data={data}>
       <Header s={s} title={String(data?.title ?? '')} subtitle={String(data?.subtitle ?? '')} />
@@ -79,29 +111,32 @@ export default function DonutRatio({ data }) {
         {gaps.map((g) => { const [x0, y0] = pt(g - 90, RI - 2), [x1, y1] = pt(g - 90, R + 2); return <line key={g} x1={x0} y1={y0} x2={x1} y2={y1} stroke={C.ivory} strokeWidth="5" />; })}
       </svg>
       {cp > 0 ? (
-        <At s={s} x={DCX + 4} y={DCY - 14}>
-          <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')', display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800 }}>
-            <span style={{ ...tnum, fontSize: fitSize(fmt(hero.value), 76, 220 - ems(unit) * 42) * k }}>{count ? counted(count, smooth(cp)) : fmt(hero.value)}</span>
-            {unit ? <span style={{ ...tnum, fontSize: 42 * k, fontWeight: 700 }}>{unit}</span> : null}
+        <At s={s} x={DCX + 4} y={vy + (unitOwn ? UH / 2 : 0)}>
+          <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')', display: 'flex', flexDirection: unitOwn ? 'column' : 'row', alignItems: unitOwn ? 'center' : 'baseline', color: C.acc, fontWeight: 800 }}>
+            <span style={{ ...tnum, fontSize: 76 * k, height: unitOwn ? VH * k : undefined, display: 'flex', alignItems: 'center' }}>{count ? counted(count, smooth(cp)) : heroText}</span>
+            {unit ? <span style={{ ...tnum, fontSize: 42 * k, fontWeight: 700, height: unitOwn ? UH * k : undefined }}>{unit}</span> : null}
           </div>
         </At>
       ) : null}
-      <Rise s={s} t0={2.1} dy={8} x={DCX} y={DCY + 50}>
-        <div style={{ fontSize: fitSize(plainText(hero.label), 28, 230) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={hero.label} hlAt={2.65} /></div>
-      </Rise>
+      {heroLabel.map((l, j) => (
+        <Rise key={'h' + j} s={s} t0={2.1} dy={8} x={DCX} y={ly + LH * j}>
+          <div style={{ fontSize: 28 * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={l} hlAt={2.65} /></div>
+        </Rise>
+      ))}
       {all.map((x, i) => {
         const big = i === hi;
-        const y = rowY(big ? 0 : ++slot);
-        const sz = big ? 38 : 28;
+        const { y, names, sz, step, vy } = rows[i];
         return (
           <React.Fragment key={i}>
             <Rise s={s} t0={rowAt[i]} dy={14} x={592} y={y} anchor="l">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 * k }}>
-                <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
-                <div style={{ fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}><Marked s={s} text={x.label} hlAt={rowAt[i] + 0.55} /></div>
-              </div>
+              <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
             </Rise>
-            <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={y} anchor="r">
+            {names.map((l, j) => (
+              <Rise key={'n' + j} s={s} t0={rowAt[i]} dy={14} x={LEG_X} y={y + step * j} anchor="l">
+                <div style={{ fontSize: sz * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}><Marked s={s} text={l} hlAt={rowAt[i] + 0.55} /></div>
+              </Rise>
+            ))}
+            <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={vy} anchor="r">
               <div style={{ display: 'flex', alignItems: 'baseline', color: big ? C.acc : C.ink2, fontWeight: 800 }}>
                 <span style={{ ...tnum, fontSize: (big ? 40 : 32) * k }}>{fmt(x.value)}</span>
                 {unit ? <span style={{ ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 }}>{unit}</span> : null}

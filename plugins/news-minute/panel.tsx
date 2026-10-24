@@ -804,7 +804,6 @@ function countable(v) {
 }
 var counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString("en-US", { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
 var ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-var fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 var CLOSE = { "[": "]", "{": "}" };
 function wrapLines(text, size, maxW) {
   const out = [];
@@ -901,7 +900,7 @@ function useScene(data, natural = 0) {
 }
 var SCENE = {
   "bar_compare_h": (data) => {
-    const BASE = 600;
+    const BASE0 = 600, LL = 60, SL = 36, UL = 44;
     const decimals = (v) => {
       const t2 = String(v);
       return t2.includes(".") && !/e/i.test(t2) ? t2.length - t2.indexOf(".") - 1 : 0;
@@ -930,24 +929,48 @@ var SCENE = {
       const ws = bars.map((_, i) => i === hero ? 290 : 200);
       const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);
       const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);
+      const slots = ws.map((w) => w + space - 8);
+      const names = bars.map((b, i) => wrapLines(String(b?.label ?? ""), 54, slots[i]));
+      const subs = bars.map((b, i) => String(b?.sub ?? "") ? wrapLines(String(b.sub), 30, slots[i]) : []);
+      const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;
+      const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
+      const BASE = BASE0 - nameExtra - subExtra;
       const max = Math.max(1e-9, ...vals);
+      const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;
+      const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));
+      const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;
+      const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);
+      const above = (i) => i === hero ? fitsInside ? null : { size: 72, uSize: 40, lift: 52 } : { size: 58, uSize: 34, lift: 48 };
       const top = vals.indexOf(Math.max(...vals));
-      const tallH = top === hero ? 400 : subtitle ? 340 : 380;
+      const ownAbove = bars.some((_, i) => above(i) && unitOwn(finals[i], above(i).size, above(i).uSize, slots[i]));
+      const tallH = (top === hero && fitsInside ? 400 : subtitle ? 340 : 380) - nameExtra - subExtra - (ownAbove ? UL : 0);
       const H2 = vals.map((v) => v / max * tallH);
-      const inside = hero >= 0 && H2[hero] >= 150;
+      const inside = fitsInside && H2[hero] >= 150 + (ownInside ? UL : 0);
       const pb = smooth(prog(s.t, 0.1, 1));
-      const valueRun = (text, size, uSize, color, maxW) => {
-        const sc = Math.min(1, maxW / Math.max(1, ems(text) * size + ems(unit) * uSize + 4));
-        return /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: size * sc * k, letterSpacing: -1 * sc * k } }, text), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: uSize * sc * k, fontWeight: 700, marginLeft: 3 * sc * k } }, unit) : null);
-      };
+      const valueRun = (text, size, uSize, color, own) => /* @__PURE__ */ STUB("div", { style: { display: "flex", flexDirection: own ? "column" : "row", alignItems: own ? "center" : "baseline", color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: size * k, letterSpacing: -1 * k } }, text), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: uSize * k, fontWeight: 700, marginLeft: own ? 0 : 3 * k, marginTop: own ? (UL - uSize) * k : 0 } }, unit) : null);
+      const valueAt = bars.map((_, i) => {
+        const a = i === hero && inside ? null : above(i) ?? { size: 72, uSize: 40, lift: 52 };
+        if (!a) return { inside: true, size: 86, uSize: 48, own: ownInside, y: BASE - H2[i] + 80 + (ownInside ? UL / 2 : 0) };
+        const own = unitOwn(finals[i], a.size, a.uSize, slots[i]);
+        return { inside: false, size: a.size, uSize: a.uSize, own, y: BASE - H2[i] - a.lift - (own ? UL / 2 : 0) };
+      });
+      const roomTop = subtitle ? 162 : 112;
+      bars.forEach((_, i) => {
+        const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data2)];
+        reportLines("bar name", names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: "c" })), 54, area);
+        reportLines("bar sub line", subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: "c" })), 30, area);
+        const v = valueAt[i];
+        const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H2[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H2[i]];
+        const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;
+        const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
+        report("bar value", finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size], vArea, { size: v.size, lines: 1, maxLines: 1 });
+      });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), pb > 0 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold } }) : null, bars.map((b, i) => {
         const big = i === hero, t0 = start[i], w = ws[i];
         const h = H2[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1)), big ? 0.015 : 0.03);
-        const slot = w + space - 8;
-        const label = String(b?.label ?? ""), sub = String(b?.sub ?? "");
         const v = Number(b?.value) || 0;
         const cp = prog(s.t, t0 + 1.2, t0 + 2.5);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: label, hlAt: t0 + 0.6 }))), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: t0 + 0.72 }))) : null, !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: BASE - H2[i] - 48 }, valueRun(fmt(v, dec), 58, 34, C.ink2, slot)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, w - 24))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: BASE - H2[i] - 52 }, valueRun(fmt(v, dec), 72, 40, accent, slot)) : null);
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, names[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.6 })))), subs[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "u" + j, s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 + nameExtra + SL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.72 })))), !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 + (ownInside ? UL / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 72, 40, accent, valueAt[i].own)) : null);
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -956,6 +979,7 @@ var SCENE = {
     const GREYS = ["#968E7E", "#BAB2A0", "#D6CEBC"];
     const DCX = 300, DCY = 472, R = 225, RI = 138;
     const HERO = [0.5, 1.5], REST = [1.9, 3.1];
+    const HOLE = 220, VH = 80, UH = 48, LH = 34, LEG_X = 628;
     const pt = (a, r) => [DCX + r * Math.cos(a * Math.PI / 180), DCY + r * Math.sin(a * Math.PI / 180)];
     function sector(a0, a1) {
       const big = a1 - a0 > 180 ? 1 : 0;
@@ -1021,26 +1045,56 @@ var SCENE = {
       const count = countable(fmt(hero.value));
       const cp = prog(s.t, 1.3, 2.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      const rowY = (i) => 300 + (i === 0 ? 0 : 82 + (i - 1) * 58);
-      let slot = 0;
+      const heroText = fmt(hero.value);
+      const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+      const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
+      const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
+      const vy = DCY - holeH / 2 + VH / 2;
+      const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
+      const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
+      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c" }], 76, holeArea, 1);
+      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c" }] : [], 42, holeArea, 1);
+      reportLines("label", heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: "c" })), 28, holeArea);
+      const rows = [];
+      let y = 300;
+      [hi, ...all.map((_, i) => i).filter((i) => i !== hi)].forEach((i) => {
+        const x = all[i];
+        if (!x) return;
+        const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
+        const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+        let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
+        if (names.length > 2) {
+          names = wrapLines(x.label, sz, X1 - LEG_X);
+          below = true;
+        }
+        const vy2 = below ? y + step * names.length : y;
+        rows[i] = { y, names, sz, step, vy: vy2 };
+        reportLines("legend name", names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: "l" })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data2)]);
+        report("legend value", fmt(x.value) + unit, [X1 - valueW, vy2 - 0.6 * (big ? 40 : 32), X1, vy2 + 0.6 * (big ? 40 : 32)], [LEG_X, 150, X1, roomBottom(data2)], { size: big ? 40 : 32, lines: 1, maxLines: 1 });
+        y += (big ? 82 : 58) + (names.length - 1 + (below ? 1 : 0)) * step;
+      });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: 809 * k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, /* @__PURE__ */ STUB("circle", { cx: DCX, cy: DCY, r: (R + RI) / 2, fill: "none", stroke: C.line, strokeWidth: R - RI, opacity: 0.7 * ring }), arcs, gaps.map((g) => {
         const [x0, y0] = pt(g - 90, RI - 2), [x1, y1] = pt(g - 90, R + 2);
         return /* @__PURE__ */ STUB("line", { key: g, x1: x0, y1: y0, x2: x1, y2: y1, stroke: C.ivory, strokeWidth: "5" });
-      })), cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: DCX + 4, y: DCY - 14 }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")", display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: fitSize(fmt(hero.value), 76, 220 - ems(unit) * 42) * k } }, count ? counted(count, smooth(cp)) : fmt(hero.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 42 * k, fontWeight: 700 } }, unit) : null)) : null, /* @__PURE__ */ STUB(Rise, { s, t0: 2.1, dy: 8, x: DCX, y: DCY + 50 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(hero.label), 28, 230) * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: hero.label, hlAt: 2.65 }))), all.map((x, i) => {
+      })), cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: DCX + 4, y: vy + (unitOwn ? UH / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")", display: "flex", flexDirection: unitOwn ? "column" : "row", alignItems: unitOwn ? "center" : "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 76 * k, height: unitOwn ? VH * k : void 0, display: "flex", alignItems: "center" } }, count ? counted(count, smooth(cp)) : heroText), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 42 * k, fontWeight: 700, height: unitOwn ? UH * k : void 0 } }, unit) : null)) : null, heroLabel.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "h" + j, s, t0: 2.1, dy: 8, x: DCX, y: ly + LH * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 28 * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 2.65 })))), all.map((x, i) => {
         const big = i === hi;
-        const y = rowY(big ? 0 : ++slot);
-        const sz = big ? 38 : 28;
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "center", gap: 12 * k } }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } }), /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: x.label, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
+        const { y: y2, names, sz, step, vy: vy2 } = rows[i];
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y: y2, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } })), names.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: rowAt[i], dy: 14, x: LEG_X, y: y2 + step * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: sz * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y: vy2, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
   "flow_cause_effect": (data) => {
-    const FW = 400, FH = 330, LCX = 290, RCX = 790;
-    function Card({ s, cx, cy, t0, hero, caption, word }) {
+    const FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, CGAP = 20, PAD = 60;
+    function laidOut(c) {
+      const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];
+      const word = wrapLines(c.word, 64, IN);
+      return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };
+    }
+    function Card({ s, cx, cy, t0, hero, lines, H: H2 }) {
       const k = s.k;
-      const size = fitSize(plainText(word), 64, FW - 60);
-      return /* @__PURE__ */ STUB(STUB, null, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: cx, y: cy }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hero), width: FW * k, height: FH * k } })), caption ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.25, dy: 10, x: cx, y: cy - 56 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(caption), 40, FW - 60) * k, fontWeight: 800, color: C.green } }, /* @__PURE__ */ STUB(Marked, { s, text: caption, hlAt: t0 + 0.8 }))) : null, /* @__PURE__ */ STUB(Rise, { s, t0: t0 + (caption ? 0.45 : 0.3), dy: 12, x: cx, y: cy + (caption ? 26 : 0) }, /* @__PURE__ */ STUB("div", { style: { fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: word, hlAt: t0 + 1 }))));
+      const y0 = cy - lines.h / 2, wy = y0 + lines.caption.length * CL + (lines.caption.length ? CGAP : 0);
+      return /* @__PURE__ */ STUB(STUB, null, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: cx, y: cy }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hero), width: FW * k, height: H2 * k } })), lines.caption.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "c" + j, s, t0: t0 + 0.25, dy: 10, x: cx, y: y0 + CL * (j + 0.5) }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 800, color: C.green } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.8 })))), lines.word.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "w" + j, s, t0: t0 + (lines.caption.length ? 0.45 : 0.3), dy: 12, x: cx, y: wy + WL * (j + 0.5) }, /* @__PURE__ */ STUB("div", { style: { fontSize: 64 * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 1 })))));
     }
     function Scene({ data: data2 }) {
       const cause = { word: String(data2?.cause?.word ?? ""), caption: String(data2?.cause?.caption ?? "") };
@@ -1053,7 +1107,17 @@ var SCENE = {
       const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
       const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
       const L = (ax1 - ax0) * ap, head = 26;
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), /* @__PURE__ */ STUB(Card, { s, cx: LCX, cy, t0: tCause, hero: false, ...cause }), ap > 0 ? /* @__PURE__ */ STUB("svg", { width: 1080 * s.k, height: 809 * s.k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, L > head ? /* @__PURE__ */ STUB("line", { x1: ax0, y1: cy, x2: ax0 + L - head + 2, y2: cy, stroke: C.gold, strokeWidth: "9", strokeLinecap: "round" }) : null, /* @__PURE__ */ STUB("polygon", { points: ax0 + L + "," + cy + " " + (ax0 + L - head) + "," + (cy - head * 0.62 * Math.min(1, L / head)) + " " + (ax0 + L - head) + "," + (cy + head * 0.62 * Math.min(1, L / head)), fill: C.gold })) : null, /* @__PURE__ */ STUB(Card, { s, cx: RCX, cy, t0: tEffect, hero: true, ...effect }));
+      const lc = laidOut(cause), le = laidOut(effect);
+      const H2 = Math.max(FH, lc.h + 2 * PAD, le.h + 2 * PAD);
+      const top = subtitle ? 162 : 112;
+      [[lc, LCX], [le, RCX]].forEach(([c, cx]) => {
+        const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);
+        const inCard = [cx - FW / 2 + 30, cy - H2 / 2, cx + FW / 2 - 30, cy + H2 / 2];
+        report("card", c.caption.join(" ") + " " + c.word.join(" "), [cx - FW / 2, cy - H2 / 2, cx + FW / 2, cy + H2 / 2], [X0, top, X1, roomBottom(data2)]);
+        reportLines("caption", c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: "c" })), 40, inCard);
+        reportLines("word", c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: "c" })), 64, inCard);
+      });
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), /* @__PURE__ */ STUB(Card, { s, cx: LCX, cy, t0: tCause, hero: false, lines: lc, H: H2 }), ap > 0 ? /* @__PURE__ */ STUB("svg", { width: 1080 * s.k, height: 809 * s.k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, L > head ? /* @__PURE__ */ STUB("line", { x1: ax0, y1: cy, x2: ax0 + L - head + 2, y2: cy, stroke: C.gold, strokeWidth: "9", strokeLinecap: "round" }) : null, /* @__PURE__ */ STUB("polygon", { points: ax0 + L + "," + cy + " " + (ax0 + L - head) + "," + (cy - head * 0.62 * Math.min(1, L / head)) + " " + (ax0 + L - head) + "," + (cy + head * 0.62 * Math.min(1, L / head)), fill: C.gold })) : null, /* @__PURE__ */ STUB(Card, { s, cx: RCX, cy, t0: tEffect, hero: true, lines: le, H: H2 }));
     }
     return Scene({ data });
   },
@@ -1093,7 +1157,7 @@ var SCENE = {
   "line_trend_callout": (data) => {
     const PX0 = 110, PX1 = 950, PLOT_TOP = 238;
     const SWEEP_FROM = 0.6, SWEEP_MAX = 6.4, SWEEP_MIN = 2.6;
-    const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24;
+    const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24, HL = 30, VL = 46, CARD_PAD = 20;
     const valueText = (v) => {
       const t2 = String(v), d = t2.includes(".") ? t2.length - t2.indexOf(".") - 1 : 0;
       return Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(Number(v)) >= 1e4 });
@@ -1122,7 +1186,21 @@ var SCENE = {
       const early = Math.max(headerEnd(String(data2?.title ?? ""), String(data2?.subtitle ?? "")), brushEnd(threshold?.label, 1.25), ...pts.map((p, j) => brushEnd(p?.x, 0.7 + 0.08 * j)));
       const s = useScene(data2, Math.max(1.5, early, sweepEnd + cardsTail) + 0.1);
       const k = s.k;
-      const base = cards.length ? 540 : 560;
+      const cardW = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
+      const cardText = cards.map((c) => {
+        const [a, b] = String(c.text).split("\n");
+        const head = b !== void 0 ? a : "", value = b !== void 0 ? b : a;
+        return { head: head ? wrapLines(head, 26, cardW - 40) : [], value: wrapLines(value, 40, cardW - 40) };
+      });
+      const cardH = Math.max(CARD_H, ...cardText.map((t2) => t2.head.length * HL + t2.value.length * VL + CARD_PAD));
+      const cardTop = CARD_TOP + CARD_H - cardH;
+      const base = cards.length ? 540 - (cardH - CARD_H) : 560;
+      cardText.forEach((t2, i) => {
+        const x = X0 + i * (cardW + CARD_GAP), area = [x + 14, cardTop, x + cardW - 14, cardTop + cardH];
+        const y0 = cardTop + (cardH - t2.head.length * HL - t2.value.length * VL) / 2;
+        reportLines("card header", t2.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: "c" })), 26, area);
+        reportLines("card value", t2.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t2.head.length * HL + VL * (j + 0.5), anchor: "c" })), 40, area);
+      });
       const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
       const hi = n ? Math.max(...ys) : 1, lo = n ? Math.min(...ys) : 0;
       const span = hi - lo || Math.abs(hi) || 1;
@@ -1159,6 +1237,8 @@ var SCENE = {
       const numStyle = { fontSize: 84 * k, fontWeight: 800, color: C.acc, letterSpacing: -2 * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const endLabel = /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...numStyle, visibility: count ? "hidden" : "visible" } }, endText), count ? /* @__PURE__ */ STUB("span", { style: { ...numStyle, position: "absolute", right: 0, bottom: 0 } }, shown) : null), showUnit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 46 * k, fontWeight: 700, color: C.acc, marginLeft: 4 * k, lineHeight: 1 } }, unit) : null);
       const endY = n ? P[n - 1][1] - 68 : 0;
+      const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+      if (n && endText !== "") report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
         const pp = settle(clamp((u - i) / 0.6 + (i === 0 && s.t > SWEEP_FROM ? 1 : 0)), 0.12);
@@ -1169,12 +1249,9 @@ var SCENE = {
         const half = ems(text) * 40 / 2;
         return /* @__PURE__ */ STUB(At, { key: i, s, x: Math.max(X0 + half, P[i][0] - (i === 0 ? 14 : 0)), y: P[i][1] - 48, style: { opacity: q, transform: "translate(-50%,-50%) translateY(" + (1 - q) * 10 * k + "px)" } }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 800, letterSpacing: -1 * k } }, text));
       }), n && endText !== "" ? count ? /* @__PURE__ */ STUB(At, { s, x: X1, y: endY, anchor: "r", style: { opacity: smooth(Math.min(1, f * 2.5)) } }, endLabel) : /* @__PURE__ */ STUB(Pop, { s, t0: popAt, x: X1, y: endY, anchor: "r" }, endLabel) : null, cards.map((c, i) => {
-        const [a, b] = String(c.text).split("\n");
         const hot = c?.tone === "accent";
-        const w = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
-        const head = b !== void 0 ? a : "";
-        const value = b !== void 0 ? b : a;
-        return /* @__PURE__ */ STUB(Rise, { key: i, s, t0: sweepEnd + 0.3 + 0.4 * i, dur: 0.9, dy: 22, x: X0 + i * (w + CARD_GAP), y: CARD_TOP, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 * k } }, head ? /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 } }, /* @__PURE__ */ STUB(Marked, { s, text: head, hlAt: sweepEnd + 0.85 + 0.4 * i })) : null, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 } }, /* @__PURE__ */ STUB(Marked, { s, text: value, hlAt: sweepEnd + 0.85 + 0.4 * i }))));
+        const { head, value } = cardText[i];
+        return /* @__PURE__ */ STUB(Rise, { key: i, s, t0: sweepEnd + 0.3 + 0.4 * i, dur: 0.9, dy: 22, x: X0 + i * (cardW + CARD_GAP), y: cardTop, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hot), width: cardW * k, height: cardH * k, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap" } }, head.map((l, j) => /* @__PURE__ */ STUB("div", { key: "h" + j, style: { fontSize: 26 * k, fontWeight: 600, color: C.gray, lineHeight: HL * k + "px" } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: sweepEnd + 0.85 + 0.4 * i }))), value.map((l, j) => /* @__PURE__ */ STUB("div", { key: "v" + j, style: { fontSize: 40 * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: VL * k + "px" } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: sweepEnd + 0.85 + 0.4 * i })))));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -1209,6 +1286,7 @@ var SCENE = {
     return Scene({ data });
   },
   "number_callout": (data) => {
+    const LBL = 52, FL = 104, FU = 86, TL = 160, TU = 120, W = 900;
     const show = (v) => {
       if (typeof v === "number") {
         const str = String(v);
@@ -1231,17 +1309,50 @@ var SCENE = {
       const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, cp);
       const top = title ? 150 : 40;
       const mid = (top + 794) / 2;
-      const yFrom = mid - 190 + (label ? 30 : 0), yArrow = yFrom + 80, yTo = yFrom + 290;
-      const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
-      const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
-      const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
       const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? ct.num > cf.num ? "up" : "down" : "";
+      const labelLines = label ? wrapLines(label, 44, W) : [];
+      const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+      const last = (l) => l[l.length - 1];
+      const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
+      const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+      const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
+      const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
+      const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
+      const place = (yFrom2) => {
+        const yTo2 = yFrom2 + fromExtra + 290, yToUnit2 = yTo2 + (toLines.length - 1) * TL + TU;
+        return {
+          yFrom: yFrom2,
+          yArrow: yFrom2 + fromExtra + 80,
+          yTo: yTo2,
+          yToUnit: yToUnit2,
+          bottom: toOwn ? yToUnit2 + 48 : yTo2 + (toLines.length - 1) * TL + 90,
+          top: label ? yFrom2 - 110 - labelExtra - 26 : yFrom2 - 58
+        };
+      };
+      const first = place(mid - 190 + (label ? 30 : 0) + labelExtra);
+      const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data2) - 6), first.top - (top + 6))));
+      const counts = toLines.length === 1 && !toOwn;
+      const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+      const area = [X0 + 30, top, X1 - 30, roomBottom(data2)];
+      const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: "c" }));
+      reportLines("label", col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
+      const valueReport = (what, list, y, step, size, uSize, own) => {
+        if (!list.length) return;
+        const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+        const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
+        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+      };
+      valueReport("old value", fromLines, yFrom, FL, 96, 53, fromOwn);
+      reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
+      valueReport("new value", toLines, yTo, TL, 150, 80, toOwn);
+      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: String(data2?.subtitle ?? "") }), label ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.4, dy: 10, x: 540, y: yFrom - 110 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(label), 44, 900) * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: label, hlAt: 0.95 }))) : null, /* @__PURE__ */ STUB(Rise, { s, t0: fromAt, x: 540, y: yFrom }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.ink2, fontWeight: 800, letterSpacing: -2 * k } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 96 * sFrom * k } }, from), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * sFrom * k, fontWeight: 700, marginLeft: 4 * k } }, unit) : null)), ap > 0 ? (
+      const triangle = dir ? /* @__PURE__ */ STUB("svg", { width: 44 * k, height: 40 * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null;
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: String(data2?.subtitle ?? "") }), labelLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: 0.4, dy: 10, x: 540, y: yFrom - 110 - labelExtra + LBL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 44 * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.95 })))), fromLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "f" + j, s, t0: fromAt, x: 540, y: yFrom + FL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.ink2, fontWeight: 800, letterSpacing: -2 * k } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 96 * k } }, l), unit && !fromOwn && j === fromLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * k, fontWeight: 700, marginLeft: 4 * k } }, unit) : null))), fromOwn ? /* @__PURE__ */ STUB(Rise, { s, t0: fromAt, x: 540, y: yFrom + (fromLines.length - 1) * FL + FU }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * k, fontWeight: 700, color: C.ink2 } }, unit)) : null, ap > 0 ? (
         // Gold chevron, opening from its centre outwards.
         /* @__PURE__ */ STUB("svg", { width: 80 * k, height: 60 * k, viewBox: "0 0 80 60", style: { position: "absolute", left: 500 * k, top: (yArrow + 25) * k } }, /* @__PURE__ */ STUB("polyline", { points: 40 - 28 * ap + "," + (14 + 22 * (1 - ap)) + " 40,36 " + (40 + 28 * ap) + "," + (14 + 22 * (1 - ap)), fill: "none", stroke: C.gold, strokeWidth: "7", strokeLinecap: "round", strokeLinejoin: "round" }))
-      ) : null, /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yTo }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * sTo * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * sTo * k, visibility: "hidden" } }, to), /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * sTo * k, position: "absolute", right: 0, bottom: 0 } }, running)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, dir ? /* @__PURE__ */ STUB("svg", { width: 44 * sTo * k, height: 40 * sTo * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * sTo * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null)), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      ) : null, toLines.map((l, j) => /* @__PURE__ */ STUB(Pop, { key: "t" + j, s, t0: toAt, x: 540, y: yTo + TL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, visibility: counts ? "hidden" : "visible" } }, l), counts ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, position: "absolute", right: 0, bottom: 0 } }, running) : null), unit && !toOwn && j === toLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, !toOwn && j === toLines.length - 1 ? triangle : null))), toOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yToUnit }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700 } }, unit), triangle)) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -1343,10 +1454,11 @@ var SCENE = {
       const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;
       const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
       const cardAt = (i) => ({ x: X0 + i % cols * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });
+      const cause = laid.filter((c) => c.header.length > 1 || c.label0.length > 1 || c.v0.length > 1 || c.unitOwn || c.label1.length > 1 || c.v1.length > 1).map((c) => c.header.join(" "));
       laid.forEach((c, i) => {
         const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
         const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: "c" }));
-        report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)]);
+        report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)], { cause });
         reportLines("card name", lines(c.header, y0 - 2 + (BAND + d1) / 2 - BL * (c.header.length - 1) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
         reportLines("card label", lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
         reportLines("card number", lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
@@ -1385,7 +1497,7 @@ var SCENE = {
     return Scene({ data });
   },
   "verdict_card": (data) => {
-    const CW = X1 - X0, CH = 270, D = 196;
+    const CW = X1 - X0, CH = 270, D = 196, TX = X0 + 36 + D + 44, TW = X1 - 36 - TX, LH = 80;
     function Mark({ s, tone, t0 }) {
       const p = smooth(prog(s.t, t0, t0 + 0.9));
       if (tone === "contrast") {
@@ -1412,20 +1524,27 @@ var SCENE = {
       const cards = (Array.isArray(data2?.cards) ? data2.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ""), tone: c?.tone === "contrast" ? "contrast" : "accent" }));
       const subtitle = String(data2?.subtitle ?? "");
       const starts = cards.map((_, i) => i === 0 ? 0.35 : 2);
-      const lineEnd = (c, i) => Math.max(0, ...twoLines2(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+      const laid = cards.map((c) => {
+        const l = wrapLines(c.text, 64, TW);
+        return l.length === 1 && !c.text.includes("\n") ? twoLines2(c.text) : l;
+      });
+      const lineEnd = (c, i) => Math.max(0, ...laid[i].map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
       const s = useScene(data2, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
       const k = s.k;
       const top = subtitle ? 200 : 150;
-      const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;
+      const ch = Math.max(CH, ...laid.map((l) => l.length * LH + 70));
+      const gap = cards.length > 1 ? (794 - top - 2 * ch) / 3 : (794 - top - ch) / 2;
+      laid.forEach((lines, i) => {
+        const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
+        report("card", lines.join(" "), [X0, y0, X1, y0 + ch], [X0, top - 10, X1, 800]);
+        reportLines("sentence", lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: "l" })), 64, [TX, y0, X1 - 24, y0 + ch]);
+      });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(GoldRule, { s, y: 78, t0: 0, ornament: false }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.3, x: 540, y: 78 }, /* @__PURE__ */ STUB(Ribbon, { s, text: String(data2?.title ?? ""), size: 44 })), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 10, x: 540, y: 152 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.05 }))) : null, cards.map((c, i) => {
         const t0 = starts[i];
-        const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;
-        const lines = twoLines2(c.text);
-        const tx = X0 + 36 + D + 44;
-        const size = Math.min(64, ...lines.map((l) => (X1 - 36 - tx) / Math.max(0.01, ems(plainText(l)))));
-        const lh = size * 1.25;
+        const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
+        const lines = laid[i];
         const iconIn = prog(s.t, t0 + 0.25, t0 + 1.05);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: CH * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: tx, y: cy + (j - (lines.length - 1) / 2) * lh, t0: t0 + 0.4 + 0.2 * j, size, dy: 14 })));
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: ch * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, t0: t0 + 0.4 + 0.2 * j, size: 64, dy: 14 })));
       }));
     }
     return Scene({ data });
@@ -1743,6 +1862,7 @@ function fidelityPrompt(article, script) {
 // src/prompts/fit.ts
 var LAYOUT_ERROR = /\bdoes not fit\b/;
 var SLACK = 1;
+var CARD_HINT = 'move words every card repeats (for example "\uC11C\uC6B8 \uC2E0\uCD95 \uC544\uD30C\uD2B8 \uBCF4\uC99D\uAE08") into the title and keep card names short (for example \uB3D9\uBD81\uBD80, \uB3D9\uB0A8\uBD80, \uC11C\uBD81\uBD80, \uC11C\uB0A8\uBD80), or use fewer cards';
 function fitProblems(type, p) {
   const errors = [], warnings = [];
   let reports;
@@ -1757,8 +1877,10 @@ function fitProblems(type, p) {
     const quoted = `${r.what} "${text}"`;
     const at = r.size ? ` at ${r.size} px` : "";
     if (r.what === "card") {
-      if (y1 > ay1 + SLACK) errors.push(`${quoted} does not fit: the cards run below their room (over the source line); shorten the card names and labels or use fewer cards`);
-      else if (y0 < ay0 - SLACK || x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: the card runs out of the window; shorten its text or use fewer cards`);
+      if (y1 > ay1 + SLACK) {
+        if (type === "stat_cards" && r.cause?.length) for (const c of r.cause) errors.push(`card "${c}" does not fit: its text takes more lines, so every card grows and the cards run below their room (over the source line); ${CARD_HINT}`);
+        else errors.push(`${quoted} does not fit: the cards run below their room (over the source line); ${type === "stat_cards" ? CARD_HINT : "shorten their text or use fewer cards"}`);
+      } else if (y0 < ay0 - SLACK || x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: the card runs out of the window; shorten its text or use fewer cards`);
     } else if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) {
       errors.push(`${quoted} does not fit: wider than its room${at} even on a line of its own (text is never made smaller), so it would be cut off; shorten it`);
     } else if (y0 < ay0 - SLACK || y1 > ay1 + SLACK) {
@@ -2130,7 +2252,7 @@ Every scene except news_photo and quote_card has params.title (the scene title, 
 4. number_callout - a before-to-after value (rate, price) when the narration states both. params: {"title","label": "", "from": a value that contains a digit, copied from the article (for example 6.0 or 201,000), "to": likewise a value that contains a digit, never a phrase without a number, "unit": optional}. No assetRef (use a quote_card or news_photo when a person matters). 5-7 s.
 5. bar_compare_h - exactly 2 comparable values. params: {"title","subtitle":optional,"source","unit","bars":[{"label","value":number,"tone":"grey|accent","sub":optional period text}]}. Exactly one bar is the hero (accent), the other is grey. 4-5 s. source is the data attribution as written in the article.
 6. line_trend_callout - a time series ending in a record or jump (needs at least 3 data points stated in the article). params: {"title","subtitle":optional,"source","points":[{"x","y":number}],"accentFrom":index of the first highlighted point,"endLabel":number or text,"unit","threshold":optional {"y","label"},"cards":optional [{"text","tone":"grey|accent"}]}. 8-10 s.
-7. stat_cards  - 2-4 parallel items with one or two numbers each. params: {"title","subtitle":optional,"source":optional,"cards":[{"header","rows":[{"label","value":number or text,"unit":optional}]}]}. 6-8 s.
+7. stat_cards  - 2-4 parallel items with one or two numbers each. params: {"title","subtitle":optional,"source":optional,"cards":[{"header","rows":[{"label","value":number or text,"unit":optional}]}]}. 6-8 s. Keep card headers short; words every card would repeat (a place, the measure) go in the title.
 8. donut_ratio - a share ("N of M", "X%"). params: {"title","subtitle":optional,"source":optional,"slices":[{"label","value":number,"tone":"grey|accent"}] (2-4 slices; exactly one accent hero slice),"unit":optional such as "%"}. Slice values must be stated in the narration. 5-8 s.
 9. verdict_card - applies or does not apply, target or exempt. params: {"title": the ribbon word (for example the verdict),"subtitle":optional,"cards":[{"text": two-line sentence with at most one [key word],"tone":"accent|contrast"}]} with 1-2 cards: accent for the hero side, contrast only for the opposite side (excluded or allowed). 5-8 s.
 10. flow_cause_effect - "because of A, B happens". params: {"title","subtitle":optional,"cause":{"word": short noun,"caption":optional},"effect":{"word": short noun,"caption":optional}}. 5-8 s.
@@ -2549,7 +2671,7 @@ var LABELS = {
 
 // src/templates/generated.ts
 var TEMPLATES = {
-  "bar_compare_h": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => ems(plainText(join(ws))) * size;\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Bar comparison (style spec 6-1), 2-3 vertical bars on a gold baseline (window y 600, drawn left to\n// right 0.1-1.0 s), no grid. The accent bar is the hero: crimson, 290 wide, grows 1.7 s and settles\n// 1.5 %, its value counts up in white inside the bar once it is up. Grey bars are 200 wide, grow 1.0 s\n// and settle 3 %, their value pops above the bar 0.6 s after it starts. Name (54/800) and optional\n// `sub` (30/500 grey) sit under the baseline. Bars come in array order (narration order); a long\n// clip spaces them further apart. No multiples or ratios are drawn (spec 7).\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\nconst BASE = 600;\nconst decimals = (v) => { const t = String(v); return t.includes('.') && !/e/i.test(t) ? t.length - t.indexOf('.') - 1 : 0; };\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => (Number(v.toFixed(d)) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\nexport default function BarCompareH({ data }) {\n  const accent = String(data?.accentColor ?? C.acc);\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const n = bars.length;\n  const unit = String(data?.unit ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  const vals = bars.map((b) => Math.abs(Number(b?.value) || 0));\n  const hero = bars.findIndex((b) => b?.tone === 'accent');\n  // One decimal count for every bar, so 0.6 and 0.69 read 0.60 and 0.69.\n  const dec = Math.min(3, Math.max(0, ...bars.map((b) => decimals(Number(b?.value) || 0))));\n  // Bar i starts after the previous one: 1.0 s after a grey bar, 1.5 s after the hero.\n  const gap = (i) => (i === hero ? 1.5 : 1.0);\n  const tail = (i) => (i === hero ? 2.5 : 1.4);\n  const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));\n  // Last entrance at the tightest spacing: the hero count-up (bar start + 1.2 + 1.3 s), a grey value pop\n  // (start + 0.6 + 0.8 s) or a name/sub brush (start + 0.6/0.72 + 0.9 s).\n  const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));\n  const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));\n  // A clip with room to spare spaces the bars out (up to +1 s each, half the slack) so they follow the\n  // narration; a clip too short for the tight timeline has no slack. Worked out before useScene so its\n  // `natural` (where the preview seeks to) includes the spacing.\n  const { fps, durationInFrames } = useVideoConfig();\n  const end = durationInFrames / fps;\n  const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;\n  const start = base.map((t0, i) => t0 + extra * i);\n  const s = useScene(data, Math.max(tight + extra * (n - 1), headerEnd(String(data?.title ?? ''), subtitle)));\n  const k = s.k;\n  // Equal gaps between the bars and the margins x 60..1020.\n  const ws = bars.map((_, i) => (i === hero ? 290 : 200));\n  const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);\n  const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);\n  const max = Math.max(1e-9, ...vals);\n  // The tallest bar is 400 when it holds its value inside; a value above it needs room under the header.\n  const top = vals.indexOf(Math.max(...vals));\n  const tallH = top === hero ? 400 : subtitle ? 340 : 380;\n  const H = vals.map((v) => (v / max) * tallH);\n  const inside = hero >= 0 && H[hero] >= 150;\n  const pb = smooth(prog(s.t, 0.1, 1.0));\n  const valueRun = (text, size, uSize, color, maxW) => {\n    const sc = Math.min(1, maxW / Math.max(1, ems(text) * size + ems(unit) * uSize + 4));\n    return (\n      <div style={{ display: 'flex', alignItems: 'baseline', color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>\n        <span style={{ fontSize: size * sc * k, letterSpacing: -1 * sc * k }}>{text}</span>\n        {unit ? <span style={{ fontSize: uSize * sc * k, fontWeight: 700, marginLeft: 3 * sc * k }}>{unit}</span> : null}\n      </div>\n    );\n  };\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />\n      {pb > 0 ? <div style={{ position: 'absolute', left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold }} /> : null}\n      {bars.map((b, i) => {\n        const big = i === hero, t0 = start[i], w = ws[i];\n        const h = H[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1.0)), big ? 0.015 : 0.03);\n        const slot = w + space - 8;\n        const label = String(b?.label ?? ''), sub = String(b?.sub ?? '');\n        const v = Number(b?.value) || 0;\n        // Hero count-up: starts once the bar is about up, slows into its final value (1.3 s).\n        const cp = prog(s.t, t0 + 1.2, t0 + 2.5);\n        return (\n          <React.Fragment key={i}>\n            {h > 0.5 ? <div style={{ position: 'absolute', left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + 'px ' + Math.min(8, h) * k + 'px 0 0' }} /> : null}\n            <Rise s={s} t0={t0 + 0.05} dy={14} x={cx[i]} y={BASE + 48}>\n              <div style={{ fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}><Marked s={s} text={label} hlAt={t0 + 0.6} /></div>\n            </Rise>\n            {sub ? (\n              <Rise s={s} t0={t0 + 0.17} dy={14} x={cx[i]} y={BASE + 100}>\n                <div style={{ fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={sub} hlAt={t0 + 0.72} /></div>\n              </Rise>\n            ) : null}\n            {!big ? <Pop s={s} t0={t0 + 0.6} x={cx[i]} y={BASE - H[i] - 48}>{valueRun(fmt(v, dec), 58, 34, C.ink2, slot)}</Pop> : null}\n            {big && inside && cp > 0 ? (\n              <At s={s} x={cx[i]} y={BASE - h + 80}>\n                <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')' }}>{valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, w - 24)}</div>\n              </At>\n            ) : null}\n            {big && !inside ? <Pop s={s} t0={t0 + 1.2} x={cx[i]} y={BASE - H[i] - 52}>{valueRun(fmt(v, dec), 72, 40, accent, slot)}</Pop> : null}\n          </React.Fragment>\n        );\n      })}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
+  "bar_compare_h": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => ems(plainText(join(ws))) * size;\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Bar comparison (style spec 6-1), 2-3 vertical bars on a gold baseline (window y 600, drawn left to\n// right 0.1-1.0 s), no grid. The accent bar is the hero: crimson, 290 wide, grows 1.7 s and settles\n// 1.5 %, its value counts up in white inside the bar once it is up. Grey bars are 200 wide, grow 1.0 s\n// and settle 3 %, their value pops above the bar 0.6 s after it starts. Name (54/800) and optional\n// `sub` (30/500 grey) sit under the baseline. Bars come in array order (narration order); a long\n// clip spaces them further apart. No multiples or ratios are drawn (spec 7).\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\n// Text that does not fit keeps its size (style spec 1): a name or sub line breaks onto more lines at a space and the\n// baseline rises by those lines (the bars get shorter) so they stay above the source line; a value with its unit\n// wider than its slot puts the unit on a line of its own; a hero value that does not fit inside its bar goes above\n// it (72) like a short bar's. What still does not fit is reported for the layout check.\nconst BASE0 = 600, LL = 60, SL = 36, UL = 44;\nconst decimals = (v) => { const t = String(v); return t.includes('.') && !/e/i.test(t) ? t.length - t.indexOf('.') - 1 : 0; };\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => (Number(v.toFixed(d)) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\nexport default function BarCompareH({ data }) {\n  const accent = String(data?.accentColor ?? C.acc);\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const n = bars.length;\n  const unit = String(data?.unit ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  const vals = bars.map((b) => Math.abs(Number(b?.value) || 0));\n  const hero = bars.findIndex((b) => b?.tone === 'accent');\n  // One decimal count for every bar, so 0.6 and 0.69 read 0.60 and 0.69.\n  const dec = Math.min(3, Math.max(0, ...bars.map((b) => decimals(Number(b?.value) || 0))));\n  // Bar i starts after the previous one: 1.0 s after a grey bar, 1.5 s after the hero.\n  const gap = (i) => (i === hero ? 1.5 : 1.0);\n  const tail = (i) => (i === hero ? 2.5 : 1.4);\n  const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));\n  // Last entrance at the tightest spacing: the hero count-up (bar start + 1.2 + 1.3 s), a grey value pop\n  // (start + 0.6 + 0.8 s) or a name/sub brush (start + 0.6/0.72 + 0.9 s).\n  const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));\n  const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));\n  // A clip with room to spare spaces the bars out (up to +1 s each, half the slack) so they follow the\n  // narration; a clip too short for the tight timeline has no slack. Worked out before useScene so its\n  // `natural` (where the preview seeks to) includes the spacing.\n  const { fps, durationInFrames } = useVideoConfig();\n  const end = durationInFrames / fps;\n  const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;\n  const start = base.map((t0, i) => t0 + extra * i);\n  const s = useScene(data, Math.max(tight + extra * (n - 1), headerEnd(String(data?.title ?? ''), subtitle)));\n  const k = s.k;\n  // Equal gaps between the bars and the margins x 60..1020.\n  const ws = bars.map((_, i) => (i === hero ? 290 : 200));\n  const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);\n  const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);\n  const slots = ws.map((w) => w + space - 8);\n  // Names and sub lines at full size on as many lines as they need; the baseline rises by the longest.\n  const names = bars.map((b, i) => wrapLines(String(b?.label ?? ''), 54, slots[i]));\n  const subs = bars.map((b, i) => (String(b?.sub ?? '') ? wrapLines(String(b.sub), 30, slots[i]) : []));\n  const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;\n  const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;\n  const BASE = BASE0 - nameExtra - subExtra;\n  const max = Math.max(1e-9, ...vals);\n  // A value with its unit wider than maxW puts the unit under it.\n  const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;\n  const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));\n  // The hero value counts up inside its bar (86, its unit under it when they do not fit side by side) when the number\n  // fits the bar's width; else it pops above the bar (72).\n  const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;\n  const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);\n  const above = (i) => (i === hero ? (fitsInside ? null : { size: 72, uSize: 40, lift: 52 }) : { size: 58, uSize: 34, lift: 48 });\n  // The tallest bar is 400 when it holds its value inside; a value above it needs room under the header (and a line\n  // more for a unit of its own). Lines the names and sub lines took come off the bars.\n  const top = vals.indexOf(Math.max(...vals));\n  const ownAbove = bars.some((_, i) => above(i) && unitOwn(finals[i], above(i).size, above(i).uSize, slots[i]));\n  const tallH = (top === hero && fitsInside ? 400 : subtitle ? 340 : 380) - nameExtra - subExtra - (ownAbove ? UL : 0);\n  const H = vals.map((v) => (v / max) * tallH);\n  const inside = fitsInside && H[hero] >= 150 + (ownInside ? UL : 0);\n  const pb = smooth(prog(s.t, 0.1, 1.0));\n  const valueRun = (text, size, uSize, color, own) => (\n    <div style={{ display: 'flex', flexDirection: own ? 'column' : 'row', alignItems: own ? 'center' : 'baseline', color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>\n      <span style={{ fontSize: size * k, letterSpacing: -1 * k }}>{text}</span>\n      {unit ? <span style={{ fontSize: uSize * k, fontWeight: 700, marginLeft: own ? 0 : 3 * k, marginTop: own ? (UL - uSize) * k : 0 }}>{unit}</span> : null}\n    </div>\n  );\n  // Where each value's line(s) sit: above the bar (its centre `lift` over the bar top, raised half a line when the unit\n  // has its own), or inside the hero bar.\n  const valueAt = bars.map((_, i) => {\n    const a = i === hero && inside ? null : above(i) ?? { size: 72, uSize: 40, lift: 52 };\n    if (!a) return { inside: true, size: 86, uSize: 48, own: ownInside, y: BASE - H[i] + 80 + (ownInside ? UL / 2 : 0) };\n    const own = unitOwn(finals[i], a.size, a.uSize, slots[i]);\n    return { inside: false, size: a.size, uSize: a.uSize, own, y: BASE - H[i] - a.lift - (own ? UL / 2 : 0) };\n  });\n  const roomTop = subtitle ? 162 : 112;\n  bars.forEach((_, i) => {\n    const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data)];\n    reportLines('bar name', names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: 'c' })), 54, area);\n    reportLines('bar sub line', subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: 'c' })), 30, area);\n    const v = valueAt[i];\n    const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H[i]];\n    // The value and its unit at their own sizes, side by side or the unit under the value.\n    const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;\n    const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;\n    report('bar value', finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)], vArea, { size: v.size, lines: 1, maxLines: 1 });\n  });\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />\n      {pb > 0 ? <div style={{ position: 'absolute', left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold }} /> : null}\n      {bars.map((b, i) => {\n        const big = i === hero, t0 = start[i], w = ws[i];\n        const h = H[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1.0)), big ? 0.015 : 0.03);\n        const v = Number(b?.value) || 0;\n        // Hero count-up: starts once the bar is about up, slows into its final value (1.3 s).\n        const cp = prog(s.t, t0 + 1.2, t0 + 2.5);\n        return (\n          <React.Fragment key={i}>\n            {h > 0.5 ? <div style={{ position: 'absolute', left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + 'px ' + Math.min(8, h) * k + 'px 0 0' }} /> : null}\n            {names[i].map((l, j) => (\n              <Rise key={'n' + j} s={s} t0={t0 + 0.05} dy={14} x={cx[i]} y={BASE + 48 + LL * j}>\n                <div style={{ fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}><Marked s={s} text={l} hlAt={t0 + 0.6} /></div>\n              </Rise>\n            ))}\n            {subs[i].map((l, j) => (\n              <Rise key={'u' + j} s={s} t0={t0 + 0.17} dy={14} x={cx[i]} y={BASE + 100 + nameExtra + SL * j}>\n                <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={l} hlAt={t0 + 0.72} /></div>\n              </Rise>\n            ))}\n            {!big ? <Pop s={s} t0={t0 + 0.6} x={cx[i]} y={valueAt[i].y}>{valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)}</Pop> : null}\n            {big && inside && cp > 0 ? (\n              <At s={s} x={cx[i]} y={BASE - h + 80 + (ownInside ? UL / 2 : 0)}>\n                <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')' }}>{valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside)}</div>\n              </At>\n            ) : null}\n            {big && !inside ? <Pop s={s} t0={t0 + 1.2} x={cx[i]} y={valueAt[i].y}>{valueRun(finals[i], 72, 40, accent, valueAt[i].own)}</Pop> : null}\n          </React.Fragment>\n        );\n      })}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
   "caption": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// One caption chunk (2-4 words of the approved script), one line, centred under the graphics on a box that\n// hugs the text with padX each side (translucent black unless the preset gives a colour). The line shrinks to\n// fit maxWidth.\n// Chunks switch with a hard cut, so no animation.\nexport default function Caption({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);\n  const size = Math.min(Number(data?.fontSize ?? 54), Number(data?.maxWidth ?? 980) / Math.max(1, em));\n  const bottom = Number(data?.bottom ?? 1385);\n  const boxHeight = Number(data?.boxHeight ?? 70);\n  const padX = Number(data?.padX ?? 12);\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: Number(data?.fontWeight ?? 600), fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + padX * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
   "disclaimer": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.\n// The sentence itself comes from the preset.\nexport default function Disclaimer({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
   "donut_ratio": { tsxCode: `import React from 'react';
@@ -2900,6 +3022,11 @@ const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
 const GREYS = ['#968E7E', '#BAB2A0', '#D6CEBC'];
 const DCX = 300, DCY = 472, R = 225, RI = 138;
 const HERO = [0.5, 1.5], REST = [1.9, 3.1];
+// Text that does not fit keeps its size (style spec 1). In the hole: the hero value (76) with its unit (42), the unit
+// on a line of its own when they do not fit side by side, and the hero label (28) on as many lines as it needs, the
+// stack centred on the hole. In the legend: a name breaks at a space and the rows below move down by its extra lines.
+// What still does not fit (a value wider than the hole, rows past the source line) is reported for the layout check.
+const HOLE = 220, VH = 80, UH = 48, LH = 34, LEG_X = 628;
 
 const pt = (a, r) => [DCX + r * Math.cos((a * Math.PI) / 180), DCY + r * Math.sin((a * Math.PI) / 180)];
 function sector(a0, a1) {
@@ -2955,9 +3082,36 @@ export default function DonutRatio({ data }) {
   const count = countable(fmt(hero.value));
   const cp = prog(s.t, 1.3, 2.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
-  const rowY = (i) => 300 + (i === 0 ? 0 : 82 + (i - 1) * 58);
-  // Legend rows in narration order, the hero row larger.
-  let slot = 0;
+  // The hole: value, unit (beside it or under it) and label lines, centred on the donut's middle.
+  const heroText = fmt(hero.value);
+  const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+  const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
+  const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
+  const vy = DCY - holeH / 2 + VH / 2;
+  const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
+  const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
+  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c' }], 76, holeArea, 1);
+  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c' }] : [], 42, holeArea, 1);
+  reportLines('label', heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: 'c' })), 28, holeArea);
+  // Legend rows: the hero row first and larger, then the others in narration order; a name takes the room left of
+  // its value.
+  const rows = [];
+  let y = 300;
+  [hi, ...all.map((_, i) => i).filter((i) => i !== hi)].forEach((i) => {
+    const x = all[i];
+    if (!x) return;
+    const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
+    const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+    // The name beside its value; a name that would take more than two lines there gets the full width and its value
+    // goes on the line under it.
+    let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
+    if (names.length > 2) { names = wrapLines(x.label, sz, X1 - LEG_X); below = true; }
+    const vy = below ? y + step * names.length : y;
+    rows[i] = { y, names, sz, step, vy };
+    reportLines('legend name', names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: 'l' })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data)]);
+    report('legend value', fmt(x.value) + unit, [X1 - valueW, vy - 0.6 * (big ? 40 : 32), X1, vy + 0.6 * (big ? 40 : 32)], [LEG_X, 150, X1, roomBottom(data)], { size: big ? 40 : 32, lines: 1, maxLines: 1 });
+    y += (big ? 82 : 58) + (names.length - 1 + (below ? 1 : 0)) * step;
+  });
   return (
     <Win s={s} data={data}>
       <Header s={s} title={String(data?.title ?? '')} subtitle={String(data?.subtitle ?? '')} />
@@ -2967,29 +3121,32 @@ export default function DonutRatio({ data }) {
         {gaps.map((g) => { const [x0, y0] = pt(g - 90, RI - 2), [x1, y1] = pt(g - 90, R + 2); return <line key={g} x1={x0} y1={y0} x2={x1} y2={y1} stroke={C.ivory} strokeWidth="5" />; })}
       </svg>
       {cp > 0 ? (
-        <At s={s} x={DCX + 4} y={DCY - 14}>
-          <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')', display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800 }}>
-            <span style={{ ...tnum, fontSize: fitSize(fmt(hero.value), 76, 220 - ems(unit) * 42) * k }}>{count ? counted(count, smooth(cp)) : fmt(hero.value)}</span>
-            {unit ? <span style={{ ...tnum, fontSize: 42 * k, fontWeight: 700 }}>{unit}</span> : null}
+        <At s={s} x={DCX + 4} y={vy + (unitOwn ? UH / 2 : 0)}>
+          <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')', display: 'flex', flexDirection: unitOwn ? 'column' : 'row', alignItems: unitOwn ? 'center' : 'baseline', color: C.acc, fontWeight: 800 }}>
+            <span style={{ ...tnum, fontSize: 76 * k, height: unitOwn ? VH * k : undefined, display: 'flex', alignItems: 'center' }}>{count ? counted(count, smooth(cp)) : heroText}</span>
+            {unit ? <span style={{ ...tnum, fontSize: 42 * k, fontWeight: 700, height: unitOwn ? UH * k : undefined }}>{unit}</span> : null}
           </div>
         </At>
       ) : null}
-      <Rise s={s} t0={2.1} dy={8} x={DCX} y={DCY + 50}>
-        <div style={{ fontSize: fitSize(plainText(hero.label), 28, 230) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={hero.label} hlAt={2.65} /></div>
-      </Rise>
+      {heroLabel.map((l, j) => (
+        <Rise key={'h' + j} s={s} t0={2.1} dy={8} x={DCX} y={ly + LH * j}>
+          <div style={{ fontSize: 28 * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={l} hlAt={2.65} /></div>
+        </Rise>
+      ))}
       {all.map((x, i) => {
         const big = i === hi;
-        const y = rowY(big ? 0 : ++slot);
-        const sz = big ? 38 : 28;
+        const { y, names, sz, step, vy } = rows[i];
         return (
           <React.Fragment key={i}>
             <Rise s={s} t0={rowAt[i]} dy={14} x={592} y={y} anchor="l">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 * k }}>
-                <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
-                <div style={{ fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}><Marked s={s} text={x.label} hlAt={rowAt[i] + 0.55} /></div>
-              </div>
+              <div style={{ width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color }} />
             </Rise>
-            <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={y} anchor="r">
+            {names.map((l, j) => (
+              <Rise key={'n' + j} s={s} t0={rowAt[i]} dy={14} x={LEG_X} y={y + step * j} anchor="l">
+                <div style={{ fontSize: sz * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 }}><Marked s={s} text={l} hlAt={rowAt[i] + 0.55} /></div>
+              </Rise>
+            ))}
+            <Rise s={s} t0={rowAt[i]} dy={14} x={X1} y={vy} anchor="r">
               <div style={{ display: 'flex', alignItems: 'baseline', color: big ? C.acc : C.ink2, fontWeight: 800 }}>
                 <span style={{ ...tnum, fontSize: (big ? 40 : 32) * k }}>{fmt(x.value)}</span>
                 {unit ? <span style={{ ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 }}>{unit}</span> : null}
@@ -3346,24 +3503,35 @@ const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
 // in, a gold arrow grows to the right, then the effect card (crimson 3 px edge) follows. Each card
 // shows an optional small \`caption\` (green) over its big \`word\`; the effect word is crimson. Under
 // the scene title and rule. No pictograms: the cards carry words only until a shared icon set exists.
-const FW = 400, FH = 330, LCX = 290, RCX = 790;
+// Text that does not fit keeps its size (style spec 1): the caption and the word break at a space onto more lines,
+// stacked in the middle of the card; both cards grow together (never below 330) to hold the taller text.
+const FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, CGAP = 20, PAD = 60;
 
-function Card({ s, cx, cy, t0, hero, caption, word }) {
+// A card's text as lines and the height of their stack.
+function laidOut(c) {
+  const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];
+  const word = wrapLines(c.word, 64, IN);
+  return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };
+}
+
+function Card({ s, cx, cy, t0, hero, lines, H }) {
   const k = s.k;
-  const size = fitSize(plainText(word), 64, FW - 60);
+  const y0 = cy - lines.h / 2, wy = y0 + lines.caption.length * CL + (lines.caption.length ? CGAP : 0);
   return (
     <>
       <Rise s={s} t0={t0} dur={0.9} dy={22} x={cx} y={cy}>
-        <div style={{ ...cardStyle(s, hero), width: FW * k, height: FH * k }} />
+        <div style={{ ...cardStyle(s, hero), width: FW * k, height: H * k }} />
       </Rise>
-      {caption ? (
-        <Rise s={s} t0={t0 + 0.25} dy={10} x={cx} y={cy - 56}>
-          <div style={{ fontSize: fitSize(plainText(caption), 40, FW - 60) * k, fontWeight: 800, color: C.green }}><Marked s={s} text={caption} hlAt={t0 + 0.8} /></div>
+      {lines.caption.map((l, j) => (
+        <Rise key={'c' + j} s={s} t0={t0 + 0.25} dy={10} x={cx} y={y0 + CL * (j + 0.5)}>
+          <div style={{ fontSize: 40 * k, fontWeight: 800, color: C.green }}><Marked s={s} text={l} hlAt={t0 + 0.8} /></div>
         </Rise>
-      ) : null}
-      <Rise s={s} t0={t0 + (caption ? 0.45 : 0.3)} dy={12} x={cx} y={cy + (caption ? 26 : 0)}>
-        <div style={{ fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}><Marked s={s} text={word} hlAt={t0 + 1.0} /></div>
-      </Rise>
+      ))}
+      {lines.word.map((l, j) => (
+        <Rise key={'w' + j} s={s} t0={t0 + (lines.caption.length ? 0.45 : 0.3)} dy={12} x={cx} y={wy + WL * (j + 0.5)}>
+          <div style={{ fontSize: 64 * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}><Marked s={s} text={l} hlAt={t0 + 1.0} /></div>
+        </Rise>
+      ))}
     </>
   );
 }
@@ -3380,17 +3548,27 @@ export default function FlowCauseEffect({ data }) {
   const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
   const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
   const L = (ax1 - ax0) * ap, head = 26;
+  const lc = laidOut(cause), le = laidOut(effect);
+  const H = Math.max(FH, lc.h + 2 * PAD, le.h + 2 * PAD);
+  const top = subtitle ? 162 : 112;
+  [[lc, LCX], [le, RCX]].forEach(([c, cx]) => {
+    const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);
+    const inCard = [cx - FW / 2 + 30, cy - H / 2, cx + FW / 2 - 30, cy + H / 2];
+    report('card', c.caption.join(' ') + ' ' + c.word.join(' '), [cx - FW / 2, cy - H / 2, cx + FW / 2, cy + H / 2], [X0, top, X1, roomBottom(data)]);
+    reportLines('caption', c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: 'c' })), 40, inCard);
+    reportLines('word', c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: 'c' })), 64, inCard);
+  });
   return (
     <Win s={s} data={data}>
       <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
-      <Card s={s} cx={LCX} cy={cy} t0={tCause} hero={false} {...cause} />
+      <Card s={s} cx={LCX} cy={cy} t0={tCause} hero={false} lines={lc} H={H} />
       {ap > 0 ? (
         <svg width={1080 * s.k} height={809 * s.k} viewBox="0 0 1080 809" style={{ position: 'absolute', left: 0, top: 0 }}>
           {L > head ? <line x1={ax0} y1={cy} x2={ax0 + L - head + 2} y2={cy} stroke={C.gold} strokeWidth="9" strokeLinecap="round" /> : null}
           <polygon points={(ax0 + L) + ',' + cy + ' ' + (ax0 + L - head) + ',' + (cy - head * 0.62 * Math.min(1, L / head)) + ' ' + (ax0 + L - head) + ',' + (cy + head * 0.62 * Math.min(1, L / head))} fill={C.gold} />
         </svg>
       ) : null}
-      <Card s={s} cx={RCX} cy={cy} t0={tEffect} hero {...effect} />
+      <Card s={s} cx={RCX} cy={cy} t0={tEffect} hero lines={le} H={H} />
     </Win>
   );
 }
@@ -4154,7 +4332,9 @@ const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
 // tone}] under the chart. \`points: [{x, y}]\`, \`x\` is the axis label, \`y\` a number.
 const PX0 = 110, PX1 = 950, PLOT_TOP = 238;
 const SWEEP_FROM = 0.6, SWEEP_MAX = 6.4, SWEEP_MIN = 2.6;
-const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24;
+const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24, HL = 30, VL = 46, CARD_PAD = 20;
+// Card text that does not fit keeps its size (style spec 1): a header or value breaks at a space onto more lines,
+// the cards grow upwards together and the chart's baseline rises by the same amount (the cards keep ending at y 738).
 
 // Korean graphics write 5000 but 12,500: group thousands only from five digits up.
 const valueText = (v) => {
@@ -4197,7 +4377,22 @@ export default function LineTrendCallout({ data }) {
 
   // Value axis from the data (and threshold): the top value sits at PLOT_TOP, the floor leaves room
   // under the lowest point (17.7..52.3 -> floor 10, as in the sian), never below 0 for positive data.
-  const base = cards.length ? 540 : 560;
+  // The cards' text as lines and their shared height.
+  const cardW = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
+  const cardText = cards.map((c) => {
+    const [a, b] = String(c.text).split('\\n');
+    const head = b !== undefined ? a : '', value = b !== undefined ? b : a;
+    return { head: head ? wrapLines(head, 26, cardW - 40) : [], value: wrapLines(value, 40, cardW - 40) };
+  });
+  const cardH = Math.max(CARD_H, ...cardText.map((t) => t.head.length * HL + t.value.length * VL + CARD_PAD));
+  const cardTop = CARD_TOP + CARD_H - cardH;
+  const base = cards.length ? 540 - (cardH - CARD_H) : 560;
+  cardText.forEach((t, i) => {
+    const x = X0 + i * (cardW + CARD_GAP), area = [x + 14, cardTop, x + cardW - 14, cardTop + cardH];
+    const y0 = cardTop + (cardH - t.head.length * HL - t.value.length * VL) / 2;
+    reportLines('card header', t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: 'c' })), 26, area);
+    reportLines('card value', t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: 'c' })), 40, area);
+  });
   const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
   const hi = n ? Math.max(...ys) : 1, lo = n ? Math.min(...ys) : 0;
   const span = hi - lo || Math.abs(hi) || 1;
@@ -4250,6 +4445,9 @@ export default function LineTrendCallout({ data }) {
     </div>
   );
   const endY = n ? P[n - 1][1] - 68 : 0;
+  // The end value runs left from the window's right edge; a text label wider than the window is cut off.
+  const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+  if (n && endText !== '') report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
   // A text end label without one number pops in as the last segment starts, at rest before the hold.
   const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
 
@@ -4297,16 +4495,13 @@ export default function LineTrendCallout({ data }) {
         )
       ) : null}
       {cards.map((c, i) => {
-        const [a, b] = String(c.text).split('\\n');
         const hot = c?.tone === 'accent';
-        const w = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
-        const head = b !== undefined ? a : '';
-        const value = b !== undefined ? b : a;
+        const { head, value } = cardText[i];
         return (
-          <Rise key={i} s={s} t0={sweepEnd + 0.3 + 0.4 * i} dur={0.9} dy={22} x={X0 + i * (w + CARD_GAP)} y={CARD_TOP} anchor="lt">
-            <div style={{ ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 * k }}>
-              {head ? <div style={{ fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 }}><Marked s={s} text={head} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div> : null}
-              <div style={{ fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 }}><Marked s={s} text={value} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>
+          <Rise key={i} s={s} t0={sweepEnd + 0.3 + 0.4 * i} dur={0.9} dy={22} x={X0 + i * (cardW + CARD_GAP)} y={cardTop} anchor="lt">
+            <div style={{ ...cardStyle(s, hot), width: cardW * k, height: cardH * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+              {head.map((l, j) => <div key={'h' + j} style={{ fontSize: 26 * k, fontWeight: 600, color: C.gray, lineHeight: HL * k + 'px' }}><Marked s={s} text={l} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>)}
+              {value.map((l, j) => <div key={'v' + j} style={{ fontSize: 40 * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: VL * k + 'px' }}><Marked s={s} text={l} hlAt={sweepEnd + 0.85 + 0.4 * i} /></div>)}
             </div>
           </Rise>
         );
@@ -5049,6 +5244,10 @@ const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
 // numbers; no difference is computed or shown. \`from\`/\`to\` are numbers (shown with their own
 // decimals plus \`unit\`) or already-formatted strings. A photo is never drawn here (spec 2: no
 // decoration behind the numbers).
+// Text that does not fit keeps its size (style spec 1): the label breaks at a space, a value after \\uC5B5/\\uB9CC
+// (1\\uC5B5 / 5000\\uB9CC) or a space, and a unit that no longer fits beside its value takes a line of its own; the whole
+// column stays centred. A new value on several lines shows its final text, without the count-up.
+const LBL = 52, FL = 104, FU = 86, TL = 160, TU = 120, W = 900;
 const show = (v) => {
   if (typeof v === 'number') {
     const str = String(v);
@@ -5077,49 +5276,97 @@ export default function NumberCallout({ data }) {
     : counted(ct, cp);
   const top = title ? 150 : 40;
   const mid = (top + 794) / 2;
-  const yFrom = mid - 190 + (label ? 30 : 0), yArrow = yFrom + 80, yTo = yFrom + 290;
-  const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
-  const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
-  const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
   // Rose or fell: only when both values hold one number in the same format.
   const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
+  const labelLines = label ? wrapLines(label, 44, W) : [];
+  const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+  const last = (l) => l[l.length - 1];
+  const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
+  const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+  // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
+  const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
+  const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
+  const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
+  // One-line values sit where the sian puts them; extra lines grow the column downwards, and it moves up only as far as
+  // it must to end above the source line (never above the title).
+  const place = (yFrom) => {
+    const yTo = yFrom + fromExtra + 290, yToUnit = yTo + (toLines.length - 1) * TL + TU;
+    return { yFrom, yArrow: yFrom + fromExtra + 80, yTo, yToUnit, bottom: toOwn ? yToUnit + 48 : yTo + (toLines.length - 1) * TL + 90,
+      top: label ? yFrom - 110 - labelExtra - 26 : yFrom - 58 };
+  };
+  const first = place(mid - 190 + (label ? 30 : 0) + labelExtra);
+  const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data) - 6), first.top - (top + 6))));
+  const counts = toLines.length === 1 && !toOwn;
+  const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+  const area = [X0 + 30, top, X1 - 30, roomBottom(data)];
+  const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: 'c' }));
+  reportLines('label', col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
+  // A value's lines with the unit (at its own smaller size) beside the last one, as drawn.
+  const valueReport = (what, list, y, step, size, uSize, own) => {
+    if (!list.length) return;
+    const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+    const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
+    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+  };
+  valueReport('old value', fromLines, yFrom, FL, 96, 53, fromOwn);
+  reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
+  valueReport('new value', toLines, yTo, TL, 150, 80, toOwn);
+  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
+  const triangle = dir ? (
+    <svg width={44 * k} height={40 * k} viewBox="0 0 44 40" style={{ marginLeft: 18 * k, alignSelf: 'center', opacity: smooth(tri / 0.6), transform: 'translateY(' + (1 - smooth(tri)) * (dir === 'up' ? 8 : -8) * k + 'px)' }}>
+      <polygon points={dir === 'up' ? '22,2 42,38 2,38' : '2,2 42,2 22,38'} fill={C.acc} />
+    </svg>
+  ) : null;
   return (
     <Win s={s} data={data}>
       <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
-      {label ? (
-        <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
-          <div style={{ fontSize: fitSize(plainText(label), 44, 900) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={label} hlAt={0.95} /></div>
+      {labelLines.map((l, j) => (
+        <Rise key={'l' + j} s={s} t0={0.4} dy={10} x={540} y={yFrom - 110 - labelExtra + LBL * j}>
+          <div style={{ fontSize: 44 * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={l} hlAt={0.95} /></div>
+        </Rise>
+      ))}
+      {fromLines.map((l, j) => (
+        <Rise key={'f' + j} s={s} t0={fromAt} x={540} y={yFrom + FL * j}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.ink2, fontWeight: 800, letterSpacing: -2 * k }}>
+            <span style={{ ...tnum, fontSize: 96 * k }}>{l}</span>
+            {unit && !fromOwn && j === fromLines.length - 1 ? <span style={{ ...tnum, fontSize: 53 * k, fontWeight: 700, marginLeft: 4 * k }}>{unit}</span> : null}
+          </div>
+        </Rise>
+      ))}
+      {fromOwn ? (
+        <Rise s={s} t0={fromAt} x={540} y={yFrom + (fromLines.length - 1) * FL + FU}>
+          <span style={{ ...tnum, fontSize: 53 * k, fontWeight: 700, color: C.ink2 }}>{unit}</span>
         </Rise>
       ) : null}
-      <Rise s={s} t0={fromAt} x={540} y={yFrom}>
-        <div style={{ display: 'flex', alignItems: 'baseline', color: C.ink2, fontWeight: 800, letterSpacing: -2 * k }}>
-          <span style={{ ...tnum, fontSize: 96 * sFrom * k }}>{from}</span>
-          {unit ? <span style={{ ...tnum, fontSize: 53 * sFrom * k, fontWeight: 700, marginLeft: 4 * k }}>{unit}</span> : null}
-        </div>
-      </Rise>
       {ap > 0 ? (
         // Gold chevron, opening from its centre outwards.
         <svg width={80 * k} height={60 * k} viewBox="0 0 80 60" style={{ position: 'absolute', left: 500 * k, top: (yArrow + 25) * k }}>
           <polyline points={(40 - 28 * ap) + ',' + (14 + 22 * (1 - ap)) + ' 40,36 ' + (40 + 28 * ap) + ',' + (14 + 22 * (1 - ap))} fill="none" stroke={C.gold} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
-      <Pop s={s} t0={toAt} x={540} y={yTo}>
-        <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * sTo * k }}>
-          <span style={{ position: 'relative' }}>
-            {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
-            <span style={{ ...tnum, fontSize: 150 * sTo * k, visibility: 'hidden' }}>{to}</span>
-            <span style={{ ...tnum, fontSize: 150 * sTo * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span>
-          </span>
-          {unit ? <span style={{ ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
-          {dir ? (
-            <svg width={44 * sTo * k} height={40 * sTo * k} viewBox="0 0 44 40" style={{ marginLeft: 18 * sTo * k, alignSelf: 'center', opacity: smooth(tri / 0.6), transform: 'translateY(' + (1 - smooth(tri)) * (dir === 'up' ? 8 : -8) * k + 'px)' }}>
-              <polygon points={dir === 'up' ? '22,2 42,38 2,38' : '2,2 42,2 22,38'} fill={C.acc} />
-            </svg>
-          ) : null}
-        </div>
-      </Pop>
+      {toLines.map((l, j) => (
+        <Pop key={'t' + j} s={s} t0={toAt} x={540} y={yTo + TL * j}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * k }}>
+            <span style={{ position: 'relative' }}>
+              {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
+              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts ? 'hidden' : 'visible' }}>{l}</span>
+              {counts ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
+            </span>
+            {unit && !toOwn && j === toLines.length - 1 ? <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
+            {!toOwn && j === toLines.length - 1 ? triangle : null}
+          </div>
+        </Pop>
+      ))}
+      {toOwn ? (
+        <Pop s={s} t0={toAt} x={540} y={yToUnit}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800 }}>
+            <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700 }}>{unit}</span>
+            {triangle}
+          </div>
+        </Pop>
+      ) : null}
       <Source s={s} text={String(data?.source ?? '')} />
     </Win>
   );
@@ -5971,10 +6218,12 @@ export default function StatCards({ data }) {
   const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;
   const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
   const cardAt = (i) => ({ x: X0 + (i % cols) * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });
+  // The cards whose text takes more lines than one: every card grows with them (the layout check names them).
+  const cause = laid.filter((c) => c.header.length > 1 || c.label0.length > 1 || c.v0.length > 1 || c.unitOwn || c.label1.length > 1 || c.v1.length > 1).map((c) => c.header.join(' '));
   laid.forEach((c, i) => {
     const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
     const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: 'c' }));
-    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)]);
+    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)], { cause });
     reportLines('card name', lines(c.header, y0 - 2 + (BAND + d1) / 2 - (BL * (c.header.length - 1)) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
     reportLines('card label', lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
     reportLines('card number', lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
@@ -6758,7 +7007,10 @@ const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
 // tone "accent" is the hero side: crimson X drawn one stroke after the other. Tone "contrast" is the
 // opposite side (excluded, allowed): a green check drawn stroke by stroke. \`subtitle\` is an optional
 // grey line under the ribbon. The second card waits until the first one has settled.
-const CW = X1 - X0, CH = 270, D = 196;
+// Text that does not fit keeps its size (style spec 1, 64): a sentence wider than its room breaks at a space onto
+// more lines and every card grows (never below 270) to hold the longest; cards that then run out of the window are
+// reported for the layout check.
+const CW = X1 - X0, CH = 270, D = 196, TX = X0 + 36 + D + 44, TW = X1 - 36 - TX, LH = 80;
 
 function Mark({ s, tone, t0 }) {
   const p = smooth(prog(s.t, t0, t0 + 0.9));
@@ -6806,11 +7058,19 @@ export default function VerdictCard({ data }) {
   const starts = cards.map((_, i) => (i === 0 ? 0.35 : 2.0));
   // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card), its second line, or a line brush
   // (0.4 + 0.2 j + 0.55 + 0.9 s after the card).
-  const lineEnd = (c, i) => Math.max(0, ...twoLines(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+  // A sentence that fits one line still reads as the spec's two lines (split near the middle).
+  const laid = cards.map((c) => { const l = wrapLines(c.text, 64, TW); return l.length === 1 && !c.text.includes('\\n') ? twoLines(c.text) : l; });
+  const lineEnd = (c, i) => Math.max(0, ...laid[i].map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
   const s = useScene(data, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
   const k = s.k;
   const top = subtitle ? 200 : 150;
-  const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;
+  const ch = Math.max(CH, ...laid.map((l) => l.length * LH + 70));
+  const gap = cards.length > 1 ? (794 - top - 2 * ch) / 3 : (794 - top - ch) / 2;
+  laid.forEach((lines, i) => {
+    const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
+    report('card', lines.join(' '), [X0, y0, X1, y0 + ch], [X0, top - 10, X1, 800]);
+    reportLines('sentence', lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: 'l' })), 64, [TX, y0, X1 - 24, y0 + ch]);
+  });
   return (
     <Win s={s} data={data}>
       <GoldRule s={s} y={78} t0={0} ornament={false} />
@@ -6818,22 +7078,19 @@ export default function VerdictCard({ data }) {
       {subtitle ? <Rise s={s} t0={0.5} dy={10} x={540} y={152}><div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={1.05} /></div></Rise> : null}
       {cards.map((c, i) => {
         const t0 = starts[i];
-        const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;
-        const lines = twoLines(c.text);
-        const tx = X0 + 36 + D + 44;
-        const size = Math.min(64, ...lines.map((l) => (X1 - 36 - tx) / Math.max(0.01, ems(plainText(l)))));
-        const lh = size * 1.25;
+        const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
+        const lines = laid[i];
         const iconIn = prog(s.t, t0 + 0.25, t0 + 1.05);
         return (
           <React.Fragment key={i}>
             <Rise s={s} t0={t0} dur={0.9} dy={22} x={X0} y={y0} anchor="lt">
-              <div style={{ ...cardStyle(s, false), width: CW * k, height: CH * k, borderColor: c.tone === 'contrast' ? C.good : C.gold }} />
+              <div style={{ ...cardStyle(s, false), width: CW * k, height: ch * k, borderColor: c.tone === 'contrast' ? C.good : C.gold }} />
             </Rise>
             <At s={s} x={X0 + 36 + D / 2} y={cy}>
               <div style={{ opacity: smooth(iconIn / 0.5), transform: 'scale(' + lerp(0.9, 1, settle(iconIn, 0.3)) + ')' }}><Mark s={s} tone={c.tone} t0={t0 + 1.0} /></div>
             </At>
             {lines.map((l, j) => (
-              <Say key={j} s={s} text={l} x={tx} y={cy + (j - (lines.length - 1) / 2) * lh} t0={t0 + 0.4 + 0.2 * j} size={size} dy={14} />
+              <Say key={j} s={s} text={l} x={TX} y={cy + (j - (lines.length - 1) / 2) * LH} t0={t0 + 0.4 + 0.2 * j} size={64} dy={14} />
             ))}
           </React.Fragment>
         );
@@ -8039,7 +8296,23 @@ var WHAT = {
   "card number": "\uCE74\uB4DC \uC22B\uC790",
   "card unit": "\uCE74\uB4DC \uB2E8\uC704",
   "second label": "\uB450 \uBC88\uC9F8 \uD56D\uBAA9",
-  "second value": "\uB450 \uBC88\uC9F8 \uAC12"
+  "second value": "\uB450 \uBC88\uC9F8 \uAC12",
+  "bar name": "\uB9C9\uB300 \uC774\uB984",
+  "bar sub line": "\uB9C9\uB300 \uC791\uC740 \uC904",
+  "bar value": "\uB9C9\uB300 \uAC12",
+  label: "\uD56D\uBAA9",
+  "old value": "\uC774\uC804 \uAC12",
+  "old value unit": "\uC774\uC804 \uAC12 \uB2E8\uC704",
+  "new value": "\uC774\uD6C4 \uAC12",
+  "new value unit": "\uC774\uD6C4 \uAC12 \uB2E8\uC704",
+  caption: "\uC791\uC740 \uC81C\uBAA9",
+  word: "\uB0B1\uB9D0",
+  "legend name": "\uBC94\uB840 \uC774\uB984",
+  "legend value": "\uBC94\uB840 \uAC12",
+  "card header": "\uCE74\uB4DC \uBA38\uB9AC\uAE00",
+  "card value": "\uCE74\uB4DC \uAC12",
+  "end value": "\uB05D \uAC12",
+  sentence: "\uBB38\uC7A5"
 };
 var field = (path) => path.split(".").map((seg) => {
   const m = /^(\w+)(?:\[(\d+)\])?$/.exec(seg);
@@ -8048,7 +8321,9 @@ var field = (path) => path.split(".").map((seg) => {
 var kind = (type) => t("ko", "type_" + type);
 var REBUILD = "\uC7A5\uBA74 \uB370\uC774\uD130\uAC00 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC544\uC694. '\uD654\uBA74 \uAD6C\uC131\uC5D0 \uC758\uACAC \uB0A8\uAE30\uAE30'\uB85C \uB2E4\uC2DC \uB9CC\uB4E4\uC5B4 \uC8FC\uC138\uC694.";
 var FIT = [
-  [/^the cards run below their room/, () => "\uCE74\uB4DC\uAC00 \uC544\uB798 \uCD9C\uCC98 \uC904\uAE4C\uC9C0 \uB0B4\uB824\uAC00\uC694. \uCE74\uB4DC \uBA38\uB9AC\uAE00\xB7\uD56D\uBAA9\uC744 \uC904\uC774\uAC70\uB098 \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^its text takes more lines, so every card grows/, () => "\uAE00\uC790\uAC00 \uC5EC\uB7EC \uC904\uC774\uB77C \uBAA8\uB4E0 \uCE74\uB4DC\uAC00 \uD568\uAED8 \uCEE4\uC838 \uC544\uB798 \uCD9C\uCC98 \uC904\uAE4C\uC9C0 \uB0B4\uB824\uAC00\uC694. \uCE74\uB4DC\uB9C8\uB2E4 \uBC18\uBCF5\uB418\uB294 \uB9D0(\uC608: \uC11C\uC6B8 \uC2E0\uCD95 \uC544\uD30C\uD2B8 \uBCF4\uC99D\uAE08)\uC740 \uC81C\uBAA9\uC73C\uB85C \uC62C\uB9AC\uACE0, \uCE74\uB4DC \uC774\uB984\uC740 \uB3D9\uBD81\uBD80\xB7\uB3D9\uB0A8\uBD80\xB7\uC11C\uBD81\uBD80\xB7\uC11C\uB0A8\uBD80\uCC98\uB7FC \uC9E7\uAC8C \uC368 \uC8FC\uC138\uC694. \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC\uB3C4 \uB3FC\uC694."],
+  [/^the cards run below their room.*card repeats/, () => "\uCE74\uB4DC\uAC00 \uC544\uB798 \uCD9C\uCC98 \uC904\uAE4C\uC9C0 \uB0B4\uB824\uAC00\uC694. \uCE74\uB4DC\uB9C8\uB2E4 \uBC18\uBCF5\uB418\uB294 \uB9D0(\uC608: \uC11C\uC6B8 \uC2E0\uCD95 \uC544\uD30C\uD2B8 \uBCF4\uC99D\uAE08)\uC740 \uC81C\uBAA9\uC73C\uB85C \uC62C\uB9AC\uACE0, \uCE74\uB4DC \uC774\uB984\uC740 \uB3D9\uBD81\uBD80\xB7\uB3D9\uB0A8\uBD80\xB7\uC11C\uBD81\uBD80\xB7\uC11C\uB0A8\uBD80\uCC98\uB7FC \uC9E7\uAC8C \uC368 \uC8FC\uC138\uC694. \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC\uB3C4 \uB3FC\uC694."],
+  [/^the cards run below their room/, () => "\uCE74\uB4DC\uAC00 \uC544\uB798 \uCE78(\uCD9C\uCC98 \uC904)\uAE4C\uC9C0 \uB0B4\uB824\uAC00\uC694. \uAE00\uC790\uB97C \uC904\uC774\uAC70\uB098 \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
   [/^the card runs out of the window/, () => "\uCE74\uB4DC\uAC00 \uD654\uBA74 \uBC16\uC73C\uB85C \uB098\uAC00\uC694. \uAE00\uC790\uB97C \uC904\uC774\uAC70\uB098 \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
   [/^wider than its room/, () => "\uD55C \uC904\uB85C \uB193\uC544\uB3C4 \uCE78\uBCF4\uB2E4 \uB113\uC5B4 \uC798\uB824\uC694(\uAE00\uC790 \uD06C\uAE30\uB294 \uC904\uC774\uC9C0 \uC54A\uC544\uC694). \uBB38\uAD6C\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
   [/^(?:its line|(\d+) lines)(?: at \d+ px)? runs? past its room/, (m) => (m[1] ? m[1] + "\uC904\uC774 " : "") + "\uCE78\uC744 \uB118\uC5B4 \uC798\uB9AC\uAC70\uB098 \uCD9C\uCC98\uB97C \uAC00\uB824\uC694(\uAE00\uC790 \uD06C\uAE30\uB294 \uC904\uC774\uC9C0 \uC54A\uC544\uC694). \uBB38\uAD6C\uB97C \uC904\uC774\uAC70\uB098 \uC7A5\uBA74\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],

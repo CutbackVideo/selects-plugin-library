@@ -169,7 +169,15 @@ test('the layout check reads the lines the template draws: overflow is an error,
   assert.match(fit('text-nine').errors[0], /^text ".*" does not fit: 9 lines at 72 px/);
   // two-line card names: the cards hold their numbers and run past the source line instead
   const grid = fit('stat-grid-long-header').errors;
-  assert.ok(grid.length && grid.every((e) => /^card ".*" does not fit: the cards run below their room/.test(e)), grid.join('\n'));
+  assert.ok(grid.length && grid.every((e) => /^card ".*" does not fit: its text takes more lines, so every card grows and the cards run below their room .*card repeats/.test(e)), grid.join('\n'));
+  // ba63f5a re-review inputs (RESEARCH/T1M_UI_REREVIEW_BA63F5A_2026_10_24/CASES.json): one long card name grows every
+  // card; the error names that card, not only the cards at the bottom. The shortened variant and the customer's own
+  // cards fit.
+  const more = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-ba63f5a.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  const one = fitProblems('stat_cards', more['stat-grid-one-long-header'].data).errors;
+  assert.equal(one.length, 1, one.join('\n'));
+  assert.match(one[0], new RegExp('^card "' + more['stat-grid-one-long-header'].data.cards[0].header + '" does not fit: its text takes more lines'));
+  for (const id of ['stat-grid-shortened', 'customer-wolse-three', 'customer-quote']) assert.deepEqual(fitProblems(more[id].type, more[id].data).errors, [], id);
   assert.ok([...Object.keys(cases).flatMap((id) => fit(id).errors)].every((e) => LAYOUT_ERROR.test(e)));
   // a number wider than a quarter card even on a line of its own (one card has two rows, so no 2x2)
   const card = {header: 'a', rows: [{label: 'b', value: '1\uC5B55000\uB9CC', unit: '\uC6D0'}]};
@@ -245,6 +253,12 @@ test('every plan check message has a Korean text for the panel; English panels k
     [sc('text_card', {text: 'a'}), {...sc('news_photo', {}, {assetRef: 'photo-1'}), sentenceIds: ['s2']}],
     [1, sc('mystery', {}), {...sc('news_photo', {}, {assetRef: 'photo-1'}), sentenceIds: ['s9']}],
     Array.from({length: 6}, (_, i) => ({...sc(i ? 'text_card' : 'news_photo', {text: 'a'}, {assetRef: 'photo-1'}), sentenceIds: [i ? 's2' : 's1']})),
+
+    ...JSON.parse(readFileSync(new URL('./fixtures/layout-cases-ba63f5a.json', import.meta.url), 'utf8')).map((c) => [sc(c.type, c.data)]),
+    [sc('verdict_card', {title: 't', cards: [{text: '\uC11C\uC6B8 \uAC15\uB0A83\uAD6C\uC640 \uC6A9\uC0B0\uAD6C\uC5D0\uC11C \uC804\uC6A9 84\uC81C\uACF1\uBBF8\uD130 \uC774\uC0C1 \uC544\uD30C\uD2B8\uB97C \uB450 \uCC44 \uB118\uAC8C \uAC00\uC9C4 \uC0AC\uB78C\uC740 \uBAA8\uB450 [\uC911\uACFC\uC138] \uB300\uC0C1\uC785\uB2C8\uB2E4', tone: 'accent'}, {text: '1\uC8FC\uD0DD\uC790', tone: 'contrast'}]})],
+    [sc('donut_ratio', {title: 't', unit: '%', slices: [{label: 'a', value: 1234567.5, tone: 'accent'}, {label: 'b', value: 3}]})],
+    [sc('number_callout', {label: '\uC2DC\uAC00\uCD1D\uC561', from: '1234\uC870 5678\uC5B5 9012\uB9CC', to: '2345\uC870 6789\uC5B5 1234\uB9CC', unit: '\uC6D0'})],
+    [sc('flow_cause_effect', {title: 't', cause: {word: '\uAC00\uB098\uB2E4\uB77C\uB9C8\uBC14\uC0AC \uAC00\uB098\uB2E4\uB77C\uB9C8\uBC14\uC0AC \uAC00\uB098\uB2E4\uB77C\uB9C8\uBC14\uC0AC \uAC00\uB098\uB2E4\uB77C\uB9C8\uBC14\uC0AC \uAC00\uB098\uB2E4\uB77C\uB9C8\uBC14\uC0AC'}, effect: {word: 'b'}})],
   ];
   const seen = new Set();
   for (const scenes of plans) {

@@ -81,6 +81,16 @@ const LONG = {
   highlight_card: [{ value: "1\uC5B55000\uB9CC", unit: "\uC6D0" }, [150, 80, 50, 30, 26], 1],
   // four cards two by two, each number on one line beside its unit
   stat_cards: [{ cards: ["a", "b", "c", "d"].map((header) => ({ header, rows: [{ label: "x", value: "1\uC5B55000\uB9CC", unit: "\uC6D0" }] })) }, [72, 36, 44, 32, 30, 38, 26, 50], 4],
+  // two-line bar names (the baseline rises), the hero value inside its bar
+  bar_compare_h: [{ unit: "%", bars: [{ label: "\uD544\uB77C\uB378\uD53C\uC544 \uBC18\uB3C4\uCCB4 \uC9C0\uC218", sub: "\uC62C\uD574 \uB4E4\uC5B4 \uC9C0\uAE08\uAE4C\uC9C0", value: 16.5, tone: "grey" }, { label: "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774 B\uC8FC", value: 9.8, tone: "accent" }] }, [54, 30, 58, 34, 72, 40, 86, 48, 50, 26], 4],
+  number_callout: [{ label: "\uC11C\uC6B8 \uAC15\uB0A8\uAD6C \uB300\uCE58\uB3D9 \uC740\uB9C8\uC544\uD30C\uD2B8 \uC804\uC6A9 84\uC81C\uACF1\uBBF8\uD130 \uB9E4\uB9E4\uAC00", from: "21\uC5B55000\uB9CC", to: "25\uC5B53000\uB9CC", unit: "\uC6D0" }, [44, 96, 53, 150, 80, 50, 30, 26], 2],
+  // a three-line cause word next to a two-line effect word
+  flow_cause_effect: [{ cause: { word: "\uAE08\uB9AC \uC778\uD558 \uAE30\uB300\uAC00 \uD06C\uAC8C \uC904\uC5B4\uB4E6", caption: "\uBBF8\uAD6D \uC5F0\uBC29\uC900\uBE44\uC81C\uB3C4" }, effect: { word: "\uAC00\uCE58\uC8FC\uB85C \uC774\uB3D9" } }, [64, 40, 50, 30], 5],
+  // the hero label in the hole and two legend names on two lines each
+  donut_ratio: [{ unit: "%", slices: [{ label: "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774\uAC00 \uBCF4\uC720\uD55C \uC560\uD50C \uC8FC\uC2DD", value: 43.8, tone: "accent" }, { label: "\uBC45\uD06C\uC624\uBE0C\uC544\uBA54\uB9AC\uCE74\uC640 \uC544\uBA54\uB9AC\uCE78 \uC775\uC2A4\uD504\uB808\uC2A4", value: 30 }, { label: "\uAE30\uD0C0", value: 26.2 }] }, [38, 76, 42, 28, 40, 32, 22, 50, 30, 26], 2],
+  // a card value on two lines (the cards grow upwards)
+  line_trend_callout: [{ unit: "%", points: [{ x: "2021", y: 1 }, { x: "2022", y: 2 }, { x: "2023", y: 3 }], cards: [{ text: "1\uB144 \uC0C8 \uD604\uAE08 \uBCF4\uC720\uC561 \uBCC0\uD654\n\uB450 \uBC30 \uAC00\uAE4C\uC774 \uB298\uC5B4\uB09C \uC5ED\uB300 \uCD5C\uB300 \uADDC\uBAA8", tone: "accent" }, { text: "\uC5ED\uB300\n\uCD5C\uB300" }] }, [26, 40, 84, 46, 30, 50], 2],
+  verdict_card: [{ title: "\uB300\uC0C1", cards: [{ text: "\uC11C\uC6B8 \uAC15\uB0A83\uAD6C\uC640 \uC6A9\uC0B0\uAD6C\uC5D0\uC11C \uC544\uD30C\uD2B8\uB97C \uB450 \uCC44 \uB118\uAC8C \uAC00\uC9C4 \uC0AC\uB78C\uC740 [\uC911\uACFC\uC138] \uB300\uC0C1", tone: "accent" }, { text: "1\uC8FC\uD0DD\uC790\uB294 \uB300\uC0C1 \uC544\uB2D8", tone: "contrast" }] }, [64, 44, 30], 5],
 };
 test("long text keeps its style-spec size and breaks onto more lines", () => {
   for (const [t, [data, spec, lines]] of Object.entries(LONG)) {
@@ -100,4 +110,12 @@ test('a { } mark wider than a line breaks at its spaces and each line keeps its 
   assert.deepEqual(lines.map(text), ['\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D', '\uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9']);
   const brushed = (n) => n && typeof n === 'object' && (n.type === 'svg' || n.children.some(brushed));
   assert.ok(lines.every(brushed));
+});
+
+test("no scene template sets text smaller to fit (style spec 1)", async () => {
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const dir = new URL("../src/templates/", import.meta.url);
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".tsx") && !["headline.tsx", "caption.tsx"].includes(x))) {
+    assert.ok(!/fitSize\(/.test(readFileSync(new URL(f, dir), "utf8")), f);
+  }
 });

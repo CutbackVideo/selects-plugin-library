@@ -7,13 +7,15 @@
 
 import { layoutReports } from "../templates/entrance.generated.ts";
 
-type Report = { what: string; text: string; box: number[]; area: number[]; size?: number; lines?: number; maxLines?: number; overlap?: boolean };
+type Report = { what: string; text: string; box: number[]; area: number[]; size?: number; lines?: number; maxLines?: number; overlap?: boolean; cause?: string[] };
 
 // Every layout error carries this phrase (the Panel and settlePlan tell them from other plan errors by it).
 export const LAYOUT_ERROR = /\bdoes not fit\b/;
 
 // Less than this past the room is rounding in the width estimate, not a cut.
 const SLACK = 1;
+// How to make number cards shorter (the re-review's passing variant of its long-header case).
+const CARD_HINT = "move words every card repeats (for example \"\uC11C\uC6B8 \uC2E0\uCD95 \uC544\uD30C\uD2B8 \uBCF4\uC99D\uAE08\") into the title and keep card names short (for example \uB3D9\uBD81\uBD80, \uB3D9\uB0A8\uBD80, \uC11C\uBD81\uBD80, \uC11C\uB0A8\uBD80), or use fewer cards";
 
 // Errors and warnings (without the scene prefix) for the scene's text as the template lays it out.
 export function fitProblems(type: string, p: Record<string, any>): { errors: string[]; warnings: string[] } {
@@ -27,7 +29,11 @@ export function fitProblems(type: string, p: Record<string, any>): { errors: str
     const quoted = `${r.what} "${text}"`;
     const at = r.size ? ` at ${r.size} px` : "";
     if (r.what === "card") {
-      if (y1 > ay1 + SLACK) errors.push(`${quoted} does not fit: the cards run below their room (over the source line); shorten the card names and labels or use fewer cards`);
+      if (y1 > ay1 + SLACK) {
+        // Number cards all grow with the card that needs the most lines: name that card, not only the one at the bottom.
+        if (type === "stat_cards" && r.cause?.length) for (const c of r.cause) errors.push(`card "${c}" does not fit: its text takes more lines, so every card grows and the cards run below their room (over the source line); ${CARD_HINT}`);
+        else errors.push(`${quoted} does not fit: the cards run below their room (over the source line); ${type === "stat_cards" ? CARD_HINT : "shorten their text or use fewer cards"}`);
+      }
       else if (y0 < ay0 - SLACK || x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: the card runs out of the window; shorten its text or use fewer cards`);
     } else if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) {
       errors.push(`${quoted} does not fit: wider than its room${at} even on a line of its own (text is never made smaller), so it would be cut off; shorten it`);
