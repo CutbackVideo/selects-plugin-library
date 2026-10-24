@@ -581,6 +581,36 @@ test("refilling the preview Draft drops the stills rendered from it before", asy
   assert.equal(renders(), 2);
 });
 
+test("a reopened panel renders thumbnails from the confirmed edit Draft, also after the plan changed", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const plan = { narrationId: "n1", scenes: [{ type: "text_card", sentenceIds: ["s1"], params: { text: "a" } }, { type: "text_card", sentenceIds: ["s2"], params: { text: "b" } }], edited: [], thumbs: {} };
+  const s = { presetId: "chosun", script: { headline: { line1: "h", line2: "i" }, sentences: [] }, plan };
+  const video = { draftId: "d0", projectId: "p", planRev: F.previewRev(s), frames: 300, scenes: [{ startSec: 0, endSec: 4 }, { startSec: 4, endSec: 9 }], at: "t1" };
+  // What the panel loads when it opens again: the saved session only (no thumbnails kept).
+  const confirmed = { ...s, preview: null, draftId: "d0", video, videos: ["d0"] };
+  const edited = { ...confirmed, plan: { ...plan, scenes: [plan.scenes[0], { ...plan.scenes[1], params: { text: "b total" } }] } };
+  // Confirmed and unchanged: the rows' Draft, as before.
+  assert.equal(F.stillsDraft(confirmed), video);
+  assert.equal(F.rowsDraft(confirmed), video);
+  // Changed after confirming: the rows no longer go to it, but the thumbnails still come from it.
+  assert.equal(F.rowsDraft(edited), null);
+  assert.equal(F.stillsDraft(edited), video);
+  for (const sess of [confirmed, edited]) {
+    const h = fakeHost(PNG_ANSWERS);
+    const viewer = F.previewViewer(h.sdk, () => HOST_ENV, F.draftQueue(), () => sess.preview ?? sess.video);
+    for (const i of [0, 1]) assert.ok((await viewer.still(F.stillsDraft(sess), i)).dataUrl.startsWith("data:image/png"));
+    const renders = h.calls.filter((c) => c.summary === "Render the complete preview scene");
+    assert.ok(renders.length <= 2 && renders.every((c) => c.script.includes('"draftSequenceId":"d0"')));
+  }
+  // A preview is shown instead; a partly built preview, another Draft as the edit or no recorded places: nothing.
+  const preview = { ...video, draftId: "d1" };
+  assert.equal(F.stillsDraft({ ...edited, preview }), preview);
+  assert.equal(F.stillsDraft({ ...confirmed, preview: { ...preview, planRev: "" } }), null);
+  assert.equal(F.stillsDraft({ ...edited, draftId: "d9" }), null);
+  assert.equal(F.stillsDraft({ ...edited, video: null }), null);
+  assert.equal(F.stillsDraft({ ...edited, video: { ...video, planRev: "" } }), null);
+});
+
 test("a confirmed edit Draft takes a numbered name when the Project already has that name", async () => {
   const F = await import("../src/pipeline/flow.ts");
   const name = "\uBC84\uD06C\uC154 \uD574\uC11C\uC6E8\uC774 \uC0AC\uC0C1 \uCD5C\uACE0\uAC00";

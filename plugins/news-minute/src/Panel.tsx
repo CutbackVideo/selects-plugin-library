@@ -156,12 +156,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const video = !pv ? view : null;
   // The confirmed edit Draft after the layout changed: kept and still opened, but its scenes no longer match the rows.
   const videoOff = !!(s && !pv && !view && s.video && s.draftId === s.video.draftId);
+  // The Draft the thumbnails come from: the rows' Draft, else that confirmed edit Draft (marked "before edit").
+  const shot = s ? F.stillsDraft(s) : null;
   // Finished-frame thumbnails of that Draft, one at a time, the picked scene first; kept for the open panel.
   // Only the current build's thumbnails are kept; a result for an older build is dropped (the copy still re-runs
   // this effect, so the next thumbnail starts).
   const rendering = useRef(false);
   useEffect(() => {
-    const pv = view;
+    const pv = shot;
     if (!pv || !pv.planRev || busy || rendering.current) return;
     const order = pv.scenes.map((_, i) => i);
     if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
@@ -179,7 +181,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         if (!r.cached) note("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) });
       })
       .catch(() => { rendering.current = false; setStills((m) => (key in m ? { ...m, [key]: { state: "failed" } } : { ...m })); });
-  }, [view?.draftId, view?.at, view?.planRev, picked, busy, stills]);
+  }, [shot?.draftId, shot?.at, shot?.planRev, picked, busy, stills]);
 
   // Once the plan moves past the preview, the Draft's name says so in the editor too (once per change).
   const stale = !!(pv && s?.plan && pv.planRev !== F.previewRev(s));
@@ -408,8 +410,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
           const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
           const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
           const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-          const shown = view ?? (videoOff ? s.video! : null);
-          const still = shown && i < shown.scenes.length ? stills[F.stillKey(shown, i)] : undefined;
+          const still = shot && i < shot.scenes.length ? stills[F.stillKey(shot, i)] : undefined;
           const canPick = !!view && i < view.scenes.length;
           const photo = scene.assetRef ? plan.thumbs[scene.assetRef] : undefined;
           const open = openRow === i;
