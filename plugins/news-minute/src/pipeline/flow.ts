@@ -12,7 +12,7 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, planWindows, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
+import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
 import { bandsScript, baseDraftScript, fitControls, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
@@ -516,8 +516,8 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     }
   };
 
-  const hidden = hiddenCaptionSentences(plan, sentences);
-  const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
+  // Every sentence keeps its caption, number scenes included (style spec 1); a plan's hideCaption is ignored.
+  const captions = captionTimes(texts, times, chars);
 
   // A refill keeps the plate and bands Resources it was built with (importing them again adds duplicates).
   if (reuse) rec.notes.push("plate: reused " + (reuse.plateImage ? "image" : "colour") + " Resource " + reuse.plateId, "bands: " + (reuse.bandsId ? "reused image Resource " + reuse.bandsId : "frame graphic"));

@@ -123,14 +123,6 @@ export function sceneClips(plan: PlanScene[], sentences: Sentence[], times: Span
   });
 }
 
-// Sentences whose captions are hidden (number_callout scenes).
-export function hiddenCaptionSentences(plan: PlanScene[], sentences: Sentence[]): Set<number> {
-  const index = new Map(sentences.map((s, i) => [s.id, i]));
-  const out = new Set<number>();
-  for (const sc of plan) if (sc.hideCaption) for (const id of sc.sentenceIds) { const i = index.get(id); if (i !== undefined) out.add(i); }
-  return out;
-}
-
 export const sceneTooLong = (w: Span) => w.endSec - w.startSec > MAX_SCENE_SEC + 0.5;
 
 // JSON with object keys sorted, so the same params in a different key order compare equal.
@@ -161,7 +153,7 @@ export function retypeScene(sc: PlanScene, type: string, firstSentence: string, 
     : type === "number_callout" ? { label: "", from: "", to: "", unit: "" }
     : type === "news_photo" ? {}
     : { ...(sc.params ?? {}) };
-  const out: PlanScene = { sentenceIds: sc.sentenceIds, type, params, hideCaption: type === "number_callout", disclaimer: false };
+  const out: PlanScene = { sentenceIds: sc.sentenceIds, type, params, hideCaption: false, disclaimer: false };
   if (assetRef) out.assetRef = assetRef;
   return out;
 }

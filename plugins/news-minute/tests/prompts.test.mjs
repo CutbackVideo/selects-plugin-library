@@ -178,6 +178,8 @@ test('planner prompt lists the heritage types and the no-calculation rule', () =
   const t = P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x', startSec: 0, endSec: 3}], assets: []});
   for (const type of ['highlight_card', 'donut_ratio', 'verdict_card', 'flow_cause_effect']) assert.ok(t.includes(type));
   assert.ok(t.includes('calculated') && t.includes('order the narration says'));
+  // every scene keeps its caption (style spec 1)
+  assert.ok(t.includes('hideCaption is always false') && !t.includes('hideCaption=true'));
 });
 
 test('number_callout must not carry an assetRef', () => {
