@@ -52,8 +52,8 @@ export default function BarCompareH({ data }) {
   const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);
   const slots = ws.map((w) => w + space - 8);
   // Names and sub lines at full size on as many lines as they need; the baseline rises by the longest.
-  const names = bars.map((b, i) => wrapLines(String(b?.label ?? ''), 54, slots[i]));
-  const subs = bars.map((b, i) => (String(b?.sub ?? '') ? wrapLines(String(b.sub), 30, slots[i]) : []));
+  const names = bars.map((b, i) => wrapLines(String(b?.label ?? ''), 54, slots[i], font(54, 800, -1)));
+  const subs = bars.map((b, i) => (String(b?.sub ?? '') ? wrapLines(String(b.sub), 30, slots[i], font(30, 500)) : []));
   const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;
   const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
   const BASE = BASE0 - nameExtra - subExtra;
@@ -93,14 +93,17 @@ export default function BarCompareH({ data }) {
   const roomTop = subtitle ? 162 : 112;
   bars.forEach((_, i) => {
     const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data)];
-    reportLines('bar name', names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: 'c' })), 54, area);
-    reportLines('bar sub line', subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: 'c' })), 30, area);
+    reportLines('bar name', names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: 'c' })), 54, area, 2, font(54, 800, -1));
+    reportLines('bar sub line', subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: 'c' })), 30, area, 2, font(30, 500));
     const v = valueAt[i];
     const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H[i]];
     // The value and its unit at their own sizes, side by side or the unit under the value.
     const vw = numW(finals[i], v.size), uw = unitW(v.uSize);
     const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
-    report('bar value', finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)], vArea, { size: v.size, lines: 1, maxLines: 1 });
+    const vBox = [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)];
+    report('bar value', finals[i] + unit, vBox, vArea, { size: v.size, lines: 1, maxLines: 1 });
+    // In the bar it counts up (and stays in the bar); above it, it pops in.
+    reportGrown('bar value', finals[i] + unit, vBox, v.inside ? [COUNT_GROW, [cx[i] - ws[i] / 2, -Infinity, cx[i] + ws[i] / 2, Infinity], 'bar'] : [POP_GROW, WINDOW, 'window'], v.size);
   });
   return (
     <Win s={s} data={data}>

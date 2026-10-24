@@ -246,39 +246,57 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
-// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
-// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
-// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
-// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at
-// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
-// `ls` is the letter spacing in px, which Chrome adds after every character.
+// Measured width in px of text as drawn, for the layout check (style spec 1): ems guesses tabular digits (0.67 em),
+// Latin capitals (WALMART 5.2 em at 800) and wide units (MW 1.9 em) too narrow, so text could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em, measured in Chrome 155 at 1000 px
+// from fonts/PretendardVariable.ttf: space..~ per weight; tabular digits, comma and period per weight (every value is
+// set in tabular-nums, `tnum`); a few symbols at their widest weight. Hangul is 0.864 em at every weight; another
+// character takes a full em. Kerning is left out, and it only narrows Latin pairs (WALMART 1.5%, AVATAR 8% at most),
+// so a measured line is never narrower than drawn. `ls` is the letter spacing in px, which Chrome adds after every
+// character; a weight between two measured ones takes the heavier.
 const ADV = {
-  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
-  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+  300: [242, 250, 359, 598, 598, 825, 591, 194, 325, 325, 469, 619, 250, 425, 246, 322, 584, 422, 589, 609, 608, 584, 599, 543, 601, 599, 246, 246, 619, 619, 619, 469, 882, 626, 614, 690, 682, 562, 554, 706, 703, 237, 506, 609, 531, 843, 721, 720, 594, 720, 599, 598, 601, 707, 626, 896, 594, 617, 587, 325, 322, 325, 421, 416, 466, 526, 582, 525, 582, 549, 327, 570, 553, 211, 211, 498, 209, 822, 549, 560, 569, 569, 334, 485, 333, 546, 517, 769, 499, 517, 501, 325, 288, 325, 619],
+  500: [244, 273, 378, 608, 615, 895, 622, 200, 357, 357, 493, 636, 268, 438, 263, 347, 617, 449, 595, 625, 635, 607, 623, 560, 619, 623, 263, 263, 636, 636, 636, 499, 878, 669, 625, 704, 691, 574, 559, 717, 710, 251, 526, 635, 538, 863, 715, 735, 611, 735, 616, 615, 622, 706, 669, 943, 637, 654, 610, 357, 347, 357, 451, 435, 472, 542, 598, 541, 598, 560, 347, 589, 575, 231, 231, 530, 231, 849, 570, 575, 589, 589, 363, 510, 350, 567, 541, 791, 525, 541, 525, 357, 322, 357, 636],
+  600: [238, 291, 377, 616, 623, 927, 635, 199, 374, 374, 516, 645, 277, 443, 272, 359, 639, 459, 603, 632, 646, 617, 633, 567, 631, 633, 272, 272, 645, 645, 645, 519, 876, 694, 630, 714, 696, 582, 561, 725, 715, 259, 537, 649, 542, 873, 712, 744, 617, 745, 624, 623, 632, 705, 694, 971, 661, 675, 626, 374, 359, 374, 459, 445, 474, 550, 605, 552, 605, 567, 357, 599, 587, 244, 244, 544, 244, 864, 584, 583, 598, 598, 376, 525, 360, 582, 552, 805, 538, 552, 537, 374, 339, 374, 645],
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 287, 449, 282, 372, 660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 297, 454, 292, 384, 682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+  900: [218, 341, 375, 641, 645, 1024, 674, 195, 423, 423, 584, 671, 307, 459, 301, 396, 704, 489, 626, 654, 679, 647, 663, 591, 667, 663, 301, 301, 671, 671, 671, 577, 871, 766, 647, 744, 711, 603, 567, 749, 728, 281, 569, 690, 554, 903, 704, 771, 636, 771, 647, 645, 664, 702, 766, 1055, 735, 737, 671, 423, 396, 423, 484, 477, 482, 572, 625, 586, 625, 589, 388, 628, 625, 283, 283, 586, 283, 910, 625, 605, 627, 627, 417, 568, 391, 626, 585, 847, 576, 585, 573, 423, 389, 423, 671],
 };
-// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
-const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
-// At weight 800 (the 700 widths are at most 3% less).
-const ADV_MORE = { '\u00B7': 292, '\u00B0': 445, '\u2103': 1159, '\u00D7': 662, '\u2013': 482, '\u2014': 969, '\u2026': 875, '\u20A9': 917, '\u20AC': 669, '\u00A3': 660, '\u2030': 1360, '\u2191': 924, '\u2193': 924, '\u2192': 924, '\u25B2': 1025, '\u25BC': 1025 };
+const ADV_TNUM = {
+  300: [597, 597, 597, 597, 597, 597, 597, 597, 597, 597, 246, 246],
+  500: [628, 628, 628, 628, 628, 628, 628, 628, 628, 628, 263, 263],
+  600: [641, 641, 641, 641, 641, 641, 641, 641, 641, 641, 272, 272],
+  700: [655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282],
+  800: [668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292],
+  900: [682, 682, 682, 682, 682, 682, 682, 682, 682, 682, 301, 301],
+};
+const ADV_MORE = { '\u00B7': 301, '\u00B0': 449, '\u2103': 1171, '\u00D7': 671, '\u00F7': 671, '\u2013': 485, '\u2014': 972, '\u2026': 903, '\u20A9': 918, '\u20AC': 678, '\u00A3': 675, '\u00A5': 569, '\u2030': 1403, '\u2191': 927, '\u2193': 927, '\u2192': 927, '\u2190': 927, '\u25B2': 1040, '\u25BC': 1040, '\u2018': 292, '\u2019': 292, '\u201C': 516, '\u201D': 516, '\u300C': 423, '\u300D': 423, '\u300E': 482, '\u300F': 482, '\u300A': 593, '\u300B': 593, '\u3008': 423, '\u3009': 423, '\u3001': 938, '\u3002': 938, '\u318D': 864, '\u2022': 495, '\u203B': 908, '\u2160': 281, '\u00B1': 671, '\u2264': 671, '\u2265': 671, '\u223C': 550, '\uFF5E': 938, '\uFF05': 938 };
+const WEIGHTS = [300, 500, 600, 700, 800, 900];
 const advance = (ch, weight, tnum) => {
   const c = ch.codePointAt(0);
   if (c >= 0x20 && c <= 0x7e) {
-    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
-    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+    const d = tnum ? '0123456789,.'.indexOf(ch) : -1;
+    return (d >= 0 ? ADV_TNUM[weight][d] : ADV[weight][c - 0x20]) / 1000;
   }
   if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
   return (ADV_MORE[ch] ?? 1000) / 1000;
 };
-const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => {
+  const w = WEIGHTS.find((x) => x >= weight) ?? 900;
+  return [...String(text)].reduce((n, ch) => n + advance(ch, w, tnum) * size + ls, 0);
+};
+// Width of a line of text (not a tabular value) at `size` px, `weight`, letter spacing `ls` px: for wrapLines and
+// reportLines.
+const font = (size, weight, ls = 0) => (t) => textW(t, size, weight, ls, false);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at `size`, measured by `width(text)` in px (font(), or textW for a value): '\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \uC5B5/\uB9CC when digits follow (1\uC5B55000\uB9CC -> 1\uC5B5 / 5000\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
+function wrapLines(text, size, maxW, width = font(size, 800)) {
   const out = [];
   for (const para of String(text ?? '').split('\n')) {
     // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.
@@ -343,18 +361,31 @@ function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
+// Entrances that draw text larger for a moment: pop() peaks 3 % wide (x scale 1.03 at 72 % of the move), the
+// in-bar and donut-hole count-up 1.8 % (0.94..1, 30 % past). The finished frame keeps the template's padding; while it
+// grows, text must still stay inside its card, bar or hole, and other text inside the window. `grow` is [scale, that
+// bound, 'card' | 'window']: the report then adds the box widened about each line's middle (the scale's origin).
+const POP_GROW = 1.03, COUNT_GROW = 1.018;
+const WINDOW = [0, -Infinity, 1080, Infinity];
+const grownBox = (box, g) => { const d = ((box[2] - box[0]) * (g - 1)) / 2; return [box[0] - d, box[1], box[2] + d, box[3]]; };
+function reportGrown(what, text, box, grow, size) {
+  if (grow) report(what, text, grownBox(box, grow[0]), grow[1], { size, entrance: grow[0], room: grow[2] });
+}
 // Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
-// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
-function reportLines(what, lines, size, area, maxLines = 2) {
+// `width` measures a line (font() of its style); `w` overrides it for a line drawn otherwise (a value with its unit).
+function reportLines(what, lines, size, area, maxLines = 2, width = font(size, 800), grow = null) {
   if (typeof REPORT !== 'function' || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity, gx0 = Infinity, gx1 = -Infinity;
   lines.forEach((l, i) => {
-    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? width(plainText(l.text)), left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
+    if (grow) { const [g0, , g1] = grownBox([left, 0, left + w, 0], grow[0]); gx0 = Math.min(gx0, g0); gx1 = Math.max(gx1, g1); }
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
   });
-  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
+  const text = lines.map((l) => l.text).join(' ');
+  report(what, text, [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
+  if (grow) report(what, text, [gx0, y0, gx1, y1], grow[1], { size, entrance: grow[0], room: grow[2] });
 }
 // Under the source line (26 px, centred on y 772) when the scene has one.
 const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);

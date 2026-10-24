@@ -61,7 +61,7 @@ export default function VerdictCard({ data }) {
   // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card), its second line, or a line brush
   // (0.4 + 0.2 j + 0.55 + 0.9 s after the card).
   // A sentence that fits one line still reads as the spec's two lines (split near the middle).
-  const laid = cards.map((c) => { const l = wrapLines(c.text, 64, TW); return l.length === 1 && !c.text.includes('\n') ? twoLines(c.text) : l; });
+  const laid = cards.map((c) => { const l = wrapLines(c.text, 64, TW, font(64, 800, -1)); return l.length === 1 && !c.text.includes('\n') ? twoLines(c.text) : l; });
   const lineEnd = (c, i) => Math.max(0, ...laid[i].map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
   const s = useScene(data, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
   const k = s.k;
@@ -71,7 +71,7 @@ export default function VerdictCard({ data }) {
   laid.forEach((lines, i) => {
     const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
     report('card', lines.join(' '), [X0, y0, X1, y0 + ch], [X0, top - 10, X1, 800]);
-    reportLines('sentence', lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: 'l' })), 64, [TX, y0, X1 - 24, y0 + ch]);
+    reportLines('sentence', lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: 'l' })), 64, [TX, y0, X1 - 24, y0 + ch], 2, font(64, 800, -1));
   });
   return (
     <Win s={s} data={data}>

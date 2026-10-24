@@ -22,8 +22,8 @@ export default function HighlightCard({ data }) {
   const final = countable(raw);
   const value = final ? counted(final, 1) : raw;
   const unit = String(data?.unit ?? '');
-  const titleLines = title ? wrapLines(title, 50, W - 80) : [];
-  const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
+  const titleLines = title ? wrapLines(title, 50, W - 80, font(50, 800, -1)) : [];
+  const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0, font(30, 500)) : [];
   // Value and unit at their drawn widths (tabular digits, letter spacing, the unit's 6 px margin).
   const valueW = (t) => textW(t, 150, 800, -4), unitW = unit ? textW(unit, 80, 700) : 0;
   const vLines = wrapLines(value, 150, IN, valueW);
@@ -41,11 +41,11 @@ export default function HighlightCard({ data }) {
   const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
   const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H];
   report('card', title + ' ' + value + unit, [x0, y0, x0 + W, y0 + H], [X0, 0, X1, roomBottom(data)]);
-  reportLines('title', titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: 'c' })), 50, inCard(40));
+  reportLines('title', titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: 'c' })), 50, inCard(40), 2, font(50, 800, -1));
   const beside = (r) => !!unit && !unitOwn && r === vLines.length - 1;
-  reportLines('value', vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ''), x: 540, y: vy + VL * r, anchor: 'c', w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50));
-  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c', w: unitW }] : [], 80, inCard(50), 1);
-  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H + 58 + 40 * j, anchor: 'c' })), 30, [X0, 0, X1, roomBottom(data)]);
+  reportLines('value', vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ''), x: 540, y: vy + VL * r, anchor: 'c', w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50), 2, undefined, [POP_GROW, inCard(0), 'card']);
+  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c', w: unitW }] : [], 80, inCard(50), 1, undefined, [POP_GROW, inCard(0), 'card']);
+  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H + 58 + 40 * j, anchor: 'c' })), 30, [X0, 0, X1, roomBottom(data)], 2, font(30, 500));
   return (
     <Win s={s} data={data}>
       <Rise s={s} t0={0} dur={0.9} dy={22} x={x0} y={y0} anchor="lt">

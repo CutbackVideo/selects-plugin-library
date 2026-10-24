@@ -159,23 +159,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 const ADV = {
-  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
-  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662]
+  300: [242, 250, 359, 598, 598, 825, 591, 194, 325, 325, 469, 619, 250, 425, 246, 322, 584, 422, 589, 609, 608, 584, 599, 543, 601, 599, 246, 246, 619, 619, 619, 469, 882, 626, 614, 690, 682, 562, 554, 706, 703, 237, 506, 609, 531, 843, 721, 720, 594, 720, 599, 598, 601, 707, 626, 896, 594, 617, 587, 325, 322, 325, 421, 416, 466, 526, 582, 525, 582, 549, 327, 570, 553, 211, 211, 498, 209, 822, 549, 560, 569, 569, 334, 485, 333, 546, 517, 769, 499, 517, 501, 325, 288, 325, 619],
+  500: [244, 273, 378, 608, 615, 895, 622, 200, 357, 357, 493, 636, 268, 438, 263, 347, 617, 449, 595, 625, 635, 607, 623, 560, 619, 623, 263, 263, 636, 636, 636, 499, 878, 669, 625, 704, 691, 574, 559, 717, 710, 251, 526, 635, 538, 863, 715, 735, 611, 735, 616, 615, 622, 706, 669, 943, 637, 654, 610, 357, 347, 357, 451, 435, 472, 542, 598, 541, 598, 560, 347, 589, 575, 231, 231, 530, 231, 849, 570, 575, 589, 589, 363, 510, 350, 567, 541, 791, 525, 541, 525, 357, 322, 357, 636],
+  600: [238, 291, 377, 616, 623, 927, 635, 199, 374, 374, 516, 645, 277, 443, 272, 359, 639, 459, 603, 632, 646, 617, 633, 567, 631, 633, 272, 272, 645, 645, 645, 519, 876, 694, 630, 714, 696, 582, 561, 725, 715, 259, 537, 649, 542, 873, 712, 744, 617, 745, 624, 623, 632, 705, 694, 971, 661, 675, 626, 374, 359, 374, 459, 445, 474, 550, 605, 552, 605, 567, 357, 599, 587, 244, 244, 544, 244, 864, 584, 583, 598, 598, 376, 525, 360, 582, 552, 805, 538, 552, 537, 374, 339, 374, 645],
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 287, 449, 282, 372, 660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 297, 454, 292, 384, 682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+  900: [218, 341, 375, 641, 645, 1024, 674, 195, 423, 423, 584, 671, 307, 459, 301, 396, 704, 489, 626, 654, 679, 647, 663, 591, 667, 663, 301, 301, 671, 671, 671, 577, 871, 766, 647, 744, 711, 603, 567, 749, 728, 281, 569, 690, 554, 903, 704, 771, 636, 771, 647, 645, 664, 702, 766, 1055, 735, 737, 671, 423, 396, 423, 484, 477, 482, 572, 625, 586, 625, 589, 388, 628, 625, 283, 283, 586, 283, 910, 625, 605, 627, 627, 417, 568, 391, 626, 585, 847, 576, 585, 573, 423, 389, 423, 671]
 };
-const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
-const ADV_MORE = { "\xB7": 292, "\xB0": 445, "\u2103": 1159, "\xD7": 662, "\u2013": 482, "\u2014": 969, "\u2026": 875, "\u20A9": 917, "\u20AC": 669, "\xA3": 660, "\u2030": 1360, "\u2191": 924, "\u2193": 924, "\u2192": 924, "\u25B2": 1025, "\u25BC": 1025 };
+const ADV_TNUM = {
+  300: [597, 597, 597, 597, 597, 597, 597, 597, 597, 597, 246, 246],
+  500: [628, 628, 628, 628, 628, 628, 628, 628, 628, 628, 263, 263],
+  600: [641, 641, 641, 641, 641, 641, 641, 641, 641, 641, 272, 272],
+  700: [655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282],
+  800: [668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292],
+  900: [682, 682, 682, 682, 682, 682, 682, 682, 682, 682, 301, 301]
+};
+const ADV_MORE = { "\xB7": 301, "\xB0": 449, "\u2103": 1171, "\xD7": 671, "\xF7": 671, "\u2013": 485, "\u2014": 972, "\u2026": 903, "\u20A9": 918, "\u20AC": 678, "\xA3": 675, "\xA5": 569, "\u2030": 1403, "\u2191": 927, "\u2193": 927, "\u2192": 927, "\u2190": 927, "\u25B2": 1040, "\u25BC": 1040, "\u2018": 292, "\u2019": 292, "\u201C": 516, "\u201D": 516, "\u300C": 423, "\u300D": 423, "\u300E": 482, "\u300F": 482, "\u300A": 593, "\u300B": 593, "\u3008": 423, "\u3009": 423, "\u3001": 938, "\u3002": 938, "\u318D": 864, "\u2022": 495, "\u203B": 908, "\u2160": 281, "\xB1": 671, "\u2264": 671, "\u2265": 671, "\u223C": 550, "\uFF5E": 938, "\uFF05": 938 };
+const WEIGHTS = [300, 500, 600, 700, 800, 900];
 const advance = (ch, weight, tnum) => {
   const c = ch.codePointAt(0);
   if (c >= 32 && c <= 126) {
-    const prop = tnum ? -1 : "0123456789,".indexOf(ch);
-    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 32]) / 1e3;
+    const d = tnum ? "0123456789,.".indexOf(ch) : -1;
+    return (d >= 0 ? ADV_TNUM[weight][d] : ADV[weight][c - 32]) / 1e3;
   }
   if (c >= 44032 && c <= 55203 || c >= 12592 && c <= 12687 || c >= 4352 && c <= 4607) return 0.864;
   return (ADV_MORE[ch] ?? 1e3) / 1e3;
 };
-const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => {
+  const w = WEIGHTS.find((x) => x >= weight) ?? 900;
+  return [...String(text)].reduce((n, ch) => n + advance(ch, w, tnum) * size + ls, 0);
+};
+const font = (size, weight, ls = 0) => (t) => textW(t, size, weight, ls, false);
 const CLOSE = { "[": "]", "{": "}" };
-function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
+function wrapLines(text, size, maxW, width = font(size, 800)) {
   const out = [];
   for (const para of String(text ?? "").split("\n")) {
     const pieces = [];
@@ -246,18 +262,34 @@ function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === "function") REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-function reportLines(what, lines, size, area, maxLines = 2) {
+const POP_GROW = 1.03, COUNT_GROW = 1.018;
+const WINDOW = [0, -Infinity, 1080, Infinity];
+const grownBox = (box, g) => {
+  const d = (box[2] - box[0]) * (g - 1) / 2;
+  return [box[0] - d, box[1], box[2] + d, box[3]];
+};
+function reportGrown(what, text, box, grow, size) {
+  if (grow) report(what, text, grownBox(box, grow[0]), grow[1], { size, entrance: grow[0], room: grow[2] });
+}
+function reportLines(what, lines, size, area, maxLines = 2, width = font(size, 800), grow = null) {
   if (typeof REPORT !== "function" || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity, gx0 = Infinity, gx1 = -Infinity;
   lines.forEach((l, i) => {
-    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === "l" ? l.x : l.x - w / 2;
+    const w = l.w ?? width(plainText(l.text)), left = l.anchor === "l" ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left);
     x1 = Math.max(x1, left + w);
+    if (grow) {
+      const [g0, , g1] = grownBox([left, 0, left + w, 0], grow[0]);
+      gx0 = Math.min(gx0, g0);
+      gx1 = Math.max(gx1, g1);
+    }
     y0 = Math.min(y0, l.y - 0.6 * size);
     y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
   });
-  report(what, lines.map((l) => l.text).join(" "), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
+  const text = lines.map((l) => l.text).join(" ");
+  report(what, text, [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
+  if (grow) report(what, text, [gx0, y0, gx1, y1], grow[1], { size, entrance: grow[0], room: grow[2] });
 }
 const roomBottom = (data) => String(data?.source ?? "").trim() ? 750 : 800;
 let NATURAL = null, CONFIG = { frame: 0, video: null };
@@ -298,8 +330,8 @@ const SCENE = {
       const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);
       const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);
       const slots = ws.map((w) => w + space - 8);
-      const names = bars.map((b, i) => wrapLines(String(b?.label ?? ""), 54, slots[i]));
-      const subs = bars.map((b, i) => String(b?.sub ?? "") ? wrapLines(String(b.sub), 30, slots[i]) : []);
+      const names = bars.map((b, i) => wrapLines(String(b?.label ?? ""), 54, slots[i], font(54, 800, -1)));
+      const subs = bars.map((b, i) => String(b?.sub ?? "") ? wrapLines(String(b.sub), 30, slots[i], font(30, 500)) : []);
       const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;
       const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
       const BASE = BASE0 - nameExtra - subExtra;
@@ -326,13 +358,15 @@ const SCENE = {
       const roomTop = subtitle ? 162 : 112;
       bars.forEach((_, i) => {
         const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data2)];
-        reportLines("bar name", names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: "c" })), 54, area);
-        reportLines("bar sub line", subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: "c" })), 30, area);
+        reportLines("bar name", names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: "c" })), 54, area, 2, font(54, 800, -1));
+        reportLines("bar sub line", subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: "c" })), 30, area, 2, font(30, 500));
         const v = valueAt[i];
         const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H2[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H2[i]];
         const vw = numW(finals[i], v.size), uw = unitW(v.uSize);
         const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
-        report("bar value", finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size], vArea, { size: v.size, lines: 1, maxLines: 1 });
+        const vBox = [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size];
+        report("bar value", finals[i] + unit, vBox, vArea, { size: v.size, lines: 1, maxLines: 1 });
+        reportGrown("bar value", finals[i] + unit, vBox, v.inside ? [COUNT_GROW, [cx[i] - ws[i] / 2, -Infinity, cx[i] + ws[i] / 2, Infinity], "bar"] : [POP_GROW, WINDOW, "window"], v.size);
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), pb > 0 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold } }) : null, bars.map((b, i) => {
         const big = i === hero, t0 = start[i], w = ws[i];
@@ -417,14 +451,14 @@ const SCENE = {
       const heroText = fmt(hero.value);
       const heroW = textW(heroText, 76, 800), heroUnitW = unit ? textW(unit, 42, 700) : 0;
       const unitOwn = !!unit && heroW + heroUnitW > HOLE;
-      const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
+      const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10, font(28, 700)) : [];
       const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
       const vy = DCY - holeH / 2 + VH / 2;
       const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
-      const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
-      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c", w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1);
-      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c", w: heroUnitW }] : [], 42, holeArea, 1);
-      reportLines("label", heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: "c" })), 28, holeArea);
+      const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12], hole = [DCX - RI, DCY - RI, DCX + RI, DCY + RI];
+      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c", w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1, void 0, [COUNT_GROW, hole, "hole"]);
+      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c", w: heroUnitW }] : [], 42, holeArea, 1, void 0, [COUNT_GROW, hole, "hole"]);
+      reportLines("label", heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: "c" })), 28, holeArea, 2, font(28, 700));
       const rows = [];
       let y = 300;
       [hi, ...all.map((_, i) => i).filter((i) => i !== hi)].forEach((i) => {
@@ -432,14 +466,15 @@ const SCENE = {
         if (!x) return;
         const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
         const valueW = textW(fmt(x.value), big ? 40 : 32, 800) + textW(unit, big ? 28 : 22, 700);
-        let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
+        const nameW = font(sz, big ? 800 : 600);
+        let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X), nameW), below = false;
         if (names.length > 2) {
-          names = wrapLines(x.label, sz, X1 - LEG_X);
+          names = wrapLines(x.label, sz, X1 - LEG_X, nameW);
           below = true;
         }
         const vy2 = below ? y + step * names.length : y;
         rows[i] = { y, names, sz, step, vy: vy2 };
-        reportLines("legend name", names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: "l" })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data2)]);
+        reportLines("legend name", names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: "l" })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data2)], 2, nameW);
         report("legend value", fmt(x.value) + unit, [X1 - valueW, vy2 - 0.6 * (big ? 40 : 32), X1, vy2 + 0.6 * (big ? 40 : 32)], [LEG_X, 150, X1, roomBottom(data2)], { size: big ? 40 : 32, lines: 1, maxLines: 1 });
         y += (big ? 82 : 58) + (names.length - 1 + (below ? 1 : 0)) * step;
       });
@@ -457,8 +492,8 @@ const SCENE = {
   "flow_cause_effect": (data) => {
     const FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, CGAP = 20, PAD = 60;
     function laidOut(c) {
-      const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];
-      const word = wrapLines(c.word, 64, IN);
+      const caption = c.caption ? wrapLines(c.caption, 40, IN, font(40, 800)) : [];
+      const word = wrapLines(c.word, 64, IN, font(64, 900, -1));
       return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };
     }
     function Card({ s, cx, cy, t0, hero, lines, H: H2 }) {
@@ -484,8 +519,8 @@ const SCENE = {
         const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);
         const inCard = [cx - FW / 2 + 30, cy - H2 / 2, cx + FW / 2 - 30, cy + H2 / 2];
         report("card", c.caption.join(" ") + " " + c.word.join(" "), [cx - FW / 2, cy - H2 / 2, cx + FW / 2, cy + H2 / 2], [X0, top, X1, roomBottom(data2)]);
-        reportLines("caption", c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: "c" })), 40, inCard);
-        reportLines("word", c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: "c" })), 64, inCard);
+        reportLines("caption", c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: "c" })), 40, inCard, 2, font(40, 800));
+        reportLines("word", c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: "c" })), 64, inCard, 2, font(64, 900, -1));
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), /* @__PURE__ */ STUB(Card, { s, cx: LCX, cy, t0: tCause, hero: false, lines: lc, H: H2 }), ap > 0 ? /* @__PURE__ */ STUB("svg", { width: 1080 * s.k, height: 809 * s.k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, L > head ? /* @__PURE__ */ STUB("line", { x1: ax0, y1: cy, x2: ax0 + L - head + 2, y2: cy, stroke: C.gold, strokeWidth: "9", strokeLinecap: "round" }) : null, /* @__PURE__ */ STUB("polygon", { points: ax0 + L + "," + cy + " " + (ax0 + L - head) + "," + (cy - head * 0.62 * Math.min(1, L / head)) + " " + (ax0 + L - head) + "," + (cy + head * 0.62 * Math.min(1, L / head)), fill: C.gold })) : null, /* @__PURE__ */ STUB(Card, { s, cx: RCX, cy, t0: tEffect, hero: true, lines: le, H: H2 }));
     }
@@ -502,8 +537,8 @@ const SCENE = {
       const final = countable(raw);
       const value = final ? counted(final, 1) : raw;
       const unit = String(data2?.unit ?? "");
-      const titleLines = title ? wrapLines(title, 50, W - 80) : [];
-      const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
+      const titleLines = title ? wrapLines(title, 50, W - 80, font(50, 800, -1)) : [];
+      const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0, font(30, 500)) : [];
       const valueW = (t) => textW(t, 150, 800, -4), unitW = unit ? textW(unit, 80, 700) : 0;
       const vLines = wrapLines(value, 150, IN, valueW);
       const unitOwn = !!unit && valueW(vLines[vLines.length - 1]) + 6 + unitW > IN;
@@ -519,11 +554,11 @@ const SCENE = {
       const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
       const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H2];
       report("card", title + " " + value + unit, [x0, y0, x0 + W, y0 + H2], [X0, 0, X1, roomBottom(data2)]);
-      reportLines("title", titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: "c" })), 50, inCard(40));
+      reportLines("title", titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: "c" })), 50, inCard(40), 2, font(50, 800, -1));
       const beside = (r) => !!unit && !unitOwn && r === vLines.length - 1;
-      reportLines("value", vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ""), x: 540, y: vy + VL * r, anchor: "c", w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50));
-      reportLines("unit", unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: "c", w: unitW }] : [], 80, inCard(50), 1);
-      reportLines("sub line", subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H2 + 58 + 40 * j, anchor: "c" })), 30, [X0, 0, X1, roomBottom(data2)]);
+      reportLines("value", vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ""), x: 540, y: vy + VL * r, anchor: "c", w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50), 2, void 0, [POP_GROW, inCard(0), "card"]);
+      reportLines("unit", unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: "c", w: unitW }] : [], 80, inCard(50), 1, void 0, [POP_GROW, inCard(0), "card"]);
+      reportLines("sub line", subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H2 + 58 + 40 * j, anchor: "c" })), 30, [X0, 0, X1, roomBottom(data2)], 2, font(30, 500));
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), titleLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "t" + j, s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 + TL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.85 })))), /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136 + Math.max(0, titleLines.length - 1) * TL, t0: 0.5 }), vLines.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: 0.8, x: 540, y: vy + VL * r }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, l), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit && !unitOwn && r === vLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: unitStyle }, unit) : null))), unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: vy + VL * (vLines.length - 1) + 128 }, /* @__PURE__ */ STUB("span", { style: { ...unitStyle, marginLeft: 0 } }, unit)) : null, subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 + 40 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.75 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -564,7 +599,7 @@ const SCENE = {
       const cardText = cards.map((c) => {
         const [a, b] = String(c.text).split("\n");
         const head = b !== void 0 ? a : "", value = b !== void 0 ? b : a;
-        return { head: head ? wrapLines(head, 26, cardW - 40) : [], value: wrapLines(value, 40, cardW - 40) };
+        return { head: head ? wrapLines(head, 26, cardW - 40, font(26, 600)) : [], value: wrapLines(value, 40, cardW - 40, font(40, 800, -1)) };
       });
       const cardH = Math.max(CARD_H, ...cardText.map((t) => t.head.length * HL + t.value.length * VL + CARD_PAD));
       const cardTop = CARD_TOP + CARD_H - cardH;
@@ -572,8 +607,8 @@ const SCENE = {
       cardText.forEach((t, i) => {
         const x = X0 + i * (cardW + CARD_GAP), area = [x + 14, cardTop, x + cardW - 14, cardTop + cardH];
         const y0 = cardTop + (cardH - t.head.length * HL - t.value.length * VL) / 2;
-        reportLines("card header", t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: "c" })), 26, area);
-        reportLines("card value", t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: "c" })), 40, area);
+        reportLines("card header", t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: "c" })), 26, area, 2, font(26, 600));
+        reportLines("card value", t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: "c" })), 40, area, 2, font(40, 800, -1));
       });
       const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
       const hi = n ? Math.max(...ys) : 1, lo = n ? Math.min(...ys) : 0;
@@ -613,7 +648,10 @@ const SCENE = {
       const endLabel = /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...numStyle, visibility: count ? "hidden" : "visible" } }, endText), count ? /* @__PURE__ */ STUB("span", { style: { ...numStyle, position: "absolute", right: 0, bottom: 0 } }, shown) : null), showUnit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 46 * k, fontWeight: 700, color: C.acc, marginLeft: 4 * k, lineHeight: 1 } }, unit) : null);
       const endY = n ? P[n - 1][1] - 68 : 0;
       const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
-      if (n && endText !== "") report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
+      if (n && endText !== "") {
+        report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
+        reportGrown("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, WINDOW, "window"], 84);
+      }
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
         const pp = settle(clamp((u - i) / 0.6 + (i === 0 && s.t > SWEEP_FROM ? 1 : 0)), 0.12);
@@ -687,7 +725,7 @@ const SCENE = {
       const top = title ? 150 : 40;
       const mid = (top + 794) / 2;
       const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? ct.num > cf.num ? "up" : "down" : "";
-      const labelLines = label ? wrapLines(label, 44, W) : [];
+      const labelLines = label ? wrapLines(label, 44, W, font(44, 700)) : [];
       const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
       const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
       const VW = X1 - X0;
@@ -715,17 +753,19 @@ const SCENE = {
       const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
       const area = [X0 + 30, top, X1 - 30, roomBottom(data2)], valueArea = [X0, top, X1, roomBottom(data2)];
       const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: "c" }));
-      reportLines("label", col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
-      const valueReport = (what, list, y, step, size, lineW, beside, own) => {
+      reportLines("label", col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area, 2, font(44, 700));
+      const valueReport = (what, list, y, step, size, lineW, beside, own, grow) => {
         if (!list.length) return;
         const w = list.map((l, j) => lineW(l) + (j === list.length - 1 ? beside : 0));
         const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
-        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], valueArea, { size, lines: list.length, maxLines: 2 });
+        const box = [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], text = list.join(" ") + (own ? "" : unit);
+        report(what, text, box, valueArea, { size, lines: list.length, maxLines: 2 });
+        reportGrown(what, text, box, grow, size);
       };
       valueReport("old value", fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
       reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn);
-      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1);
+      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, WINDOW, "window"]);
+      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, void 0, [POP_GROW, WINDOW, "window"]);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const triangle = dir ? /* @__PURE__ */ STUB("svg", { width: 44 * k, height: 40 * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null;
@@ -759,7 +799,7 @@ const SCENE = {
       const raw = (Array.isArray(data2?.lines) ? data2.lines : []).map((l) => String(l)).filter((l) => l.trim() !== "").slice(0, 5);
       const accentLines = new Set((Array.isArray(data2?.accentLines) ? data2.accentLines : []).map(Number));
       const marked = raw.some((l) => /\{[^}]*\}/.test(l));
-      const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X).map((v) => !marked && accentLines.has(i) ? "{" + v + "}" : v));
+      const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X, font(LINE_SIZE, 800, -1)).map((v) => !marked && accentLines.has(i) ? "{" + v + "}" : v));
       const n = lines.length;
       const end = durationInFrames / fps;
       const room = Math.max(end * 0.5, end - HOLD);
@@ -769,10 +809,10 @@ const SCENE = {
       const s = useScene(data2, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
       const k = s.k;
       const gap = LINE_GAP;
-      const affLines = wrapLines(affiliation, 40, X1 - 332).filter((l) => l);
-      reportLines("name", name ? [{ text: name, x: 330, y: 122, anchor: "l" }] : [], 76, [330, 0, X1, 180], 1);
-      reportLines("affiliation", affLines.map((l, j) => ({ text: l, x: 332, y: 198 + 50 * j, anchor: "l" })), 40, [332, 160, X1, 306]);
-      reportLines("quote", lines.map((l, i) => ({ text: l, x: LINE_X, y: LINE_Y + gap * i, anchor: "l" })), LINE_SIZE, [X0, 330, X1, roomBottom(data2)], 4);
+      const affLines = wrapLines(affiliation, 40, X1 - 332, font(40, 600)).filter((l) => l);
+      reportLines("name", name ? [{ text: name, x: 330, y: 122, anchor: "l" }] : [], 76, [330, 0, X1, 180], 1, font(76, 900, -1));
+      reportLines("affiliation", affLines.map((l, j) => ({ text: l, x: 332, y: 198 + 50 * j, anchor: "l" })), 40, [332, 160, X1, 306], 2, font(40, 600));
+      reportLines("quote", lines.map((l, i) => ({ text: l, x: LINE_X, y: LINE_Y + gap * i, anchor: "l" })), LINE_SIZE, [X0, 330, X1, roomBottom(data2)], 4, font(LINE_SIZE, 800, -1));
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Medal, { s, headshot }), name ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 16, x: 330, y: 122, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 76 * k, fontWeight: 900, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: name, hlAt: 0.85 }))) : null, affLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "a" + j, s, t0: 0.5, dy: 16, x: 332, y: 198 + 50 * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.05 })))), /* @__PURE__ */ STUB(GoldRule, { s, y: 318, t0: 0.6 }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: LINE_X, y: LINE_Y + gap * i, t0: at(i), size: LINE_SIZE })), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -801,7 +841,7 @@ const SCENE = {
       const s = useScene(data2, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data2?.title ?? ""), subtitle)));
       const k = s.k;
       const gap = 36;
-      const numW = (t) => textW(t, 72, 800, -1.5), unitW = (u) => textW(u, 36, 700), row2W = (t) => textW(t, 38, 800, -0.5, false);
+      const numW = (t) => textW(t, 72, 800, -1.5), unitW = (u) => textW(u, 36, 700), row2W = font(38, 800, -0.5);
       const widest = (w) => Math.max(0, ...cards.map((c) => {
         const r0 = rowsOf(c)[0];
         return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28, numW).map(numW)) : 0;
@@ -814,14 +854,14 @@ const SCENE = {
         const u0 = String(r0?.unit ?? "");
         const unitOwn = !!u0 && v0.length > 0 && numW(v0[v0.length - 1]) + 2 + unitW(u0) > W - 28;
         return {
-          header: wrapLines(plainText(String(c?.header ?? "")), 44, W - 24),
+          header: wrapLines(plainText(String(c?.header ?? "")), 44, W - 24, font(44, 800, -1)),
           r0,
           r1,
           v0,
           u0,
           unitOwn,
-          label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
-          label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
+          label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24, font(32, 700)) : [],
+          label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24, font(30, 600)) : [],
           v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24, row2W) : []
         };
       });
@@ -840,12 +880,12 @@ const SCENE = {
         const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
         const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: "c" }));
         report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)], { cause });
-        reportLines("card name", lines(c.header, y0 - 2 + (BAND + d1) / 2 - BL * (c.header.length - 1) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
-        reportLines("card label", lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
+        reportLines("card name", lines(c.header, y0 - 2 + (BAND + d1) / 2 - BL * (c.header.length - 1) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1], 2, font(44, 800, -1));
+        reportLines("card label", lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12), 2, font(32, 700));
         const beside = (j) => !!c.u0 && !c.unitOwn && j === c.v0.length - 1;
-        reportLines("card number", lines(c.v0, y0 + 214 + d2, VL).map((l, j) => ({ ...l, text: l.text + (beside(j) ? c.u0 : ""), w: numW(l.text) + (beside(j) ? 2 + unitW(c.u0) : 0) })), 72, inCard(14));
-        reportLines("card unit", c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: "c", w: unitW(c.u0) }] : [], 36, inCard(14), 1);
-        reportLines("second label", lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));
+        reportLines("card number", lines(c.v0, y0 + 214 + d2, VL).map((l, j) => ({ ...l, text: l.text + (beside(j) ? c.u0 : ""), w: numW(l.text) + (beside(j) ? 2 + unitW(c.u0) : 0) })), 72, inCard(14), 2, void 0, [POP_GROW, inCard(0), "card"]);
+        reportLines("card unit", c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: "c", w: unitW(c.u0) }] : [], 36, inCard(14), 1, void 0, [POP_GROW, inCard(0), "card"]);
+        reportLines("second label", lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12), 2, font(30, 600));
         reportLines("second value", lines(c.v1, y0 + 385 + d4, V2).map((l) => ({ ...l, w: row2W(l.text) })), 38, inCard(12));
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), laid.map((c, i) => {
@@ -861,8 +901,8 @@ const SCENE = {
       const title = String(data2?.title ?? "");
       const sub = String(data2?.sub ?? "");
       const size = Number(data2?.fontSize ?? 72);
-      const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "").flatMap((l) => wrapLines(l, size, X1 - X0));
-      const subLines = sub ? wrapLines(sub, 36, X1 - X0) : [];
+      const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "").flatMap((l) => wrapLines(l, size, X1 - X0, font(size, 800, -1)));
+      const subLines = sub ? wrapLines(sub, 36, X1 - X0, font(36, 600)) : [];
       const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
       const s = useScene(data2, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, "")));
       const k = s.k;
@@ -872,8 +912,8 @@ const SCENE = {
       const y0 = top + (794 - top - block) / 2;
       const subY = (j) => y0 + lines.length * lh + 36 + 44 * j + 22;
       const area = [X0, title ? 120 : 10, X1, roomBottom(data2)];
-      reportLines("text", lines.map((l, i) => ({ text: l, x: 540, y: y0 + lh * (i + 0.5), anchor: "c" })), size, area);
-      reportLines("sub line", subLines.map((l, j) => ({ text: l, x: 540, y: subY(j), anchor: "c" })), 36, area);
+      reportLines("text", lines.map((l, i) => ({ text: l, x: 540, y: y0 + lh * (i + 0.5), anchor: "c" })), size, area, 2, font(size, 800, -1));
+      reportLines("sub line", subLines.map((l, j) => ({ text: l, x: 540, y: subY(j), anchor: "c" })), 36, area, 2, font(36, 600));
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: "" }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: 540, y: y0 + lh * (i + 0.5), t0: at(i), size, anchor: "c" })), subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: at(lines.length), dy: 10, x: 540, y: subY(j) }, /* @__PURE__ */ STUB("div", { style: { fontSize: 36 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: at(lines.length) + 0.55 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -907,7 +947,7 @@ const SCENE = {
       const subtitle = String(data2?.subtitle ?? "");
       const starts = cards.map((_, i) => i === 0 ? 0.35 : 2);
       const laid = cards.map((c) => {
-        const l = wrapLines(c.text, 64, TW);
+        const l = wrapLines(c.text, 64, TW, font(64, 800, -1));
         return l.length === 1 && !c.text.includes("\n") ? twoLines(c.text) : l;
       });
       const lineEnd = (c, i) => Math.max(0, ...laid[i].map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
@@ -919,7 +959,7 @@ const SCENE = {
       laid.forEach((lines, i) => {
         const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
         report("card", lines.join(" "), [X0, y0, X1, y0 + ch], [X0, top - 10, X1, 800]);
-        reportLines("sentence", lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: "l" })), 64, [TX, y0, X1 - 24, y0 + ch]);
+        reportLines("sentence", lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: "l" })), 64, [TX, y0, X1 - 24, y0 + ch], 2, font(64, 800, -1));
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(GoldRule, { s, y: 78, t0: 0, ornament: false }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.3, x: 540, y: 78 }, /* @__PURE__ */ STUB(Ribbon, { s, text: String(data2?.title ?? ""), size: 44 })), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 10, x: 540, y: 152 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.05 }))) : null, cards.map((c, i) => {
         const t0 = starts[i];

@@ -77,14 +77,14 @@ export default function DonutRatio({ data }) {
   // Value and unit at their drawn widths (tabular digits, no margin between them).
   const heroW = textW(heroText, 76, 800), heroUnitW = unit ? textW(unit, 42, 700) : 0;
   const unitOwn = !!unit && heroW + heroUnitW > HOLE;
-  const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
+  const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10, font(28, 700)) : [];
   const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
   const vy = DCY - holeH / 2 + VH / 2;
   const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
-  const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
-  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c', w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1);
-  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c', w: heroUnitW }] : [], 42, holeArea, 1);
-  reportLines('label', heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: 'c' })), 28, holeArea);
+  const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12], hole = [DCX - RI, DCY - RI, DCX + RI, DCY + RI];
+  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c', w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1, undefined, [COUNT_GROW, hole, 'hole']);
+  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c', w: heroUnitW }] : [], 42, holeArea, 1, undefined, [COUNT_GROW, hole, 'hole']);
+  reportLines('label', heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: 'c' })), 28, holeArea, 2, font(28, 700));
   // Legend rows: the hero row first and larger, then the others in narration order; a name takes the room left of
   // its value.
   const rows = [];
@@ -96,11 +96,12 @@ export default function DonutRatio({ data }) {
     const valueW = textW(fmt(x.value), big ? 40 : 32, 800) + textW(unit, big ? 28 : 22, 700);
     // The name beside its value; a name that would take more than two lines there gets the full width and its value
     // goes on the line under it.
-    let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
-    if (names.length > 2) { names = wrapLines(x.label, sz, X1 - LEG_X); below = true; }
+    const nameW = font(sz, big ? 800 : 600);
+    let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X), nameW), below = false;
+    if (names.length > 2) { names = wrapLines(x.label, sz, X1 - LEG_X, nameW); below = true; }
     const vy = below ? y + step * names.length : y;
     rows[i] = { y, names, sz, step, vy };
-    reportLines('legend name', names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: 'l' })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data)]);
+    reportLines('legend name', names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: 'l' })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data)], 2, nameW);
     report('legend value', fmt(x.value) + unit, [X1 - valueW, vy - 0.6 * (big ? 40 : 32), X1, vy + 0.6 * (big ? 40 : 32)], [LEG_X, 150, X1, roomBottom(data)], { size: big ? 40 : 32, lines: 1, maxLines: 1 });
     y += (big ? 82 : 58) + (names.length - 1 + (below ? 1 : 0)) * step;
   });

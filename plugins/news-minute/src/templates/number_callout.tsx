@@ -47,7 +47,7 @@ export default function NumberCallout({ data }) {
   const mid = (top + 794) / 2;
   // Rose or fell: only when both values hold one number in the same format.
   const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
-  const labelLines = label ? wrapLines(label, 44, W) : [];
+  const labelLines = label ? wrapLines(label, 44, W, font(44, 700)) : [];
   // Values and units at their drawn widths: tabular digits, the line's letter spacing (on the unit beside it too),
   // the unit's margin; the new value's triangle takes 62 px (18 + 44). Values may use the whole graphic area x 60..1020.
   const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
@@ -74,18 +74,20 @@ export default function NumberCallout({ data }) {
   const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
   const area = [X0 + 30, top, X1 - 30, roomBottom(data)], valueArea = [X0, top, X1, roomBottom(data)];
   const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: 'c' }));
-  reportLines('label', col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
+  reportLines('label', col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area, 2, font(44, 700));
   // A value's lines with the unit (at its own smaller size) beside the last one, as drawn.
-  const valueReport = (what, list, y, step, size, lineW, beside, own) => {
+  const valueReport = (what, list, y, step, size, lineW, beside, own, grow) => {
     if (!list.length) return;
     const w = list.map((l, j) => lineW(l) + (j === list.length - 1 ? beside : 0));
     const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
-    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], valueArea, { size, lines: list.length, maxLines: 2 });
+    const box = [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], text = list.join(' ') + (own ? '' : unit);
+    report(what, text, box, valueArea, { size, lines: list.length, maxLines: 2 });
+    reportGrown(what, text, box, grow, size);
   };
   valueReport('old value', fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
   reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn);
-  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1);
+  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, WINDOW, 'window']);
+  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, undefined, [POP_GROW, WINDOW, 'window']);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   const triangle = dir ? (

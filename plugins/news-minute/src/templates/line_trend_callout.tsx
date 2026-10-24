@@ -61,7 +61,7 @@ export default function LineTrendCallout({ data }) {
   const cardText = cards.map((c) => {
     const [a, b] = String(c.text).split('\n');
     const head = b !== undefined ? a : '', value = b !== undefined ? b : a;
-    return { head: head ? wrapLines(head, 26, cardW - 40) : [], value: wrapLines(value, 40, cardW - 40) };
+    return { head: head ? wrapLines(head, 26, cardW - 40, font(26, 600)) : [], value: wrapLines(value, 40, cardW - 40, font(40, 800, -1)) };
   });
   const cardH = Math.max(CARD_H, ...cardText.map((t) => t.head.length * HL + t.value.length * VL + CARD_PAD));
   const cardTop = CARD_TOP + CARD_H - cardH;
@@ -69,8 +69,8 @@ export default function LineTrendCallout({ data }) {
   cardText.forEach((t, i) => {
     const x = X0 + i * (cardW + CARD_GAP), area = [x + 14, cardTop, x + cardW - 14, cardTop + cardH];
     const y0 = cardTop + (cardH - t.head.length * HL - t.value.length * VL) / 2;
-    reportLines('card header', t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: 'c' })), 26, area);
-    reportLines('card value', t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: 'c' })), 40, area);
+    reportLines('card header', t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: 'c' })), 26, area, 2, font(26, 600));
+    reportLines('card value', t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: 'c' })), 40, area, 2, font(40, 800, -1));
   });
   const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
   const hi = n ? Math.max(...ys) : 1, lo = n ? Math.min(...ys) : 0;
@@ -128,7 +128,10 @@ export default function LineTrendCallout({ data }) {
   const endY = n ? P[n - 1][1] - 68 : 0;
   // The end value runs left from the window's right edge; a text label wider than the window is cut off.
   const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
-  if (n && endText !== '') report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
+  if (n && endText !== '') {
+    report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
+    reportGrown('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, WINDOW, 'window'], 84);
+  }
   // A text end label without one number pops in as the last segment starts, at rest before the hold.
   const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
 
