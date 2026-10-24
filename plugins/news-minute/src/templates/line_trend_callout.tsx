@@ -168,9 +168,12 @@ export default function LineTrendCallout({ data }) {
       {keys.map((i) => {
         const q = smooth(clamp((u - i) / 0.9 + (i === 0 && s.t > SWEEP_FROM ? 0.3 : 0)));
         const text = valueText(vals[i]);
-        const half = (ems(text) * 40) / 2;
+        // Measured as drawn, so a label near the left edge starts at x 60 (it fades in without growing).
+        const w = font(40, 800, -1)(text);
+        const x = Math.max(X0 + w / 2, P[i][0] - (i === 0 ? 14 : 0)), y = P[i][1] - 48;
+        report('point value', text, [x - w / 2, y - 24, x + w / 2, y + 24], [X0, 112, X1, base], { size: 40, lines: 1, maxLines: 1 });
         return (
-          <At key={i} s={s} x={Math.max(X0 + half, P[i][0] - (i === 0 ? 14 : 0))} y={P[i][1] - 48} style={{ opacity: q, transform: 'translate(-50%,-50%) translateY(' + (1 - q) * 10 * k + 'px)' }}>
+          <At key={i} s={s} x={x} y={y} style={{ opacity: q, transform: 'translate(-50%,-50%) translateY(' + (1 - q) * 10 * k + 'px)' }}>
             <div style={{ fontSize: 40 * k, fontWeight: 800, letterSpacing: -1 * k }}>{text}</div>
           </At>
         );

@@ -18,7 +18,7 @@ const WHAT: Record<string, string> = {
   "bar name": "\uB9C9\uB300 \uC774\uB984", "bar sub line": "\uB9C9\uB300 \uC791\uC740 \uC904", "bar value": "\uB9C9\uB300 \uAC12", label: "\uD56D\uBAA9", "old value": "\uC774\uC804 \uAC12",
   "old value unit": "\uC774\uC804 \uAC12 \uB2E8\uC704", "new value": "\uC774\uD6C4 \uAC12", "new value unit": "\uC774\uD6C4 \uAC12 \uB2E8\uC704", caption: "\uC791\uC740 \uC81C\uBAA9", word: "\uB0B1\uB9D0",
   "legend name": "\uBC94\uB840 \uC774\uB984", "legend value": "\uBC94\uB840 \uAC12", "card header": "\uCE74\uB4DC \uBA38\uB9AC\uAE00", "card value": "\uCE74\uB4DC \uAC12",
-  "end value": "\uB05D \uAC12", sentence: "\uBB38\uC7A5",
+  "end value": "\uB05D \uAC12", "point value": "\uC810 \uAC12", sentence: "\uBB38\uC7A5",
 };
 const field = (path: string) => path.split(".").map((seg) => {
   const m = /^(\w+)(?:\[(\d+)\])?$/.exec(seg);
