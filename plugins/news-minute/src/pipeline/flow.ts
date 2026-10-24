@@ -12,11 +12,11 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { bandsScript, baseDraftScript, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
+import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, planWindows, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
+import { bandsScript, baseDraftScript, fitControls, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
-import { clearPreviewCache, openPreview, renameDraft, sceneStill, seekScene } from "./preview.ts";
+import { clearPreviewCache, entranceSec, FPS, openPreview, renameDraft, sceneFrames, sceneStill, seekScene } from "./preview.ts";
 
 export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
@@ -52,7 +52,8 @@ export type PreviewDraft = {
   plateImage: boolean;
   bandsId: string | null;
   frames: number; // Main length in frames at 30000/1001
-  scenes: Array<{ startSec: number; endSec: number }>; // the scene graphics as placed, in plan order
+  // The scene graphics as placed, in plan order; enterSec is when each card has come in (seeking lands there).
+  scenes: Array<{ startSec: number; endSec: number; enterSec?: number }>;
   at: string;
 };
 
@@ -410,6 +411,15 @@ export async function revisePlan(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   return { plan, kept: false };
 }
 
+// Where each scene's graphic sits on the Draft, snapped to frames the way assemble places it (the times on the
+// scene rows); null while the plan names a sentence the script no longer has.
+export function sceneSpans(sp: Pick<ScenePlan, "scenes" | "sentences" | "times" | "durationSeconds">): Span[] | null {
+  try {
+    return planWindows(sp.scenes, sp.sentences, sp.times, sp.durationSeconds)
+      .map((w) => ({ startSec: Math.round(w.startSec * FPS) / FPS, endSec: Math.round(w.endSec * FPS) / FPS }));
+  } catch { return null; }
+}
+
 // The plan as the preview shows it: scenes, look, headline and narration.
 export const previewRev = (s: Pick<Session, "presetId" | "script" | "plan">) =>
   ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
@@ -524,8 +534,13 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
     headlineFont: headFont?.kind === "installed" ? headFont.params : undefined };
   let draftId: string | null = null, frames = 0, refilled = false;
-  const placed = scenes.map((sc) => ({ startSec: sc.startSec, endSec: sc.endSec }));
-  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, scenes: placed });
+  // A scene whose entrance cannot be worked out (or that has no graphic) is entered at its first frame.
+  const enterSec = (sc: (typeof scenes)[number]) => {
+    try { const f = sceneFrames(frames, sc); return Number(entranceSec(sc.type, fitControls(sc.type, sc.params), f.end - f.start).toFixed(3)); }
+    catch { return 0; }
+  };
+  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames,
+    scenes: scenes.map((sc) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc) })) });
   try {
     if (reuse) {
       // Stills rendered from the Draft before this refill must not come back from the cache.

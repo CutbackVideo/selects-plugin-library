@@ -407,6 +407,11 @@ test("the preview Draft is built once, then refilled in place without new Resour
   assert.equal(a.preview.planRev, F.previewRev(s));
   assert.deepEqual([a.preview.frames, a.preview.plateId, a.preview.bandsId, a.preview.scenes.length], [1230, "plate1", null, 2]);
   assert.ok(a.preview.scenes[1].startSec > a.preview.scenes[0].startSec && a.preview.scenes[1].endSec <= 41);
+  // a one-line text card without a title: the line at 0.1 s, its brush done 1.45 s later
+  assert.deepEqual(a.preview.scenes.map((x) => x.enterSec), [1.55, 1.55]);
+  // the scene rows show the spans the graphics were placed on, snapped to frames
+  assert.deepEqual(F.sceneSpans(s.plan), a.preview.scenes.map((x) => ({ startSec: Math.round(x.startSec * 30000 / 1001) / (30000 / 1001), endSec: Math.round(x.endSec * 30000 / 1001) / (30000 / 1001) })));
+  assert.equal(F.sceneSpans({ ...s.plan, scenes: [{ type: "text_card", sentenceIds: ["gone"], params: {} }] }), null);
   assert.ok(first.calls.some((c) => c.script.includes('createDraft({ name: "Preview · Title" })')));
 
   // a hand edit, then the refill: the same Draft, no createDraft, no import

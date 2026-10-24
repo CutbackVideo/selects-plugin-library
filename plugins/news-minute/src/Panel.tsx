@@ -27,6 +27,8 @@ const field = { ...muted, display: "flex", flexDirection: "column", gap: 2 } as 
 const thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" } as const;
 const thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" } as const;
 const oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+// The host stretches buttons to the full width; a button beside a scene row keeps its own size.
+const rowButton = { flex: "none", width: "auto", whiteSpace: "nowrap" } as const;
 
 type Still = { state: "rendering" | "ready" | "failed"; dataUrl?: string };
 
@@ -348,6 +350,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       plan.scenes.forEach((x, k) => { if (x.assetRef === m[1]) rowWarnings.set(k, [...(rowWarnings.get(k) ?? []), w]); });
     }
     const byId = new Map(plan.sentences.map((x) => [x.id, x]));
+    const spans = F.sceneSpans(plan);
     const summary = new Map(plan.assetSummaries.map((a) => [a.ref, a.summary]));
     const photoRefs = plan.assets.map((a) => a.ref);
     const lastRound = plan.rounds[plan.rounds.length - 1];
@@ -367,7 +370,9 @@ function NewsMinutePanel({ sdk, context }: Props) {
         ) : <button disabled={busy} onClick={refreshPreview}>{T("previewBuild")}</button>}
         {plan.scenes.map((scene, i) => {
           const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean) as F.ScenePlan["sentences"];
-          const start = ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0, end = ss.length ? Math.max(...ss.map((x) => x.endSec)) : 0;
+          // The graphic's own span (what the viewer jumps to); the sentences' times only while the plan cannot be placed.
+          const start = spans ? spans[i].startSec : ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0;
+          const end = spans ? spans[i].endSec : ss.length ? Math.max(...ss.map((x) => x.endSec)) : 0;
           const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
           const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
           const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
@@ -387,14 +392,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
                     : photo ? <span style={thumbTag}>{T("sourcePhoto")}</span> : null}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
-                  <span style={muted}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \u00b7 " + T("type_" + scene.type)}
+                  <span style={{ ...muted, ...oneLine }}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \u00b7 " + T("type_" + scene.type)}
                     {changed ? <span style={{ color: "#4a90d9", fontWeight: 600 }}>{" \u00b7 " + T("changedMark")}</span> : null}
                     {edited ? <span style={{ color: "#d9822b" }}>{" \u00b7 " + T("editedMark")}</span> : null}
                   </span>
                   <span style={oneLine}>{ss.map((x) => x.text).join(" ")}</span>
                   {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={{ ...warn, ...oneLine }}>{"\u2022 " + x}</span>)}
                 </div>
-                <button style={{ flex: "none" }} onClick={(e) => { e.stopPropagation(); setOpenRow(open ? null : i); }}>{T(open ? "closeScene" : "editScene")}</button>
+                <button style={rowButton} onClick={(e) => { e.stopPropagation(); setOpenRow(open ? null : i); }}>{T(open ? "closeScene" : "editScene")}</button>
               </div>
               {open ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
