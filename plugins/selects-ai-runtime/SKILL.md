@@ -3,6 +3,9 @@ name: selects-ai-runtime
 description: Run shared YuNet face detection and RVM person matting through the Selects AI SDK and plugin-managed runtime on macOS and Windows.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Selects AI Runtime PoC
 
 Read [INSTALL.md](INSTALL.md), [CONTRACT.md](CONTRACT.md) and [VALIDATION.md](VALIDATION.md) before running. Selects host 2.0.560 or newer registers this external runtime and provides the AI Runtime Lab panel. The public SDK resolves project Resource IDs; model and native dependency preparation stays in this source package.

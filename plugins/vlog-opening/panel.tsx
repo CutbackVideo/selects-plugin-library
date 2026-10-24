@@ -393,6 +393,181 @@ function voRefScript(o) {
   const codes = { ...VO_REF_CODE, desk: GFX_DESK, label: GFX_LABEL, signoff: GFX_SIGNOFF, fade: GFX_FADE };
   for (const x of [...o.plan.effects, ...o.plan.graphics]) if (x.code) code[x.code] = codes[x.code];
   return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return \`vec\${values.length}f(\${values.map(f32).join(",")})\`;
+}
+function xml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]);
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+
+// shared/shader-effects/desk.mjs
+var rand = (n) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+var SX = 700;
+var SY = 120;
+var SW = 600;
+var SH = 338;
+var DECK = [[SX - 6, SY + SH + 40], [SX + SW + 6, SY + SH + 40], [SX + SW + 120, 1010], [SX - 190, 1010]];
+var TABLE = [[-260, 450], [2180, 450], [2900, 1180], [-980, 1180]];
+function on(poly, u, v) {
+  return [0, 1].map((i) => (poly[0][i] + (poly[1][i] - poly[0][i]) * u) * (1 - v) + (poly[3][i] + (poly[2][i] - poly[3][i]) * u) * v);
+}
+function quad(poly, u0, v0, u1, v1) {
+  return "M" + [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => on(poly, u, v).map((n) => n.toFixed(1)).join(" ")).join(" L") + " Z";
+}
+function desk(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { holdFrames: 60, beatFrames: 12 });
+  const color = (key, value) => data[key] != null ? \`__PARAM_\${key.toUpperCase()}__\` : xml(value);
+  const paper = color("paper", "#fbf8ee"), check = color("check", "#e58497"), body = color("laptop", "#cfcfd1"), ink = color("ink", "#262626");
+  const cells = [];
+  for (let j = 0; j < 7; j++) for (let i = 0; i < 16; i++) if ((i + j) % 2 === 0) cells.push(\`<path d="\${quad(TABLE, i / 16, (j / 7) ** 1.45, (i + 1) / 16, ((j + 1) / 7) ** 1.45)}"/>\`);
+  const keys = [];
+  [[11, 0.08, 0.2], [11, 0.24, 0.36], [10, 0.4, 0.52]].forEach(([n, v0, v1], row) => {
+    for (let k = 0; k < n; k++) {
+      const u0 = 0.07 + k / n * 0.86 + (row === 2 ? 0.03 : 0), u1 = u0 + 0.86 / n - 0.012, c = on(DECK, (u0 + u1) / 2, (v0 + v1) / 2), s = rand(row * 31 + k);
+      keys.push(\`<path d="\${quad(DECK, u0, v0, u1, v1)}"/><path d="M\${c[0] - 12} \${c[1] + 4} q \${6 + s * 8} \${-14 - s * 6} \${14 + s * 6} \${-4 + s * 6} t \${8 - s * 4} \${6 + s * 4}" stroke-width="2.5"/>\`);
+    }
+  });
+  const svg = (content) => \`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">\${content}</svg>\`;
+  const ground = g.image(svg(\`<defs><filter id="light" color-interpolation-filters="sRGB"><feColorMatrix values=".22 0 0 0 .78 0 .22 0 0 .78 0 0 .22 0 .78 0 0 0 1 0"/></filter></defs><rect width="1920" height="1080" fill="\${paper}"/><path d="\${quad(TABLE, 0, 0, 1, 1)}" fill="\${check}" filter="url(#light)"/>\`));
+  const table = g.image(svg(\`<defs><filter id="light" color-interpolation-filters="sRGB"><feColorMatrix values=".88 0 0 0 .12 0 .88 0 0 .12 0 0 .88 0 .12 0 0 0 1 0"/></filter></defs><g fill="\${check}" filter="url(#light)">\${cells.join("")}</g>\`));
+  const laptop = g.image(svg(\`<g stroke="\${ink}" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M-260 450 L2180 450" stroke-width="4"/><path d="M\${DECK.map((p2) => p2.join(" ")).join(" L")}Z" fill="\${body}" stroke-width="5"/><g stroke-width="3" opacity=".75">\${keys.join("")}</g><path d="\${quad(DECK, 0.24, 0.57, 0.76, 0.64)}" stroke-width="3" opacity=".75"/><path d="\${quad(DECK, 0.36, 0.7, 0.64, 0.95)}" stroke-width="3.5" opacity=".75"/><rect x="674" y="94" width="652" height="398" rx="22" fill="\${body}" stroke-width="5"/><rect x="700" y="120" width="600" height="338" stroke-width="7.68" fill="black"/></g>\`));
+  for (const image of g.images) for (const key of ["paper", "check", "laptop", "ink"]) if (data[key] != null && image.svg.includes(\`__PARAM_\${key.toUpperCase()}__\`)) g.svgParameters.push({ image: image.id, token: \`__PARAM_\${key.toUpperCase()}__\`, parameter: key });
+  const nudges = Array.from({ length: 4 }, (_, step) => [step ? (rand(step * 7.3) - 0.5) * 0.04 : 0, step ? (rand(step * 3.1) - 0.5) * 0.03 : 0]);
+  g.pass(\`let step=select(0u,min(3u,1u+u32(max(0.0,floor((uniforms.clock.x-\${p.refs.holdFrames})/max(.000001,\${p.refs.beatFrames}))))),uniforms.clock.x>=\${p.refs.holdFrames});
+ let steps=array<f32,4>(0.0,.34,.66,.9);let angles=array<f32,4>(0.0,-1.8,1.3,-.6);let nudges=array<vec2f,4>(\${nudges.map(vec).join(",")});let q=steps[step];let origin=vec2f(1000.0/1920.0,289.0/1080.0);let size=vec2f(1920.0,1080.0);let shift=(.5-origin)*q+nudges[step];
+ let coord=rotate((uv-origin-shift)*size,-radians(angles[step]))/size/(1.0+2.2*q)+origin;let tick=floor(uniforms.clock.x/3.0)+f32(step)*17.0;
+ var result=textureSampleLevel(input1,linearSampler,coord,0.0);
+ let tableUv=coord+(vec2f(noise(coord*size*.05,tick+5.0),noise(coord*size*.05,tick+137.0))-.5)*9.0/size;
+ let laptopUv=coord+(vec2f(noise(coord*size*.018,tick),noise(coord*size*.018,tick+132.0))-.5)*7.0/size;
+ result=over(textureSampleLevel(input2,linearSampler,tableUv,0.0)*within(tableUv,uniforms.resolution.xy),result);
+ result=over(textureSampleLevel(input3,linearSampler,laptopUv,0.0)*within(laptopUv,uniforms.resolution.xy),result);
+ let window=(coord*size-vec2f(700.0,120.0))/vec2f(600.0,338.0);return over(over(source(window),vec4f(0.0,0.0,0.0,1.0))*within(window,vec2f(600.0,338.0)*uniforms.resolution.xy/size),result);\`, { ...p, inputs: ["source", ground, table, laptop], functions: \`fn hash(p:vec2f,seed:f32)->f32{return fract(sin(dot(p,vec2f(127.1,311.7))+seed*74.7)*43758.5453);}
+ fn noise(p:vec2f,seed:f32)->f32{let i=floor(p);let f=fract(p);let u=f*f*(3.0-2.0*f);let a=mix(hash(i,seed),hash(i+vec2f(1.0,0.0),seed),u.x);let b=mix(hash(i+vec2f(0.0,1.0),seed),hash(i+1.0,seed),u.x);return mix(a,b,u.y);}\` });
+  return g.finish();
+}
+
+// shared/shader-effects/accents.mjs
+function iris(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { holdFrames: 6, openFrames: 16 });
+  g.pass(\`let e=outCubic((uniforms.clock.x-\${p.refs.holdFrames})/max(.000001,\${p.refs.openFrames}));
+    let z=1.18-.18*e;let coord=(uv-.5)/z+.5;let size=uniforms.resolution.xy;
+    let radius=(.02+.78*e)*length(size)/sqrt(2.0);
+    let mask=sat((radius-length((coord-.5)*size))*z+.5);
+    return over(source(coord)*mask,vec4f(0.0,0.0,0.0,1.0));\`, p);
+  return g.finish();
+}
+
+// shared/shader-effects/vlog-opening.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "desk":
+      shader = desk(data);
+      break;
+    case "iris":
+      shader = iris(data);
+      break;
+    default:
+      throw Error("Unknown vlog-opening effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+
 const p = selects.project(${JSON.stringify(o.projectId)});
 const d = selects.draft(${JSON.stringify(o.sequenceId)});
 const PLAN: any = ${JSON.stringify(o.plan)};
@@ -410,7 +585,10 @@ for (const e of PLAN.effects) {
   const clip = clips[e.clip];
   if (!clip) continue;
   if (e.preset) await d.applyEffectPreset({ clip, presetId: e.preset, parameters: e.parameters });
-  else await d.addVideoEffect({ clip, label: e.name, tsxCode: CODE[e.code], parameters: e.parameters, editableParameters: e.editable || [] });
+  else await d.addVideoEffect(pluginShaderOptions(e.code,{clip,
+label: e.name,
+parameters: e.parameters,
+editableParameters: e.editable || []}));
   clips = await main();
 }
 for (const t of PLAN.transforms) {
@@ -1477,6 +1655,181 @@ function decorateScript(opts: {
   beatSeconds: number;
 }) {
   return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return \`vec\${values.length}f(\${values.map(f32).join(",")})\`;
+}
+function xml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]);
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+
+// shared/shader-effects/desk.mjs
+var rand = (n) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+var SX = 700;
+var SY = 120;
+var SW = 600;
+var SH = 338;
+var DECK = [[SX - 6, SY + SH + 40], [SX + SW + 6, SY + SH + 40], [SX + SW + 120, 1010], [SX - 190, 1010]];
+var TABLE = [[-260, 450], [2180, 450], [2900, 1180], [-980, 1180]];
+function on(poly, u, v) {
+  return [0, 1].map((i) => (poly[0][i] + (poly[1][i] - poly[0][i]) * u) * (1 - v) + (poly[3][i] + (poly[2][i] - poly[3][i]) * u) * v);
+}
+function quad(poly, u0, v0, u1, v1) {
+  return "M" + [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => on(poly, u, v).map((n) => n.toFixed(1)).join(" ")).join(" L") + " Z";
+}
+function desk(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { holdFrames: 60, beatFrames: 12 });
+  const color = (key, value) => data[key] != null ? \`__PARAM_\${key.toUpperCase()}__\` : xml(value);
+  const paper = color("paper", "#fbf8ee"), check = color("check", "#e58497"), body = color("laptop", "#cfcfd1"), ink = color("ink", "#262626");
+  const cells = [];
+  for (let j = 0; j < 7; j++) for (let i = 0; i < 16; i++) if ((i + j) % 2 === 0) cells.push(\`<path d="\${quad(TABLE, i / 16, (j / 7) ** 1.45, (i + 1) / 16, ((j + 1) / 7) ** 1.45)}"/>\`);
+  const keys = [];
+  [[11, 0.08, 0.2], [11, 0.24, 0.36], [10, 0.4, 0.52]].forEach(([n, v0, v1], row) => {
+    for (let k = 0; k < n; k++) {
+      const u0 = 0.07 + k / n * 0.86 + (row === 2 ? 0.03 : 0), u1 = u0 + 0.86 / n - 0.012, c = on(DECK, (u0 + u1) / 2, (v0 + v1) / 2), s = rand(row * 31 + k);
+      keys.push(\`<path d="\${quad(DECK, u0, v0, u1, v1)}"/><path d="M\${c[0] - 12} \${c[1] + 4} q \${6 + s * 8} \${-14 - s * 6} \${14 + s * 6} \${-4 + s * 6} t \${8 - s * 4} \${6 + s * 4}" stroke-width="2.5"/>\`);
+    }
+  });
+  const svg = (content) => \`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">\${content}</svg>\`;
+  const ground = g.image(svg(\`<defs><filter id="light" color-interpolation-filters="sRGB"><feColorMatrix values=".22 0 0 0 .78 0 .22 0 0 .78 0 0 .22 0 .78 0 0 0 1 0"/></filter></defs><rect width="1920" height="1080" fill="\${paper}"/><path d="\${quad(TABLE, 0, 0, 1, 1)}" fill="\${check}" filter="url(#light)"/>\`));
+  const table = g.image(svg(\`<defs><filter id="light" color-interpolation-filters="sRGB"><feColorMatrix values=".88 0 0 0 .12 0 .88 0 0 .12 0 0 .88 0 .12 0 0 0 1 0"/></filter></defs><g fill="\${check}" filter="url(#light)">\${cells.join("")}</g>\`));
+  const laptop = g.image(svg(\`<g stroke="\${ink}" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M-260 450 L2180 450" stroke-width="4"/><path d="M\${DECK.map((p2) => p2.join(" ")).join(" L")}Z" fill="\${body}" stroke-width="5"/><g stroke-width="3" opacity=".75">\${keys.join("")}</g><path d="\${quad(DECK, 0.24, 0.57, 0.76, 0.64)}" stroke-width="3" opacity=".75"/><path d="\${quad(DECK, 0.36, 0.7, 0.64, 0.95)}" stroke-width="3.5" opacity=".75"/><rect x="674" y="94" width="652" height="398" rx="22" fill="\${body}" stroke-width="5"/><rect x="700" y="120" width="600" height="338" stroke-width="7.68" fill="black"/></g>\`));
+  for (const image of g.images) for (const key of ["paper", "check", "laptop", "ink"]) if (data[key] != null && image.svg.includes(\`__PARAM_\${key.toUpperCase()}__\`)) g.svgParameters.push({ image: image.id, token: \`__PARAM_\${key.toUpperCase()}__\`, parameter: key });
+  const nudges = Array.from({ length: 4 }, (_, step) => [step ? (rand(step * 7.3) - 0.5) * 0.04 : 0, step ? (rand(step * 3.1) - 0.5) * 0.03 : 0]);
+  g.pass(\`let step=select(0u,min(3u,1u+u32(max(0.0,floor((uniforms.clock.x-\${p.refs.holdFrames})/max(.000001,\${p.refs.beatFrames}))))),uniforms.clock.x>=\${p.refs.holdFrames});
+ let steps=array<f32,4>(0.0,.34,.66,.9);let angles=array<f32,4>(0.0,-1.8,1.3,-.6);let nudges=array<vec2f,4>(\${nudges.map(vec).join(",")});let q=steps[step];let origin=vec2f(1000.0/1920.0,289.0/1080.0);let size=vec2f(1920.0,1080.0);let shift=(.5-origin)*q+nudges[step];
+ let coord=rotate((uv-origin-shift)*size,-radians(angles[step]))/size/(1.0+2.2*q)+origin;let tick=floor(uniforms.clock.x/3.0)+f32(step)*17.0;
+ var result=textureSampleLevel(input1,linearSampler,coord,0.0);
+ let tableUv=coord+(vec2f(noise(coord*size*.05,tick+5.0),noise(coord*size*.05,tick+137.0))-.5)*9.0/size;
+ let laptopUv=coord+(vec2f(noise(coord*size*.018,tick),noise(coord*size*.018,tick+132.0))-.5)*7.0/size;
+ result=over(textureSampleLevel(input2,linearSampler,tableUv,0.0)*within(tableUv,uniforms.resolution.xy),result);
+ result=over(textureSampleLevel(input3,linearSampler,laptopUv,0.0)*within(laptopUv,uniforms.resolution.xy),result);
+ let window=(coord*size-vec2f(700.0,120.0))/vec2f(600.0,338.0);return over(over(source(window),vec4f(0.0,0.0,0.0,1.0))*within(window,vec2f(600.0,338.0)*uniforms.resolution.xy/size),result);\`, { ...p, inputs: ["source", ground, table, laptop], functions: \`fn hash(p:vec2f,seed:f32)->f32{return fract(sin(dot(p,vec2f(127.1,311.7))+seed*74.7)*43758.5453);}
+ fn noise(p:vec2f,seed:f32)->f32{let i=floor(p);let f=fract(p);let u=f*f*(3.0-2.0*f);let a=mix(hash(i,seed),hash(i+vec2f(1.0,0.0),seed),u.x);let b=mix(hash(i+vec2f(0.0,1.0),seed),hash(i+1.0,seed),u.x);return mix(a,b,u.y);}\` });
+  return g.finish();
+}
+
+// shared/shader-effects/accents.mjs
+function iris(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { holdFrames: 6, openFrames: 16 });
+  g.pass(\`let e=outCubic((uniforms.clock.x-\${p.refs.holdFrames})/max(.000001,\${p.refs.openFrames}));
+    let z=1.18-.18*e;let coord=(uv-.5)/z+.5;let size=uniforms.resolution.xy;
+    let radius=(.02+.78*e)*length(size)/sqrt(2.0);
+    let mask=sat((radius-length((coord-.5)*size))*z+.5);
+    return over(source(coord)*mask,vec4f(0.0,0.0,0.0,1.0));\`, p);
+  return g.finish();
+}
+
+// shared/shader-effects/vlog-opening.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "desk":
+      shader = desk(data);
+      break;
+    case "iris":
+      shader = iris(data);
+      break;
+    default:
+      throw Error("Unknown vlog-opening effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+
 const d = selects.draft(${JSON.stringify(opts.sequenceId)});
 const GAP_S: number = ${opts.gapSeconds};
 const TITLE_END: number | null = ${JSON.stringify(opts.titleEnd)};
@@ -1563,20 +1916,19 @@ if (STYLE === "motion") {
   // from the chosen clips, so it changes with the footage.
   const stepF = BEAT_F > 0 ? BEAT_F : F(0.4);
   const holdF = Math.max(6, Math.round(heroLen - 3 * stepF));
-  await d.addVideoEffect({
-    clip: hero, label: "Desk scene -> stop-motion zoom", tsxCode: GFX.desk,
-    parameters: {
+  await d.addVideoEffect(pluginShaderOptions("desk",{clip: hero,
+label: "Desk scene -> stop-motion zoom",
+parameters: {
       holdFrames: holdF, beatFrames: stepF,
       paper: "#fbf8ee", check: PALETTE.accent, laptop: "#cfcfd1",
     },
-    editableParameters: [
+editableParameters: [
       { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: holdF, min: 0, max: 400, step: 1 },
       { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: stepF, min: 2, max: 60, step: 1 },
       { key: "paper", label: "Paper", type: "color", defaultValue: "#fbf8ee" },
       { key: "check", label: "Tablecloth", type: "color", defaultValue: PALETTE.accent },
       { key: "laptop", label: "Laptop", type: "color", defaultValue: "#cfcfd1" },
-    ],
-  });
+    ]}));
   const anchor = clips[Math.min(1, clips.length - 1)];
   await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: GAP_S });
   await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(GAP_S), "Sky flight",
@@ -1619,14 +1971,13 @@ if (STYLE === "motion") {
 }
 
 if (STYLE === "quotes") {
-  await d.addVideoEffect({
-    clip: clips[0], label: "Iris open (cold open)", tsxCode: GFX.iris,
-    parameters: { holdFrames: F(0.2), openFrames: F(0.55) },
-    editableParameters: [
+  await d.addVideoEffect(pluginShaderOptions("iris",{clip: clips[0],
+label: "Iris open (cold open)",
+parameters: { holdFrames: F(0.2), openFrames: F(0.55) },
+editableParameters: [
       { key: "holdFrames", label: "Hold before open", type: "number", defaultValue: 6, min: 0, max: 90, step: 1 },
       { key: "openFrames", label: "Open length", type: "number", defaultValue: 16, min: 4, max: 90, step: 1 },
-    ],
-  });
+    ]}));
   if (TITLE) {
     await addGfx(GFX.showtitle, 0, Math.min(F(3.2), mainEnd()), "Show title",
       { title: TITLE, edition: SUBTITLE, ink: "#fbf7f0", fontFamily: "" },

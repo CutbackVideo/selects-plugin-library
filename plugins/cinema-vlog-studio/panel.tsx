@@ -106,7 +106,138 @@ const out={};
 for(const n of names){const id=have.get(n);if(!id)throw new Error('Template sound missing: '+n);out[n]=id;}
 return out;`;
 
-function assembly(c){return `const c=${clean(c)};const p=selects.project(c.projectId);const d=await p.createDraft({name:c.name});await d.setFrameSize({width:1920,height:1080});/* Cut frames are 30 fps reference frames, converted to the Draft's rate (a reported 29.97 snaps to 30000/1001). The rate is read again after each clip (a Draft can adopt its first clip's rate) and each cut ends on its converted frame measured from where the last clip really ended. */const rate=async()=>{const reported=(await d.meta()).fps,r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw Error('Unsupported draft frame rate: '+reported);return r};let fps=await rate();const fr=n=>Math.round(n/30*fps);await d.insertGap({seconds:fr(5)/fps});let placed=fr(5);for(let i=0;i<c.cuts.length;i++){if(i===c.gapBeforeIndex){const g=fr(55)-placed;if(g>0){await d.insertGap({seconds:g/fps});placed+=g}}const [slot,a,b]=c.cuts[i],id=c.videoIds[slot-1],len=(fr(b)-placed)/fps,src=c.lengths[id]||0;if(src<len+.03)throw Error('Slot '+slot+' is shorter than '+len.toFixed(2)+' seconds');const starts=c.starts,proposed=starts[i],start=Math.min(Math.max(0,proposed),Math.max(0,src-len-.04));await d.insertResource({resourceId:id,sourceRange:{startSeconds:start,endSeconds:start+len}});fps=await rate();placed=(await d.clips({trackScope:'main'})).reduce((n,x)=>x.resourceId?Math.max(n,x.endFrame):n,0)}const main=await d.clips({trackScope:'main'}),end=main.reduce((n,x)=>Math.max(n,x.endFrame),0),at=n=>Math.min(end,fr(n));for(const original of main){const current=(await d.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current&&current.resourceId)await d.setClipAudio({clip:current,volumeDb:-60});}for(const {i,widthPct} of c.cards)await d.addVideoEffect({clip:(await d.clips({trackScope:'main'}))[i],label:'Cinema Vlog · inset '+(i-9),tsxCode:${clean(CARD)},parameters:{widthPct}});for(const {i,widthPct} of c.cards){const edge=at(c.cuts[i][2]);await d.addMotionGraphic({label:'Cinema Vlog · inset flash '+(i-9),tsxCode:${clean(CARD_FLASH)},within:await d.rangeAtFrames(edge-fr(1),edge),parameters:{widthPct}})}const glitchFrame=at(c.glitchRefFrame),glitchClip=(await d.clips({trackScope:'main'})).find(x=>x.startFrame<=glitchFrame&&glitchFrame<x.endFrame);if(!glitchClip)throw Error('Glitch marker does not fall on footage');await d.addVideoEffect({clip:glitchClip,label:'Cinema Vlog · marker-triggered monochrome stutter',tsxCode:${clean(GLITCH)},parameters:{triggerLocalFrame:glitchFrame-glitchClip.startFrame}});await d.addMotionGraphic({label:'Cinema Vlog · three-step black curtain',tsxCode:${clean(CURTAIN)},within:await d.rangeAtFrames(at(55),at(210)),parameters:{referenceStartFrame:55}});await d.addMotionGraphic({label:'Cinema Vlog · alphabet swap title',tsxCode:${clean(TITLE)},within:await d.rangeAtFrames(at(132),at(196)),parameters:{referenceStartFrame:132,title:c.title,kicker:c.kicker,subtitle:c.subtitle,fontFamily:c.font,titleColor:'#eed65d',smallColor:'#ffffff'},editableParameters:[{key:'title',label:'Main title',type:'text',defaultValue:c.title},{key:'kicker',label:'Upper line',type:'text',defaultValue:c.kicker},{key:'subtitle',label:'Lower line',type:'text',defaultValue:c.subtitle},{key:'fontFamily',label:'Font',type:'text',defaultValue:c.font},{key:'titleColor',label:'Title color',type:'color',defaultValue:'#eed65d'},{key:'smallColor',label:'Small text color',type:'color',defaultValue:'#ffffff'}]});await d.addMotionGraphic({label:'Cinema Vlog · single-frame white flash',tsxCode:${clean(FLASH)},within:await d.rangeAtFrames(at(54),at(55))});/* A sound overlay may not run past its asset; its length is rounded to Draft frames, as Selects does (the intro runs 0.26 frame past its end at 29.97 and plays). */const lengths=new Map((await p.resources()).map(x=>[x.resourceId,x.durationSeconds])),fit=(id,seconds,from,to)=>Math.min(to,from+Math.round(Math.min(lengths.get(id)||Infinity,seconds)*fps));if(c.introFxId)await d.overlayResource({resource:p.resource(c.introFxId),over:await d.rangeAtFrames(0,fit(c.introFxId,${clean(ASSET_SECONDS[0])},0,at(204))),sourceStartSeconds:0});if(c.musicId){await d.overlayResource({resource:p.resource(c.musicId),over:await d.rangeAtFrames(at(204),fit(c.musicId,${clean(ASSET_SECONDS[1])},at(204),end)),sourceStartSeconds:0});const musicClip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='audio'&&x.resourceId===c.musicId&&x.startFrame===at(204));if(!musicClip)throw Error('Music clip was not created');await d.setClipAudio({clip:musicClip,fadeInSeconds:0.18,fadeOutSeconds:0.5})}if(c.effectSoundId)await d.overlayResource({resource:p.resource(c.effectSoundId),over:await d.rangeAtFrames(at(c.glitchRefFrame),fit(c.effectSoundId,${clean(ASSET_SECONDS[2])},at(c.glitchRefFrame),Math.min(end,at(c.glitchRefFrame)+fr(7)))),sourceStartSeconds:0});const saved=await d.commitAll('Cinema Vlog Studio: user marker cuts, Postcard curtain and alphabet swap');if(!saved.createdDraftId)throw Error('Draft save did not return an id');const actual=selects.draft(saved.createdDraftId),clips=await actual.clips({trackScope:'all'});return{draftId:saved.createdDraftId,name:c.name,fps,endFrame:clips.reduce((n,x)=>Math.max(n,x.endFrame),0),mainClips:clips.filter(x=>x.trackKind==='main').length,audioClips:clips.filter(x=>x.trackKind==='audio').length,graphics:clips.filter(x=>x.resourceId===null).length};`}
+function assembly(c){return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+
+// shared/shader-effects/accents.mjs
+function cinemaGlitch(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { triggerLocalFrame: 0 });
+  g.pass(\`let k=uniforms.clock.x-\${p.refs.triggerLocalFrame};if(k<0.0||k>=5.0){return source(uv);}
+    let hard=k==0.0||k==2.0||k==4.0;let direction=select(-1.0,1.0,k%2.0!=0.0);
+    let coord=uv-vec2f(direction*(6.0+k*3.0)/uniforms.resolution.x,0.0);let c=straight(source(coord));
+    let rgb=brightness(contrast(saturation(c.rgb,0.0),select(2.5,5.0,hard)),select(1.3,2.2,hard));
+    return premul(vec4f(rgb,c.a));\`, p);
+  return g.finish();
+}
+function cinemaCard(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { widthPct: 50 });
+  g.pass(\`let size=uniforms.resolution.xy;let width=\${p.refs.widthPct}/100.0*size.x;let box=vec2f(width,width*9.0/16.0);
+    let at=uv*size-(size-box)*.5;let coord=at/box;let c=source(coord)*within(coord,box);
+    let sigma=17.5;let a=(at-box)/sigma;let b=at/sigma;
+    let shadow=.2*(normalCdf(b.x)-normalCdf(a.x))*(normalCdf(b.y)-normalCdf(a.y));
+    return over(c,vec4f(vec3f(shadow),1.0));\`, { ...p, functions: \`fn normalCdf(x:f32)->f32 {
+      let v=abs(x);let t=1.0/(1.0+.2316419*v);
+      let q=.3989422804*exp(-v*v*.5)*t*(.319381530+t*(-.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));
+      return select(q,1.0-q,x>=0.0);
+    }\` });
+  return g.finish();
+}
+
+// shared/shader-effects/cinema-vlog-studio.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "glitch":
+      shader = cinemaGlitch(data);
+      break;
+    case "card":
+      shader = cinemaCard(data);
+      break;
+    default:
+      throw Error("Unknown cinema-vlog-studio effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const c=${clean(c)};const p=selects.project(c.projectId);const d=await p.createDraft({name:c.name});await d.setFrameSize({width:1920,height:1080});/* Cut frames are 30 fps reference frames, converted to the Draft's rate (a reported 29.97 snaps to 30000/1001). The rate is read again after each clip (a Draft can adopt its first clip's rate) and each cut ends on its converted frame measured from where the last clip really ended. */const rate=async()=>{const reported=(await d.meta()).fps,r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw Error('Unsupported draft frame rate: '+reported);return r};let fps=await rate();const fr=n=>Math.round(n/30*fps);await d.insertGap({seconds:fr(5)/fps});let placed=fr(5);for(let i=0;i<c.cuts.length;i++){if(i===c.gapBeforeIndex){const g=fr(55)-placed;if(g>0){await d.insertGap({seconds:g/fps});placed+=g}}const [slot,a,b]=c.cuts[i],id=c.videoIds[slot-1],len=(fr(b)-placed)/fps,src=c.lengths[id]||0;if(src<len+.03)throw Error('Slot '+slot+' is shorter than '+len.toFixed(2)+' seconds');const starts=c.starts,proposed=starts[i],start=Math.min(Math.max(0,proposed),Math.max(0,src-len-.04));await d.insertResource({resourceId:id,sourceRange:{startSeconds:start,endSeconds:start+len}});fps=await rate();placed=(await d.clips({trackScope:'main'})).reduce((n,x)=>x.resourceId?Math.max(n,x.endFrame):n,0)}const main=await d.clips({trackScope:'main'}),end=main.reduce((n,x)=>Math.max(n,x.endFrame),0),at=n=>Math.min(end,fr(n));for(const original of main){const current=(await d.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current&&current.resourceId)await d.setClipAudio({clip:current,volumeDb:-60});}for(const {i,widthPct} of c.cards)await d.addVideoEffect(pluginShaderOptions("card",{clip:(await d.clips({trackScope:'main'}))[i],
+label:'Cinema Vlog · inset '+(i-9),
+parameters:{widthPct}}));for(const {i,widthPct} of c.cards){const edge=at(c.cuts[i][2]);await d.addMotionGraphic({label:'Cinema Vlog · inset flash '+(i-9),tsxCode:${clean(CARD_FLASH)},within:await d.rangeAtFrames(edge-fr(1),edge),parameters:{widthPct}})}const glitchFrame=at(c.glitchRefFrame),glitchClip=(await d.clips({trackScope:'main'})).find(x=>x.startFrame<=glitchFrame&&glitchFrame<x.endFrame);if(!glitchClip)throw Error('Glitch marker does not fall on footage');await d.addVideoEffect(pluginShaderOptions("glitch",{clip:glitchClip,
+label:'Cinema Vlog · marker-triggered monochrome stutter',
+parameters:{triggerLocalFrame:glitchFrame-glitchClip.startFrame}}));await d.addMotionGraphic({label:'Cinema Vlog · three-step black curtain',tsxCode:${clean(CURTAIN)},within:await d.rangeAtFrames(at(55),at(210)),parameters:{referenceStartFrame:55}});await d.addMotionGraphic({label:'Cinema Vlog · alphabet swap title',tsxCode:${clean(TITLE)},within:await d.rangeAtFrames(at(132),at(196)),parameters:{referenceStartFrame:132,title:c.title,kicker:c.kicker,subtitle:c.subtitle,fontFamily:c.font,titleColor:'#eed65d',smallColor:'#ffffff'},editableParameters:[{key:'title',label:'Main title',type:'text',defaultValue:c.title},{key:'kicker',label:'Upper line',type:'text',defaultValue:c.kicker},{key:'subtitle',label:'Lower line',type:'text',defaultValue:c.subtitle},{key:'fontFamily',label:'Font',type:'text',defaultValue:c.font},{key:'titleColor',label:'Title color',type:'color',defaultValue:'#eed65d'},{key:'smallColor',label:'Small text color',type:'color',defaultValue:'#ffffff'}]});await d.addMotionGraphic({label:'Cinema Vlog · single-frame white flash',tsxCode:${clean(FLASH)},within:await d.rangeAtFrames(at(54),at(55))});/* A sound overlay may not run past its asset; its length is rounded to Draft frames, as Selects does (the intro runs 0.26 frame past its end at 29.97 and plays). */const lengths=new Map((await p.resources()).map(x=>[x.resourceId,x.durationSeconds])),fit=(id,seconds,from,to)=>Math.min(to,from+Math.round(Math.min(lengths.get(id)||Infinity,seconds)*fps));if(c.introFxId)await d.overlayResource({resource:p.resource(c.introFxId),over:await d.rangeAtFrames(0,fit(c.introFxId,${clean(ASSET_SECONDS[0])},0,at(204))),sourceStartSeconds:0});if(c.musicId){await d.overlayResource({resource:p.resource(c.musicId),over:await d.rangeAtFrames(at(204),fit(c.musicId,${clean(ASSET_SECONDS[1])},at(204),end)),sourceStartSeconds:0});const musicClip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='audio'&&x.resourceId===c.musicId&&x.startFrame===at(204));if(!musicClip)throw Error('Music clip was not created');await d.setClipAudio({clip:musicClip,fadeInSeconds:0.18,fadeOutSeconds:0.5})}if(c.effectSoundId)await d.overlayResource({resource:p.resource(c.effectSoundId),over:await d.rangeAtFrames(at(c.glitchRefFrame),fit(c.effectSoundId,${clean(ASSET_SECONDS[2])},at(c.glitchRefFrame),Math.min(end,at(c.glitchRefFrame)+fr(7)))),sourceStartSeconds:0});const saved=await d.commitAll('Cinema Vlog Studio: user marker cuts, Postcard curtain and alphabet swap');if(!saved.createdDraftId)throw Error('Draft save did not return an id');const actual=selects.draft(saved.createdDraftId),clips=await actual.clips({trackScope:'all'});return{draftId:saved.createdDraftId,name:c.name,fps,endFrame:clips.reduce((n,x)=>Math.max(n,x.endFrame),0),mainClips:clips.filter(x=>x.trackKind==='main').length,audioClips:clips.filter(x=>x.trackKind==='audio').length,graphics:clips.filter(x=>x.resourceId===null).length};`}
 
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.

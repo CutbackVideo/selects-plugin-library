@@ -47,7 +47,9 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     addVideoEffect: async (o) => {
       if (!clips.some(c => c.clipId === o.clip.clipId)) throw Error('unknown clip');
       (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label });
-      log.push(['fx', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.tsxCode]);
+      assert.equal(o.tsxCode, undefined);
+      assert.equal(o.shader.graph.schema, 'Cutback.ShaderEffect.1');
+      log.push(['fx', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.shader]);
     },
     motionGraphics: async () => graphics.map(g => ({ ...g })),
     videoEffects: async (clip) => (effects[clip.clipId] || []).map(e => ({ ...e })),
@@ -345,26 +347,26 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual(fxOf(mk, 99), [], 'music untouched');
   // Parameters.
   const box = fxLog(mk, 'Letterbox reveal')[0];
-  assert.equal(box[5], 'BOX');
+  assert.deepEqual(box[5].uniforms.find(u=>u.parameter==='enabled').values, {true:1,false:0});
   assert.deepEqual(box[3], { revealStart: 0.2, revealEnd: 2.05, revealSeconds: 1.85, enabled: true });
   assert.deepEqual(box[4], [{ key: 'revealSeconds', label: 'Reveal', type: 'number', defaultValue: 1.85, min: 0, max: 5, step: 0.05 },
     { key: 'enabled', label: 'Letterbox reveal', type: 'boolean', defaultValue: true }]);
   const fade = fxLog(mk, 'Fade out');
-  assert.deepEqual(fade.map(x => [x[1], x[3], x[5]]), [[5, { durationFrames: 120, fadeSeconds: 1 }, 'FADE']], 'durationFrames = the last clip length');
+  assert.deepEqual(fade.map(x => [x[1], x[3]]), [[5, { durationFrames: 120, fadeSeconds: 1 }]], 'durationFrames = the last clip length');
   assert.deepEqual(fade[0][4], [{ key: 'fadeSeconds', label: 'Fade out', type: 'number', defaultValue: 1, min: 0, max: 3, step: 0.1 }]);
   const shots = fxLog(mk, 'Shot motion');
   assert.deepEqual(shots.map(x => [x[1], x[3]]), [
     [2, { motion: 'push-in', strength: 0.5, direction: 1, axis: 'x', cover: 1, holdSeconds: 1.667 }],
     [3, { motion: 'drift-left', strength: 0.5, direction: -1, axis: 'x', cover: 1, holdSeconds: 1.2 }],
     [5, { motion: 'push-in', strength: 0.5, direction: 1, axis: 'x', cover: 1, holdSeconds: 4 }]]);
-  assert.ok(shots.every(x => x[5] === 'MOTION'), 'shot motion uses photo-motion.tsx');
+  assert.ok(shots.every(x => x[5].uniforms.some(u => u.parameter === 'motion' && u.values['push-in'] === 1)), 'shot motion retains its editable WGSL selection');
   assert.deepEqual(shots[0][4].map(e => [e.key, e.type, e.label, e.defaultValue]), [['motion', 'select', 'Motion', 'push-in'], ['strength', 'number', 'Motion strength', 0.5]]);
   assert.deepEqual(shots[0][4][0].options, opts);
   const pm = fxLog(mk, 'Photo motion');
   assert.deepEqual(pm.map(x => [x[1], x[3]]), [[4, { motion: 'pull-out', strength: 0.5, direction: 1, axis: 'x', cover: 1.333, holdSeconds: 1.2 }]]);
   const looks = fxLog(mk, 'Cinematic look');
   assert.deepEqual(looks.map(x => x[1]), [1, 2, 3, 4, 5, 6]);
-  assert.ok(looks.every(x => JSON.stringify(x[3]) === JSON.stringify({ strength: 0.3, warmth: 1 }) && x[5] === 'LOOK'));
+  assert.ok(looks.every(x => JSON.stringify(x[3]) === JSON.stringify({ strength: 0.3, warmth: 1 }) && x[5].graph.schema === 'Cutback.ShaderEffect.1'));
   assert.deepEqual(looks[0][4], [{ key: 'strength', label: 'Look strength', type: 'number', defaultValue: 0.3, min: 0, max: 1, step: 0.05 },
     { key: 'warmth', label: 'Warmth', type: 'number', defaultValue: 1, min: 0, max: 2, step: 0.1 }]);
   assert.deepEqual(mk.log.filter(x => x[0] === 'commit').map(x => x[1]), ['Archive Vlog: title and look'], 'one commit');

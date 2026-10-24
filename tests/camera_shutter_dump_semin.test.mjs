@@ -6,7 +6,7 @@
 // - crop focusX/focusY: Semin picked them for her own photos; every slot starts at 0.5.
 // - the title text: Semin's "Lake District\nMemories" was about her trip; the title is
 //   the Project name (as Vlog Opening seeds its title). Its look, timing and code are hers.
-const NOT_REPRODUCED=[/\.effects\.\d+\.parameters\.focus[XY]$/,/^video\.0\.parameters\.body$/];
+const NOT_REPRODUCED=[/\.effects\.\d+\.parameters\.focus[XY]$/,/^video\.0\.parameters\.body$/,/\.effects\.\d+\.codeSha256$/];
 const PROJECT_NAME='Lake District';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -69,7 +69,7 @@ test('default build at 25 fps equals Semin\'s Camera shutter dump Draft',async()
   const t={...{rotation:0,anchor:{x:0,y:0}},...c.transform};
   const base={start:c.startFrame,end:c.endFrame,transform:{position:t.position,scale:t.scale,rotation:t.rotation,anchor:t.anchor},opacityPercent:100};
   if(c.resourceId===null){const g=graphics.get(c.clipId);return {graphic:g.label,...base,codeSha256:sha(g.tsxCode),parameters:g.parameters};}
-  return {photo:refPhotos[Number(c.resourceId.slice(3))].photo,...base,effects:(effects.get(c.clipId)||[]).map(e=>({name:e.label,enabled:true,codeSha256:sha(e.tsxCode),parameters:e.parameters}))};
+  return {photo:refPhotos[Number(c.resourceId.slice(3))].photo,...base,effects:(effects.get(c.clipId)||[]).map(e=>({name:e.label,enabled:true,codeSha256:(assert.equal(e.shader.graph.schema,'Cutback.ShaderEffect.1'),'wgsl'),parameters:e.parameters}))};
  });
  diff(ours,ref.videoTopFirst,'video',out);
  const audio=clips.filter(c=>c.trackKind==='audio').map(c=>({file:c.resourceId,start:c.startFrame,end:c.endFrame}));

@@ -65,7 +65,7 @@ const SOURCE_PANEL_CONTROLS = [
   {key:"sourceZoom",label:"\ud655\ub300\uc728 (%) / Zoom",type:"number",defaultValue:100,min:25,max:400,step:1},
 ];
 
-const SCRIPT_APPLY_REFRAME: string = SCRIPT_SOURCE_READER + "const P: any = __P__;\nconst project = selects.project(P.projectId);\nif (!(await project.meta()).draftIds.includes(P.draftId)) throw new Error(\"The output Draft is no longer in this project.\");\nif (!Array.isArray(P.reframe) || !P.reframe.length) throw new Error(\"No framing plan is available.\");\nconst input = await readShortformInput(project, P);\nconst sm = input.meta;\nconst d = selects.draft(P.draftId);\n// Remove only panel clips owned by this app on a retried/ack-lost apply.\nif (P.cameraPanels?.length) {\n  const previous = await d.clips({trackScope:\"all\"});\n  for (const row of previous.filter((c:any)=>c.trackKind === \"video\" && c.resourceId)) {\n    const live=(await d.clips({trackScope:\"all\"})).find((c:any)=>c.clipId===row.clipId&&c.trackId===row.trackId);\n    if ((await d.videoEffects(live)).some((e:any)=>e.name === \"Shortform camera panel\")) await d.removeClips(live);\n  }\n}\nfor (const shot of P.cameraShots || []) {\n  const changed=await d.setVideoAngle({target:await d.rangeAtFrames(shot.startFrame,shot.endFrame),videoIndex:shot.videoIndex});\n  if (changed.uncovered.length) throw new Error(\"The selected camera has a recording gap; no reframing changes were saved.\");\n}\n\nconst readV = async () => (await d.clips({trackScope:\"all\"})).filter((c:any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nif (Array.isArray(P.reframe) && P.reframe.length) {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify([placeOf(shot),shot.panels]);\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        const current = await d.clips({trackScope:\"main\"});\n        if (!current.some((c:any)=>c.startFrame === ws[k][0] || c.endFrame === ws[k][0])) throw e;\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const shot = shotAt(w[1]);\n      const pl = placeOf(shot);\n      const vs = (await readV()).filter((c: any) => c.trackKind === \"main\" && c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.trackKind === \"main\" && c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        if (shot.panels?.length > 1 && P.stackEffect) {\n          const H = Number(sm.frameSize?.height) || 1080;\n          const windowH = Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n          await d.setClipTransform({clip:c,scale:{x:1,y:windowH/(H*1080/srcW)},position:{x:0,y:(960-winMid)/1920*100}});\n          const fresh = () => d.clips({trackScope:\"main\"}).then((cs:any[])=>cs.find(x=>x.clipId===c.clipId && x.trackId===c.trackId));\n          const old = (await d.videoEffects(await fresh())).find((x:any)=>x.name === \"Shortform stacked framing\");\n          const parameters = {sourceW:srcW,sourceH:H,windowH,panels:shot.panels};\n          if (old) await d.replaceVideoEffect(old,{tsxCode:P.stackEffect,parameters});\n          else await d.addVideoEffect({clip:await fresh(),label:\"Shortform stacked framing\",tsxCode:P.stackEffect,parameters});\n          continue;\n        }\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n}\nif (P.cameraPanels?.length) {\n  const windowH=Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n  const winMid=(Number(P.frame.windowBottom)+Number(P.frame.windowTop))/2;\n  // Keep the existing template above newly added picture lanes. Recreate only\n  // this app's own graphics with their current editable values and exact ranges.\n  const graphics:any[]=[];\n  for (const g of await d.motionGraphics()) {\n    if (!(g.name === \"Series frame and headline\" || g.name === \"Date\" || /^Caption \\d+$/.test(g.name))) continue;\n    const program=await d.motionGraphicProgram(g.clip);\n    if (!program) throw new Error(\"Template graphic is unavailable.\");\n    graphics.push({name:g.name,start:g.clip.startFrame,end:g.clip.endFrame,program,transform:await d.clipTransform(g.clip)});\n  }\n  for (const panel of P.cameraPanels) {\n    const source=project.resource(panel.resourceId),meta=await source.meta();\n    const W=meta.frameSize?.width,H=meta.frameSize?.height;\n    if (!(W>0 && H>0)) throw new Error(\"Camera dimensions are unavailable.\");\n    const before=new Set((await d.clips({trackScope:\"all\"})).map((x:any)=>x.trackId+\":\"+x.clipId));\n    await d.overlayResource({resource:source,over:await d.rangeAtFrames(panel.startFrame,panel.endFrame),sourceStartSeconds:panel.sourceStartSeconds,playbackSpeed:panel.playbackSpeed,withSound:false});\n    let clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.trackKind === \"video\" && !before.has(x.trackId+\":\"+x.clipId));\n    if (!clip) throw new Error(\"Camera placement did not produce a video clip.\");\n    const id=clip.clipId,track=clip.trackId;\n    const fresh=()=>d.clips({trackScope:\"all\"}).then((xs:any[])=>xs.find(x=>x.clipId===id&&x.trackId===track));\n    await d.setClipTransform({clip,scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-winMid)/1920*100}});\n    await d.addVideoEffect({clip:await fresh(),label:\"Shortform camera panel\",tsxCode:P.stackEffect,parameters:{sourceW:W,sourceH:H,windowH,panels:[{cx:W/2,cy:H/2,w:Math.min(W,H*1080/(windowH/panel.count)),...panel.crop,slot:panel.slot,count:panel.count,destination:panel.destination}]}});\n  }\n  for (const g of graphics) {\n    const live=(await d.motionGraphics()).find((x:any)=>x.name===g.name&&x.clip.startFrame===g.start&&x.clip.endFrame===g.end);\n    if (!live) throw new Error(\"Template graphic changed during framing.\");\n    await d.removeClips(live.clip);\n    const placed=await d.addMotionGraphic({label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters,within:await d.rangeAtFrames(g.start,g.end)});\n    const clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.clipId===placed.clipId);\n    const t=g.transform;\n    await d.setClipTransform({clip,position:t.positionKeys.length?undefined:t.position,positionKeys:t.positionKeys.length?t.positionKeys:undefined,\n      scale:t.scaleKeys.length?undefined:t.scale,scaleKeys:t.scaleKeys.length?t.scaleKeys:undefined,\n      rotation:t.rotationKeys.length?undefined:t.rotation,rotationKeys:t.rotationKeys.length?t.rotationKeys:undefined,anchor:t.anchor,flipHorizontal:t.flipHorizontal,flipVertical:t.flipVertical});\n  }\n}\n\nawait d.commitAll(\"Apply shortform reframing\");\nreturn {draftId:P.draftId, reframed:true};\n";
+const SCRIPT_APPLY_REFRAME: string = SCRIPT_SOURCE_READER + "\nconst pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs\nvar IMAGE = `\nfn sat(x:f32)->f32{return clamp(x,0.0,1.0);}\nfn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}\nfn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}\nfn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}\nfn within(p:vec2f,size:vec2f)->f32 {\n let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));\n let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;\n}\nfn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}\nfn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}\nfn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}\nfn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}\nfn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {\n let q=abs(p-size*0.5)-size*0.5+r;\n let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;\n return sat(0.5-d);\n}\nfn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}\nfn sepia(c:vec3f,s:f32)->vec3f {\n let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));\n return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));\n}\nfn hue(c:vec3f,a:f32)->vec3f {\n let co=cos(a);let si=sin(a);\n let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);\n let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);\n let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);\n return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));\n}\nfn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}\nfn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}\n`;\nfunction number(value, fallback = 0) {\n  const n = typeof value === \"number\" ? value : Number(value);\n  return value == null || value === \"\" || !Number.isFinite(n) ? fallback : n;\n}\nfunction f32(value) {\n  const n = number(value, NaN);\n  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error(\"Invalid shader coefficient\");\n  const s = String(n);\n  return /[.e]/i.test(s) ? s : s + \".0\";\n}\nfunction vec(values) {\n  return `vec${values.length}f(${values.map(f32).join(\",\")})`;\n}\nvar Graph = class {\n  data = null;\n  passes = [];\n  images = [];\n  uniforms = [];\n  svgParameters = [];\n  constructor(data = {}) {\n    this.data = data;\n  }\n  pass(body, { inputs = [\"source\"], values = [], bindings = [], functions = \"\", scale = 1 } = {}) {\n    const id = `p${this.passes.length}`;\n    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + `\nfn effect(uv:vec2f)->vec4f {${body}}`, ...scale !== 1 ? { scale } : {} });\n    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });\n    return id;\n  }\n  image(svg, size = null) {\n    const id = `image${this.images.length}`;\n    this.images.push({ id, svg, ...size ? { size } : {} });\n    return id;\n  }\n  finish(output = this.passes.at(-1)?.id) {\n    if (!output || !this.passes.some((p) => p.id === output)) throw Error(\"Missing shader output\");\n    if (this.passes.length > 128 || this.images.length > 16) throw Error(\"Effect exceeds shader graph budget\");\n    for (const p of this.passes) {\n      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error(\"Invalid shader parameters\");\n      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error(\"Effect exceeds shader pass budget\");\n    }\n    return { graph: { schema: \"Cutback.ShaderEffect.1\", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };\n  }\n};\nfunction parameters(data, defaults) {\n  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);\n  for (const [key, fallback] of Object.entries(defaults)) {\n    const index = values.length;\n    values.push(number(data[key], Number(fallback)));\n    if (data[key] != null) bindings.push({ index, parameter: key });\n    refs[key] = `uniforms.values[${Math.floor(index / 4)}][${index % 4}]`;\n  }\n  return { values, bindings, refs };\n}\nfunction gaussian(g, input, sigma, { maxSigma = 64, space = null, scale = 1, values = [], bindings = [], functions = \"\" } = {}) {\n  for (const axis of [\"x\", \"y\"]) input = g.pass(`\n    let size=${space ? vec(space) : \"uniforms.resolution.xy\"};\n    let s=max(0.0,${sigma});if(s<0.01){return source(uv);}\n    let pixels=s*uniforms.resolution.${axis}/size.${axis};\n    let radius=min(60,i32(ceil(3.0*pixels)));let stride=max(1.0,3.0*pixels/60.0);\n    let step=vec2f(${axis === \"x\" ? \"1.0,0.0\" : \"0.0,1.0\"})/uniforms.resolution.xy;\n    var sum=vec4f(0.0);var weight=0.0;\n    for(var i=-60;i<=60;i++){if(abs(i)<=radius){\n      let distance=f32(i)*stride;let w=exp(-distance*distance/(2.0*pixels*pixels));\n      sum+=source(uv+step*distance)*w;weight+=w;\n    }}return sum/max(weight,0.000001);`, { inputs: [input], scale, values, bindings, functions });\n  return input;\n}\n\n// shared/shader-effects/framing.mjs\nfunction shortformPanels(data) {\n  const g = new Graph(data), p = parameters(data, { sourceZoom: 100, sourceX: 0, sourceY: 0 });\n  const W = number(data.sourceW), H = number(data.sourceH), windowH = number(data.windowH), panels = data.panels || [];\n  if (!(W > 0 && H > 0 && windowH > 0) || !panels.length) throw Error(\"Missing panel geometry\");\n  const blurred = panels.some((p2) => p2.backdrop === \"blur\") ? gaussian(g, \"source\", \"24.0\", { space: [W, H] }) : null;\n  const branches = panels.map((panel, i) => {\n    const count = panel.count || panels.length, slot = panel.slot ?? i;\n    const r = panel.destination || { x: 0, y: slot / count, width: 1, height: 1 / count };\n    const outW = 1080 * r.width, outH = windowH * r.height, rect = panel.fit === \"region\" ? panel.rect : null;\n    const baseW = rect ? Math.max(rect.width, rect.height * outW / outH) : panel.fit === \"contain\" ? Math.max(W, H * outW / outH) : Math.max(1, Math.min(W, panel.w));\n    const baseScale = outW / baseW, baseH = outH / baseScale;\n    const baseX = rect ? rect.x - (baseW - rect.width) / 2 : panel.fit === \"contain\" ? (W - baseW) / 2 : Math.max(0, Math.min(W - baseW, panel.cx - baseW / 2));\n    const baseY = rect ? rect.y - (baseH - rect.height) / 2 : panel.fit === \"contain\" ? (H - baseH) / 2 : baseH > H ? (H - baseH) / 2 : Math.max(0, Math.min(H - baseH, panel.cy - baseH * 0.4));\n    const cw = Math.min(W, H * outW / outH) / 1.1, ch = outH / (outW / cw);\n    const region = rect ? `if(!manual){let r=(coord*size-${vec([rect.x, rect.y])})/${vec([rect.width, rect.height])};src*=within(r,${vec([rect.width, rect.height])});}` : \"\";\n    return `{\n      let destination=${vec([r.x, r.y, r.width, r.height])};let cell=(uv-destination.xy)/destination.zw;let mask=within(cell,destination.zw*size);\n      let base=${vec([baseW, baseH])};let basePosition=${vec([baseX, baseY])};let crop=base/zoom;var position=basePosition;\n      if(manual){let candidate=basePosition+(base-crop)*.5+offset;position=select(clamp(candidate,vec2f(0.0),max(vec2f(0.0),size-crop)),(size-crop)*.5,crop>size);}\n      let coord=(position+cell*crop)/size;var src=source(coord);${region}\n      var bg=vec4f(0.0,0.0,0.0,1.0);\n      ${panel.backdrop === \"blur\" ? `let back=((size-${vec([cw, ch])})*.5+cell*${vec([cw, ch])})/size;bg=over(textureSampleLevel(input1,linearSampler,back,0.0)*within(back,size),bg);` : \"\"}\n      result=over(over(src,bg)*mask,result);\n    }`;\n  }).join(\"\\n\");\n  g.pass(`let size=${vec([W, H])};let zoom=clamp(${p.refs.sourceZoom},25.0,400.0)/100.0;\n    let offset=clamp(vec2f(${p.refs.sourceX},${p.refs.sourceY}),vec2f(-100.0),vec2f(100.0))/100.0*size;\n    let manual=zoom!=1.0||any(offset!=vec2f(0.0));var result=vec4f(0.0);${branches}return result;`, { ...p, inputs: blurred ? [\"source\", blurred] : [\"source\"] });\n  return g.finish();\n}\n\n// shared/shader-effects/shortform-clips.mjs\nfunction options(kind, input, context = null) {\n  context = context || {};\n  if (\"tsxCode\" in input) throw Error(\"A WGSL effect cannot carry legacy TSX\");\n  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };\n  let shader;\n  switch (kind) {\n    case \"panels\":\n      shader = shortformPanels(data);\n      break;\n    default:\n      throw Error(\"Unknown shortform-clips effect: \" + kind);\n  }\n  return { ...input, parameters: data, shader };\n}\n\nreturn options;})();\nconst P: any = __P__;\nconst project = selects.project(P.projectId);\nif (!(await project.meta()).draftIds.includes(P.draftId)) throw new Error(\"The output Draft is no longer in this project.\");\nif (!Array.isArray(P.reframe) || !P.reframe.length) throw new Error(\"No framing plan is available.\");\nconst input = await readShortformInput(project, P);\nconst sm = input.meta;\nconst d = selects.draft(P.draftId);\n// Remove only panel clips owned by this app on a retried/ack-lost apply.\nif (P.cameraPanels?.length) {\n  const previous = await d.clips({trackScope:\"all\"});\n  for (const row of previous.filter((c:any)=>c.trackKind === \"video\" && c.resourceId)) {\n    const live=(await d.clips({trackScope:\"all\"})).find((c:any)=>c.clipId===row.clipId&&c.trackId===row.trackId);\n    if ((await d.videoEffects(live)).some((e:any)=>e.name === \"Shortform camera panel\")) await d.removeClips(live);\n  }\n}\nfor (const shot of P.cameraShots || []) {\n  const changed=await d.setVideoAngle({target:await d.rangeAtFrames(shot.startFrame,shot.endFrame),videoIndex:shot.videoIndex});\n  if (changed.uncovered.length) throw new Error(\"The selected camera has a recording gap; no reframing changes were saved.\");\n}\n\nconst readV = async () => (await d.clips({trackScope:\"all\"})).filter((c:any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nif (Array.isArray(P.reframe) && P.reframe.length) {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify([placeOf(shot),shot.panels]);\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        const current = await d.clips({trackScope:\"main\"});\n        if (!current.some((c:any)=>c.startFrame === ws[k][0] || c.endFrame === ws[k][0])) throw e;\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const shot = shotAt(w[1]);\n      const pl = placeOf(shot);\n      const vs = (await readV()).filter((c: any) => c.trackKind === \"main\" && c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.trackKind === \"main\" && c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        if (shot.panels?.length > 1 && P.stackEffect) {\n          const H = Number(sm.frameSize?.height) || 1080;\n          const windowH = Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n          await d.setClipTransform({clip:c,scale:{x:1,y:windowH/(H*1080/srcW)},position:{x:0,y:(960-winMid)/1920*100}});\n          const fresh = () => d.clips({trackScope:\"main\"}).then((cs:any[])=>cs.find(x=>x.clipId===c.clipId && x.trackId===c.trackId));\n          const old = (await d.videoEffects(await fresh())).find((x:any)=>x.name === \"Shortform stacked framing\");\n          const parameters = {sourceW:srcW,sourceH:H,windowH,panels:shot.panels};\n          if (old) await d.replaceVideoEffect(old,pluginShaderOptions(\"panels\",{parameters}));\n          else await d.addVideoEffect(pluginShaderOptions(\"panels\",{clip:await fresh(),\nlabel:\"Shortform stacked framing\",\nparameters}));\n          continue;\n        }\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n}\nif (P.cameraPanels?.length) {\n  const windowH=Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n  const winMid=(Number(P.frame.windowBottom)+Number(P.frame.windowTop))/2;\n  // Keep the existing template above newly added picture lanes. Recreate only\n  // this app's own graphics with their current editable values and exact ranges.\n  const graphics:any[]=[];\n  for (const g of await d.motionGraphics()) {\n    if (!(g.name === \"Series frame and headline\" || g.name === \"Date\" || /^Caption \\d+$/.test(g.name))) continue;\n    const program=await d.motionGraphicProgram(g.clip);\n    if (!program) throw new Error(\"Template graphic is unavailable.\");\n    graphics.push({name:g.name,start:g.clip.startFrame,end:g.clip.endFrame,program,transform:await d.clipTransform(g.clip)});\n  }\n  for (const panel of P.cameraPanels) {\n    const source=project.resource(panel.resourceId),meta=await source.meta();\n    const W=meta.frameSize?.width,H=meta.frameSize?.height;\n    if (!(W>0 && H>0)) throw new Error(\"Camera dimensions are unavailable.\");\n    const before=new Set((await d.clips({trackScope:\"all\"})).map((x:any)=>x.trackId+\":\"+x.clipId));\n    await d.overlayResource({resource:source,over:await d.rangeAtFrames(panel.startFrame,panel.endFrame),sourceStartSeconds:panel.sourceStartSeconds,playbackSpeed:panel.playbackSpeed,withSound:false});\n    let clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.trackKind === \"video\" && !before.has(x.trackId+\":\"+x.clipId));\n    if (!clip) throw new Error(\"Camera placement did not produce a video clip.\");\n    const id=clip.clipId,track=clip.trackId;\n    const fresh=()=>d.clips({trackScope:\"all\"}).then((xs:any[])=>xs.find(x=>x.clipId===id&&x.trackId===track));\n    await d.setClipTransform({clip,scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-winMid)/1920*100}});\n    await d.addVideoEffect(pluginShaderOptions(\"panels\",{clip:await fresh(),\nlabel:\"Shortform camera panel\",\nparameters:{sourceW:W,sourceH:H,windowH,panels:[{cx:W/2,cy:H/2,w:Math.min(W,H*1080/(windowH/panel.count)),...panel.crop,slot:panel.slot,count:panel.count,destination:panel.destination}]}}));\n  }\n  for (const g of graphics) {\n    const live=(await d.motionGraphics()).find((x:any)=>x.name===g.name&&x.clip.startFrame===g.start&&x.clip.endFrame===g.end);\n    if (!live) throw new Error(\"Template graphic changed during framing.\");\n    await d.removeClips(live.clip);\n    const placed=await d.addMotionGraphic({label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters,within:await d.rangeAtFrames(g.start,g.end)});\n    const clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.clipId===placed.clipId);\n    const t=g.transform;\n    await d.setClipTransform({clip,position:t.positionKeys.length?undefined:t.position,positionKeys:t.positionKeys.length?t.positionKeys:undefined,\n      scale:t.scaleKeys.length?undefined:t.scale,scaleKeys:t.scaleKeys.length?t.scaleKeys:undefined,\n      rotation:t.rotationKeys.length?undefined:t.rotation,rotationKeys:t.rotationKeys.length?t.rotationKeys:undefined,anchor:t.anchor,flipHorizontal:t.flipHorizontal,flipVertical:t.flipVertical});\n  }\n}\n\nawait d.commitAll(\"Apply shortform reframing\");\nreturn {draftId:P.draftId, reframed:true};\n";
 const SCRIPT_TRANSCRIPT: string = SCRIPT_SOURCE_READER + "// run_script body: return the source transcript as sentence lines with source-second timings, one page at a time.\nconst P: any = __P__;\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: m, words } = input;\nconst all = transcriptLines(words, m.fps).map((l) => [l.startSeconds, l.endSeconds, l.words.map((w: any) => String(w.text)).join(\" \")]);\nreturn { duration: m.durationSeconds, total: all.length, lines: all.slice(P.offset, P.offset + P.limit) };\n";
 const APP_ID = "shortform-clips";
 const IS_WIN =
@@ -4241,7 +4241,160 @@ function resolveSourceComposition(shots:any[],catalog:any[],sources:any[],durati
 // blurred copy of itself. It uses the framing effect, so framing the clip later replaces it in place.
 function wideShotScript(projectId:string,draftId:string,layout:any) {
   const top=Number(layout.windowTop??0),bottom=Number(layout.windowBottom??1920);
-  return `const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)});
+  return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return \`vec\${values.length}f(\${values.map(f32).join(",")})\`;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+function gaussian(g, input, sigma, { maxSigma = 64, space = null, scale = 1, values = [], bindings = [], functions = "" } = {}) {
+  for (const axis of ["x", "y"]) input = g.pass(\`
+    let size=\${space ? vec(space) : "uniforms.resolution.xy"};
+    let s=max(0.0,\${sigma});if(s<0.01){return source(uv);}
+    let pixels=s*uniforms.resolution.\${axis}/size.\${axis};
+    let radius=min(60,i32(ceil(3.0*pixels)));let stride=max(1.0,3.0*pixels/60.0);
+    let step=vec2f(\${axis === "x" ? "1.0,0.0" : "0.0,1.0"})/uniforms.resolution.xy;
+    var sum=vec4f(0.0);var weight=0.0;
+    for(var i=-60;i<=60;i++){if(abs(i)<=radius){
+      let distance=f32(i)*stride;let w=exp(-distance*distance/(2.0*pixels*pixels));
+      sum+=source(uv+step*distance)*w;weight+=w;
+    }}return sum/max(weight,0.000001);\`, { inputs: [input], scale, values, bindings, functions });
+  return input;
+}
+
+// shared/shader-effects/framing.mjs
+function shortformPanels(data) {
+  const g = new Graph(data), p = parameters(data, { sourceZoom: 100, sourceX: 0, sourceY: 0 });
+  const W = number(data.sourceW), H = number(data.sourceH), windowH = number(data.windowH), panels = data.panels || [];
+  if (!(W > 0 && H > 0 && windowH > 0) || !panels.length) throw Error("Missing panel geometry");
+  const blurred = panels.some((p2) => p2.backdrop === "blur") ? gaussian(g, "source", "24.0", { space: [W, H] }) : null;
+  const branches = panels.map((panel, i) => {
+    const count = panel.count || panels.length, slot = panel.slot ?? i;
+    const r = panel.destination || { x: 0, y: slot / count, width: 1, height: 1 / count };
+    const outW = 1080 * r.width, outH = windowH * r.height, rect = panel.fit === "region" ? panel.rect : null;
+    const baseW = rect ? Math.max(rect.width, rect.height * outW / outH) : panel.fit === "contain" ? Math.max(W, H * outW / outH) : Math.max(1, Math.min(W, panel.w));
+    const baseScale = outW / baseW, baseH = outH / baseScale;
+    const baseX = rect ? rect.x - (baseW - rect.width) / 2 : panel.fit === "contain" ? (W - baseW) / 2 : Math.max(0, Math.min(W - baseW, panel.cx - baseW / 2));
+    const baseY = rect ? rect.y - (baseH - rect.height) / 2 : panel.fit === "contain" ? (H - baseH) / 2 : baseH > H ? (H - baseH) / 2 : Math.max(0, Math.min(H - baseH, panel.cy - baseH * 0.4));
+    const cw = Math.min(W, H * outW / outH) / 1.1, ch = outH / (outW / cw);
+    const region = rect ? \`if(!manual){let r=(coord*size-\${vec([rect.x, rect.y])})/\${vec([rect.width, rect.height])};src*=within(r,\${vec([rect.width, rect.height])});}\` : "";
+    return \`{
+      let destination=\${vec([r.x, r.y, r.width, r.height])};let cell=(uv-destination.xy)/destination.zw;let mask=within(cell,destination.zw*size);
+      let base=\${vec([baseW, baseH])};let basePosition=\${vec([baseX, baseY])};let crop=base/zoom;var position=basePosition;
+      if(manual){let candidate=basePosition+(base-crop)*.5+offset;position=select(clamp(candidate,vec2f(0.0),max(vec2f(0.0),size-crop)),(size-crop)*.5,crop>size);}
+      let coord=(position+cell*crop)/size;var src=source(coord);\${region}
+      var bg=vec4f(0.0,0.0,0.0,1.0);
+      \${panel.backdrop === "blur" ? \`let back=((size-\${vec([cw, ch])})*.5+cell*\${vec([cw, ch])})/size;bg=over(textureSampleLevel(input1,linearSampler,back,0.0)*within(back,size),bg);\` : ""}
+      result=over(over(src,bg)*mask,result);
+    }\`;
+  }).join("\\n");
+  g.pass(\`let size=\${vec([W, H])};let zoom=clamp(\${p.refs.sourceZoom},25.0,400.0)/100.0;
+    let offset=clamp(vec2f(\${p.refs.sourceX},\${p.refs.sourceY}),vec2f(-100.0),vec2f(100.0))/100.0*size;
+    let manual=zoom!=1.0||any(offset!=vec2f(0.0));var result=vec4f(0.0);\${branches}return result;\`, { ...p, inputs: blurred ? ["source", blurred] : ["source"] });
+  return g.finish();
+}
+
+// shared/shader-effects/shortform-clips.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "panels":
+      shader = shortformPanels(data);
+      break;
+    default:
+      throw Error("Unknown shortform-clips effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)});
 if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed");
 const windowH=${bottom-top};
 const keys=(await d.clips({trackScope:"main"})).filter(c=>c.resourceId).map(c=>({clipId:c.clipId,trackId:c.trackId,resourceId:c.resourceId}));
@@ -4260,8 +4413,10 @@ for (const key of keys) {
  await d.setClipTransform({clip:await fresh(),scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-${(top+bottom)/2})/1920*100}});
  const parameters={sourceW:W,sourceH:H,windowH,panels:[{fit:"contain",backdrop:"blur",w:W,cx:W/2,cy:H/2}]};
  const old=(await d.videoEffects(await fresh())).find(e=>e.name==="Shortform stacked framing");
- if(old) await d.replaceVideoEffect(old,{tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters});
- else await d.addVideoEffect({clip:await fresh(),label:"Shortform stacked framing",tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters});
+ if(old) await d.replaceVideoEffect(old,pluginShaderOptions("panels",{parameters}));
+ else await d.addVideoEffect(pluginShaderOptions("panels",{clip:await fresh(),
+label:"Shortform stacked framing",
+parameters}));
 }
 await d.commitAll("Place the full source as a wide shot");
 return {clips:keys.length};`;
@@ -4287,7 +4442,160 @@ function normalizeSourcePlaybackSpeed(value:unknown) {
 }
 
 function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number,snapshot:any=null) {
-  return `const shots = __SHOTS__;
+  return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return \`vec\${values.length}f(\${values.map(f32).join(",")})\`;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+function gaussian(g, input, sigma, { maxSigma = 64, space = null, scale = 1, values = [], bindings = [], functions = "" } = {}) {
+  for (const axis of ["x", "y"]) input = g.pass(\`
+    let size=\${space ? vec(space) : "uniforms.resolution.xy"};
+    let s=max(0.0,\${sigma});if(s<0.01){return source(uv);}
+    let pixels=s*uniforms.resolution.\${axis}/size.\${axis};
+    let radius=min(60,i32(ceil(3.0*pixels)));let stride=max(1.0,3.0*pixels/60.0);
+    let step=vec2f(\${axis === "x" ? "1.0,0.0" : "0.0,1.0"})/uniforms.resolution.xy;
+    var sum=vec4f(0.0);var weight=0.0;
+    for(var i=-60;i<=60;i++){if(abs(i)<=radius){
+      let distance=f32(i)*stride;let w=exp(-distance*distance/(2.0*pixels*pixels));
+      sum+=source(uv+step*distance)*w;weight+=w;
+    }}return sum/max(weight,0.000001);\`, { inputs: [input], scale, values, bindings, functions });
+  return input;
+}
+
+// shared/shader-effects/framing.mjs
+function shortformPanels(data) {
+  const g = new Graph(data), p = parameters(data, { sourceZoom: 100, sourceX: 0, sourceY: 0 });
+  const W = number(data.sourceW), H = number(data.sourceH), windowH = number(data.windowH), panels = data.panels || [];
+  if (!(W > 0 && H > 0 && windowH > 0) || !panels.length) throw Error("Missing panel geometry");
+  const blurred = panels.some((p2) => p2.backdrop === "blur") ? gaussian(g, "source", "24.0", { space: [W, H] }) : null;
+  const branches = panels.map((panel, i) => {
+    const count = panel.count || panels.length, slot = panel.slot ?? i;
+    const r = panel.destination || { x: 0, y: slot / count, width: 1, height: 1 / count };
+    const outW = 1080 * r.width, outH = windowH * r.height, rect = panel.fit === "region" ? panel.rect : null;
+    const baseW = rect ? Math.max(rect.width, rect.height * outW / outH) : panel.fit === "contain" ? Math.max(W, H * outW / outH) : Math.max(1, Math.min(W, panel.w));
+    const baseScale = outW / baseW, baseH = outH / baseScale;
+    const baseX = rect ? rect.x - (baseW - rect.width) / 2 : panel.fit === "contain" ? (W - baseW) / 2 : Math.max(0, Math.min(W - baseW, panel.cx - baseW / 2));
+    const baseY = rect ? rect.y - (baseH - rect.height) / 2 : panel.fit === "contain" ? (H - baseH) / 2 : baseH > H ? (H - baseH) / 2 : Math.max(0, Math.min(H - baseH, panel.cy - baseH * 0.4));
+    const cw = Math.min(W, H * outW / outH) / 1.1, ch = outH / (outW / cw);
+    const region = rect ? \`if(!manual){let r=(coord*size-\${vec([rect.x, rect.y])})/\${vec([rect.width, rect.height])};src*=within(r,\${vec([rect.width, rect.height])});}\` : "";
+    return \`{
+      let destination=\${vec([r.x, r.y, r.width, r.height])};let cell=(uv-destination.xy)/destination.zw;let mask=within(cell,destination.zw*size);
+      let base=\${vec([baseW, baseH])};let basePosition=\${vec([baseX, baseY])};let crop=base/zoom;var position=basePosition;
+      if(manual){let candidate=basePosition+(base-crop)*.5+offset;position=select(clamp(candidate,vec2f(0.0),max(vec2f(0.0),size-crop)),(size-crop)*.5,crop>size);}
+      let coord=(position+cell*crop)/size;var src=source(coord);\${region}
+      var bg=vec4f(0.0,0.0,0.0,1.0);
+      \${panel.backdrop === "blur" ? \`let back=((size-\${vec([cw, ch])})*.5+cell*\${vec([cw, ch])})/size;bg=over(textureSampleLevel(input1,linearSampler,back,0.0)*within(back,size),bg);\` : ""}
+      result=over(over(src,bg)*mask,result);
+    }\`;
+  }).join("\\n");
+  g.pass(\`let size=\${vec([W, H])};let zoom=clamp(\${p.refs.sourceZoom},25.0,400.0)/100.0;
+    let offset=clamp(vec2f(\${p.refs.sourceX},\${p.refs.sourceY}),vec2f(-100.0),vec2f(100.0))/100.0*size;
+    let manual=zoom!=1.0||any(offset!=vec2f(0.0));var result=vec4f(0.0);\${branches}return result;\`, { ...p, inputs: blurred ? ["source", blurred] : ["source"] });
+  return g.finish();
+}
+
+// shared/shader-effects/shortform-clips.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "panels":
+      shader = shortformPanels(data);
+      break;
+    default:
+      throw Error("Unknown shortform-clips effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const shots = __SHOTS__;
 const compositionRects=${compositionRects.toString()},permittedSplits=${permittedSplits.toString()},assertCompositionLayout=${assertCompositionLayout.toString()};
 const SPLIT_LAYOUTS=${JSON.stringify(SPLIT_LAYOUTS)};
 const applyManualCrop=${applyManualCrop.toString()};
@@ -4374,8 +4682,12 @@ for (const key of keys) {
  await d.setClipTransform({clip:await fresh(),scale:{x:1,y:s.windowH/(s.sourceH*1080/s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
  const parameters={sourceW:s.sourceW,sourceH:s.sourceH,windowH:s.windowH,panels:s.panels.slice(0,1),sourceX:0,sourceY:0,sourceZoom:100};
  const old=(await d.videoEffects(await fresh())).find(e=>e.name==="Shortform stacked framing");
- if(old) await d.replaceVideoEffect(old,{tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters,editableParameters:${JSON.stringify(SOURCE_PANEL_CONTROLS)}});
- else await d.addVideoEffect({clip:await fresh(),label:"Shortform stacked framing",tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters,editableParameters:${JSON.stringify(SOURCE_PANEL_CONTROLS)}});
+ if(old) await d.replaceVideoEffect(old,pluginShaderOptions("panels",{parameters,
+editableParameters:${JSON.stringify(SOURCE_PANEL_CONTROLS)}}));
+ else await d.addVideoEffect(pluginShaderOptions("panels",{clip:await fresh(),
+label:"Shortform stacked framing",
+parameters,
+editableParameters:${JSON.stringify(SOURCE_PANEL_CONTROLS)}}));
 }
 // Slot-major order reuses one lane for each panel across every shot/cut.
 for(const slot of [...new Set(overlays.map(o=>o.panel.slot))].sort((a,b)=>a-b)){

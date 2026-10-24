@@ -27,7 +27,7 @@ FORBIDDEN = [
 ]
 FORBIDDEN_RE = [
     # Match executable shell text, not the SDK JSON field `result.base64 !== ...`.
-    (re.compile(r'''(?:["'`]|[|;&])\s*base64(?:\s|["'`])'''), 'a base64 shell command'),
+    (re.compile(r'''(?:["'`]|[|;&])\s*base64(?:\s|["'`](?!\s*:))'''), 'a base64 shell command'),
     (re.compile(r'''["'`]\s*node\s'''), 'a node spawn'),
     (re.compile(r'\bpython3?\b'), 'a python spawn'),
     (re.compile(r'''\bsh\s+["']'''), 'an sh invocation'),
@@ -197,7 +197,7 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.2.17')
+        self.assertEqual(manifest['version'], '0.2.18')
         self.assertIn('Shared YuNet', manifest['compatibility']['selects'])
         self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 

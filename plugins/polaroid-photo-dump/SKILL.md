@@ -3,6 +3,9 @@ name: polaroid-photo-dump
 description: Build the "polaroid photo dump" format - seventeen photos switch inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom-in, film grade and an editable caption - as editable original Image clips.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Polaroid Photo Dump
 
 Use this plugin when the user asks for the polaroid / instant-film photo dump format. The format is fixed; the photos and caption are the user's.

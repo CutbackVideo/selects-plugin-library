@@ -351,7 +351,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     { clipId: 2, resourceId: 'p1', trackKind: 'main', startFrame: 30, endFrame: 50, audioSourceIndexes: null },
     { clipId: 3, resourceId: 'r1', trackKind: 'main', startFrame: 50, endFrame: 80, audioSourceIndexes: null },
     { clipId: 99, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 80 });
-  mk.d.addVideoEffect = (orig => async (o) => { if (o.label === 'Beat punch') mk.log.push(['punch', o.clip.clipId, o.parameters, o.editableParameters, o.tsxCode]); return orig(o); })(mk.d.addVideoEffect);
+  mk.d.addVideoEffect = (orig => async (o) => { if (o.label === 'Beat punch') mk.log.push(['punch', o.clip.clipId, o.parameters, o.editableParameters, o.shader]); assert.equal(o.tsxCode, undefined); return orig(o); })(mk.d.addVideoEffect);
   const beatK = 30 * 60 / 108;
   const cfgK = { sequenceId: 'seq-new', videoEnd: 80, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 }, photos: ['p1'],
     punch: { tsx: 'punch', strength: 1, push: 1, beatFrames: beatK, punchFrames: [0, 25, 67, 200],
@@ -361,7 +361,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual(dk.punch, { added: 2, kept: 0, skipped: 0 });
   const pk = mk.log.filter(x => x[0] === 'punch');
   assert.deepEqual(pk.map(x => x[1]), [1, 3], 'video clips only');
-  assert.equal(pk[0][4], 'punch');
+  assert.equal(pk[0][4].graph.schema, 'Cutback.ShaderEffect.1');
+  assert.ok(pk[0][4].uniforms.some(u=>u.parameter==='strength'));
   // r0: source frame 60; the downbeats at 0 and 25 are inside it. r1: round(5 * 30) = 150 slides back to 165 - 30 = 135;
   // 67 is local 17, and 25 (local -25) is more than half a beat before it, so it is left out.
   assert.deepEqual(pk[0][2], { strength: 1, push: 1, punches: [0, 25], beatFrames: beatK, sourceStartFrame: 60, durationFrames: 30 });

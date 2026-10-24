@@ -23,7 +23,7 @@ test('agent composition plans deliver the clip when one composition is unusable'
   let applies=0,prompt='';const notes=[],applied=[];
   const sdk={
    runScript:async input=>{
-    if(input.summary==='Apply agent-selected source crops'){applies++;const shots=JSON.parse(input.script.slice(input.script.indexOf('const shots = ')+14,input.script.indexOf(';\n')));applied.push(shots);return {result:{applied:shots}};}
+    if(input.summary==='Apply agent-selected source crops'){applies++;const shots=JSON.parse(input.script.slice(input.script.indexOf('const shots = ')+14,input.script.indexOf(';\n',input.script.indexOf('const shots = '))));applied.push(shots);return {result:{applied:shots}};}
     return {result:baseline};
    },
    call:async method=>{throw Error('Unexpected analyzed read or preview: '+method);},

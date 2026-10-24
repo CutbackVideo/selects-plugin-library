@@ -2,6 +2,9 @@
 name: eo-shorts
 description: Turn a talking-head Draft of up to 95 seconds into a new 9:16 EO-style Short with the EO Shorts panel - tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, music and loudness, export and automatic checks.
 ---
+
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
 # EO Shorts
 
 Experimental. The work is done by the **EO Shorts** panel, not by this Skill.

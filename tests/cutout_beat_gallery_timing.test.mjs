@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'plugins/cutout-beat-gallery/panel.tsx'), 'utf8');
 const edges = [0, 40, 72, 104, 140, 196, 220, 235, 243, 283, 307, 337, 347, 371, 411, 478];
-const expression = [...source.matchAll(/^      const code=(.+);$/gm)].find(m => m[1].includes('p.createDraft'))?.[1];
+const expression = source.match(/      const code=(`[^]*?[^\\]`);\n/)?.[1];
 assert.ok(expression, 'exercise the ordinary production Build handler');
 const fixture = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/cutout_beat_gallery/parity.json'), 'utf8'));
 const result = Object.values(fixture.scenarios)[0].result;

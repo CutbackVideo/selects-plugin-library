@@ -1,6 +1,7 @@
 // Run-script builders that write the reel into the Draft. Each returns plain data; the Draft is saved
 // with commitAll inside the same run.
 import { J, script, type Sdk } from "./host";
+import { PLUGIN_SHADER_OPTIONS } from "../../../../shared/shader-effects/generated/podcast-hook-captions.mjs";
 import { lookCode, reelCode } from "../renderers";
 import type { Plan, ShotFrame } from "../plan";
 import type { ReelClip } from "./reel";
@@ -10,7 +11,9 @@ export const LOOK_LABEL = "Reel Look";
 export const GRAPHIC_LABEL = "Reel Titles";
 
 // Places each B-roll clip on the outermost lane, drops its audio, and gives it the card Look.
-const PLACE_BROLL = `const placed: any[] = [];
+const PLACE_BROLL = `
+
+const placed: any[] = [];
 for (const b of BROLL) {
   const res: any = await d.overlayResource({ resource: p.resource(b.rid), over: await d.rangeAtFrames(b.start, b.end), sourceStartSeconds: b.offset });
   const all = await d.clips({ trackScope: "all" });
@@ -21,7 +24,10 @@ for (const b of BROLL) {
   const again: any = (await d.clips({ trackScope: "all" })).find((c: any) => c.clipId === video.clipId);
   await d.setClipTransform({ clip: again, scale: stretch(b.sw, b.sh), position: { x: 0, y: 0 }, rotation: 0 });
   const again2: any = (await d.clips({ trackScope: "all" })).find((c: any) => c.clipId === video.clipId);
-  await d.addVideoEffect({ clip: again2, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: b.data, editableParameters: [] });
+  await d.addVideoEffect(pluginShaderOptions("look",{clip: again2,
+label: ${J(LOOK_LABEL)},
+parameters: b.data,
+editableParameters: []}));
   placed.push({ clipId: video.clipId, inserted: res.inserted });
 }
 `;
@@ -107,7 +113,9 @@ export async function applyLook(
   return script(
     sdk,
     "Reframe, grade and place B-roll",
-    `const d = selects.draft(${J(rid)});
+    `
+const pluginShaderOptions=${PLUGIN_SHADER_OPTIONS};
+const d = selects.draft(${J(rid)});
 const p = selects.project(${J(pid)});
 const LOOK = ${J(lookCode)};
 const MAIN: any[] = ${J(mainData)};
@@ -121,7 +129,10 @@ for (const m of MAIN) {
 }
 for (const m of MAIN) {
   const clip: any = (await mains()).find((c: any) => c.clipId === m.clipId);
-  await d.addVideoEffect({ clip, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: m.data, editableParameters: [] });
+  await d.addVideoEffect(pluginShaderOptions("look",{clip,
+label: ${J(LOOK_LABEL)},
+parameters: m.data,
+editableParameters: []}));
 }
 ${PLACE_BROLL}const saved = await d.commitAll("Podcast Hook Captions: reframe, look and B-roll");
 return { commitId: saved.commitId, placed };`,
@@ -135,7 +146,8 @@ export async function finishReel(sdk: Sdk, rid: string, pid: string, plan: Plan,
   return script(
     sdk,
     "Add B-roll, titles, captions and sound",
-    `const d = selects.draft(${J(rid)});
+    `const pluginShaderOptions=${PLUGIN_SHADER_OPTIONS};
+const d = selects.draft(${J(rid)});
 const p = selects.project(${J(pid)});
 const LOOK = ${J(brollData.length ? lookCode : "")};
 const BROLL: any[] = ${J(brollData)};

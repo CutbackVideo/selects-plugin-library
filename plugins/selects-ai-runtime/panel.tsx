@@ -33,33 +33,82 @@ const STRINGS = {
   },
 };
 
-// Effect frames are relative to the source point at which this effect is authored.
-// The host keeps that clock continuous through trimming, splitting and retiming.
-const MASK_EFFECT_TSX = `const React = require('react');
-const {AbsoluteFill,useCurrentFrame,useVideoConfig} = require('remotion');
-export default function PersonMask({Source,data}) {
-  const frame=useCurrentFrame(), {fps}=useVideoConfig();
-  const seconds=data.sourceStartSeconds+frame/fps;
-  if(seconds<data.sourceStartSeconds || seconds>=data.sourceEndSeconds) return null;
-  const frames=data.frames;
-  let low=0,high=frames.length;
-  while(low<high) {
-    const middle=(low+high)>>>1;
-    if(frames[middle].sourceTimeSeconds<=seconds+1e-7) low=middle+1;
-    else high=middle;
-  }
-  const mask=frames[Math.max(0,low-1)];
-  if(!mask) return null;
-  return <AbsoluteFill style={{maskImage:'url('+JSON.stringify(mask.url)+')',
-    maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill>;
-}`;
+// BEGIN GENERATED NATIVE MATTE
+// Prepare the original picture and its saved luminance masks side by side.
+// The WGSL effect samples both halves and applies the mask on the GPU. The
+// intermediate contains no baked composite and retains the original Main audio.
+async function preparePackedMatte(run, storage, workflowId, projectId, image, current) {
+ const key='wgsl-matte-input:'+workflowId;
+ const call=(fn,arg)=>run('return await ('+fn.toString()+')(selects,'+JSON.stringify(arg)+');',true);
+ const read=async()=>{const text=await storage.getItem(key);return text?JSON.parse(text):null;};
+ let state=await read();
+ if(!state) {
+  state=await call(async function(selects,cfg){
+   const result=await selects.ai.job(cfg.workflowId,cfg.projectId).result();
+   if(!result.files.manifest)throw Error('This job has no matte manifest.');
+   const matte=cfg.image?await selects.ai.prepareMatte(result.files.manifest,cfg.projectId,{sourceKind:'image'}):await selects.ai.prepareMatte(result.files.manifest,cfg.projectId);
+   const p=selects.project(cfg.projectId),files=[];
+   const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else files.push(n);};
+   const root=await p.sourceFiles();if('fileTree' in root)walk(root.fileTree);else for(const folder of root.folders||[]){const child=await p.sourceFiles({folder:folder.name});if('fileTree' in child)walk(child.fileTree);}
+   const source=files.find(f=>f.resourceId===matte.sourceResourceId);if(!source?.path)throw Error('The original matte source is unavailable.');
+   const first=await selects.files.pathFromLocalUrl((matte.sourceKind==='image')?matte.maskUrl:matte.frames[0].url);
+   const slash=Math.max(first.lastIndexOf('/'),first.lastIndexOf('\\')),folder=first.slice(0,slash+1);
+   const extension=(matte.sourceKind==='image')?'.png':'.mov',path=folder+'packed-wgsl-source-v1'+extension;
+   const metadata={sourceKind:(matte.sourceKind==='image')?'image':'video',sourceResourceId:matte.sourceResourceId,sourceRange:(matte.sourceKind==='image')?null:matte.sourceRange,frameSize:matte.frameSize,alphaEncoding:matte.alphaEncoding,frameCount:(matte.sourceKind==='image')?1:matte.frames.length,maskUrl:(matte.sourceKind==='image')?matte.maskUrl:null};
+   // The final name is published only after verification. A retry can reuse it.
+   if(await selects.files.exists(path))return {...metadata,path,status:'ready'};
+   if(matte.frameSize.width*matte.frameSize.height*2>33554432)throw Error('The packed mask input exceeds the native image pixel budget.');
+   const temp=folder+'packed-wgsl-source-'+Date.now()+'-'+Math.random().toString(36).slice(2)+extension;
+   const args=['-v','error','-nostdin','-n'];
+   if((matte.sourceKind==='image'))args.push('-i',source.path,'-i',first);
+   else {
+    const frames=matte.frames;if(!frames.length)throw Error('The matte contains no frames.');
+    const list=[];for(let i=0;i<frames.length;i++){
+     const path=await selects.files.pathFromLocalUrl(frames[i].url);if(/[\r\n]/.test(path))throw Error('A mask path contains a newline.');
+     const duration=(frames[i+1]?.sourceTimeSeconds??matte.sourceRange.endSeconds)-frames[i].sourceTimeSeconds;
+     if(!(duration>0))throw Error('The matte frame times are not increasing.');
+     list.push("file '"+path.replace(/\\/g,'/').replace(/'/g,"'\\''")+"'\noption framerate 1000000\nduration "+duration);
+    }
+    const listPath=temp+'.ffconcat',bytes=Array.from(encodeURIComponent('ffconcat version 1.0\n'+list.join('\n')+'\n').replace(/%([0-9A-F]{2})/g,(_,h)=>String.fromCharCode(parseInt(h,16))),c=>c.charCodeAt(0));
+    const base64=bytes=>{const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';let out='';for(let i=0;i<bytes.length;i+=3){const a=bytes[i],b=bytes[i+1]||0,c=bytes[i+2]||0;out+=alphabet[a>>2]+alphabet[((a&3)<<4)|(b>>4)]+(i+1<bytes.length?alphabet[((b&15)<<2)|(c>>6)]:'=')+(i+2<bytes.length?alphabet[c&63]:'=');}return out;};
+    for(let offset=0;offset<bytes.length;offset+=49152){const part=bytes.slice(offset,offset+49152);const wrote=await selects.files.writeChunk({path:listPath,offset,base64:base64(part)});if(wrote.bytesWritten!==part.length)throw Error('The matte input list was truncated.');}
+    args.push('-ss',String(matte.sourceRange.startSeconds),'-t',String(matte.sourceRange.endSeconds-matte.sourceRange.startSeconds),'-i',source.path,'-f','concat','-safe','0','-i',listPath);
+   }
+   // Match the prepared upright display raster and preserve the original RGB.
+   const w=matte.frameSize.width,h=matte.frameSize.height;
+   args.push('-filter_complex',`[0:v]setpts=PTS-STARTPTS,scale=${w}:${h},setsar=1,format=rgba[src];[1:v]setpts=PTS-STARTPTS,scale=${w}:${h},setsar=1,format=rgba[mask];[src]pad=${w*2}:${h}:0:0:color=black@0[canvas];[canvas][mask]overlay=x=${w}:y=0:shortest=0:repeatlast=1:format=auto[out]`,'-map','[out]','-an');
+   if((matte.sourceKind==='image'))args.push('-frames:v','1','-c:v','png','-pix_fmt','rgba');
+   else args.push('-t',String(matte.sourceRange.endSeconds-matte.sourceRange.startSeconds),'-c:v','prores_ks','-profile:v','4','-pix_fmt','yuva444p10le','-alpha_bits','16','-fps_mode','vfr');
+   args.push(temp);return {...metadata,path,temp,args,status:'prepared'};
+  },{workflowId,projectId,image});
+  await storage.setItem(key,JSON.stringify(state));
+ }
+ if(!current())throw Error('The project changed while preparing a matte.');
+ if(state.status==='prepared'){
+  state={...state,status:'starting'};await storage.setItem(key,JSON.stringify(state));
+  const ack=await run('return await selects.media.startFFmpeg({args:'+JSON.stringify(state.args)+'});',true);
+  state={...state,jobId:ack.jobId,status:'encoding'};await storage.setItem(key,JSON.stringify(state));
+ }
+ if(state.status==='starting')throw Error('The mask-input encoder acknowledgment is unknown. Preserve this preparation record and inspect the local media job before retrying.');
+ const wait=async jobId=>{for(;;){if(!current())throw Error('The project changed while preparing a matte.');const status=await run('return await selects.media.job('+JSON.stringify(jobId)+').status();');if(status.state==='succeeded')return;if(status.state==='failed'||status.state==='cancelled')throw Error(status.error||'Mask input preparation failed.');await new Promise(resolve=>setTimeout(resolve,200));}};
+ if(state.status==='encoding'){
+  try{await wait(state.jobId);}catch(error){await run('return await selects.media.job('+JSON.stringify(state.jobId)+').cancel();',true).catch(()=>{});throw error;}
+  // Decoding the entire result catches a truncated or corrupt intermediate.
+  const check=await run('return await selects.media.startFFmpeg({args:'+JSON.stringify(['-v','error','-nostdin','-i',state.temp,'-map','0:v:0','-f','null','-'])+'});',true);
+  try{await wait(check.jobId);}catch(error){await run('return await selects.media.job('+JSON.stringify(check.jobId)+').cancel();',true).catch(()=>{});throw error;}
+  await call(async function(selects,state){if(!await selects.files.exists(state.path))await selects.files.rename(state.temp,state.path);return true;},state);
+  state={...state,status:'ready'};await storage.setItem(key,JSON.stringify(state));
+ }
+ if(state.status!=='ready')throw Error('The prepared mask input is not ready.');
+ const imported=await call(async function(selects,cfg){
+  const p=selects.project(cfg.projectId);await p.importFiles({paths:[cfg.path]});const files=[];const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else files.push(n);};const root=await p.sourceFiles();if('fileTree' in root)walk(root.fileTree);else for(const folder of root.folders||[]){const child=await p.sourceFiles({folder:folder.name});if('fileTree' in child)walk(child.fileTree);}
+  const normalize=p=>String(p).replace(/\\/g,'/');const source=files.find(f=>normalize(f.path)===normalize(cfg.path));if(!source)throw Error('The packed matte input was not imported.');return source.resourceId;
+ },{projectId,path:state.path});
+ return {...state,packedResourceId:imported};
+}
 
-const PHOTO_MASK_EFFECT_TSX = `const React = require('react');
-const {AbsoluteFill} = require('remotion');
-export default function PersonMask({Source,data}) {
-  return <AbsoluteFill style={{maskImage:'url('+JSON.stringify(data.maskUrl)+')',
-    maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill>;
-}`;
+const PACKED_MATTE_SHADER="(()=>{// shared/shader-effects/graph.mjs\nvar IMAGE = `\nfn sat(x:f32)->f32{return clamp(x,0.0,1.0);}\nfn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}\nfn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}\nfn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}\nfn within(p:vec2f,size:vec2f)->f32 {\n let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));\n let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;\n}\nfn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}\nfn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}\nfn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}\nfn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}\nfn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {\n let q=abs(p-size*0.5)-size*0.5+r;\n let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;\n return sat(0.5-d);\n}\nfn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}\nfn sepia(c:vec3f,s:f32)->vec3f {\n let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));\n return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));\n}\nfn hue(c:vec3f,a:f32)->vec3f {\n let co=cos(a);let si=sin(a);\n let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);\n let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);\n let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);\n return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));\n}\nfn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}\nfn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}\n`;\nfunction number(value, fallback = 0) {\n  const n = typeof value === \"number\" ? value : Number(value);\n  return value == null || value === \"\" || !Number.isFinite(n) ? fallback : n;\n}\nvar Graph = class {\n  data = null;\n  passes = [];\n  images = [];\n  uniforms = [];\n  svgParameters = [];\n  constructor(data = {}) {\n    this.data = data;\n  }\n  pass(body, { inputs = [\"source\"], values = [], bindings = [], functions = \"\", scale = 1 } = {}) {\n    const id = `p${this.passes.length}`;\n    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + `\nfn effect(uv:vec2f)->vec4f {${body}}`, ...scale !== 1 ? { scale } : {} });\n    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });\n    return id;\n  }\n  image(svg, size = null) {\n    const id = `image${this.images.length}`;\n    this.images.push({ id, svg, ...size ? { size } : {} });\n    return id;\n  }\n  finish(output = this.passes.at(-1)?.id) {\n    if (!output || !this.passes.some((p) => p.id === output)) throw Error(\"Missing shader output\");\n    if (this.passes.length > 128 || this.images.length > 16) throw Error(\"Effect exceeds shader graph budget\");\n    for (const p of this.passes) {\n      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error(\"Invalid shader parameters\");\n      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error(\"Effect exceeds shader pass budget\");\n    }\n    return { graph: { schema: \"Cutback.ShaderEffect.1\", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };\n  }\n};\nfunction parameters(data, defaults) {\n  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);\n  for (const [key, fallback] of Object.entries(defaults)) {\n    const index = values.length;\n    values.push(number(data[key], Number(fallback)));\n    if (data[key] != null) bindings.push({ index, parameter: key });\n    refs[key] = `uniforms.values[${Math.floor(index / 4)}][${index % 4}]`;\n  }\n  return { values, bindings, refs };\n}\n\n// shared/shader-effects/matte.mjs\nfunction packedMatte(data = null) {\n  data = data || {};\n  const g = new Graph(data), p = parameters(data, { opacity: 1 });\n  g.pass(`let size=vec2f(textureDimensions(input0));let left=clamp(vec2f(uv.x*.5,uv.y),.5/size,vec2f(.5-.5/size.x,1.0-.5/size.y));let right=clamp(vec2f(.5+uv.x*.5,uv.y),vec2f(.5+.5/size.x,.5/size.y),1.0-.5/size);let c=textureSampleLevel(input0,linearSampler,left,0.0);let mask=textureSampleLevel(input0,linearSampler,right,0.0);return c*sat(dot(straight(mask).rgb,vec3f(.2126,.7152,.0722)))*sat(${p.refs.opacity});`, p);\n  return g.finish();\n}\n\n// shared/shader-effects/selects-ai-runtime.mjs\nfunction options(kind, input, context = null) {\n  context = context || {};\n  if (\"tsxCode\" in input) throw Error(\"A WGSL effect cannot carry legacy TSX\");\n  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };\n  let shader;\n  switch (kind) {\n    case \"matte\":\n      shader = packedMatte(data);\n      break;\n    default:\n      throw Error(\"Unknown selects-ai-runtime effect: \" + kind);\n  }\n  return { ...input, parameters: data, shader };\n}\n\nreturn options;})()";
+// END GENERATED NATIVE MATTE
 
 const terminal = status => ['succeeded', 'failed', 'canceled'].includes(status);
 const savedInputIsValid = (input, projectId) => input?.runtimeId === 'selects-ai-runtime' &&
@@ -349,15 +398,8 @@ function TaskPane({ sdk, context, U, task, active }) {
         draftId = matches[0].sequenceId;
       } else if (!draftId) {
         if (!backgroundId || !resources.some(row => row.resourceId === input.resourceId)) throw new Error(S.invalidSource);
-        // Prepare durable image files before recording a Draft attempt. Return only
-        // small metadata; a long mask's complete URL list stays inside run_script.
-        const prepared = await run(`
-          const r=await selects.ai.job(${JSON.stringify(job.workflowId)}, ${JSON.stringify(projectId)}).result();
-          if(!r.files.manifest) throw new Error('This job has no matte manifest.');
-          ${input.sourceRange === undefined ? `const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)},{sourceKind:'image'});
-            return {sourceKind:m.sourceKind,sourceResourceId:m.sourceResourceId,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,maskUrl:m.maskUrl};` :
-            `const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
-            return {sourceResourceId:m.sourceResourceId,sourceRange:m.sourceRange,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,frameCount:m.frames.length};`}`, true);
+        const prepared = await preparePackedMatte(run, recoveryStorage(sdk), job.workflowId,
+          projectId, input.sourceRange === undefined, () => current(token));
         if (!current(token)) return;
         if ((prepared.sourceKind === 'image') !== (input.sourceRange === undefined) || prepared.sourceResourceId !== input.resourceId || !['grayscale-png-8bit', 'grayscale-avif-8bit'].includes(prepared.alphaEncoding) ||
             (prepared.sourceKind==='image' ? typeof prepared.maskUrl!=='string' : (!Number.isSafeInteger(prepared.frameCount) || prepared.frameCount < 1 ||
@@ -366,7 +408,8 @@ function TaskPane({ sdk, context, U, task, active }) {
         attempt = { workflowId: job.workflowId, name: `AI Runtime layered · ${job.workflowId}`, backgroundId, status: 'unknown' };
         if (!await saveDraftAttempt(input, attempt, token) || !current(token)) return;
         setDraftAttempt(attempt);
-        const value = await run(`const p=selects.project(${JSON.stringify(projectId)});
+        const value = await run(`const pluginShaderOptions=${PACKED_MATTE_SHADER};
+          const p=selects.project(${JSON.stringify(projectId)});
           const name=${JSON.stringify(attempt.name)};
           const matches=(await p.readFootage()).drafts.filter(d=>d.name===name);
           if(matches.length>1) throw new Error('Multiple matching Drafts need manual inspection.');
@@ -381,10 +424,14 @@ function TaskPane({ sdk, context, U, task, active }) {
           if(m.durationFrames<=0) throw new Error('The source window produced an empty Draft.');
           await d.overlayResource({resource:p.resource(${JSON.stringify(backgroundId)}),over:await d.rangeAtFrames(0,m.durationFrames)});
           const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
-          await d.overlayResource({resource:p.resource(matte.sourceResourceId),over:await d.rangeAtFrames(0,m.durationFrames),${input.sourceRange === undefined ? '' : 'sourceStartSeconds:matte.sourceRange.startSeconds'}});
+          await d.overlayResource({resource:p.resource(${JSON.stringify(prepared.packedResourceId)}),over:await d.rangeAtFrames(0,m.durationFrames),sourceStartSeconds:0});
           const added=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='video');
           if(added.length!==1) throw new Error('The source overlay did not produce exactly one video clip.');
-          await d.addVideoEffect({clip:added[0],label:'Person mask',tsxCode:${JSON.stringify(input.sourceRange === undefined ? PHOTO_MASK_EFFECT_TSX : MASK_EFFECT_TSX)},parameters:${input.sourceRange === undefined ? '{maskUrl:matte.maskUrl}' : `{sourceStartSeconds:matte.sourceRange.startSeconds,sourceEndSeconds:matte.sourceRange.endSeconds,frames:matte.frames.map(f=>({sourceTimeSeconds:f.sourceTimeSeconds,url:f.url}))}`}});
+          const originalFit=Math.min(m.frameSize.width/matte.frameSize.width,m.frameSize.height/matte.frameSize.height);
+          const packedFit=Math.min(m.frameSize.width/(2*matte.frameSize.width),m.frameSize.height/matte.frameSize.height);
+          await d.setClipTransform({clip:added[0],scale:{x:originalFit/(2*packedFit),y:originalFit/packedFit}});
+          const masked=(await d.clips({trackScope:'all'})).find(c=>c.clipId===added[0].clipId);
+          await d.addVideoEffect(pluginShaderOptions('matte',{clip:masked,label:'Person mask',parameters:{opacity:1},editableParameters:[{key:'opacity',label:'Opacity',type:'number',defaultValue:1,min:0,max:1,step:0.01}]}));
           const c=await d.commitAll('Layer saved person masks over a background while preserving original Main audio');
           if(!c.createdDraftId) throw new Error('The created Draft acknowledgment has no identity.');
           return {draftId:c.createdDraftId};`, true);

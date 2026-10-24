@@ -3,6 +3,9 @@ name: camera-shutter-dump
 description: Build the "camera shutter dump" format - twelve photos stack into a collage on black, one per camera shutter sound - as editable original Image clips with bundled shutter sound effects.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Camera Shutter Dump
 
 Use this plugin when the user asks for the camera shutter dump / shutter photo dump format. The format is fixed; the photos are the user's.

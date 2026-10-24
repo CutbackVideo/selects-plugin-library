@@ -540,7 +540,138 @@ function planEnding(pool,slots){
 // the clip is scaled and moved), so the frame's strip is given in that
 // picture's terms: the clip is centred on its strip, and the strip is its middle.
 function makeAssembly(run){const s=run.settings,shape=layout(s,run.source.frameSize);const titleDefs=[{key:'title',label:'Title',type:'text',defaultValue:s.title},{key:'upper',label:'All caps',type:'boolean',defaultValue:s.upperTitle!==false},{key:'fontFamily',label:'Font',type:'text',defaultValue:s.fontFamily},{key:'titleColor',label:'Color',type:'color',defaultValue:s.titleColor},{key:'titleSize',label:'Size',type:'number',defaultValue:244,min:120,max:360,step:1}],subtitleDefs=[{key:'subtitle',label:'Subtitle',type:'text',defaultValue:s.subtitle},{key:'subtitleColor',label:'Color',type:'color',defaultValue:s.subtitleColor},{key:'subtitleSize',label:'Size',type:'number',defaultValue:60,min:32,max:160,step:1}];
-return `const cfg=${json({projectId:run.projectId,name:run.draftName,s,shape,mask:run.mask,rvmResourceId:run.foregroundResourceId||run.rvmResourceId||null,backgroundSizes:run.backgrounds?.map(x=>x?.frameSize||null),subjectSize:run.source.frameSize||null,box:run.mask?.box||null,endingPlan:planEnding(run.ending||[],Math.round((TIMING.end-TIMING.revealAt)/(Number(run.sfxIds?.music?.sixteenth)||TIMING.slice))),endingSizeById:Object.fromEntries((run.ending||[]).map(x=>[x?.resourceId,x?.frameSize||null])),sfx:run.sfxIds||{},T:TIMING})};const T=cfg.T,SFX:Record<string,any>=cfg.sfx,FW=cfg.shape.width,FH=cfg.shape.height;const fill=(sz:any,w:number,h:number)=>{const fit=Math.min(FW/sz.width,FH/sz.height);return Math.max(1,w/(sz.width*fit),h/(sz.height*fit))};const subPos=(()=>{const sz:any=cfg.subjectSize,b:any=cfg.box,k=cfg.shape.scale;if(!sz?.width||!sz?.height||!b)return{x:0,y:0};const f=Math.min(FW/sz.width,FH/sz.height),dw=sz.width*f*k,dh=sz.height*f*k,mx=Math.max(0,(dw-FW)/2),my=Math.max(0,(dh-FH)/2),clamp=(v:number,m:number)=>Math.max(-m,Math.min(m,v)),right=-((b.x0+b.x1)/2-.5)*dw,down=(b.y1-b.y0)*dh<=.92*FH?-((b.y0+b.y1)/2-.5)*dh:-.46*FH-(b.y0-.5)*dh;return{x:clamp(right,mx)/FH*100,y:-clamp(down,my)/FH*100}})();const p=selects.project(cfg.projectId),d=await p.createDraft({name:cfg.name});const source=cfg.s.subjectId,start=cfg.s.subjectStartSec;await d.insertResource({resourceId:source,sourceRange:{startSeconds:start,endSeconds:start+T.subjectEnd}});await d.setFrameSize({width:cfg.shape.width,height:cfg.shape.height});const all=()=>d.clips({trackScope:'all'});let sub=(await d.clips({trackScope:'main'})).find(c=>c.resourceId===source);if(!sub)throw Error('Subject missing');await d.setClipColor({clips:sub,color:'blue'});sub=(await all()).find(c=>c.clipId===sub.clipId);if(!sub)throw Error('Subject refresh failed');await d.setClipTransform({clip:sub,scale:{x:cfg.shape.scale,y:cfg.shape.scale},position:subPos});await d.insertGap({seconds:T.revealAt-T.subjectEnd});const six=Number(SFX.music?.sixteenth)||T.slice,rate=(await d.meta()).fps,plan=cfg.endingPlan,endIds=new Set(plan.map(x=>x.id)),ES:Record<string,any>=cfg.endingSizeById;for(let i=0;i<plan.length;i++){const len=(Math.round((i+1)*six*rate)-Math.round(i*six*rate))/rate,at=plan[i].at;await d.insertResource({resourceId:plan[i].id,sourceRange:{startSeconds:at,endSeconds:at+len}});}let main=await d.clips({trackScope:'main'});const photos=main.filter(c=>endIds.has(c.resourceId));await d.setClipColor({clips:photos,color:'orange'});main=await d.clips({trackScope:'main'});for(const {id,rid} of main.filter(c=>endIds.has(c.resourceId)).map(c=>({id:c.clipId,rid:String(c.resourceId)}))){const sz:any=ES[rid];if(!sz?.width||!sz?.height)continue;const k=fill(sz,FW,FH);if(k<=1.0001)continue;const c=(await d.clips({trackScope:'main'})).find(x=>x.clipId===id);if(c)await d.setClipTransform({clip:c,scale:{x:k,y:k}})}const fps=(await d.meta()).fps,END=main.reduce((n,c)=>Math.max(n,c.endFrame),0),at=t=>Math.min(END,Math.round(t*fps)),REVEAL_AT=Math.min(...photos.map(c=>c.startFrame));async function over(id,a,b,ss,color){const before=new Set((await all()).map(c=>c.clipId));await d.overlayResource({resource:p.resource(id),over:await d.rangeAtFrames(a,b),sourceStartSeconds:ss});const c=(await all()).find(c=>!before.has(c.clipId)&&c.resourceId===id);if(!c)throw Error('Overlay missing');await d.setClipColor({clips:c,color});return(await all()).find(x=>x.clipId===c.clipId)||c}for(let i=0;i<cfg.s.bgIds.length;i++){let c=await over(cfg.s.bgIds[i],at(T.stripFirst+T.stripEvery*i),at(T.stripEnd),0,'green');const sz:any=cfg.backgroundSizes?.[i],n=cfg.s.bgIds.length,strip=FW/n;let lp=i*100/n,rp=(i+1)*100/n;if(sz?.width&&sz?.height){const k=fill(sz,strip,FH),dw=sz.width*Math.min(FW/sz.width,FH/sz.height)*k;await d.setClipTransform({clip:c,scale:{x:k,y:k},position:{x:((i+.5)*strip-FW/2)/FH*100,y:0}});lp=(dw-strip)/2/dw*100;rp=(dw+strip)/2/dw*100}c=(await all()).find(x=>x.clipId===c.clipId)||c;await d.addVideoEffect({clip:c,label:'Panel '+(i+1)+' Reveal',tsxCode:${json(PANEL)},parameters:{leftPct:lp,rightPct:rp,revealSeconds:0}})}if(!cfg.rvmResourceId||cfg.rvmResourceId===source)throw Error('A distinct cutout Resource is required');const maskParams={baseUrl:cfg.mask.baseUrl,maskFps:cfg.mask.fps,count:cfg.mask.count};async function cutout(a,b,label,white){let c=await over(cfg.rvmResourceId,a,b,a/fps,'violet');await d.setClipTransform({clip:c,scale:{x:cfg.shape.scale,y:cfg.shape.scale},position:subPos});c=(await all()).find(x=>x.clipId===c.clipId)||c;await d.addVideoEffect({clip:c,label,tsxCode:${json(MASK)},parameters:{...maskParams,sourceStartSeconds:a/fps,white}});return c}await cutout(0,at(T.flashAt),'Cutout',false);await cutout(at(T.flashAt),at(T.subjectEnd),'White flash',true);const graphics=[];for(let k=0;k<T.closeAt.length;k++){const a=at(T.closeAt[k]),b=k+1<T.closeAt.length?at(T.closeAt[k+1]):REVEAL_AT;graphics.push(await d.addMotionGraphic({label:'Close '+(k+1),tsxCode:${json(CLOSE)},parameters:{from:k/T.closeAt.length,to:(k+1)/T.closeAt.length,slideSeconds:T.closeSlide},within:await d.rangeAtFrames(a,b)}))}graphics.push(await d.addMotionGraphic({label:'Reveal',tsxCode:${json(REVEAL)},parameters:{openSeconds:T.revealEnd-T.revealAt},within:await d.rangeAtFrames(REVEAL_AT,END)}));const look={title:cfg.s.title,upper:cfg.s.upperTitle!==false,fontFamily:cfg.s.fontFamily,titleColor:cfg.s.titleColor,titleSize:244,titleX:50,titleY:49};graphics.push(await d.addMotionGraphic({label:'Subtitle',tsxCode:${json(SUBTITLE)},parameters:{...look,subtitle:cfg.s.subtitle,subtitleColor:cfg.s.subtitleColor,subtitleSize:60},editableParameters:${json(subtitleDefs)},within:await d.rangeAtFrames(at(T.subtitleAt),END)}));graphics.push(await d.addMotionGraphic({label:'Title',tsxCode:${json(TITLE)},parameters:{...look,tickSeconds:T.tickEvery,settleSeconds:((Number(SFX.scramble?.ticks)||T.titleTicks)-1)*T.tickEvery},editableParameters:${json(titleDefs)},within:await d.rangeAtFrames(at(T.titleAt),END)}));await d.setClipColor({clips:(await all()).filter(c=>graphics.some(g=>g.clipId===c.clipId)),color:'red'});const hits=[...cfg.s.bgIds.map((_,i)=>['panel',T.stripFirst+T.stripEvery*i,i]),...T.closeAt.map((t,i)=>['curtain',t,i]),['title',T.subtitleAt,0],['scramble',T.titleAt,0]],takes=key=>Object.keys(SFX).filter(k=>k===key||k.startsWith(key+'.')).sort().map(k=>SFX[k]);for(const [key,t,n] of [...hits,['tone',0,0],['riser',T.flashAt-.5,0]]){const v=takes(String(key)),s=v[Number(n)%Math.max(1,v.length)];if(!s?.id)continue;const a=at(t),len=Math.min(Math.floor(s.duration*fps),Math.ceil((s.soundSeconds||s.duration)*fps));await over(s.id,a,Math.min(END,a+len),0,'yellow')}if(SFX.music?.id)await over(SFX.music.id,REVEAL_AT,Math.min(END,REVEAL_AT+Math.floor(SFX.music.duration*fps)),0,'yellow');const commit=await d.commitAll('postcard-cutout-studio: immutable mask assets and one assembly commit');if(!commit.createdDraftId)throw Error('Created Draft id missing');const saved=selects.draft(commit.createdDraftId),[m,clips]=await Promise.all([saved.meta(),saved.clips({trackScope:'all'})]);return{draftId:commit.createdDraftId,commit,meta:m,clipCount:clips.length,mainCount:clips.filter(c=>c.trackKind==='main').length,graphics:clips.filter(c=>c.resourceId===null).map(c=>({clipId:c.clipId,startFrame:c.startFrame,endFrame:c.endFrame})),scale:cfg.shape.scale}`}
+return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+function choice(p, data, key, values, fallback) {
+  const value = data[key] ?? fallback, index = p.values.length;
+  if (!Object.hasOwn(values, String(value))) throw Error(\`Unsupported \${key}: \${value}\`);
+  p.values.push(values[String(value)]);
+  if (data[key] != null) p.bindings.push({ index, parameter: key, values });
+  return \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+}
+
+// shared/shader-effects/framing.mjs
+function panelReveal(data) {
+  const g = new Graph(data), p = parameters(data, { leftPct: 0, rightPct: 100, revealSeconds: 0 });
+  g.pass(\`let progress=select(1.0,sat(uniforms.clock.z/max(.000001,\${p.refs.revealSeconds})),\${p.refs.revealSeconds}>0.0);
+    let left=\${p.refs.leftPct}/100.0;let right=mix(left,\${p.refs.rightPct}/100.0,progress);
+    let mask=sat((uv.x-left)*uniforms.resolution.x+.5)*sat((right-uv.x)*uniforms.resolution.x+.5);
+    return source(uv)*mask;\`, p);
+  return g.finish();
+}
+
+// shared/shader-effects/matte.mjs
+function postcardMatte(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { sourceStartSeconds: 0, maskFps: 30, count: 1 });
+  const white = choice(p, data, "white", { true: 1, false: 0 }, false);
+  g.pass(\`let i=round((uniforms.clock.z+\${p.refs.sourceStartSeconds})*\${p.refs.maskFps});if(i<0.0||i>=\${p.refs.count}){return vec4f(0.0);}let c=source(uv);let alpha=c.a*c.a;return select(c*c.a,vec4f(vec3f(alpha),alpha),\${white}>.5);\`, p);
+  return g.finish();
+}
+
+// shared/shader-effects/postcard-cutout-studio.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "panel":
+      shader = panelReveal(data);
+      break;
+    case "matte":
+      shader = postcardMatte(data);
+      break;
+    default:
+      throw Error("Unknown postcard-cutout-studio effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const cfg=${json({projectId:run.projectId,name:run.draftName,s,shape,mask:run.mask,rvmResourceId:run.foregroundResourceId||run.rvmResourceId||null,backgroundSizes:run.backgrounds?.map(x=>x?.frameSize||null),subjectSize:run.source.frameSize||null,box:run.mask?.box||null,endingPlan:planEnding(run.ending||[],Math.round((TIMING.end-TIMING.revealAt)/(Number(run.sfxIds?.music?.sixteenth)||TIMING.slice))),endingSizeById:Object.fromEntries((run.ending||[]).map(x=>[x?.resourceId,x?.frameSize||null])),sfx:run.sfxIds||{},T:TIMING})};const T=cfg.T,SFX:Record<string,any>=cfg.sfx,FW=cfg.shape.width,FH=cfg.shape.height;const fill=(sz:any,w:number,h:number)=>{const fit=Math.min(FW/sz.width,FH/sz.height);return Math.max(1,w/(sz.width*fit),h/(sz.height*fit))};const subPos=(()=>{const sz:any=cfg.subjectSize,b:any=cfg.box,k=cfg.shape.scale;if(!sz?.width||!sz?.height||!b)return{x:0,y:0};const f=Math.min(FW/sz.width,FH/sz.height),dw=sz.width*f*k,dh=sz.height*f*k,mx=Math.max(0,(dw-FW)/2),my=Math.max(0,(dh-FH)/2),clamp=(v:number,m:number)=>Math.max(-m,Math.min(m,v)),right=-((b.x0+b.x1)/2-.5)*dw,down=(b.y1-b.y0)*dh<=.92*FH?-((b.y0+b.y1)/2-.5)*dh:-.46*FH-(b.y0-.5)*dh;return{x:clamp(right,mx)/FH*100,y:-clamp(down,my)/FH*100}})();const p=selects.project(cfg.projectId),d=await p.createDraft({name:cfg.name});const source=cfg.s.subjectId,start=cfg.s.subjectStartSec;await d.insertResource({resourceId:source,sourceRange:{startSeconds:start,endSeconds:start+T.subjectEnd}});await d.setFrameSize({width:cfg.shape.width,height:cfg.shape.height});const all=()=>d.clips({trackScope:'all'});let sub=(await d.clips({trackScope:'main'})).find(c=>c.resourceId===source);if(!sub)throw Error('Subject missing');await d.setClipColor({clips:sub,color:'blue'});sub=(await all()).find(c=>c.clipId===sub.clipId);if(!sub)throw Error('Subject refresh failed');await d.setClipTransform({clip:sub,scale:{x:cfg.shape.scale,y:cfg.shape.scale},position:subPos});await d.insertGap({seconds:T.revealAt-T.subjectEnd});const six=Number(SFX.music?.sixteenth)||T.slice,rate=(await d.meta()).fps,plan=cfg.endingPlan,endIds=new Set(plan.map(x=>x.id)),ES:Record<string,any>=cfg.endingSizeById;for(let i=0;i<plan.length;i++){const len=(Math.round((i+1)*six*rate)-Math.round(i*six*rate))/rate,at=plan[i].at;await d.insertResource({resourceId:plan[i].id,sourceRange:{startSeconds:at,endSeconds:at+len}});}let main=await d.clips({trackScope:'main'});const photos=main.filter(c=>endIds.has(c.resourceId));await d.setClipColor({clips:photos,color:'orange'});main=await d.clips({trackScope:'main'});for(const {id,rid} of main.filter(c=>endIds.has(c.resourceId)).map(c=>({id:c.clipId,rid:String(c.resourceId)}))){const sz:any=ES[rid];if(!sz?.width||!sz?.height)continue;const k=fill(sz,FW,FH);if(k<=1.0001)continue;const c=(await d.clips({trackScope:'main'})).find(x=>x.clipId===id);if(c)await d.setClipTransform({clip:c,scale:{x:k,y:k}})}const fps=(await d.meta()).fps,END=main.reduce((n,c)=>Math.max(n,c.endFrame),0),at=t=>Math.min(END,Math.round(t*fps)),REVEAL_AT=Math.min(...photos.map(c=>c.startFrame));async function over(id,a,b,ss,color){const before=new Set((await all()).map(c=>c.clipId));await d.overlayResource({resource:p.resource(id),over:await d.rangeAtFrames(a,b),sourceStartSeconds:ss});const c=(await all()).find(c=>!before.has(c.clipId)&&c.resourceId===id);if(!c)throw Error('Overlay missing');await d.setClipColor({clips:c,color});return(await all()).find(x=>x.clipId===c.clipId)||c}for(let i=0;i<cfg.s.bgIds.length;i++){let c=await over(cfg.s.bgIds[i],at(T.stripFirst+T.stripEvery*i),at(T.stripEnd),0,'green');const sz:any=cfg.backgroundSizes?.[i],n=cfg.s.bgIds.length,strip=FW/n;let lp=i*100/n,rp=(i+1)*100/n;if(sz?.width&&sz?.height){const k=fill(sz,strip,FH),dw=sz.width*Math.min(FW/sz.width,FH/sz.height)*k;await d.setClipTransform({clip:c,scale:{x:k,y:k},position:{x:((i+.5)*strip-FW/2)/FH*100,y:0}});lp=(dw-strip)/2/dw*100;rp=(dw+strip)/2/dw*100}c=(await all()).find(x=>x.clipId===c.clipId)||c;await d.addVideoEffect(pluginShaderOptions("panel",{clip:c,
+label:'Panel '+(i+1)+' Reveal',
+parameters:{leftPct:lp,rightPct:rp,revealSeconds:0}}))}if(!cfg.rvmResourceId||cfg.rvmResourceId===source)throw Error('A distinct cutout Resource is required');const maskParams={baseUrl:cfg.mask.baseUrl,maskFps:cfg.mask.fps,count:cfg.mask.count};async function cutout(a,b,label,white){let c=await over(cfg.rvmResourceId,a,b,a/fps,'violet');await d.setClipTransform({clip:c,scale:{x:cfg.shape.scale,y:cfg.shape.scale},position:subPos});c=(await all()).find(x=>x.clipId===c.clipId)||c;await d.addVideoEffect(pluginShaderOptions("matte",{clip:c,
+label,
+parameters:{...maskParams,sourceStartSeconds:a/fps,white}}));return c}await cutout(0,at(T.flashAt),'Cutout',false);await cutout(at(T.flashAt),at(T.subjectEnd),'White flash',true);const graphics=[];for(let k=0;k<T.closeAt.length;k++){const a=at(T.closeAt[k]),b=k+1<T.closeAt.length?at(T.closeAt[k+1]):REVEAL_AT;graphics.push(await d.addMotionGraphic({label:'Close '+(k+1),tsxCode:${json(CLOSE)},parameters:{from:k/T.closeAt.length,to:(k+1)/T.closeAt.length,slideSeconds:T.closeSlide},within:await d.rangeAtFrames(a,b)}))}graphics.push(await d.addMotionGraphic({label:'Reveal',tsxCode:${json(REVEAL)},parameters:{openSeconds:T.revealEnd-T.revealAt},within:await d.rangeAtFrames(REVEAL_AT,END)}));const look={title:cfg.s.title,upper:cfg.s.upperTitle!==false,fontFamily:cfg.s.fontFamily,titleColor:cfg.s.titleColor,titleSize:244,titleX:50,titleY:49};graphics.push(await d.addMotionGraphic({label:'Subtitle',tsxCode:${json(SUBTITLE)},parameters:{...look,subtitle:cfg.s.subtitle,subtitleColor:cfg.s.subtitleColor,subtitleSize:60},editableParameters:${json(subtitleDefs)},within:await d.rangeAtFrames(at(T.subtitleAt),END)}));graphics.push(await d.addMotionGraphic({label:'Title',tsxCode:${json(TITLE)},parameters:{...look,tickSeconds:T.tickEvery,settleSeconds:((Number(SFX.scramble?.ticks)||T.titleTicks)-1)*T.tickEvery},editableParameters:${json(titleDefs)},within:await d.rangeAtFrames(at(T.titleAt),END)}));await d.setClipColor({clips:(await all()).filter(c=>graphics.some(g=>g.clipId===c.clipId)),color:'red'});const hits=[...cfg.s.bgIds.map((_,i)=>['panel',T.stripFirst+T.stripEvery*i,i]),...T.closeAt.map((t,i)=>['curtain',t,i]),['title',T.subtitleAt,0],['scramble',T.titleAt,0]],takes=key=>Object.keys(SFX).filter(k=>k===key||k.startsWith(key+'.')).sort().map(k=>SFX[k]);for(const [key,t,n] of [...hits,['tone',0,0],['riser',T.flashAt-.5,0]]){const v=takes(String(key)),s=v[Number(n)%Math.max(1,v.length)];if(!s?.id)continue;const a=at(t),len=Math.min(Math.floor(s.duration*fps),Math.ceil((s.soundSeconds||s.duration)*fps));await over(s.id,a,Math.min(END,a+len),0,'yellow')}if(SFX.music?.id)await over(SFX.music.id,REVEAL_AT,Math.min(END,REVEAL_AT+Math.floor(SFX.music.duration*fps)),0,'yellow');const commit=await d.commitAll('postcard-cutout-studio: immutable mask assets and one assembly commit');if(!commit.createdDraftId)throw Error('Created Draft id missing');const saved=selects.draft(commit.createdDraftId),[m,clips]=await Promise.all([saved.meta(),saved.clips({trackScope:'all'})]);return{draftId:commit.createdDraftId,commit,meta:m,clipCount:clips.length,mainCount:clips.filter(c=>c.trackKind==='main').length,graphics:clips.filter(c=>c.resourceId===null).map(c=>({clipId:c.clipId,startFrame:c.startFrame,endFrame:c.endFrame})),scale:cfg.shape.scale}`}
 // Background removal goes through the app's own generation service - the path
 // the built-in Generate video/audio tools use - rather than asking the AI to
 // call generate_media. Those AI round trips (model lookup, upload, submit, then
