@@ -63,10 +63,12 @@ export default function StatCards({ data }) {
   const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;
   const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
   const cardAt = (i) => ({ x: X0 + (i % cols) * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });
+  // The cards whose text takes more lines than one: every card grows with them (the layout check names them).
+  const cause = laid.filter((c) => c.header.length > 1 || c.label0.length > 1 || c.v0.length > 1 || c.unitOwn || c.label1.length > 1 || c.v1.length > 1).map((c) => c.header.join(' '));
   laid.forEach((c, i) => {
     const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
     const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: 'c' }));
-    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)]);
+    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)], { cause });
     reportLines('card name', lines(c.header, y0 - 2 + (BAND + d1) / 2 - (BL * (c.header.length - 1)) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
     reportLines('card label', lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
     reportLines('card number', lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));

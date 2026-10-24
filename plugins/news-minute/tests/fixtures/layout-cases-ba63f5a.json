@@ -1,0 +1,175 @@
+[
+ {
+  "id": "customer-wolse-three",
+  "type": "stat_cards",
+  "label": "\uace0\uac1d \uc6d0\ubcf8 \uc6d4\uc138 SC4 \u00b7 3\uac1c \uce74\ub4dc, 2\ud589",
+  "data": {
+   "title": "\uc6d4\uc138 300\ub9cc\uc6d0 \ub6ab\uc740 \uc11c\uc6b8 \uc678\uacfd \uc544\ud30c\ud2b8",
+   "subtitle": "\uc62c\ud574 3~7\uc6d4 \uac70\ub798\ub41c \uc6d4\uc138 \uc544\ud30c\ud2b8 \uae30\uc900",
+   "cards": [
+    {
+     "header": "\ub178\uc6d0\uad6c",
+     "rows": [
+      {
+       "label": "\uc6d4\uc138",
+       "value": "300\ub9cc",
+       "unit": "\uc6d0"
+      },
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uac15\ubd81\uad6c",
+     "rows": [
+      {
+       "label": "\uc6d4\uc138",
+       "value": "315\ub9cc",
+       "unit": "\uc6d0"
+      },
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "5000\ub9cc\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uad00\uc545\uad6c",
+     "rows": [
+      {
+       "label": "\uc6d4\uc138",
+       "value": "300\ub9cc",
+       "unit": "\uc6d0"
+      },
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b5\uc6d0"
+      }
+     ]
+    }
+   ],
+   "source": "\uc790\ub8cc=\uad6d\ud1a0\uad50\ud1b5\ubd80"
+  }
+ },
+ {
+  "id": "customer-quote",
+  "type": "quote_card",
+  "label": "\uace0\uac1d \uc6d0\ubcf8 \uc6d4\uc138 SC7 \u00b7 \ub450 \uc904\uc5d0 \uc774\uc5b4\uc9c4 \ud615\uad11\ud39c",
+  "data": {
+   "name": "\uc720\uc120\uc885",
+   "affiliation": "\uac74\uad6d\ub300 \uad50\uc218",
+   "lines": [
+    "\uc2e4\uac70\uc8fc \uaddc\uc81c\ub85c \uc778\ud55c",
+    "\uae09\uaca9\ud55c \uc804\uc138\uc758 \uc6d4\uc138\ud654\uac00",
+    "{\uccad\ub144\uce35 \uc8fc\uac70 \uc0ac\ub2e4\ub9ac\ub97c}",
+    "{\ubd95\uad34\uc2dc\ud0a4\uace0 \uc788\ub2e4}"
+   ],
+   "accentLines": [],
+   "source": "\uc790\ub8cc=\uae30\uc0ac \uc6d0\ubb38"
+  }
+ },
+ {
+  "id": "stat-grid-one-long-header",
+  "type": "stat_cards",
+  "label": "4\uac1c \uc911 \ud55c \uba38\ub9ac\uae00\ub9cc \ub450 \uc904 \u00b7 \ud569\uc131",
+  "data": {
+   "title": "\ubcf4\uc99d\uae08 \ube44\uad50",
+   "cards": [
+    {
+     "header": "\uc11c\uc6b8 \ub3d9\ubd81\ubd80 \uc2e0\ucd95 \uc544\ud30c\ud2b8",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uac15\ubd81\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uad00\uc545\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\ub3c4\ubd09\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    }
+   ],
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ },
+ {
+  "id": "stat-grid-shortened",
+  "type": "stat_cards",
+  "label": "\uacf5\ud1b5 \ub9e5\ub77d\uc744 \uc81c\ubaa9\uc5d0 \ub454 4\uac1c \uce74\ub4dc \u00b7 \ud569\uc131",
+  "data": {
+   "title": "\uc11c\uc6b8 \uc2e0\ucd95 \uc544\ud30c\ud2b8 \ubcf4\uc99d\uae08",
+   "cards": [
+    {
+     "header": "\ub3d9\ubd81\ubd80",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\ub3d9\ub0a8\ubd80",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uc11c\ubd81\ubd80",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uc11c\ub0a8\ubd80",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    }
+   ],
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ }
+]

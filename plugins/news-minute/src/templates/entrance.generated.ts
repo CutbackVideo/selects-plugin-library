@@ -252,7 +252,7 @@ function useScene(data, natural = 0) {
 }
 const SCENE = {
   "bar_compare_h": (data) => {
-    const BASE = 600;
+    const BASE0 = 600, LL = 60, SL = 36, UL = 44;
     const decimals = (v) => {
       const t = String(v);
       return t.includes(".") && !/e/i.test(t) ? t.length - t.indexOf(".") - 1 : 0;
@@ -281,24 +281,48 @@ const SCENE = {
       const ws = bars.map((_, i) => i === hero ? 290 : 200);
       const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);
       const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);
+      const slots = ws.map((w) => w + space - 8);
+      const names = bars.map((b, i) => wrapLines(String(b?.label ?? ""), 54, slots[i]));
+      const subs = bars.map((b, i) => String(b?.sub ?? "") ? wrapLines(String(b.sub), 30, slots[i]) : []);
+      const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;
+      const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
+      const BASE = BASE0 - nameExtra - subExtra;
       const max = Math.max(1e-9, ...vals);
+      const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;
+      const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));
+      const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;
+      const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);
+      const above = (i) => i === hero ? fitsInside ? null : { size: 72, uSize: 40, lift: 52 } : { size: 58, uSize: 34, lift: 48 };
       const top = vals.indexOf(Math.max(...vals));
-      const tallH = top === hero ? 400 : subtitle ? 340 : 380;
+      const ownAbove = bars.some((_, i) => above(i) && unitOwn(finals[i], above(i).size, above(i).uSize, slots[i]));
+      const tallH = (top === hero && fitsInside ? 400 : subtitle ? 340 : 380) - nameExtra - subExtra - (ownAbove ? UL : 0);
       const H2 = vals.map((v) => v / max * tallH);
-      const inside = hero >= 0 && H2[hero] >= 150;
+      const inside = fitsInside && H2[hero] >= 150 + (ownInside ? UL : 0);
       const pb = smooth(prog(s.t, 0.1, 1));
-      const valueRun = (text, size, uSize, color, maxW) => {
-        const sc = Math.min(1, maxW / Math.max(1, ems(text) * size + ems(unit) * uSize + 4));
-        return /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: size * sc * k, letterSpacing: -1 * sc * k } }, text), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: uSize * sc * k, fontWeight: 700, marginLeft: 3 * sc * k } }, unit) : null);
-      };
+      const valueRun = (text, size, uSize, color, own) => /* @__PURE__ */ STUB("div", { style: { display: "flex", flexDirection: own ? "column" : "row", alignItems: own ? "center" : "baseline", color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: size * k, letterSpacing: -1 * k } }, text), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: uSize * k, fontWeight: 700, marginLeft: own ? 0 : 3 * k, marginTop: own ? (UL - uSize) * k : 0 } }, unit) : null);
+      const valueAt = bars.map((_, i) => {
+        const a = i === hero && inside ? null : above(i) ?? { size: 72, uSize: 40, lift: 52 };
+        if (!a) return { inside: true, size: 86, uSize: 48, own: ownInside, y: BASE - H2[i] + 80 + (ownInside ? UL / 2 : 0) };
+        const own = unitOwn(finals[i], a.size, a.uSize, slots[i]);
+        return { inside: false, size: a.size, uSize: a.uSize, own, y: BASE - H2[i] - a.lift - (own ? UL / 2 : 0) };
+      });
+      const roomTop = subtitle ? 162 : 112;
+      bars.forEach((_, i) => {
+        const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data2)];
+        reportLines("bar name", names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: "c" })), 54, area);
+        reportLines("bar sub line", subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: "c" })), 30, area);
+        const v = valueAt[i];
+        const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H2[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H2[i]];
+        const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;
+        const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
+        report("bar value", finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size], vArea, { size: v.size, lines: 1, maxLines: 1 });
+      });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), pb > 0 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold } }) : null, bars.map((b, i) => {
         const big = i === hero, t0 = start[i], w = ws[i];
         const h = H2[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1)), big ? 0.015 : 0.03);
-        const slot = w + space - 8;
-        const label = String(b?.label ?? ""), sub = String(b?.sub ?? "");
         const v = Number(b?.value) || 0;
         const cp = prog(s.t, t0 + 1.2, t0 + 2.5);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: label, hlAt: t0 + 0.6 }))), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: t0 + 0.72 }))) : null, !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: BASE - H2[i] - 48 }, valueRun(fmt(v, dec), 58, 34, C.ink2, slot)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, w - 24))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: BASE - H2[i] - 52 }, valueRun(fmt(v, dec), 72, 40, accent, slot)) : null);
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, names[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.6 })))), subs[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "u" + j, s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 + nameExtra + SL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.72 })))), !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 + (ownInside ? UL / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 72, 40, accent, valueAt[i].own)) : null);
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -307,6 +331,7 @@ const SCENE = {
     const GREYS = ["#968E7E", "#BAB2A0", "#D6CEBC"];
     const DCX = 300, DCY = 472, R = 225, RI = 138;
     const HERO = [0.5, 1.5], REST = [1.9, 3.1];
+    const HOLE = 220, VH = 80, UH = 48, LH = 34, LEG_X = 628;
     const pt = (a, r) => [DCX + r * Math.cos(a * Math.PI / 180), DCY + r * Math.sin(a * Math.PI / 180)];
     function sector(a0, a1) {
       const big = a1 - a0 > 180 ? 1 : 0;
@@ -372,26 +397,56 @@ const SCENE = {
       const count = countable(fmt(hero.value));
       const cp = prog(s.t, 1.3, 2.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      const rowY = (i) => 300 + (i === 0 ? 0 : 82 + (i - 1) * 58);
-      let slot = 0;
+      const heroText = fmt(hero.value);
+      const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+      const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
+      const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
+      const vy = DCY - holeH / 2 + VH / 2;
+      const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
+      const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
+      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c" }], 76, holeArea, 1);
+      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c" }] : [], 42, holeArea, 1);
+      reportLines("label", heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: "c" })), 28, holeArea);
+      const rows = [];
+      let y = 300;
+      [hi, ...all.map((_, i) => i).filter((i) => i !== hi)].forEach((i) => {
+        const x = all[i];
+        if (!x) return;
+        const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
+        const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+        let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
+        if (names.length > 2) {
+          names = wrapLines(x.label, sz, X1 - LEG_X);
+          below = true;
+        }
+        const vy2 = below ? y + step * names.length : y;
+        rows[i] = { y, names, sz, step, vy: vy2 };
+        reportLines("legend name", names.map((l, j) => ({ text: l, x: LEG_X, y: y + step * j, anchor: "l" })), sz, [LEG_X, 150, below ? X1 : X1 - valueW - 8, roomBottom(data2)]);
+        report("legend value", fmt(x.value) + unit, [X1 - valueW, vy2 - 0.6 * (big ? 40 : 32), X1, vy2 + 0.6 * (big ? 40 : 32)], [LEG_X, 150, X1, roomBottom(data2)], { size: big ? 40 : 32, lines: 1, maxLines: 1 });
+        y += (big ? 82 : 58) + (names.length - 1 + (below ? 1 : 0)) * step;
+      });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: 809 * k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, /* @__PURE__ */ STUB("circle", { cx: DCX, cy: DCY, r: (R + RI) / 2, fill: "none", stroke: C.line, strokeWidth: R - RI, opacity: 0.7 * ring }), arcs, gaps.map((g) => {
         const [x0, y0] = pt(g - 90, RI - 2), [x1, y1] = pt(g - 90, R + 2);
         return /* @__PURE__ */ STUB("line", { key: g, x1: x0, y1: y0, x2: x1, y2: y1, stroke: C.ivory, strokeWidth: "5" });
-      })), cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: DCX + 4, y: DCY - 14 }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")", display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: fitSize(fmt(hero.value), 76, 220 - ems(unit) * 42) * k } }, count ? counted(count, smooth(cp)) : fmt(hero.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 42 * k, fontWeight: 700 } }, unit) : null)) : null, /* @__PURE__ */ STUB(Rise, { s, t0: 2.1, dy: 8, x: DCX, y: DCY + 50 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(hero.label), 28, 230) * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: hero.label, hlAt: 2.65 }))), all.map((x, i) => {
+      })), cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: DCX + 4, y: vy + (unitOwn ? UH / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")", display: "flex", flexDirection: unitOwn ? "column" : "row", alignItems: unitOwn ? "center" : "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 76 * k, height: unitOwn ? VH * k : void 0, display: "flex", alignItems: "center" } }, count ? counted(count, smooth(cp)) : heroText), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 42 * k, fontWeight: 700, height: unitOwn ? UH * k : void 0 } }, unit) : null)) : null, heroLabel.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "h" + j, s, t0: 2.1, dy: 8, x: DCX, y: ly + LH * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 28 * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 2.65 })))), all.map((x, i) => {
         const big = i === hi;
-        const y = rowY(big ? 0 : ++slot);
-        const sz = big ? 38 : 28;
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "center", gap: 12 * k } }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } }), /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: x.label, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
+        const { y: y2, names, sz, step, vy: vy2 } = rows[i];
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y: y2, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } })), names.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: rowAt[i], dy: 14, x: LEG_X, y: y2 + step * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: sz * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y: vy2, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
   "flow_cause_effect": (data) => {
-    const FW = 400, FH = 330, LCX = 290, RCX = 790;
-    function Card({ s, cx, cy, t0, hero, caption, word }) {
+    const FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, CGAP = 20, PAD = 60;
+    function laidOut(c) {
+      const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];
+      const word = wrapLines(c.word, 64, IN);
+      return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };
+    }
+    function Card({ s, cx, cy, t0, hero, lines, H: H2 }) {
       const k = s.k;
-      const size = fitSize(plainText(word), 64, FW - 60);
-      return /* @__PURE__ */ STUB(STUB, null, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: cx, y: cy }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hero), width: FW * k, height: FH * k } })), caption ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.25, dy: 10, x: cx, y: cy - 56 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(caption), 40, FW - 60) * k, fontWeight: 800, color: C.green } }, /* @__PURE__ */ STUB(Marked, { s, text: caption, hlAt: t0 + 0.8 }))) : null, /* @__PURE__ */ STUB(Rise, { s, t0: t0 + (caption ? 0.45 : 0.3), dy: 12, x: cx, y: cy + (caption ? 26 : 0) }, /* @__PURE__ */ STUB("div", { style: { fontSize: size * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: word, hlAt: t0 + 1 }))));
+      const y0 = cy - lines.h / 2, wy = y0 + lines.caption.length * CL + (lines.caption.length ? CGAP : 0);
+      return /* @__PURE__ */ STUB(STUB, null, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: cx, y: cy }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hero), width: FW * k, height: H2 * k } })), lines.caption.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "c" + j, s, t0: t0 + 0.25, dy: 10, x: cx, y: y0 + CL * (j + 0.5) }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 800, color: C.green } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.8 })))), lines.word.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "w" + j, s, t0: t0 + (lines.caption.length ? 0.45 : 0.3), dy: 12, x: cx, y: wy + WL * (j + 0.5) }, /* @__PURE__ */ STUB("div", { style: { fontSize: 64 * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 1 })))));
     }
     function Scene({ data: data2 }) {
       const cause = { word: String(data2?.cause?.word ?? ""), caption: String(data2?.cause?.caption ?? "") };
@@ -404,7 +459,17 @@ const SCENE = {
       const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
       const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
       const L = (ax1 - ax0) * ap, head = 26;
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), /* @__PURE__ */ STUB(Card, { s, cx: LCX, cy, t0: tCause, hero: false, ...cause }), ap > 0 ? /* @__PURE__ */ STUB("svg", { width: 1080 * s.k, height: 809 * s.k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, L > head ? /* @__PURE__ */ STUB("line", { x1: ax0, y1: cy, x2: ax0 + L - head + 2, y2: cy, stroke: C.gold, strokeWidth: "9", strokeLinecap: "round" }) : null, /* @__PURE__ */ STUB("polygon", { points: ax0 + L + "," + cy + " " + (ax0 + L - head) + "," + (cy - head * 0.62 * Math.min(1, L / head)) + " " + (ax0 + L - head) + "," + (cy + head * 0.62 * Math.min(1, L / head)), fill: C.gold })) : null, /* @__PURE__ */ STUB(Card, { s, cx: RCX, cy, t0: tEffect, hero: true, ...effect }));
+      const lc = laidOut(cause), le = laidOut(effect);
+      const H2 = Math.max(FH, lc.h + 2 * PAD, le.h + 2 * PAD);
+      const top = subtitle ? 162 : 112;
+      [[lc, LCX], [le, RCX]].forEach(([c, cx]) => {
+        const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);
+        const inCard = [cx - FW / 2 + 30, cy - H2 / 2, cx + FW / 2 - 30, cy + H2 / 2];
+        report("card", c.caption.join(" ") + " " + c.word.join(" "), [cx - FW / 2, cy - H2 / 2, cx + FW / 2, cy + H2 / 2], [X0, top, X1, roomBottom(data2)]);
+        reportLines("caption", c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: "c" })), 40, inCard);
+        reportLines("word", c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: "c" })), 64, inCard);
+      });
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), /* @__PURE__ */ STUB(Card, { s, cx: LCX, cy, t0: tCause, hero: false, lines: lc, H: H2 }), ap > 0 ? /* @__PURE__ */ STUB("svg", { width: 1080 * s.k, height: 809 * s.k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, L > head ? /* @__PURE__ */ STUB("line", { x1: ax0, y1: cy, x2: ax0 + L - head + 2, y2: cy, stroke: C.gold, strokeWidth: "9", strokeLinecap: "round" }) : null, /* @__PURE__ */ STUB("polygon", { points: ax0 + L + "," + cy + " " + (ax0 + L - head) + "," + (cy - head * 0.62 * Math.min(1, L / head)) + " " + (ax0 + L - head) + "," + (cy + head * 0.62 * Math.min(1, L / head)), fill: C.gold })) : null, /* @__PURE__ */ STUB(Card, { s, cx: RCX, cy, t0: tEffect, hero: true, lines: le, H: H2 }));
     }
     return Scene({ data });
   },
@@ -444,7 +509,7 @@ const SCENE = {
   "line_trend_callout": (data) => {
     const PX0 = 110, PX1 = 950, PLOT_TOP = 238;
     const SWEEP_FROM = 0.6, SWEEP_MAX = 6.4, SWEEP_MIN = 2.6;
-    const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24;
+    const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24, HL = 30, VL = 46, CARD_PAD = 20;
     const valueText = (v) => {
       const t = String(v), d = t.includes(".") ? t.length - t.indexOf(".") - 1 : 0;
       return Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(Number(v)) >= 1e4 });
@@ -473,7 +538,21 @@ const SCENE = {
       const early = Math.max(headerEnd(String(data2?.title ?? ""), String(data2?.subtitle ?? "")), brushEnd(threshold?.label, 1.25), ...pts.map((p, j) => brushEnd(p?.x, 0.7 + 0.08 * j)));
       const s = useScene(data2, Math.max(1.5, early, sweepEnd + cardsTail) + 0.1);
       const k = s.k;
-      const base = cards.length ? 540 : 560;
+      const cardW = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
+      const cardText = cards.map((c) => {
+        const [a, b] = String(c.text).split("\n");
+        const head = b !== void 0 ? a : "", value = b !== void 0 ? b : a;
+        return { head: head ? wrapLines(head, 26, cardW - 40) : [], value: wrapLines(value, 40, cardW - 40) };
+      });
+      const cardH = Math.max(CARD_H, ...cardText.map((t) => t.head.length * HL + t.value.length * VL + CARD_PAD));
+      const cardTop = CARD_TOP + CARD_H - cardH;
+      const base = cards.length ? 540 - (cardH - CARD_H) : 560;
+      cardText.forEach((t, i) => {
+        const x = X0 + i * (cardW + CARD_GAP), area = [x + 14, cardTop, x + cardW - 14, cardTop + cardH];
+        const y0 = cardTop + (cardH - t.head.length * HL - t.value.length * VL) / 2;
+        reportLines("card header", t.head.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + HL * (j + 0.5), anchor: "c" })), 26, area);
+        reportLines("card value", t.value.map((l, j) => ({ text: l, x: x + cardW / 2, y: y0 + t.head.length * HL + VL * (j + 0.5), anchor: "c" })), 40, area);
+      });
       const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
       const hi = n ? Math.max(...ys) : 1, lo = n ? Math.min(...ys) : 0;
       const span = hi - lo || Math.abs(hi) || 1;
@@ -510,6 +589,8 @@ const SCENE = {
       const numStyle = { fontSize: 84 * k, fontWeight: 800, color: C.acc, letterSpacing: -2 * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const endLabel = /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...numStyle, visibility: count ? "hidden" : "visible" } }, endText), count ? /* @__PURE__ */ STUB("span", { style: { ...numStyle, position: "absolute", right: 0, bottom: 0 } }, shown) : null), showUnit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 46 * k, fontWeight: 700, color: C.acc, marginLeft: 4 * k, lineHeight: 1 } }, unit) : null);
       const endY = n ? P[n - 1][1] - 68 : 0;
+      const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+      if (n && endText !== "") report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
         const pp = settle(clamp((u - i) / 0.6 + (i === 0 && s.t > SWEEP_FROM ? 1 : 0)), 0.12);
@@ -520,12 +601,9 @@ const SCENE = {
         const half = ems(text) * 40 / 2;
         return /* @__PURE__ */ STUB(At, { key: i, s, x: Math.max(X0 + half, P[i][0] - (i === 0 ? 14 : 0)), y: P[i][1] - 48, style: { opacity: q, transform: "translate(-50%,-50%) translateY(" + (1 - q) * 10 * k + "px)" } }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 800, letterSpacing: -1 * k } }, text));
       }), n && endText !== "" ? count ? /* @__PURE__ */ STUB(At, { s, x: X1, y: endY, anchor: "r", style: { opacity: smooth(Math.min(1, f * 2.5)) } }, endLabel) : /* @__PURE__ */ STUB(Pop, { s, t0: popAt, x: X1, y: endY, anchor: "r" }, endLabel) : null, cards.map((c, i) => {
-        const [a, b] = String(c.text).split("\n");
         const hot = c?.tone === "accent";
-        const w = cards.length > 1 ? (X1 - X0 - CARD_GAP) / 2 : X1 - X0;
-        const head = b !== void 0 ? a : "";
-        const value = b !== void 0 ? b : a;
-        return /* @__PURE__ */ STUB(Rise, { key: i, s, t0: sweepEnd + 0.3 + 0.4 * i, dur: 0.9, dy: 22, x: X0 + i * (w + CARD_GAP), y: CARD_TOP, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 * k } }, head ? /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 } }, /* @__PURE__ */ STUB(Marked, { s, text: head, hlAt: sweepEnd + 0.85 + 0.4 * i })) : null, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 } }, /* @__PURE__ */ STUB(Marked, { s, text: value, hlAt: sweepEnd + 0.85 + 0.4 * i }))));
+        const { head, value } = cardText[i];
+        return /* @__PURE__ */ STUB(Rise, { key: i, s, t0: sweepEnd + 0.3 + 0.4 * i, dur: 0.9, dy: 22, x: X0 + i * (cardW + CARD_GAP), y: cardTop, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hot), width: cardW * k, height: cardH * k, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap" } }, head.map((l, j) => /* @__PURE__ */ STUB("div", { key: "h" + j, style: { fontSize: 26 * k, fontWeight: 600, color: C.gray, lineHeight: HL * k + "px" } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: sweepEnd + 0.85 + 0.4 * i }))), value.map((l, j) => /* @__PURE__ */ STUB("div", { key: "v" + j, style: { fontSize: 40 * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: VL * k + "px" } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: sweepEnd + 0.85 + 0.4 * i })))));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -560,6 +638,7 @@ const SCENE = {
     return Scene({ data });
   },
   "number_callout": (data) => {
+    const LBL = 52, FL = 104, FU = 86, TL = 160, TU = 120, W = 900;
     const show = (v) => {
       if (typeof v === "number") {
         const str = String(v);
@@ -582,17 +661,50 @@ const SCENE = {
       const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, cp);
       const top = title ? 150 : 40;
       const mid = (top + 794) / 2;
-      const yFrom = mid - 190 + (label ? 30 : 0), yArrow = yFrom + 80, yTo = yFrom + 290;
-      const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
-      const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
-      const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
       const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? ct.num > cf.num ? "up" : "down" : "";
+      const labelLines = label ? wrapLines(label, 44, W) : [];
+      const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+      const last = (l) => l[l.length - 1];
+      const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
+      const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+      const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
+      const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
+      const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
+      const place = (yFrom2) => {
+        const yTo2 = yFrom2 + fromExtra + 290, yToUnit2 = yTo2 + (toLines.length - 1) * TL + TU;
+        return {
+          yFrom: yFrom2,
+          yArrow: yFrom2 + fromExtra + 80,
+          yTo: yTo2,
+          yToUnit: yToUnit2,
+          bottom: toOwn ? yToUnit2 + 48 : yTo2 + (toLines.length - 1) * TL + 90,
+          top: label ? yFrom2 - 110 - labelExtra - 26 : yFrom2 - 58
+        };
+      };
+      const first = place(mid - 190 + (label ? 30 : 0) + labelExtra);
+      const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data2) - 6), first.top - (top + 6))));
+      const counts = toLines.length === 1 && !toOwn;
+      const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+      const area = [X0 + 30, top, X1 - 30, roomBottom(data2)];
+      const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: "c" }));
+      reportLines("label", col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
+      const valueReport = (what, list, y, step, size, uSize, own) => {
+        if (!list.length) return;
+        const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+        const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
+        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+      };
+      valueReport("old value", fromLines, yFrom, FL, 96, 53, fromOwn);
+      reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
+      valueReport("new value", toLines, yTo, TL, 150, 80, toOwn);
+      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: String(data2?.subtitle ?? "") }), label ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.4, dy: 10, x: 540, y: yFrom - 110 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(label), 44, 900) * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: label, hlAt: 0.95 }))) : null, /* @__PURE__ */ STUB(Rise, { s, t0: fromAt, x: 540, y: yFrom }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.ink2, fontWeight: 800, letterSpacing: -2 * k } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 96 * sFrom * k } }, from), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * sFrom * k, fontWeight: 700, marginLeft: 4 * k } }, unit) : null)), ap > 0 ? (
+      const triangle = dir ? /* @__PURE__ */ STUB("svg", { width: 44 * k, height: 40 * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null;
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: String(data2?.subtitle ?? "") }), labelLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: 0.4, dy: 10, x: 540, y: yFrom - 110 - labelExtra + LBL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 44 * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.95 })))), fromLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "f" + j, s, t0: fromAt, x: 540, y: yFrom + FL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.ink2, fontWeight: 800, letterSpacing: -2 * k } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 96 * k } }, l), unit && !fromOwn && j === fromLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * k, fontWeight: 700, marginLeft: 4 * k } }, unit) : null))), fromOwn ? /* @__PURE__ */ STUB(Rise, { s, t0: fromAt, x: 540, y: yFrom + (fromLines.length - 1) * FL + FU }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * k, fontWeight: 700, color: C.ink2 } }, unit)) : null, ap > 0 ? (
         // Gold chevron, opening from its centre outwards.
         /* @__PURE__ */ STUB("svg", { width: 80 * k, height: 60 * k, viewBox: "0 0 80 60", style: { position: "absolute", left: 500 * k, top: (yArrow + 25) * k } }, /* @__PURE__ */ STUB("polyline", { points: 40 - 28 * ap + "," + (14 + 22 * (1 - ap)) + " 40,36 " + (40 + 28 * ap) + "," + (14 + 22 * (1 - ap)), fill: "none", stroke: C.gold, strokeWidth: "7", strokeLinecap: "round", strokeLinejoin: "round" }))
-      ) : null, /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yTo }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * sTo * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * sTo * k, visibility: "hidden" } }, to), /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * sTo * k, position: "absolute", right: 0, bottom: 0 } }, running)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, dir ? /* @__PURE__ */ STUB("svg", { width: 44 * sTo * k, height: 40 * sTo * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * sTo * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null)), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      ) : null, toLines.map((l, j) => /* @__PURE__ */ STUB(Pop, { key: "t" + j, s, t0: toAt, x: 540, y: yTo + TL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, visibility: counts ? "hidden" : "visible" } }, l), counts ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, position: "absolute", right: 0, bottom: 0 } }, running) : null), unit && !toOwn && j === toLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, !toOwn && j === toLines.length - 1 ? triangle : null))), toOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yToUnit }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700 } }, unit), triangle)) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -694,10 +806,11 @@ const SCENE = {
       const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;
       const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
       const cardAt = (i) => ({ x: X0 + i % cols * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });
+      const cause = laid.filter((c) => c.header.length > 1 || c.label0.length > 1 || c.v0.length > 1 || c.unitOwn || c.label1.length > 1 || c.v1.length > 1).map((c) => c.header.join(" "));
       laid.forEach((c, i) => {
         const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
         const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: "c" }));
-        report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)]);
+        report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)], { cause });
         reportLines("card name", lines(c.header, y0 - 2 + (BAND + d1) / 2 - BL * (c.header.length - 1) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
         reportLines("card label", lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
         reportLines("card number", lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
@@ -736,7 +849,7 @@ const SCENE = {
     return Scene({ data });
   },
   "verdict_card": (data) => {
-    const CW = X1 - X0, CH = 270, D = 196;
+    const CW = X1 - X0, CH = 270, D = 196, TX = X0 + 36 + D + 44, TW = X1 - 36 - TX, LH = 80;
     function Mark({ s, tone, t0 }) {
       const p = smooth(prog(s.t, t0, t0 + 0.9));
       if (tone === "contrast") {
@@ -763,20 +876,27 @@ const SCENE = {
       const cards = (Array.isArray(data2?.cards) ? data2.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ""), tone: c?.tone === "contrast" ? "contrast" : "accent" }));
       const subtitle = String(data2?.subtitle ?? "");
       const starts = cards.map((_, i) => i === 0 ? 0.35 : 2);
-      const lineEnd = (c, i) => Math.max(0, ...twoLines(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+      const laid = cards.map((c) => {
+        const l = wrapLines(c.text, 64, TW);
+        return l.length === 1 && !c.text.includes("\n") ? twoLines(c.text) : l;
+      });
+      const lineEnd = (c, i) => Math.max(0, ...laid[i].map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
       const s = useScene(data2, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
       const k = s.k;
       const top = subtitle ? 200 : 150;
-      const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;
+      const ch = Math.max(CH, ...laid.map((l) => l.length * LH + 70));
+      const gap = cards.length > 1 ? (794 - top - 2 * ch) / 3 : (794 - top - ch) / 2;
+      laid.forEach((lines, i) => {
+        const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
+        report("card", lines.join(" "), [X0, y0, X1, y0 + ch], [X0, top - 10, X1, 800]);
+        reportLines("sentence", lines.map((l, j) => ({ text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, anchor: "l" })), 64, [TX, y0, X1 - 24, y0 + ch]);
+      });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(GoldRule, { s, y: 78, t0: 0, ornament: false }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.3, x: 540, y: 78 }, /* @__PURE__ */ STUB(Ribbon, { s, text: String(data2?.title ?? ""), size: 44 })), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 10, x: 540, y: 152 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.05 }))) : null, cards.map((c, i) => {
         const t0 = starts[i];
-        const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;
-        const lines = twoLines(c.text);
-        const tx = X0 + 36 + D + 44;
-        const size = Math.min(64, ...lines.map((l) => (X1 - 36 - tx) / Math.max(0.01, ems(plainText(l)))));
-        const lh = size * 1.25;
+        const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
+        const lines = laid[i];
         const iconIn = prog(s.t, t0 + 0.25, t0 + 1.05);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: CH * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: tx, y: cy + (j - (lines.length - 1) / 2) * lh, t0: t0 + 0.4 + 0.2 * j, size, dy: 14 })));
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: ch * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, t0: t0 + 0.4 + 0.2 * j, size: 64, dy: 14 })));
       }));
     }
     return Scene({ data });

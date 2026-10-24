@@ -10,6 +10,10 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // numbers; no difference is computed or shown. `from`/`to` are numbers (shown with their own
 // decimals plus `unit`) or already-formatted strings. A photo is never drawn here (spec 2: no
 // decoration behind the numbers).
+// Text that does not fit keeps its size (style spec 1): the label breaks at a space, a value after \uC5B5/\uB9CC
+// (1\uC5B5 / 5000\uB9CC) or a space, and a unit that no longer fits beside its value takes a line of its own; the whole
+// column stays centred. A new value on several lines shows its final text, without the count-up.
+const LBL = 52, FL = 104, FU = 86, TL = 160, TU = 120, W = 900;
 const show = (v) => {
   if (typeof v === 'number') {
     const str = String(v);
@@ -38,49 +42,97 @@ export default function NumberCallout({ data }) {
     : counted(ct, cp);
   const top = title ? 150 : 40;
   const mid = (top + 794) / 2;
-  const yFrom = mid - 190 + (label ? 30 : 0), yArrow = yFrom + 80, yTo = yFrom + 290;
-  const sFrom = Math.min(1, 900 / Math.max(1, ems(from) * 96 + ems(unit) * 53));
-  const sTo = Math.min(1, 900 / Math.max(1, ems(to) * 150 + ems(unit) * 80));
-  const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
   // Rose or fell: only when both values hold one number in the same format.
   const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
+  const labelLines = label ? wrapLines(label, 44, W) : [];
+  const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+  const last = (l) => l[l.length - 1];
+  const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
+  const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+  // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
+  const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
+  const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
+  const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
+  // One-line values sit where the sian puts them; extra lines grow the column downwards, and it moves up only as far as
+  // it must to end above the source line (never above the title).
+  const place = (yFrom) => {
+    const yTo = yFrom + fromExtra + 290, yToUnit = yTo + (toLines.length - 1) * TL + TU;
+    return { yFrom, yArrow: yFrom + fromExtra + 80, yTo, yToUnit, bottom: toOwn ? yToUnit + 48 : yTo + (toLines.length - 1) * TL + 90,
+      top: label ? yFrom - 110 - labelExtra - 26 : yFrom - 58 };
+  };
+  const first = place(mid - 190 + (label ? 30 : 0) + labelExtra);
+  const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data) - 6), first.top - (top + 6))));
+  const counts = toLines.length === 1 && !toOwn;
+  const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
+  const area = [X0 + 30, top, X1 - 30, roomBottom(data)];
+  const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: 'c' }));
+  reportLines('label', col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
+  // A value's lines with the unit (at its own smaller size) beside the last one, as drawn.
+  const valueReport = (what, list, y, step, size, uSize, own) => {
+    if (!list.length) return;
+    const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+    const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
+    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+  };
+  valueReport('old value', fromLines, yFrom, FL, 96, 53, fromOwn);
+  reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
+  valueReport('new value', toLines, yTo, TL, 150, 80, toOwn);
+  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
+  const triangle = dir ? (
+    <svg width={44 * k} height={40 * k} viewBox="0 0 44 40" style={{ marginLeft: 18 * k, alignSelf: 'center', opacity: smooth(tri / 0.6), transform: 'translateY(' + (1 - smooth(tri)) * (dir === 'up' ? 8 : -8) * k + 'px)' }}>
+      <polygon points={dir === 'up' ? '22,2 42,38 2,38' : '2,2 42,2 22,38'} fill={C.acc} />
+    </svg>
+  ) : null;
   return (
     <Win s={s} data={data}>
       <Header s={s} title={title} subtitle={String(data?.subtitle ?? '')} />
-      {label ? (
-        <Rise s={s} t0={0.4} dy={10} x={540} y={yFrom - 110}>
-          <div style={{ fontSize: fitSize(plainText(label), 44, 900) * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={label} hlAt={0.95} /></div>
+      {labelLines.map((l, j) => (
+        <Rise key={'l' + j} s={s} t0={0.4} dy={10} x={540} y={yFrom - 110 - labelExtra + LBL * j}>
+          <div style={{ fontSize: 44 * k, fontWeight: 700, color: C.ink2 }}><Marked s={s} text={l} hlAt={0.95} /></div>
+        </Rise>
+      ))}
+      {fromLines.map((l, j) => (
+        <Rise key={'f' + j} s={s} t0={fromAt} x={540} y={yFrom + FL * j}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.ink2, fontWeight: 800, letterSpacing: -2 * k }}>
+            <span style={{ ...tnum, fontSize: 96 * k }}>{l}</span>
+            {unit && !fromOwn && j === fromLines.length - 1 ? <span style={{ ...tnum, fontSize: 53 * k, fontWeight: 700, marginLeft: 4 * k }}>{unit}</span> : null}
+          </div>
+        </Rise>
+      ))}
+      {fromOwn ? (
+        <Rise s={s} t0={fromAt} x={540} y={yFrom + (fromLines.length - 1) * FL + FU}>
+          <span style={{ ...tnum, fontSize: 53 * k, fontWeight: 700, color: C.ink2 }}>{unit}</span>
         </Rise>
       ) : null}
-      <Rise s={s} t0={fromAt} x={540} y={yFrom}>
-        <div style={{ display: 'flex', alignItems: 'baseline', color: C.ink2, fontWeight: 800, letterSpacing: -2 * k }}>
-          <span style={{ ...tnum, fontSize: 96 * sFrom * k }}>{from}</span>
-          {unit ? <span style={{ ...tnum, fontSize: 53 * sFrom * k, fontWeight: 700, marginLeft: 4 * k }}>{unit}</span> : null}
-        </div>
-      </Rise>
       {ap > 0 ? (
         // Gold chevron, opening from its centre outwards.
         <svg width={80 * k} height={60 * k} viewBox="0 0 80 60" style={{ position: 'absolute', left: 500 * k, top: (yArrow + 25) * k }}>
           <polyline points={(40 - 28 * ap) + ',' + (14 + 22 * (1 - ap)) + ' 40,36 ' + (40 + 28 * ap) + ',' + (14 + 22 * (1 - ap))} fill="none" stroke={C.gold} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
-      <Pop s={s} t0={toAt} x={540} y={yTo}>
-        <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * sTo * k }}>
-          <span style={{ position: 'relative' }}>
-            {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
-            <span style={{ ...tnum, fontSize: 150 * sTo * k, visibility: 'hidden' }}>{to}</span>
-            <span style={{ ...tnum, fontSize: 150 * sTo * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span>
-          </span>
-          {unit ? <span style={{ ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
-          {dir ? (
-            <svg width={44 * sTo * k} height={40 * sTo * k} viewBox="0 0 44 40" style={{ marginLeft: 18 * sTo * k, alignSelf: 'center', opacity: smooth(tri / 0.6), transform: 'translateY(' + (1 - smooth(tri)) * (dir === 'up' ? 8 : -8) * k + 'px)' }}>
-              <polygon points={dir === 'up' ? '22,2 42,38 2,38' : '2,2 42,2 22,38'} fill={C.acc} />
-            </svg>
-          ) : null}
-        </div>
-      </Pop>
+      {toLines.map((l, j) => (
+        <Pop key={'t' + j} s={s} t0={toAt} x={540} y={yTo + TL * j}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * k }}>
+            <span style={{ position: 'relative' }}>
+              {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
+              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts ? 'hidden' : 'visible' }}>{l}</span>
+              {counts ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
+            </span>
+            {unit && !toOwn && j === toLines.length - 1 ? <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}
+            {!toOwn && j === toLines.length - 1 ? triangle : null}
+          </div>
+        </Pop>
+      ))}
+      {toOwn ? (
+        <Pop s={s} t0={toAt} x={540} y={yToUnit}>
+          <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800 }}>
+            <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700 }}>{unit}</span>
+            {triangle}
+          </div>
+        </Pop>
+      ) : null}
       <Source s={s} text={String(data?.source ?? '')} />
     </Win>
   );
