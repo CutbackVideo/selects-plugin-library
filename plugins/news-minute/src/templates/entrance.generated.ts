@@ -158,6 +158,53 @@ function countable(v) {
 const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString("en-US", { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? "").split("\n")) {
+    const words = [];
+    let cur = "", depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === "[" || ch === "{") depth += 1;
+      else if (ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
+      if (ch === " " && depth === 0) {
+        if (cur) words.push({ w: cur, sp: " " });
+        cur = "";
+        return;
+      }
+      cur += ch;
+      if (depth === 0 && (ch === "\uC5B5" || ch === "\uB9CC") && /\d/.test(chars[i - 1] ?? "") && /\d/.test(chars[i + 1] ?? "")) {
+        words.push({ w: cur, sp: "" });
+        cur = "";
+      }
+    });
+    if (cur) words.push({ w: cur, sp: " " });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : "")).join("");
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) {
+        lines.push(line);
+        line = [w];
+      } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) {
+          bestW = m;
+          best = i;
+        }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
 let NATURAL = null, CONFIG = { frame: 0, video: null };
 const useVideoConfig = () => CONFIG.video, useCurrentFrame = () => CONFIG.frame;
 function useScene(data, natural = 0) {
@@ -323,6 +370,7 @@ const SCENE = {
     return Scene({ data });
   },
   "highlight_card": (data) => {
+    const W = 860, IN = W - 100, TL = 62, VL = 160, UL = 96;
     function Scene({ data: data2 }) {
       const title = String(data2?.title ?? "");
       const subtitle = String(data2?.subtitle ?? "");
@@ -330,12 +378,21 @@ const SCENE = {
       const k = s.k;
       const value = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
       const unit = String(data2?.unit ?? "");
-      const W = 860, H2 = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
-      const count = countable(value);
+      const titleLines = title ? wrapLines(title, 50, W - 80) : [];
+      const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
+      const vLines = wrapLines(value, 150, IN);
+      const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
+      const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
+      const H2 = 400 + grow;
+      const x0 = (1080 - W) / 2;
+      const below = subLines.length ? 58 + 40 * subLines.length : 0;
+      const y0 = Math.max(0, Math.min(subtitle ? 190 : 214, 770 - H2 - below));
+      const count = vLines.length === 1 && !unitOwn ? countable(value) : null;
       const cp = prog(s.t, 0.8, 0.8 + 1.2);
-      const scale = Math.min(1, (W - 100) / Math.max(1, ems(value) * 150 + ems(unit) * 80 + 8));
-      const num = { fontSize: 150 * scale * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * scale * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), title ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: title, hlAt: 0.85 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136, t0: 0.5 }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: y0 + (title ? 262 : 200) }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, value), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 80 * scale * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 } }, unit) : null)), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.75 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      const num = { fontSize: 150 * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
+      const unitStyle = { fontSize: 80 * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 };
+      const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), titleLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "t" + j, s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 + TL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.85 })))), /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136 + Math.max(0, titleLines.length - 1) * TL, t0: 0.5 }), vLines.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: 0.8, x: 540, y: vy + VL * r }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, l), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit && !unitOwn && r === vLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: unitStyle }, unit) : null))), unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: vy + VL * (vLines.length - 1) + 128 }, /* @__PURE__ */ STUB("span", { style: { ...unitStyle, marginLeft: 0 } }, unit)) : null, subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 + 40 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.75 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -517,7 +574,7 @@ const SCENE = {
       const raw = (Array.isArray(data2?.lines) ? data2.lines : []).map((l) => String(l)).filter((l) => l.trim() !== "").slice(0, 5);
       const accentLines = new Set((Array.isArray(data2?.accentLines) ? data2.accentLines : []).map(Number));
       const marked = raw.some((l) => /\{[^}]*\}/.test(l));
-      const lines = marked ? raw : raw.map((l, i) => accentLines.has(i) ? "{" + l + "}" : l);
+      const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X).map((v) => !marked && accentLines.has(i) ? "{" + v + "}" : v));
       const n = lines.length;
       const end = durationInFrames / fps;
       const room = Math.max(end * 0.5, end - HOLD);
@@ -527,8 +584,7 @@ const SCENE = {
       const s = useScene(data2, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
       const k = s.k;
       const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
-      const sizeOf = (l) => Math.min(LINE_SIZE, (X1 - LINE_X) / Math.max(0.01, ems(plainText(l))));
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Medal, { s, headshot }), name ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 16, x: 330, y: 122, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: name, hlAt: 0.85 }))) : null, affiliation ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 16, x: 332, y: 198, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: affiliation, hlAt: 1.05 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, y: 318, t0: 0.6 }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: LINE_X, y: LINE_Y + gap * i, t0: at(i), size: sizeOf(l) })), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Medal, { s, headshot }), name ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 16, x: 330, y: 122, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 76 * k, fontWeight: 900, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: name, hlAt: 0.85 }))) : null, wrapLines(affiliation, 40, X1 - 332).filter((l) => l).map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "a" + j, s, t0: 0.5, dy: 16, x: 332, y: 198 + 50 * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.05 })))), /* @__PURE__ */ STUB(GoldRule, { s, y: 318, t0: 0.6 }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: LINE_X, y: LINE_Y + gap * i, t0: at(i), size: LINE_SIZE })), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -537,6 +593,7 @@ const SCENE = {
       const c = countable(v);
       return c && typeof v === "number" ? counted(c, 1) : String(v ?? "");
     };
+    const BAND = 84, BL = 52, LL = 40, VL = 76, UL = 44, L2 = 38, V2 = 46;
     function Scene({ data: data2 }) {
       const accent = String(data2?.accentColor ?? C.acc);
       const band = String(data2?.headerColor ?? C.green);
@@ -554,17 +611,44 @@ const SCENE = {
       });
       const s = useScene(data2, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data2?.title ?? ""), subtitle)));
       const k = s.k;
-      const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
-      const Hc = two ? 450 : 300;
-      const y0 = (subtitle ? 206 : 186) + (450 - Hc) / 2;
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), cards.map((c, i) => {
-        const x = X0 + i * (W + gap), cx = x + W / 2, t0 = at(i);
-        const header = String(c?.header ?? "");
+      const gap = 36;
+      const widest = (w) => Math.max(0, ...cards.map((c) => {
+        const r0 = rowsOf(c)[0];
+        return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0;
+      }));
+      const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
+      const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
+      const laid = cards.map((c) => {
         const [r0, r1] = rowsOf(c);
-        const v0 = fmt(r0?.value), u0 = String(r0?.unit ?? "");
-        const v1 = r1 ? fmt(r1.value) + String(r1.unit ?? "") : "";
-        const sc = Math.min(1, (W - 28) / Math.max(1, ems(v0) * 72 + ems(u0) * 36 + 4));
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontSize: fitSize(plainText(header), 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k } }, plainText(header)), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line } }) : null)), r0?.label ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: String(r0.label), hlAt: t0 + 0.85 }))) : null, r0 ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * sc * k, letterSpacing: -1.5 * sc * k } }, v0), u0 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * sc * k, fontWeight: 700, marginLeft: 2 * sc * k } }, u0) : null)) : null, r1?.label ? /* @__PURE__ */ STUB(Rise, { s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: String(r1.label), hlAt: row2At + 0.18 * i + 0.55 }))) : null, r1 ? /* @__PURE__ */ STUB(Rise, { s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(v1, 38, W - 24) * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, v1)) : null);
+        const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
+        const u0 = String(r0?.unit ?? "");
+        const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
+        return {
+          header: wrapLines(plainText(String(c?.header ?? "")), 44, W - 24),
+          r0,
+          r1,
+          v0,
+          u0,
+          unitOwn,
+          label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
+          label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
+          v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24) : []
+        };
+      });
+      const most = (f) => Math.max(1, ...laid.map(f));
+      const d1 = (most((c) => c.header.length) - 1) * BL;
+      const d2 = d1 + (most((c) => c.label0.length) - 1) * LL;
+      const d3 = d2 + (most((c) => c.v0.length) - 1) * VL + (laid.some((c) => c.unitOwn) ? UL : 0);
+      const d4 = d3 + (most((c) => c.label1.length) - 1) * L2;
+      const d5 = d4 + (most((c) => c.v1.length) - 1) * V2;
+      const vgap = 20, top = subtitle ? 176 : 150;
+      const Hc = grid ? Math.min(300 + d3, (750 - top - vgap) / 2) : two ? 450 + d5 : 300 + d3;
+      const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), laid.map((c, i) => {
+        const x = X0 + i % cols * (W + gap), cx = x + W / 2, t0 = at(i);
+        const y0 = top0 + Math.floor(i / cols) * (Hc + vgap);
+        const { r0, r1, v0, u0 } = c;
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + "px", whiteSpace: "nowrap" } }, c.header.map((l, j) => /* @__PURE__ */ STUB("div", { key: j }, l))), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line } }) : null)), c.label0.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 + d1 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.85 })))), v0.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * r }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * k, letterSpacing: -1.5 * k } }, l), u0 && !c.unitOwn && r === v0.length - 1 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k } }, u0) : null))), c.unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * (v0.length - 1) + 58 }, /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 } }, u0)) : null, c.label1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "m" + j, s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 + d3 + L2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: row2At + 0.18 * i + 0.55 })))), c.v1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "w" + j, s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 + d4 + V2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, l))));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -573,17 +657,17 @@ const SCENE = {
     function Scene({ data: data2 }) {
       const title = String(data2?.title ?? "");
       const sub = String(data2?.sub ?? "");
-      const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "");
+      const size = Number(data2?.fontSize ?? 72);
+      const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "").flatMap((l) => wrapLines(l, size, X1 - X0));
+      const subLines = sub ? wrapLines(sub, 36, X1 - X0) : [];
       const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
       const s = useScene(data2, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, "")));
       const k = s.k;
-      const want = Number(data2?.fontSize ?? 72);
-      const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
       const lh = size * 1.32;
       const top = title ? 150 : 0;
-      const block = lines.length * lh + (sub ? 36 + 44 : 0);
+      const block = lines.length * lh + (sub ? 36 + 44 * subLines.length : 0);
       const y0 = top + (794 - top - block) / 2;
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: "" }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: 540, y: y0 + lh * (i + 0.5), t0: at(i), size, anchor: "c" })), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: at(lines.length), dy: 10, x: 540, y: y0 + lines.length * lh + 36 + 22 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 36 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: at(lines.length) + 0.55 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: "" }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: 540, y: y0 + lh * (i + 0.5), t0: at(i), size, anchor: "c" })), subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: at(lines.length), dy: 10, x: 540, y: y0 + lines.length * lh + 36 + 44 * j + 22 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 36 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: at(lines.length) + 0.55 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },

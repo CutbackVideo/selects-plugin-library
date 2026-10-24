@@ -1,4 +1,5 @@
 import type { Article, FidelityJson, PlanAsset, ScriptJson, TimedSentence, Validation } from "./types.ts";
+import { fitWarnings } from "./fit.ts";
 import {
   SENTENCE_COUNT,
   TARGET_CHARS,
@@ -354,6 +355,7 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
       const { title, subtitle } = sc.params;
       if (isStr(title) && title.trim().length > TITLE_MAX_CHARS) warnings.push(`${where}: title "${title}" is over ${TITLE_MAX_CHARS} characters and will not fit one line`);
       if (isStr(subtitle) && subtitle.trim().length > SUBTITLE_MAX_CHARS) warnings.push(`${where}: subtitle is over ${SUBTITLE_MAX_CHARS} characters and will not fit one line`);
+      for (const w of fitWarnings(sc.type, sc.params)) warnings.push(`${where}: ${w}`);
       const marks = countEmphasis(sc.params);
       if (marks.accentWords > EMPHASIS_MAX.accentWords || marks.highlights > EMPHASIS_MAX.highlights) {
         warnings.push(`${where}: ${marks.accentWords} [ ] and ${marks.highlights} { } emphasis marks; keep at most ${EMPHASIS_MAX.accentWords} [ ] and ${EMPHASIS_MAX.highlights} { } per scene`);

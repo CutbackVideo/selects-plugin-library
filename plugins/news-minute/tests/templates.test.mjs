@@ -64,3 +64,28 @@ test("bar comparison seek frame shows the final values (review case: 10.01 s, 16
   assert.ok(shown.includes("9.8%") && shown.includes("16.5%"), shown);
   assert.ok(!text(render("bar_compare_h", data, 300, 123)).includes("9.8%"), "frame 123 (the old seek point) is still counting");
 });
+
+// Style spec 1: text that does not fit breaks onto more lines at the same size. Collect every font size drawn.
+const sizes = (node, out = []) => {
+  if (!node || typeof node !== "object") return out;
+  const fs = node.props?.style?.fontSize;
+  if (typeof fs === "number" && node.children.some((c) => typeof c !== "object" || c.type === "span" || c.type === "Fragment")) out.push({ fs, text: text(node) });
+  for (const c of node.children) sizes(c, out);
+  return out;
+};
+// [data, spec sizes the template may draw, lines at the main size]
+const LONG = {
+  text_card: [{ text: "\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D \uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9" }, [72, 50, 26], 2],
+  quote_card: [{ name: "a", lines: ["\uC2E4\uAC70\uC8FC \uADDC\uC81C\uB85C \uC778\uD55C \uAE09\uACA9\uD55C \uC804\uC138\uC758 \uC6D4\uC138\uD654\uAC00"] }, [66, 76, 40, 26], 2],
+  // the unit takes a line of its own under the value
+  highlight_card: [{ value: "1\uC5B55000\uB9CC", unit: "\uC6D0" }, [150, 80, 50, 30, 26], 1],
+  // four cards two by two, each number on one line beside its unit
+  stat_cards: [{ cards: ["a", "b", "c", "d"].map((header) => ({ header, rows: [{ label: "x", value: "1\uC5B55000\uB9CC", unit: "\uC6D0" }] })) }, [72, 36, 44, 32, 30, 38, 26, 50], 4],
+};
+test("long text keeps its style-spec size and breaks onto more lines", () => {
+  for (const [t, [data, spec, lines]] of Object.entries(LONG)) {
+    const drawn = sizes(render(t, data, 300, 299));
+    assert.ok(drawn.every((d) => spec.includes(d.fs)), t + " " + JSON.stringify(drawn));
+    assert.equal(drawn.filter((d) => d.fs === spec[0]).length, lines, t + " " + JSON.stringify(drawn));
+  }
+});

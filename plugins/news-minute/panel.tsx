@@ -789,6 +789,53 @@ function countable(v) {
 var counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString("en-US", { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
 var ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 var fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? "").split("\n")) {
+    const words2 = [];
+    let cur = "", depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === "[" || ch === "{") depth += 1;
+      else if (ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
+      if (ch === " " && depth === 0) {
+        if (cur) words2.push({ w: cur, sp: " " });
+        cur = "";
+        return;
+      }
+      cur += ch;
+      if (depth === 0 && (ch === "\uC5B5" || ch === "\uB9CC") && /\d/.test(chars[i - 1] ?? "") && /\d/.test(chars[i + 1] ?? "")) {
+        words2.push({ w: cur, sp: "" });
+        cur = "";
+      }
+    });
+    if (cur) words2.push({ w: cur, sp: " " });
+    const join2 = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : "")).join("");
+    const wide = (ws) => ems(plainText(join2(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words2) {
+      if (line.length && wide([...line, w]) > maxW) {
+        lines.push(line);
+        line = [w];
+      } else line.push(w);
+    }
+    if (line.length || !words2.length) lines.push(line);
+    if (lines.length === 2) {
+      const all = words2;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) {
+          bestW = m;
+          best = i;
+        }
+      }
+      out.push(join2(all.slice(0, best)), join2(all.slice(best)));
+    } else out.push(...lines.map(join2));
+  }
+  return out;
+}
 var NATURAL = null;
 var CONFIG = { frame: 0, video: null };
 var useVideoConfig = () => CONFIG.video;
@@ -956,6 +1003,7 @@ var SCENE = {
     return Scene({ data });
   },
   "highlight_card": (data) => {
+    const W = 860, IN = W - 100, TL = 62, VL = 160, UL = 96;
     function Scene({ data: data2 }) {
       const title = String(data2?.title ?? "");
       const subtitle = String(data2?.subtitle ?? "");
@@ -963,12 +1011,21 @@ var SCENE = {
       const k = s.k;
       const value = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
       const unit = String(data2?.unit ?? "");
-      const W = 860, H2 = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
-      const count = countable(value);
+      const titleLines = title ? wrapLines(title, 50, W - 80) : [];
+      const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
+      const vLines = wrapLines(value, 150, IN);
+      const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
+      const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
+      const H2 = 400 + grow;
+      const x0 = (1080 - W) / 2;
+      const below = subLines.length ? 58 + 40 * subLines.length : 0;
+      const y0 = Math.max(0, Math.min(subtitle ? 190 : 214, 770 - H2 - below));
+      const count = vLines.length === 1 && !unitOwn ? countable(value) : null;
       const cp = prog(s.t, 0.8, 0.8 + 1.2);
-      const scale = Math.min(1, (W - 100) / Math.max(1, ems(value) * 150 + ems(unit) * 80 + 8));
-      const num = { fontSize: 150 * scale * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * scale * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), title ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: title, hlAt: 0.85 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136, t0: 0.5 }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: y0 + (title ? 262 : 200) }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, value), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 80 * scale * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 } }, unit) : null)), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.75 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      const num = { fontSize: 150 * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
+      const unitStyle = { fontSize: 80 * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 };
+      const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), titleLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "t" + j, s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 + TL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.85 })))), /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136 + Math.max(0, titleLines.length - 1) * TL, t0: 0.5 }), vLines.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: 0.8, x: 540, y: vy + VL * r }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, l), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit && !unitOwn && r === vLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: unitStyle }, unit) : null))), unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: vy + VL * (vLines.length - 1) + 128 }, /* @__PURE__ */ STUB("span", { style: { ...unitStyle, marginLeft: 0 } }, unit)) : null, subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 + 40 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.75 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -1093,8 +1150,8 @@ var SCENE = {
   "number_callout": (data) => {
     const show = (v) => {
       if (typeof v === "number") {
-        const str = String(v);
-        const d = str.includes(".") ? str.split(".")[1].length : 0;
+        const str2 = String(v);
+        const d = str2.includes(".") ? str2.split(".")[1].length : 0;
         return v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
       }
       return String(v ?? "");
@@ -1150,7 +1207,7 @@ var SCENE = {
       const raw = (Array.isArray(data2?.lines) ? data2.lines : []).map((l) => String(l)).filter((l) => l.trim() !== "").slice(0, 5);
       const accentLines = new Set((Array.isArray(data2?.accentLines) ? data2.accentLines : []).map(Number));
       const marked = raw.some((l) => /\{[^}]*\}/.test(l));
-      const lines = marked ? raw : raw.map((l, i) => accentLines.has(i) ? "{" + l + "}" : l);
+      const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X).map((v) => !marked && accentLines.has(i) ? "{" + v + "}" : v));
       const n = lines.length;
       const end = durationInFrames / fps;
       const room = Math.max(end * 0.5, end - HOLD);
@@ -1160,8 +1217,7 @@ var SCENE = {
       const s = useScene(data2, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
       const k = s.k;
       const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
-      const sizeOf = (l) => Math.min(LINE_SIZE, (X1 - LINE_X) / Math.max(0.01, ems(plainText(l))));
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Medal, { s, headshot }), name ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 16, x: 330, y: 122, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: name, hlAt: 0.85 }))) : null, affiliation ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 16, x: 332, y: 198, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: affiliation, hlAt: 1.05 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, y: 318, t0: 0.6 }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: LINE_X, y: LINE_Y + gap * i, t0: at(i), size: sizeOf(l) })), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Medal, { s, headshot }), name ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 16, x: 330, y: 122, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 76 * k, fontWeight: 900, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: name, hlAt: 0.85 }))) : null, wrapLines(affiliation, 40, X1 - 332).filter((l) => l).map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "a" + j, s, t0: 0.5, dy: 16, x: 332, y: 198 + 50 * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.05 })))), /* @__PURE__ */ STUB(GoldRule, { s, y: 318, t0: 0.6 }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: LINE_X, y: LINE_Y + gap * i, t0: at(i), size: LINE_SIZE })), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -1170,6 +1226,7 @@ var SCENE = {
       const c = countable(v);
       return c && typeof v === "number" ? counted(c, 1) : String(v ?? "");
     };
+    const BAND = 84, BL = 52, LL = 40, VL = 76, UL = 44, L2 = 38, V2 = 46;
     function Scene({ data: data2 }) {
       const accent = String(data2?.accentColor ?? C.acc);
       const band = String(data2?.headerColor ?? C.green);
@@ -1187,17 +1244,44 @@ var SCENE = {
       });
       const s = useScene(data2, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data2?.title ?? ""), subtitle)));
       const k = s.k;
-      const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
-      const Hc = two ? 450 : 300;
-      const y0 = (subtitle ? 206 : 186) + (450 - Hc) / 2;
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), cards.map((c, i) => {
-        const x = X0 + i * (W + gap), cx = x + W / 2, t0 = at(i);
-        const header = String(c?.header ?? "");
+      const gap = 36;
+      const widest = (w) => Math.max(0, ...cards.map((c) => {
+        const r0 = rowsOf(c)[0];
+        return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0;
+      }));
+      const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
+      const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
+      const laid = cards.map((c) => {
         const [r0, r1] = rowsOf(c);
-        const v0 = fmt(r0?.value), u0 = String(r0?.unit ?? "");
-        const v1 = r1 ? fmt(r1.value) + String(r1.unit ?? "") : "";
-        const sc = Math.min(1, (W - 28) / Math.max(1, ems(v0) * 72 + ems(u0) * 36 + 4));
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontSize: fitSize(plainText(header), 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k } }, plainText(header)), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line } }) : null)), r0?.label ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: String(r0.label), hlAt: t0 + 0.85 }))) : null, r0 ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * sc * k, letterSpacing: -1.5 * sc * k } }, v0), u0 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * sc * k, fontWeight: 700, marginLeft: 2 * sc * k } }, u0) : null)) : null, r1?.label ? /* @__PURE__ */ STUB(Rise, { s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: String(r1.label), hlAt: row2At + 0.18 * i + 0.55 }))) : null, r1 ? /* @__PURE__ */ STUB(Rise, { s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(v1, 38, W - 24) * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, v1)) : null);
+        const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
+        const u0 = String(r0?.unit ?? "");
+        const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
+        return {
+          header: wrapLines(plainText(String(c?.header ?? "")), 44, W - 24),
+          r0,
+          r1,
+          v0,
+          u0,
+          unitOwn,
+          label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
+          label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
+          v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24) : []
+        };
+      });
+      const most = (f) => Math.max(1, ...laid.map(f));
+      const d1 = (most((c) => c.header.length) - 1) * BL;
+      const d2 = d1 + (most((c) => c.label0.length) - 1) * LL;
+      const d3 = d2 + (most((c) => c.v0.length) - 1) * VL + (laid.some((c) => c.unitOwn) ? UL : 0);
+      const d4 = d3 + (most((c) => c.label1.length) - 1) * L2;
+      const d5 = d4 + (most((c) => c.v1.length) - 1) * V2;
+      const vgap = 20, top = subtitle ? 176 : 150;
+      const Hc = grid ? Math.min(300 + d3, (750 - top - vgap) / 2) : two ? 450 + d5 : 300 + d3;
+      const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), laid.map((c, i) => {
+        const x = X0 + i % cols * (W + gap), cx = x + W / 2, t0 = at(i);
+        const y0 = top0 + Math.floor(i / cols) * (Hc + vgap);
+        const { r0, r1, v0, u0 } = c;
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + "px", whiteSpace: "nowrap" } }, c.header.map((l, j) => /* @__PURE__ */ STUB("div", { key: j }, l))), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line } }) : null)), c.label0.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 + d1 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.85 })))), v0.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * r }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * k, letterSpacing: -1.5 * k } }, l), u0 && !c.unitOwn && r === v0.length - 1 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k } }, u0) : null))), c.unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * (v0.length - 1) + 58 }, /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 } }, u0)) : null, c.label1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "m" + j, s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 + d3 + L2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: row2At + 0.18 * i + 0.55 })))), c.v1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "w" + j, s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 + d4 + V2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, l))));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -1206,17 +1290,17 @@ var SCENE = {
     function Scene({ data: data2 }) {
       const title = String(data2?.title ?? "");
       const sub = String(data2?.sub ?? "");
-      const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "");
+      const size = Number(data2?.fontSize ?? 72);
+      const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "").flatMap((l) => wrapLines(l, size, X1 - X0));
+      const subLines = sub ? wrapLines(sub, 36, X1 - X0) : [];
       const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
       const s = useScene(data2, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, "")));
       const k = s.k;
-      const want = Number(data2?.fontSize ?? 72);
-      const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
       const lh = size * 1.32;
       const top = title ? 150 : 0;
-      const block = lines.length * lh + (sub ? 36 + 44 : 0);
+      const block = lines.length * lh + (sub ? 36 + 44 * subLines.length : 0);
       const y0 = top + (794 - top - block) / 2;
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: "" }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: 540, y: y0 + lh * (i + 0.5), t0: at(i), size, anchor: "c" })), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: at(lines.length), dy: 10, x: 540, y: y0 + lines.length * lh + 36 + 22 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 36 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: at(lines.length) + 0.55 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: "" }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: 540, y: y0 + lh * (i + 0.5), t0: at(i), size, anchor: "c" })), subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: at(lines.length), dy: 10, x: 540, y: y0 + lines.length * lh + 36 + 44 * j + 22 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 36 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: at(lines.length) + 0.55 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },
@@ -1565,6 +1649,56 @@ function fidelityPrompt(article, script) {
   ].join("\n");
 }
 
+// src/prompts/fit.ts
+var ems2 = (text) => [...text].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+var plain = (text) => text.replace(/[[\]{}]/g, "");
+var words = (text) => plain(text).split(" ").flatMap((w) => w.split(/(?<=\d[\uC5B5\uB9CC])(?=\d)/)).filter(Boolean);
+function lineFit(text, size, maxW) {
+  let lines = 0, tooWide = false;
+  for (const para of String(text).split("\n")) {
+    let line = "";
+    for (const w of words(para)) {
+      if (ems2(w) * size > maxW) tooWide = true;
+      const next = line ? line + " " + w : w;
+      if (line && ems2(next) * size > maxW) {
+        lines++;
+        line = w;
+      } else line = next;
+    }
+    lines++;
+  }
+  return { lines, tooWide };
+}
+var str = (v) => typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
+function fitWarnings(type, p) {
+  const out = [];
+  const check = (what, text, size, maxW, maxLines = 2) => {
+    if (!text.trim()) return;
+    const f = lineFit(text, size, maxW);
+    if (f.tooWide) out.push(`${what} "${plain(text)}" is wider than its box at ${size} px even on a line of its own; shorten it`);
+    else if (f.lines > maxLines) out.push(`${what} "${plain(text)}" takes ${f.lines} lines at ${size} px (text is never made smaller); shorten it or split the scene`);
+  };
+  if (type === "text_card") for (const l of str(p.text).split("\n")) check("text line", l, Number(p.fontSize ?? 72), 960);
+  if (type === "quote_card") {
+    for (const l of Array.isArray(p.lines) ? p.lines : []) check("quote line", str(l), 66, 960);
+    check("name", str(p.name), 76, 690, 1);
+  }
+  if (type === "highlight_card") {
+    check("title", str(p.title), 50, 780);
+    check("value", str(p.value), 150, 760);
+  }
+  if (type === "stat_cards" && Array.isArray(p.cards)) {
+    const cards = p.cards.slice(0, 4);
+    const two = cards.some((c) => Array.isArray(c?.rows) && c.rows.length > 1);
+    const quarter = (960 - 36 * 3) / 4 - 28;
+    const grid = cards.length === 4 && !two && cards.some((c) => words(str(c?.rows?.[0]?.value)).some((w2) => ems2(w2) * 72 > quarter));
+    const n = grid ? 2 : Math.max(1, cards.length);
+    const w = (960 - 36 * (n - 1)) / n;
+    for (const c of cards) check("card number", str(c?.rows?.[0]?.value), 72, w - 28);
+  }
+  return out;
+}
+
 // src/prompts/validate.ts
 function result(errors, warnings, stats) {
   return { ok: errors.length === 0, errors, warnings, stats };
@@ -1867,6 +2001,7 @@ function validatePlan(json, sentences, assets) {
       const { title, subtitle } = sc.params;
       if (isStr(title) && title.trim().length > TITLE_MAX_CHARS) warnings.push(`${where}: title "${title}" is over ${TITLE_MAX_CHARS} characters and will not fit one line`);
       if (isStr(subtitle) && subtitle.trim().length > SUBTITLE_MAX_CHARS) warnings.push(`${where}: subtitle is over ${SUBTITLE_MAX_CHARS} characters and will not fit one line`);
+      for (const w of fitWarnings(sc.type, sc.params)) warnings.push(`${where}: ${w}`);
       const marks = countEmphasis(sc.params);
       if (marks.accentWords > EMPHASIS_MAX.accentWords || marks.highlights > EMPHASIS_MAX.highlights) {
         warnings.push(`${where}: ${marks.accentWords} [ ] and ${marks.highlights} { } emphasis marks; keep at most ${EMPHASIS_MAX.accentWords} [ ] and ${EMPHASIS_MAX.highlights} { } per scene`);
@@ -2110,11 +2245,11 @@ function ratioTimes(sentences, totalSec) {
   return out;
 }
 function captionChunks(sentence, maxChars = 14) {
-  const words = sentence.trim().split(/\s+/).filter(Boolean);
+  const words2 = sentence.trim().split(/\s+/).filter(Boolean);
   const out = [];
   let cur = [];
   const len2 = (ws) => [...ws.join(" ")].length;
-  for (const w of words) {
+  for (const w of words2) {
     if (cur.length && (cur.length >= 4 || cur.length >= 2 && len2([...cur, w]) > maxChars)) {
       out.push(cur.join(" "));
       cur = [];
@@ -2591,6 +2726,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // Bar comparison (style spec 6-1), 2-3 vertical bars on a gold baseline (window y 600, drawn left to
 // right 0.1-1.0 s), no grid. The accent bar is the hero: crimson, 290 wide, grows 1.7 s and settles
 // 1.5 %, its value counts up in white inside the bar once it is up. Grey bars are 200 wide, grow 1.0 s
@@ -2941,6 +3117,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
 
 // A share as a donut (style spec 6-5): outer radius 225, inner 138, on the left. The hero slice
 // (tone "accent", crimson) sweeps alone from 12 o'clock, then the other slices follow in one
@@ -3306,6 +3523,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // "Because of A, B happens" (style spec 6-7, bottom row): the cause card (400 x 330, gold edge) rises
 // in, a gold arrow grows to the right, then the effect card (crimson 3 px edge) follows. Each card
 // shows an optional small \`caption\` (green) over its big \`word\`; the effect word is crimson. Under
@@ -3613,10 +3871,55 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // One big value (style spec 6-3, last line): a crimson-bordered card 860 x 400 holding the title (50),
 // a short gold rule and the value (150, crimson) with its unit (80). The number inside \`value\` counts
 // up from 0 and slows to a stop so its last digits read; text around it (a "$" prefix, a word before it) stays fixed.
-// \`subtitle\` sits under the card, \`source\` bottom-right.
+// Text that does not fit keeps its size and breaks onto more lines (style spec 1): the title at a space, the
+// value after \\uC5B5/\\uB9CC (1\\uC5B5 / 5000\\uB9CC) or a space, the unit onto a line of its own; the card grows to hold them (a
+// value on several lines shows its final text, without the count-up). \`subtitle\` sits under the card,
+// \`source\` bottom-right.
+const W = 860, IN = W - 100, TL = 62, VL = 160, UL = 96;
 export default function HighlightCard({ data }) {
   const title = String(data?.title ?? '');
   const subtitle = String(data?.subtitle ?? '');
@@ -3625,38 +3928,50 @@ export default function HighlightCard({ data }) {
   const k = s.k;
   const value = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
   const unit = String(data?.unit ?? '');
-  const W = 860, H = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
-  const count = countable(value);
+  const titleLines = title ? wrapLines(title, 50, W - 80) : [];
+  const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
+  const vLines = wrapLines(value, 150, IN);
+  // The unit stays beside the last value line when it fits there.
+  const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
+  const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
+  const H = 400 + grow;
+  const x0 = (1080 - W) / 2;
+  const below = subLines.length ? 58 + 40 * subLines.length : 0;
+  const y0 = Math.max(0, Math.min(subtitle ? 190 : 214, 770 - H - below));
+  const count = vLines.length === 1 && !unitOwn ? countable(value) : null;
   const cp = prog(s.t, 0.8, 0.8 + 1.2);
-  // Value and unit shrink together only when they would overflow the card.
-  const scale = Math.min(1, (W - 100) / Math.max(1, ems(value) * 150 + ems(unit) * 80 + 8));
-  const num = { fontSize: 150 * scale * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * scale * k, fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
+  const num = { fontSize: 150 * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * k, fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
+  const unitStyle = { fontSize: 80 * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 };
+  const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
   return (
     <Win s={s} data={data}>
       <Rise s={s} t0={0} dur={0.9} dy={22} x={x0} y={y0} anchor="lt">
         <div style={{ ...cardStyle(s, true), width: W * k, height: H * k }} />
       </Rise>
-      {title ? (
-        <Rise s={s} t0={0.3} dy={14} x={540} y={y0 + 78}>
-          <div style={{ fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k }}><Marked s={s} text={title} hlAt={0.85} /></div>
+      {titleLines.map((l, j) => (
+        <Rise key={'t' + j} s={s} t0={0.3} dy={14} x={540} y={y0 + 78 + TL * j}>
+          <div style={{ fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k }}><Marked s={s} text={l} hlAt={0.85} /></div>
         </Rise>
-      ) : null}
-      <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136} t0={0.5} />
-      <Pop s={s} t0={0.8} x={540} y={y0 + (title ? 262 : 200)}>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline' }}>
-          {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
-          <span style={{ position: 'relative' }}>
-            <span style={{ ...num, visibility: count ? 'hidden' : 'visible' }}>{value}</span>
-            {count ? <span style={{ ...num, position: 'absolute', right: 0, bottom: 0 }}>{counted(count, smooth(cp))}</span> : null}
-          </span>
-          {unit ? <span style={{ fontSize: 80 * scale * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 }}>{unit}</span> : null}
-        </div>
-      </Pop>
-      {subtitle ? (
-        <Rise s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58}>
-          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={1.75} /></div>
+      ))}
+      <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136 + Math.max(0, titleLines.length - 1) * TL} t0={0.5} />
+      {vLines.map((l, r) => (
+        <Pop key={'v' + r} s={s} t0={0.8} x={540} y={vy + VL * r}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline' }}>
+            {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
+            <span style={{ position: 'relative' }}>
+              <span style={{ ...num, visibility: count ? 'hidden' : 'visible' }}>{l}</span>
+              {count ? <span style={{ ...num, position: 'absolute', right: 0, bottom: 0 }}>{counted(count, smooth(cp))}</span> : null}
+            </span>
+            {unit && !unitOwn && r === vLines.length - 1 ? <span style={unitStyle}>{unit}</span> : null}
+          </div>
+        </Pop>
+      ))}
+      {unitOwn ? <Pop s={s} t0={0.8} x={540} y={vy + VL * (vLines.length - 1) + 128}><span style={{ ...unitStyle, marginLeft: 0 }}>{unit}</span></Pop> : null}
+      {subLines.map((l, j) => (
+        <Rise key={'s' + j} s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58 + 40 * j}>
+          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={l} hlAt={1.75} /></div>
         </Rise>
-      ) : null}
+      ))}
       <Source s={s} text={String(data?.source ?? '')} />
     </Win>
   );
@@ -3913,6 +4228,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
 
 // Trend line (style spec 6-4): scene title + gold rule, a line drawn in one continuous sweep (dark grey
 // 8 px history, crimson 9 px from point \`accentFrom\`) over a light fill, on a gold baseline with a few
@@ -4336,6 +4692,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // Article photo in a gold-edged frame (radius 12, 2 px gold) on the paper, zooming slowly over the
 // whole clip (100 -> 106 % by default, or a pan). \`image\` is a data URL; \`credit\` sits bottom-right
 // like a source line. \`fit: "contain"\` (graphics, charts, tall images) shows the whole image on the
@@ -4635,6 +5032,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
 
 // Before -> after value under the scene title: the old value (96, dark grey) rises in, a gold
 // chevron (reading order only, no up/down meaning) draws \`revealSec\` later, then the new value (150,
@@ -4971,11 +5409,53 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // Who said it (style spec 6-2): a medal top-left (headshot data URL in a logo-gold ring, or a flat
 // suit-and-tie pictogram without one), name (76/900) and affiliation (40/600 grey) beside it, a double
 // gold rule, then the quote lines (66/800, no quote marks) one at a time across the scene as if spoken.
-// {phrase} in a line gets the ochre brush; without any {} markup the lines listed in \`accentLines\`
-// are brushed whole.
+// A line wider than x 60..1020 breaks onto the next line at the same size (style spec 1), as does a long
+// affiliation (40, under the name). {phrase} in a line gets the ochre brush; without any {} markup the lines
+// listed in \`accentLines\` are brushed whole.
 const MEDAL_D = 230, MEDAL_X = X0 + MEDAL_D / 2, MEDAL_Y = 155;
 const LINE_X = X0, LINE_Y = 404, LINE_GAP = 92, LINE_SIZE = 66;
 const FIRST_LINE = 1.4, STEP_MIN = 0.8, STEP_MAX = 1.5;
@@ -5037,7 +5517,8 @@ export default function QuoteCard({ data }) {
   // Lines without any {} markup: brush the whole lines the planner listed in accentLines.
   const accentLines = new Set((Array.isArray(data?.accentLines) ? data.accentLines : []).map(Number));
   const marked = raw.some((l) => /\\{[^}]*\\}/.test(l));
-  const lines = marked ? raw : raw.map((l, i) => (accentLines.has(i) ? '{' + l + '}' : l));
+  // Each given line wraps first, so a whole-line brush is drawn per wrapped line.
+  const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X).map((v) => (!marked && accentLines.has(i) ? '{' + v + '}' : v)));
   const n = lines.length;
   // Line starts spread over the room before the hold (narration pace), 0.8..1.5 s apart; the last line
   // ends with its brush (0.55 + 0.9 s) or its rise (0.8 s), 0.1 s before the hold.
@@ -5051,24 +5532,21 @@ export default function QuoteCard({ data }) {
   const s = useScene(data, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
   const k = s.k;
   const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
-  // Each line keeps 66 unless it would pass X1; then that line alone shrinks just enough to fit
-  // (a 960 px line at 52 holds ~19 Hangul), which reads better than clipping it.
-  const sizeOf = (l) => Math.min(LINE_SIZE, (X1 - LINE_X) / Math.max(0.01, ems(plainText(l))));
   return (
     <Win s={s} data={data}>
       <Medal s={s} headshot={headshot} />
       {name ? (
         <Rise s={s} t0={0.3} dy={16} x={330} y={122} anchor="l">
-          <div style={{ fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
+          <div style={{ fontSize: 76 * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
         </Rise>
       ) : null}
-      {affiliation ? (
-        <Rise s={s} t0={0.5} dy={16} x={332} y={198} anchor="l">
-          <div style={{ fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={affiliation} hlAt={1.05} /></div>
+      {wrapLines(affiliation, 40, X1 - 332).filter((l) => l).map((l, j) => (
+        <Rise key={'a' + j} s={s} t0={0.5} dy={16} x={332} y={198 + 50 * j} anchor="l">
+          <div style={{ fontSize: 40 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={1.05} /></div>
         </Rise>
-      ) : null}
+      ))}
       <GoldRule s={s} y={318} t0={0.6} />
-      {lines.map((l, i) => <Say key={i} s={s} text={l} x={LINE_X} y={LINE_Y + gap * i} t0={at(i)} size={sizeOf(l)} />)}
+      {lines.map((l, i) => <Say key={i} s={s} text={l} x={LINE_X} y={LINE_Y + gap * i} t0={at(i)} size={LINE_SIZE} />)}
       <Source s={s} text={String(data?.source ?? '')} />
     </Win>
   );
@@ -5326,13 +5804,59 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // Number cards (style spec 6-3): 2-4 cards side by side in x 60..1020 (gap 36; three cards are 296
 // wide), each with a green header band (84 tall, white 44/800 name) over a logo-gold 3 px line.
 // Cards rise 0.42 s apart, their first label 0.3 s later; once the last card is in, each card's key
 // number (72 crimson, unit 36) pops 0.22 s apart, then the second row (label 30/600 grey, value 38/800
 // ink, under a quiet divider) rises 0.18 s apart. Numbers pop, no count-up (spec 5-3).
 // \`cards: [{ header, rows: [{ label, value: number | text, unit? }] }]\`, at most two rows per card.
+// Text that does not fit its card keeps its size and breaks onto more lines (style spec 1): names and labels at
+// a space, a number after \\uC5B5/\\uB9CC (1\\uC5B5 / 5000\\uB9CC), the unit onto a line of its own. Every card grows by the most
+// lines any card needs in that row, so the rows stay level across the cards. Four one-row cards whose key
+// number cannot fit a quarter of the width even broken up go two by two instead (cards 462 wide, at most 300 tall).
 const fmt = (v) => { const c = countable(v); return c && typeof v === 'number' ? counted(c, 1) : String(v ?? ''); };
+const BAND = 84, BL = 52, LL = 40, VL = 76, UL = 44, L2 = 38, V2 = 46;
 
 export default function StatCards({ data }) {
   const accent = String(data?.accentColor ?? C.acc);
@@ -5350,54 +5874,81 @@ export default function StatCards({ data }) {
   const brushes = cards.map((c, i) => { const [r0, r1] = rowsOf(c); return Math.max(brushEnd(r0?.label, at(i) + 0.85), brushEnd(r1?.label, row2At + 0.18 * i + 0.55)); });
   const s = useScene(data, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data?.title ?? ''), subtitle)));
   const k = s.k;
-  const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
+  const gap = 36;
+  const widest = (w) => Math.max(0, ...cards.map((c) => { const r0 = rowsOf(c)[0]; return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0; }));
+  const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
+  const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
+  // Each card's text as lines, then each row's height from the card that needs the most lines.
+  const laid = cards.map((c) => {
+    const [r0, r1] = rowsOf(c);
+    const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
+    const u0 = String(r0?.unit ?? '');
+    const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
+    return {
+      header: wrapLines(plainText(String(c?.header ?? '')), 44, W - 24), r0, r1, v0, u0, unitOwn,
+      label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
+      label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
+      v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ''), 38, W - 24) : [],
+    };
+  });
+  const most = (f) => Math.max(1, ...laid.map(f));
+  const d1 = (most((c) => c.header.length) - 1) * BL;
+  const d2 = d1 + (most((c) => c.label0.length) - 1) * LL;
+  const d3 = d2 + (most((c) => c.v0.length) - 1) * VL + (laid.some((c) => c.unitOwn) ? UL : 0);
+  const d4 = d3 + (most((c) => c.label1.length) - 1) * L2;
+  const d5 = d4 + (most((c) => c.v1.length) - 1) * V2;
   // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.
-  const Hc = two ? 450 : 300;
-  const y0 = (subtitle ? 206 : 186) + (450 - Hc) / 2;
+  // Two by two, the two rows of cards share the room from under the header to y 750 (20 px apart).
+  const vgap = 20, top = subtitle ? 176 : 150;
+  const Hc = grid ? Math.min(300 + d3, (750 - top - vgap) / 2) : two ? 450 + d5 : 300 + d3;
+  const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
   return (
     <Win s={s} data={data}>
       <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
-      {cards.map((c, i) => {
-        const x = X0 + i * (W + gap), cx = x + W / 2, t0 = at(i);
-        const header = String(c?.header ?? '');
-        const [r0, r1] = rowsOf(c);
-        const v0 = fmt(r0?.value), u0 = String(r0?.unit ?? '');
-        const v1 = r1 ? fmt(r1.value) + String(r1.unit ?? '') : '';
-        // The key number and its unit shrink together only when they would overflow the card.
-        const sc = Math.min(1, (W - 28) / Math.max(1, ems(v0) * 72 + ems(u0) * 36 + 4));
+      {laid.map((c, i) => {
+        const x = X0 + (i % cols) * (W + gap), cx = x + W / 2, t0 = at(i);
+        const y0 = top0 + Math.floor(i / cols) * (Hc + vgap);
+        const { r0, r1, v0, u0 } = c;
         return (
           <React.Fragment key={i}>
             <Rise s={s} t0={t0} dur={0.9} dy={22} x={x} y={y0} anchor="lt">
               <div style={{ ...cardStyle(s), position: 'relative', width: W * k, height: Hc * k }}>
                 {/* Inner coordinates are 2 px (the border) above and left of the sian card's. */}
-                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: fitSize(plainText(header), 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k }}>{plainText(header)}</div>
-                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL }} />
-                {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line }} /> : null}
+                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + 'px', whiteSpace: 'nowrap' }}>
+                  {c.header.map((l, j) => <div key={j}>{l}</div>)}
+                </div>
+                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL }} />
+                {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line }} /> : null}
               </div>
             </Rise>
-            {r0?.label ? (
-              <Rise s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140}>
-                <div style={{ fontSize: fitSize(plainText(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}><Marked s={s} text={String(r0.label)} hlAt={t0 + 0.85} /></div>
+            {c.label0.map((l, j) => (
+              <Rise key={'l' + j} s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140 + d1 + LL * j}>
+                <div style={{ fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}><Marked s={s} text={l} hlAt={t0 + 0.85} /></div>
               </Rise>
-            ) : null}
-            {r0 ? (
-              <Pop s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214}>
+            ))}
+            {v0.map((l, r) => (
+              <Pop key={'v' + r} s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214 + d2 + VL * r}>
                 <div style={{ display: 'flex', alignItems: 'baseline', color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ fontSize: 72 * sc * k, letterSpacing: -1.5 * sc * k }}>{v0}</span>
-                  {u0 ? <span style={{ fontSize: 36 * sc * k, fontWeight: 700, marginLeft: 2 * sc * k }}>{u0}</span> : null}
+                  <span style={{ fontSize: 72 * k, letterSpacing: -1.5 * k }}>{l}</span>
+                  {u0 && !c.unitOwn && r === v0.length - 1 ? <span style={{ fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k }}>{u0}</span> : null}
                 </div>
               </Pop>
+            ))}
+            {c.unitOwn ? (
+              <Pop s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214 + d2 + VL * (v0.length - 1) + 58}>
+                <span style={{ fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 }}>{u0}</span>
+              </Pop>
             ) : null}
-            {r1?.label ? (
-              <Rise s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330}>
-                <div style={{ fontSize: fitSize(plainText(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={String(r1.label)} hlAt={row2At + 0.18 * i + 0.55} /></div>
+            {c.label1.map((l, j) => (
+              <Rise key={'m' + j} s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330 + d3 + L2 * j}>
+                <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={row2At + 0.18 * i + 0.55} /></div>
               </Rise>
-            ) : null}
-            {r1 ? (
-              <Rise s={s} t0={row2At + 0.18 * i + 0.12} dy={10} x={cx} y={y0 + 385}>
-                <div style={{ fontSize: fitSize(v1, 38, W - 24) * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k }}>{v1}</div>
+            ))}
+            {c.v1.map((l, j) => (
+              <Rise key={'w' + j} s={s} t0={row2At + 0.18 * i + 0.12} dy={10} x={cx} y={y0 + 385 + d4 + V2 * j}>
+                <div style={{ fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k }}>{l}</div>
               </Rise>
-            ) : null}
+            ))}
           </React.Fragment>
         );
       })}
@@ -5658,34 +6209,75 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
 
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
+
 // Fallback scene when no photo or number fits: the key sentence (72/800 ink, '\\n' for a line break)
-// centred on the paper, one line after another. [word] turns crimson, {phrase} gets the ochre brush
-// once its line has settled. Optional scene \`title\` (+ double gold rule) top-left, \`sub\` as a smaller
-// grey line under the sentence, \`source\` bottom-right.
+// centred on the paper, one line after another. A line wider than x 60..1020 breaks onto the next line at the
+// same size (style spec 1), never smaller. [word] turns crimson, {phrase} gets the ochre brush once its line
+// has settled. Optional scene \`title\` (+ double gold rule) top-left, \`sub\` as a smaller grey line under the
+// sentence (it wraps the same way), \`source\` bottom-right.
 export default function TextCard({ data }) {
   const title = String(data?.title ?? '');
   const sub = String(data?.sub ?? '');
-  const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '');
+  const size = Number(data?.fontSize ?? 72);
+  const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '').flatMap((l) => wrapLines(l, size, X1 - X0));
+  const subLines = sub ? wrapLines(sub, 36, X1 - X0) : [];
   const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
   // Last entrance: the sub line (0.8 s, its brush 0.55 + 0.9 s) or the last line's brush (0.55 + 0.9 s after the line starts).
   const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, '')));
   const k = s.k;
-  // One size for every line: the longest decides, between 56 and the requested size.
-  const want = Number(data?.fontSize ?? 72);
-  const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
   const lh = size * 1.32;
   const top = title ? 150 : 0;
-  const block = lines.length * lh + (sub ? 36 + 44 : 0);
+  const block = lines.length * lh + (sub ? 36 + 44 * subLines.length : 0);
   const y0 = top + (794 - top - block) / 2;
   return (
     <Win s={s} data={data}>
       <Header s={s} title={title} subtitle="" />
       {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
-      {sub ? (
-        <Rise s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 22}>
-          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={sub} hlAt={at(lines.length) + 0.55} /></div>
+      {subLines.map((l, j) => (
+        <Rise key={'s' + j} s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 44 * j + 22}>
+          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={at(lines.length) + 0.55} /></div>
         </Rise>
-      ) : null}
+      ))}
       <Source s={s} text={String(data?.source ?? '')} />
     </Win>
   );
@@ -5942,6 +6534,47 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+
+// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
+// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise only at a space outside
+// [ ] / { } marks (a mark never splits), or, in a number, after the Korean unit \\uC5B5/\\uB9CC when digits follow
+// (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). Two lines are balanced around the middle. A word wider than maxW keeps a line of
+// its own at full size; validate.ts warns about such text (same widths) before it reaches a scene.
+function wrapLines(text, size, maxW) {
+  const out = [];
+  for (const para of String(text ?? '').split('\\n')) {
+    const words = [];
+    let cur = '', depth = 0;
+    const chars = [...para];
+    chars.forEach((ch, i) => {
+      if (ch === '[' || ch === '{') depth += 1;
+      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+      if (ch === ' ' && depth === 0) { if (cur) words.push({ w: cur, sp: ' ' }); cur = ''; return; }
+      cur += ch;
+      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { words.push({ w: cur, sp: '' }); cur = ''; }
+    });
+    if (cur) words.push({ w: cur, sp: ' ' });
+    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
+    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const lines = [];
+    let line = [];
+    for (const w of words) {
+      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
+    }
+    if (line.length || !words.length) lines.push(line);
+    if (lines.length === 2) {
+      // Two lines: the split whose longer half is shortest.
+      const all = words;
+      let best = lines[0].length, bestW = Infinity;
+      for (let i = 1; i < all.length; i += 1) {
+        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
+        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
+      }
+      out.push(join(all.slice(0, best)), join(all.slice(best)));
+    } else out.push(...lines.map(join));
+  }
+  return out;
+}
 
 // Applies or not, target or exempt (style spec 6-6). A plain gold rule draws across the top and the
 // \`title\` ribbon pops on it; then one or two full-width cards (960 x 270) rise in, each with an icon

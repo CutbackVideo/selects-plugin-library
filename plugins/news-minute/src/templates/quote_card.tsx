@@ -6,8 +6,9 @@ import { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, canc
 // Who said it (style spec 6-2): a medal top-left (headshot data URL in a logo-gold ring, or a flat
 // suit-and-tie pictogram without one), name (76/900) and affiliation (40/600 grey) beside it, a double
 // gold rule, then the quote lines (66/800, no quote marks) one at a time across the scene as if spoken.
-// {phrase} in a line gets the ochre brush; without any {} markup the lines listed in `accentLines`
-// are brushed whole.
+// A line wider than x 60..1020 breaks onto the next line at the same size (style spec 1), as does a long
+// affiliation (40, under the name). {phrase} in a line gets the ochre brush; without any {} markup the lines
+// listed in `accentLines` are brushed whole.
 const MEDAL_D = 230, MEDAL_X = X0 + MEDAL_D / 2, MEDAL_Y = 155;
 const LINE_X = X0, LINE_Y = 404, LINE_GAP = 92, LINE_SIZE = 66;
 const FIRST_LINE = 1.4, STEP_MIN = 0.8, STEP_MAX = 1.5;
@@ -69,7 +70,8 @@ export default function QuoteCard({ data }) {
   // Lines without any {} markup: brush the whole lines the planner listed in accentLines.
   const accentLines = new Set((Array.isArray(data?.accentLines) ? data.accentLines : []).map(Number));
   const marked = raw.some((l) => /\{[^}]*\}/.test(l));
-  const lines = marked ? raw : raw.map((l, i) => (accentLines.has(i) ? '{' + l + '}' : l));
+  // Each given line wraps first, so a whole-line brush is drawn per wrapped line.
+  const lines = raw.flatMap((l, i) => wrapLines(l, LINE_SIZE, X1 - LINE_X).map((v) => (!marked && accentLines.has(i) ? '{' + v + '}' : v)));
   const n = lines.length;
   // Line starts spread over the room before the hold (narration pace), 0.8..1.5 s apart; the last line
   // ends with its brush (0.55 + 0.9 s) or its rise (0.8 s), 0.1 s before the hold.
@@ -83,24 +85,21 @@ export default function QuoteCard({ data }) {
   const s = useScene(data, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
   const k = s.k;
   const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
-  // Each line keeps 66 unless it would pass X1; then that line alone shrinks just enough to fit
-  // (a 960 px line at 52 holds ~19 Hangul), which reads better than clipping it.
-  const sizeOf = (l) => Math.min(LINE_SIZE, (X1 - LINE_X) / Math.max(0.01, ems(plainText(l))));
   return (
     <Win s={s} data={data}>
       <Medal s={s} headshot={headshot} />
       {name ? (
         <Rise s={s} t0={0.3} dy={16} x={330} y={122} anchor="l">
-          <div style={{ fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
+          <div style={{ fontSize: 76 * k, fontWeight: 900, letterSpacing: -1 * k }}><Marked s={s} text={name} hlAt={0.85} /></div>
         </Rise>
       ) : null}
-      {affiliation ? (
-        <Rise s={s} t0={0.5} dy={16} x={332} y={198} anchor="l">
-          <div style={{ fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={affiliation} hlAt={1.05} /></div>
+      {wrapLines(affiliation, 40, X1 - 332).filter((l) => l).map((l, j) => (
+        <Rise key={'a' + j} s={s} t0={0.5} dy={16} x={332} y={198 + 50 * j} anchor="l">
+          <div style={{ fontSize: 40 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={1.05} /></div>
         </Rise>
-      ) : null}
+      ))}
       <GoldRule s={s} y={318} t0={0.6} />
-      {lines.map((l, i) => <Say key={i} s={s} text={l} x={LINE_X} y={LINE_Y + gap * i} t0={at(i)} size={sizeOf(l)} />)}
+      {lines.map((l, i) => <Say key={i} s={s} text={l} x={LINE_X} y={LINE_Y + gap * i} t0={at(i)} size={LINE_SIZE} />)}
       <Source s={s} text={String(data?.source ?? '')} />
     </Win>
   );
