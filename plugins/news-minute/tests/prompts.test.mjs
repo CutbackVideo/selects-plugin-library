@@ -219,3 +219,49 @@ test('number_callout must not carry an assetRef', () => {
   delete plan.scenes[0].assetRef;
   assert.equal(P.validatePlan(plan, sents, assets).ok, true);
 });
+
+test('every plan check message has a Korean text for the panel; English panels keep the message', async () => {
+  const { issueText } = await import('../src/issues.ts');
+  const { readFileSync } = await import('node:fs');
+  const cases = JSON.parse(readFileSync(new URL('./fixtures/layout-cases-14b3d80.json', import.meta.url), 'utf8'));
+  const sents = [{id: 's1', text: '3592 and 46 of 105.', startSec: 0, endSec: 14}, {id: 's2', text: 'b', startSec: 14, endSec: 16}];
+  const assets = [{ref: 'photo-1', kind: 'photo'}, {ref: 'photo-2', kind: 'photo'}, {ref: 'ill-1', kind: 'illustration'}];
+  const sc = (type, params, extra = {}) => ({sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false, ...extra});
+  const plans = [
+    ...cases.map((c) => [sc(c.type, c.data)]),
+    ...P.SCENE_TYPES.map((type) => [sc(type, {})]),
+    [sc('highlight_card', {title: 'x'.repeat(30), subtitle: 'y'.repeat(40), value: 35920})],
+    [sc('number_callout', {label: 'a', from: 'about', to: 'twice'})],
+    [sc('number_callout', {label: 'a', from: 1, to: 3592})],
+    [sc('donut_ratio', {title: 't', slices: [{label: 'a', value: 7, tone: 'red'}]})],
+    [sc('verdict_card', {title: 't', cards: [{text: 'a', tone: 'accent'}, {text: 'b', tone: 'accent'}, {text: 'c', tone: 'x'}]})],
+    [sc('bar_compare_h', {title: 't', source: 's', unit: '%', bars: [{label: 'a', value: 1, tone: 'accent'}, {label: 'b', value: 2, tone: 'accent'}, {}]})],
+    [sc('line_trend_callout', {title: 't', source: 's', unit: 'u', points: [{x: 1}], endLabel: 9, accentFrom: 5})],
+    [sc('stat_cards', {title: 't', cards: [{header: 'a', rows: [{}]}]})],
+    [sc('quote_card', {name: 'n', affiliation: 'a', lines: ['one'], accentLines: [3]})],
+    [sc('news_photo', {focus: 'middle'}, {assetRef: 'ill-1'})],
+    [sc('news_photo', {}, {assetRef: 'photo-9'})],
+    [sc('text_card', {text: '{a} {b} [c] [d] [e]', sub: 'Reuters'}, {assetRef: 'photo-1', disclaimer: true, hideCaption: 'no'})],
+    [sc('text_card', {text: 'a'}), {...sc('news_photo', {}, {assetRef: 'photo-1'}), sentenceIds: ['s2']}],
+    [1, sc('mystery', {}), {...sc('news_photo', {}, {assetRef: 'photo-1'}), sentenceIds: ['s9']}],
+    Array.from({length: 6}, (_, i) => ({...sc(i ? 'text_card' : 'news_photo', {text: 'a'}, {assetRef: 'photo-1'}), sentenceIds: [i ? 's2' : 's1']})),
+  ];
+  const seen = new Set();
+  for (const scenes of plans) {
+    const v = P.validatePlan({assetSummaries: [{ref: 'photo-1', summary: 'x'}], scenes}, sents, assets);
+    for (const m of [...v.errors, ...v.warnings]) seen.add(m);
+  }
+  assert.ok(seen.size > 40, String(seen.size));
+  for (const m of seen) {
+    const ko = issueText('ko', m);
+    assert.notEqual(ko, m, 'no Korean text for: ' + m);
+    assert.match(ko, /[\uAC00-\uD7A3]/);
+    // what a row shows after its "scene N" reads the same way
+    const row = /^scene \d+\b:? ?(.*)$/.exec(m);
+    if (row) assert.notEqual(issueText('ko', row[1]), row[1], 'no Korean text for the row part of: ' + m);
+    assert.equal(issueText('en', m), m);
+  }
+  // the Staging case (value 35920 and a long title on a highlight card) says what to change
+  assert.equal(issueText('ko', '.value: number "35920" is not in this scene\'s narration; use only numbers from the article'),
+    '\uAC12 \u2013 \uC22B\uC790 \u201C35920\u201D: \uC774 \uC7A5\uBA74 \uB098\uB808\uC774\uC158\uC5D0 \uC5C6\uB294 \uC22B\uC790\uC608\uC694. \uC774 \uC7A5\uBA74\uC5D0\uC11C \uC77D\uB294 \uAE30\uC0AC \uC22B\uC790\uB85C \uBC14\uAFD4 \uC8FC\uC138\uC694.');
+});

@@ -129,6 +129,8 @@ var MESSAGES = {
   confirmHint: ["The preview you checked becomes the edit Draft.", "\uD655\uC778\uD55C \uBBF8\uB9AC\uBCF4\uAE30\uB97C \uD3B8\uC9D1\uBCF8\uC73C\uB85C \uC0AC\uC6A9\uD574\uC694."],
   confirmNeedsFit: ["Some scenes have text that does not fit (\u2716 on the row). Shorten it or split the scene, update the preview, then confirm.", "\uAE00\uC790\uAC00 \uD654\uBA74\uC5D0 \uB2E4 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uB294 \uC7A5\uBA74\uC774 \uC788\uC5B4\uC694(\uC904\uC758 \u2716). \uBB38\uAD6C\uB97C \uC904\uC774\uAC70\uB098 \uC7A5\uBA74\uC744 \uB098\uB208 \uB4A4 \uBBF8\uB9AC\uBCF4\uAE30\uB97C \uC5C5\uB370\uC774\uD2B8\uD558\uBA74 \uD655\uC815\uD560 \uC218 \uC788\uC5B4\uC694."],
   confirmNeedsPreview: ["Update the preview and check it in the viewer first; then you can confirm.", "\uBBF8\uB9AC\uBCF4\uAE30\uB97C \uC5C5\uB370\uC774\uD2B8\uD558\uACE0 \uBDF0\uC5B4\uC5D0\uC11C \uD655\uC778\uD55C \uB4A4 \uD655\uC815\uD560 \uC218 \uC788\uC5B4\uC694."],
+  confirmAgain: ["You changed the layout after confirming it. Build a preview, check it in the viewer, then confirm again; the confirmed edit Draft stays as it is.", "\uD655\uC815\uD55C \uB4A4 \uAD6C\uC131\uC744 \uBC14\uAFE8\uC5B4\uC694. \uBBF8\uB9AC\uBCF4\uAE30\uB97C \uB9CC\uB4E4\uC5B4 \uBDF0\uC5B4\uC5D0\uC11C \uD655\uC778\uD55C \uB4A4 \uB2E4\uC2DC \uD655\uC815\uD574 \uC8FC\uC138\uC694. \uD655\uC815\uD55C \uD3B8\uC9D1\uBCF8\uC740 \uADF8\uB300\uB85C \uB0A8\uC544\uC694."],
+  videoChanged: ["The confirmed edit Draft (without your later changes).", "\uD655\uC815\uD55C \uD3B8\uC9D1\uBCF8\uC774\uC5D0\uC694(\uADF8 \uB4A4\uC5D0 \uACE0\uCE5C \uAD6C\uC131\uC740 \uB4E4\uC5B4 \uC788\uC9C0 \uC54A\uC544\uC694)."],
   feedbackOpen: ["Leave a note on the layout", "\uD654\uBA74 \uAD6C\uC131\uC5D0 \uC758\uACAC \uB0A8\uAE30\uAE30"],
   rowErrors: ["{n} problem(s) to fix \xB7 see Edit", "\uACE0\uCCD0\uC57C \uD560 \uC810 {n}\uAC1C \xB7 \uC218\uC815\uC5D0\uC11C \uBCF4\uAE30"],
   rowWarnings: ["{n} thing(s) to check \xB7 see Edit", "\uD655\uC778\uD560 \uC810 {n}\uAC1C \xB7 \uC218\uC815\uC5D0\uC11C \uBCF4\uAE30"],
@@ -7123,8 +7125,8 @@ function fontKind(bytes) {
   return "unknown";
 }
 function sfntTables(bytes) {
-  const kind = fontKind(bytes);
-  if (kind !== "truetype" && kind !== "opentype") throw new Error("Not an sfnt font (" + kind + ").");
+  const kind2 = fontKind(bytes);
+  if (kind2 !== "truetype" && kind2 !== "opentype") throw new Error("Not an sfnt font (" + kind2 + ").");
   const dv = view(bytes);
   const n = dv.getUint16(4);
   const out = {};
@@ -7273,9 +7275,9 @@ async function createSubsetter(wasm) {
   if (typeof x._initialize === "function") x._initialize();
   const heap = () => new Uint8Array(x.memory.buffer);
   function subset(fontBytes, codepoints, opts = SCENE_SUBSET_OPTIONS) {
-    const kind = fontKind(fontBytes);
-    if (kind !== "truetype" && kind !== "opentype") {
-      throw new Error("The subsetter reads TrueType/OpenType fonts only; this font is " + kind + ".");
+    const kind2 = fontKind(fontBytes);
+    if (kind2 !== "truetype" && kind2 !== "opentype") {
+      throw new Error("The subsetter reads TrueType/OpenType fonts only; this font is " + kind2 + ".");
     }
     const fontPtr = x.malloc(fontBytes.length);
     if (!fontPtr) throw new Error("The subsetter ran out of memory.");
@@ -7994,6 +7996,128 @@ async function buildPreview(sdk, env, s, preset, prefix, log, rec) {
   }
 }
 
+// src/issues.ts
+var FIELD = {
+  title: "\uC81C\uBAA9",
+  value: "\uAC12",
+  from: "\uC774\uC804 \uAC12",
+  to: "\uC774\uD6C4 \uAC12",
+  unit: "\uB2E8\uC704",
+  label: "\uD56D\uBAA9",
+  text: "\uBB38\uAD6C",
+  sub: "\uC791\uC740 \uC904",
+  source: "\uCD9C\uCC98",
+  name: "\uC774\uB984",
+  affiliation: "\uC18C\uC18D",
+  lines: "\uC778\uC6A9 \uBB38\uAD6C",
+  endLabel: "\uB05D \uAC12",
+  header: "\uBA38\uB9AC\uAE00",
+  rows: "\uC904",
+  slices: "\uC870\uAC01",
+  bars: "\uB9C9\uB300",
+  cards: "\uCE74\uB4DC",
+  points: "\uC810",
+  cause: "\uC6D0\uC778",
+  effect: "\uACB0\uACFC",
+  word: "\uB0B1\uB9D0",
+  accentLines: "\uAC15\uC870 \uC904",
+  accentFrom: "\uAC15\uC870 \uC2DC\uC791 \uC810",
+  focus: "\uC0AC\uC9C4 \uCD08\uC810"
+};
+var WHAT = {
+  title: "\uC81C\uBAA9",
+  value: "\uC22B\uC790",
+  unit: "\uB2E8\uC704",
+  "sub line": "\uC791\uC740 \uC904",
+  text: "\uBB38\uAD6C",
+  name: "\uC774\uB984",
+  affiliation: "\uC18C\uC18D",
+  quote: "\uC778\uC6A9",
+  card: "\uCE74\uB4DC",
+  "card name": "\uCE74\uB4DC \uBA38\uB9AC\uAE00",
+  "card label": "\uCE74\uB4DC \uD56D\uBAA9",
+  "card number": "\uCE74\uB4DC \uC22B\uC790",
+  "card unit": "\uCE74\uB4DC \uB2E8\uC704",
+  "second label": "\uB450 \uBC88\uC9F8 \uD56D\uBAA9",
+  "second value": "\uB450 \uBC88\uC9F8 \uAC12"
+};
+var field = (path) => path.split(".").map((seg) => {
+  const m = /^(\w+)(?:\[(\d+)\])?$/.exec(seg);
+  return m ? (FIELD[m[1]] ?? m[1]) + (m[2] !== void 0 ? " " + (Number(m[2]) + 1) : "") : seg;
+}).join(" ");
+var kind = (type) => t("ko", "type_" + type);
+var REBUILD = "\uC7A5\uBA74 \uB370\uC774\uD130\uAC00 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC544\uC694. '\uD654\uBA74 \uAD6C\uC131\uC5D0 \uC758\uACAC \uB0A8\uAE30\uAE30'\uB85C \uB2E4\uC2DC \uB9CC\uB4E4\uC5B4 \uC8FC\uC138\uC694.";
+var FIT = [
+  [/^the cards run below their room/, () => "\uCE74\uB4DC\uAC00 \uC544\uB798 \uCD9C\uCC98 \uC904\uAE4C\uC9C0 \uB0B4\uB824\uAC00\uC694. \uCE74\uB4DC \uBA38\uB9AC\uAE00\xB7\uD56D\uBAA9\uC744 \uC904\uC774\uAC70\uB098 \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^the card runs out of the window/, () => "\uCE74\uB4DC\uAC00 \uD654\uBA74 \uBC16\uC73C\uB85C \uB098\uAC00\uC694. \uAE00\uC790\uB97C \uC904\uC774\uAC70\uB098 \uCE74\uB4DC \uC218\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^wider than its room/, () => "\uD55C \uC904\uB85C \uB193\uC544\uB3C4 \uCE78\uBCF4\uB2E4 \uB113\uC5B4 \uC798\uB824\uC694(\uAE00\uC790 \uD06C\uAE30\uB294 \uC904\uC774\uC9C0 \uC54A\uC544\uC694). \uBB38\uAD6C\uB97C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^(?:its line|(\d+) lines)(?: at \d+ px)? runs? past its room/, (m) => (m[1] ? m[1] + "\uC904\uC774 " : "") + "\uCE78\uC744 \uB118\uC5B4 \uC798\uB9AC\uAC70\uB098 \uCD9C\uCC98\uB97C \uAC00\uB824\uC694(\uAE00\uC790 \uD06C\uAE30\uB294 \uC904\uC774\uC9C0 \uC54A\uC544\uC694). \uBB38\uAD6C\uB97C \uC904\uC774\uAC70\uB098 \uC7A5\uBA74\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],
+  [/^its lines overlap/, () => "\uC904\uB07C\uB9AC \uACB9\uCCD0\uC694. \uBB38\uAD6C\uB97C \uC904\uC774\uAC70\uB098 \uC7A5\uBA74\uC744 \uB098\uB220 \uC8FC\uC138\uC694."]
+];
+var RULES = [
+  [/^(.+?) "(.*)" does not fit: (.*)$/, (m) => {
+    const fix = FIT.find(([re2]) => re2.test(m[3]));
+    const re = fix && fix[0].exec(m[3]);
+    return (WHAT[m[1]] ?? m[1]) + " \u201C" + m[2] + "\u201D: " + (fix && re ? fix[1](re) : "\uD654\uBA74\uC5D0 \uB2E4 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC544\uC694. \uBB38\uAD6C\uB97C \uC904\uC774\uAC70\uB098 \uC7A5\uBA74\uC744 \uB098\uB220 \uC8FC\uC138\uC694.");
+  }],
+  [/^(.+?) "(.*)" takes (\d+) lines/, (m) => (WHAT[m[1]] ?? m[1]) + " \u201C" + m[2] + "\u201D: " + m[3] + "\uC904\uC774 \uB3FC\uC694(\uAE00\uC790 \uD06C\uAE30\uB294 \uC904\uC774\uC9C0 \uC54A\uC544\uC694). \uBB38\uAD6C\uB97C \uC904\uC774\uAC70\uB098 \uC7A5\uBA74\uC744 \uB098\uB204\uBA74 \uB354 \uC77D\uAE30 \uC26C\uC6CC\uC694."],
+  [/^number "(.+)" is not in this scene's narration/, (m) => "\uC22B\uC790 \u201C" + m[1] + "\u201D: \uC774 \uC7A5\uBA74 \uB098\uB808\uC774\uC158\uC5D0 \uC5C6\uB294 \uC22B\uC790\uC608\uC694. \uC774 \uC7A5\uBA74\uC5D0\uC11C \uC77D\uB294 \uAE30\uC0AC \uC22B\uC790\uB85C \uBC14\uAFD4 \uC8FC\uC138\uC694."],
+  [/^value is required and must contain a digit/, () => "\uAC12 \uCE78\uC5D0 \uAE30\uC0AC\uC5D0 \uB098\uC628 \uC22B\uC790\uB97C \uB123\uC5B4 \uC8FC\uC138\uC694."],
+  [/^from and to are required/, () => "\uC774\uC804 \uAC12\uACFC \uC774\uD6C4 \uAC12\uC744 \uBAA8\uB450 \uB123\uC5B4 \uC8FC\uC138\uC694. \uAC12\uC774 \uD558\uB098\uBFD0\uC774\uBA74 \uC885\uB958\uB97C '\uAC15\uC870 \uCE74\uB4DC'\uB85C \uBC14\uAFD4 \uC8FC\uC138\uC694."],
+  [/^from and to must each contain a digit/, () => "\uC774\uC804 \uAC12\uACFC \uC774\uD6C4 \uAC12\uC5D0 \uC22B\uC790\uAC00 \uC788\uC5B4\uC57C \uD574\uC694. \uAE30\uC0AC\uC5D0 \uC22B\uC790\uAC00 \uC5C6\uC73C\uBA74 \uB2E4\uB978 \uC885\uB958\uB85C \uBC14\uAFD4 \uC8FC\uC138\uC694."],
+  [/^title, source and unit are required/, () => "\uC81C\uBAA9\xB7\uCD9C\uCC98\xB7\uB2E8\uC704\uB97C \uBAA8\uB450 \uCC44\uC6CC \uC8FC\uC138\uC694."],
+  [/^name and affiliation are required/, () => "\uC774\uB984\uACFC \uC18C\uC18D\uC744 \uBAA8\uB450 \uCC44\uC6CC \uC8FC\uC138\uC694."],
+  [/^(\d+)-(\d+) quote lines are required/, (m) => "\uC778\uC6A9 \uBB38\uAD6C\uB294 " + m[1] + "~" + m[2] + "\uC904\uC774\uC5B4\uC57C \uD574\uC694."],
+  [/^(\d+)-(\d+) (slices|cards) are required/, (m) => FIELD[m[3]] + "\uB294 " + m[1] + "~" + m[2] + "\uAC1C\uC5EC\uC57C \uD574\uC694."],
+  [/^exactly (\d+) bars are required/, (m) => "\uB9C9\uB300\uB294 " + m[1] + "\uAC1C\uC5EC\uC57C \uD574\uC694."],
+  [/^at least (\d+) points/, (m) => "\uC810\uC774 " + m[1] + "\uAC1C \uC774\uC0C1 \uC788\uC5B4\uC57C \uD574\uC694."],
+  [/^exactly one slice must have tone accent/, () => "\uAC15\uC870 \uC0C9 \uC870\uAC01\uC740 \uD558\uB098\uC5EC\uC57C \uD574\uC694."],
+  [/^(?:at most one card may have tone accent|only one bar may be accent)/, () => "\uAC15\uC870 \uC0C9\uC740 \uD558\uB098\uC5D0\uB9CC \uC4F8 \uC218 \uC788\uC5B4\uC694."],
+  [/^(\w+)\[(\d+)\](?:\.(\w+)\[(\d+)\])? needs /, (m) => field(m[1] + "[" + m[2] + "]" + (m[3] ? "." + m[3] + "[" + m[4] + "]" : "")) + "\uC5D0 \uBE60\uC9C4 \uAC12\uC774 \uC788\uC5B4\uC694. '\uC804\uCCB4 \uAC12(JSON)'\uC5D0\uC11C \uCC44\uC6CC \uC8FC\uC138\uC694."],
+  [/^accentFrom must be a valid point index/, () => "\uAC15\uC870 \uC2DC\uC791 \uC810 \uBC88\uD638\uAC00 \uC810 \uAC1C\uC218\uC640 \uB9DE\uC9C0 \uC54A\uC544\uC694."],
+  [/^accentLines must be valid line indexes/, () => "\uAC15\uC870 \uC904 \uBC88\uD638\uAC00 \uC778\uC6A9 \uC904 \uC218\uC640 \uB9DE\uC9C0 \uC54A\uC544\uC694."],
+  [/^focus must be/, () => "\uC0AC\uC9C4 \uCD08\uC810 \uAC12\uC774 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC544\uC694."],
+  [/^([\w.]+) is required/, (m) => field(m[1]) + " \uCE78\uC744 \uCC44\uC6CC \uC8FC\uC138\uC694."],
+  [/^lasts ([\d.]+) s; split it so a (\w+) scene does not run past (\d+) s/, (m) => m[1] + "\uCD08\uB85C \uAE38\uC5B4\uC694. " + kind(m[2]) + " \uC7A5\uBA74\uC740 " + m[3] + "\uCD08\uB97C \uB118\uC9C0 \uC54A\uAC8C \uC7A5\uBA74\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],
+  [/^title "(.*)" is over (\d+) characters/, (m) => "\uC81C\uBAA9 \u201C" + m[1] + "\u201D: " + m[2] + "\uC790\uB97C \uB118\uC5B4 \uD55C \uC904\uC5D0 \uB2E4 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC544\uC694."],
+  [/^subtitle is over (\d+) characters/, (m) => "\uBD80\uC81C\uAC00 " + m[1] + "\uC790\uB97C \uB118\uC5B4 \uD55C \uC904\uC5D0 \uB2E4 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC544\uC694."],
+  [/^(\d+) \[ \] and (\d+) \{ \} emphasis marks; keep at most (\d+) \[ \] and (\d+) \{ \}/, (m) => "\uAC15\uC870 \uD45C\uC2DC\uAC00 \uB9CE\uC544\uC694([ ] " + m[1] + "\uAC1C, { } " + m[2] + "\uAC1C). \uC7A5\uBA74\uB9C8\uB2E4 [ ]\uB294 " + m[3] + "\uAC1C, { }\uB294 " + m[4] + "\uAC1C\uAE4C\uC9C0 \uC368 \uC8FC\uC138\uC694."],
+  [/^text_card sub "(.*)" looks like a source/, (m) => "\uC791\uC740 \uC904 \u201C" + m[1] + "\u201D: \uCD9C\uCC98\uCC98\uB7FC \uBCF4\uC5EC\uC694. \uCD9C\uCC98\uB294 \uB370\uC774\uD130 \uC7A5\uBA74\uC758 \uCD9C\uCC98 \uCE78\uC5D0 \uB123\uC5B4 \uC8FC\uC138\uC694."],
+  [/^assetRef "(.*)" is not in the asset list/, (m) => "\uC0AC\uC9C4 " + m[1] + ": \uAE30\uC0AC \uC0AC\uC9C4 \uBAA9\uB85D\uC5D0 \uC5C6\uC5B4\uC694. \uC0AC\uC9C4\uC744 \uB2E4\uC2DC \uACE8\uB77C \uC8FC\uC138\uC694."],
+  [/^news_photo needs an assetRef/, () => "\uC0AC\uC9C4 \uC7A5\uBA74\uC5D0\uB294 \uC0AC\uC9C4\uC744 \uACE8\uB77C \uC8FC\uC138\uC694."],
+  [/^(\w+) must not carry an assetRef/, (m) => kind(m[1]) + " \uC7A5\uBA74\uC5D0\uB294 \uC0AC\uC9C4\uC744 \uB123\uC9C0 \uC54A\uC544\uC694. \uC0AC\uC9C4\uC744 '\uC5C6\uC74C'\uC73C\uB85C \uBC14\uAFD4 \uC8FC\uC138\uC694."],
+  [/^a scene that shows an illustration must set disclaimer=true/, () => "\uADF8\uB9BC \uC7A5\uBA74\uC5D0\uB294 '\uC774\uD574\uB97C \uB3D5\uAE30 \uC704\uD55C \uADF8\uB9BC' \uD45C\uC2DC\uAC00 \uC788\uC5B4\uC57C \uD574\uC694."],
+  [/^disclaimer=true is only for illustration scenes/, () => "'\uC774\uD574\uB97C \uB3D5\uAE30 \uC704\uD55C \uADF8\uB9BC' \uD45C\uC2DC\uB294 \uADF8\uB9BC \uC7A5\uBA74\uC5D0\uB9CC \uC368\uC694."],
+  [/^use the article photo\(s\) (.*) before any illustration/, (m) => "\uADF8\uB9BC\uBCF4\uB2E4 \uAE30\uC0AC \uC0AC\uC9C4\uC744 \uBA3C\uC800 \uC368 \uC8FC\uC138\uC694(" + m[1] + ")."],
+  [/^(?:hideCaption|disclaimer) must be true or false|^params must be an object|^must be an object|^sentenceIds is required|^unknown sentence id|^type must be one of/, () => REBUILD],
+  [/^asset (\S+) is used in (\d+) scenes; use it at most (\d+) times/, (m) => "\uC0AC\uC9C4 " + m[1] + ": \uC7A5\uBA74 " + m[2] + "\uAC1C\uC5D0 \uB098\uC640\uC694. " + m[3] + "\uBC88\uAE4C\uC9C0\uB9CC \uC4F0\uACE0 \uB098\uBA38\uC9C0 \uC7A5\uBA74\uC740 \uAE00\uC790 \uCE74\uB4DC\uB098 \uB370\uC774\uD130 \uC7A5\uBA74\uC73C\uB85C \uBC14\uAFD4 \uC8FC\uC138\uC694."],
+  [/^unused article photos: (.*)$/, (m) => "\uC544\uC9C1 \uC4F0\uC9C0 \uC54A\uC740 \uAE30\uC0AC \uC0AC\uC9C4: " + m[1]],
+  [/^(\d+) of (\d+) scenes are text cards/, (m) => "\uC7A5\uBA74 " + m[2] + "\uAC1C \uC911 " + m[1] + "\uAC1C\uAC00 \uAE00\uC790 \uCE74\uB4DC\uC608\uC694. \uC22B\uC790\uAC00 \uB098\uC624\uB294 \uBB38\uC7A5\uC740 \uB370\uC774\uD130 \uC7A5\uBA74\uC73C\uB85C \uBC14\uAFD4 \uBCF4\uC138\uC694."],
+  [/^the opening scene should use the strongest visual/, () => "\uCCAB \uC7A5\uBA74\uC740 \uAE00\uC790 \uCE74\uB4DC\uBCF4\uB2E4 \uAC00\uC7A5 \uB208\uC5D0 \uB744\uB294 \uC0AC\uC9C4\uC774\uB098 \uADF8\uB798\uD53D\uC774 \uC88B\uC544\uC694."],
+  [/^assetSummaries is missing a summary|^scenes must cover every sentence|^reply must be an object/, () => REBUILD]
+];
+function issueText(lang, msg) {
+  if (!String(lang || "").toLowerCase().startsWith("ko")) return msg;
+  let rest = msg, scene = "", type = "", path = "";
+  let m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
+  if (m) {
+    scene = m[1] + "\uBC88 \uC7A5\uBA74: ";
+    rest = m[2];
+  }
+  if (m = /^\((\w+)\): (.*)$/.exec(rest)) {
+    type = m[1];
+    rest = m[2];
+  } else if (m = /^\.(\S+?): (.*)$/.exec(rest)) {
+    path = m[1];
+    rest = m[2];
+  }
+  for (const [re, ko] of RULES) {
+    const r = re.exec(rest);
+    if (r) return scene + (path ? field(path) + " \u2013 " : "") + ko(r, type);
+  }
+  return msg;
+}
+
 // src/Panel.tsx
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 };
@@ -8001,11 +8125,11 @@ var muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
 var MAX_CHARS = TARGET_CHARS.max;
 var warn = { color: "#d9822b", fontSize: 12 };
-var field = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
+var field2 = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
 var thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
 var thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 10, lineHeight: "14px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" };
 var thumbNumber = { position: "absolute", left: 3, top: 3, zIndex: 1, fontSize: 10, lineHeight: "14px", padding: "0 3px", borderRadius: 3, color: "#fff", background: "rgba(0,0,0,0.7)" };
-var twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" };
+var twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "keep-all", overflowWrap: "anywhere" };
 var rowButton = { flex: "none", width: "auto", whiteSpace: "nowrap" };
 var rowSelect = { display: "flex", gap: 8, alignItems: "center", flex: 1, minWidth: 0, maxWidth: "none", height: "auto", padding: 0, margin: 0, border: "none", background: "none", color: "inherit", font: "inherit", textAlign: "left" };
 var SECONDARY = { "data-variant": "secondary" };
@@ -8072,10 +8196,13 @@ function NewsMinutePanel({ sdk, context }) {
     if (!ok) log("previewNotOpened");
   }, () => log("previewNotOpened"));
   useAppUpdateGuard(sdk, context?.language, () => busy);
-  const log = (k, v) => {
+  const note = (k, v) => {
     const m = T(k, v);
-    setStatus(m);
     setLines((l) => [...l.slice(-40), (/* @__PURE__ */ new Date()).toLocaleTimeString() + "  " + m]);
+  };
+  const log = (k, v) => {
+    setStatus(T(k, v));
+    note(k, v);
   };
   const finish = async (rec) => {
     const path = await saveRunRecord(sdk, env.current, rec);
@@ -8143,6 +8270,7 @@ function NewsMinutePanel({ sdk, context }) {
   const pv = s?.preview ?? null;
   const view2 = s ? rowsDraft(s) : null;
   const video = !pv ? view2 : null;
+  const videoOff = !!(s && !pv && !view2 && s.video && s.draftId === s.video.draftId);
   const rendering = useRef(false);
   useEffect(() => {
     const pv2 = view2;
@@ -8159,7 +8287,7 @@ function NewsMinutePanel({ sdk, context }) {
       const small = await thumbOf(r.dataUrl, 216).catch(() => r.dataUrl);
       rendering.current = false;
       setStills((m) => key in m ? { ...m, [key]: { state: "ready", dataUrl: small } } : { ...m });
-      if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1e3).toFixed(1) });
+      if (!r.cached) note("stillTime", { n: i + 1, sec: (r.ms / 1e3).toFixed(1) });
     }).catch(() => {
       rendering.current = false;
       setStills((m) => key in m ? { ...m, [key]: { state: "failed" } } : { ...m });
@@ -8230,7 +8358,7 @@ function NewsMinutePanel({ sdk, context }) {
     } finally {
       await finish(rec);
     }
-    const next22 = { ...s, plan: plan2, draftId: null };
+    const next22 = { ...s, plan: plan2 };
     await update(next22);
     setFeedback("");
     setJsonErr({});
@@ -8243,7 +8371,7 @@ function NewsMinutePanel({ sdk, context }) {
     const v = checkPlan(sess.plan);
     const blocking = v.errors.filter((e) => BLOCKING_PLAN_ERROR.test(e));
     if (blocking.length) {
-      setError(T("previewBlocked", { errors: blocking.slice(0, 3).join("; ") }));
+      setError(T("previewBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
       return;
     }
     const rec = newRunRecord(preset.id, sess.article?.url ?? "");
@@ -8264,13 +8392,13 @@ function NewsMinutePanel({ sdk, context }) {
     if (latest.current?.plan) await previewInto(latest.current);
   });
   const revise = () => guard(async () => {
-    const note = feedback.trim();
-    if (!note || !s.plan) return;
+    const note2 = feedback.trim();
+    if (!note2 || !s.plan) return;
     log("revising");
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
     let r;
     try {
-      r = await revisePlan(sdk, env.current, s, preset, note, log, rec);
+      r = await revisePlan(sdk, env.current, s, preset, note2, log, rec);
     } catch (e) {
       rec.notes.push("error: " + String(e?.message || e));
       throw e;
@@ -8292,8 +8420,8 @@ function NewsMinutePanel({ sdk, context }) {
     if (!plan2 || !previewFresh(s)) return;
     const v = checkPlan(plan2);
     const blocking = v.errors.filter((e) => BLOCKING_PLAN_ERROR.test(e) || LAYOUT_ERROR.test(e));
-    if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
-    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
+    if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
+    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n"))) return;
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
     const name = finalName(s);
     let draftId, placed;
@@ -8334,7 +8462,7 @@ function NewsMinutePanel({ sdk, context }) {
     if (!plan2) return;
     const scenes = plan2.scenes.map((x, k) => k === i ? sc2 : x);
     const edited = plan2.edited.includes(i) ? plan2.edited : [...plan2.edited, i];
-    update({ ...s, plan: { ...plan2, scenes, edited }, draftId: null });
+    update({ ...s, plan: { ...plan2, scenes, edited } });
   };
   const reset = () => guard(async () => {
     await update({ ...emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos });
@@ -8370,6 +8498,7 @@ function NewsMinutePanel({ sdk, context }) {
         else if (rest) rest.push(e);
       }
     };
+    const say = (x) => issueText(lang, x);
     sort(v.errors, rowErrors, general);
     const unfit = v.errors.some((e) => LAYOUT_ERROR.test(e));
     const confirmable = previewFresh(s) && !unfit;
@@ -8395,15 +8524,11 @@ function NewsMinutePanel({ sdk, context }) {
         T("rounds", { n: plan2.rounds.length }),
         lastRound.fallback ? "" : " \xB7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })
       ] }) : null,
-      general.length ? /* @__PURE__ */ jsx("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
+      general.length ? /* @__PURE__ */ jsx("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + say(x) }, i)) }) : null,
       pv ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
         /* @__PURE__ */ jsx("span", { style: !pv.planRev || stale ? warn : muted, children: !pv.planRev ? T("previewPartial") : stale ? T("previewStale") : "\u2713 " + T("previewFresh", { n: pv.scenes.length }) }),
-        !pv.planRev || stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewRebuild") }) : null,
         /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: () => openNow(s.projectId, pv.draftId), children: T("openPreview") })
-      ] }) : video ? /* @__PURE__ */ jsx("span", { style: muted, children: T("videoRows") }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-        s.draftId ? /* @__PURE__ */ jsx("span", { style: warn, children: T("videoRowsOff") }) : null,
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewBuild") })
-      ] }),
+      ] }) : video ? /* @__PURE__ */ jsx("span", { style: muted, children: T("videoRows") }) : s.draftId ? /* @__PURE__ */ jsx("span", { style: warn, children: T("videoRowsOff") }) : null,
       plan2.scenes.map((scene, i) => {
         const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean);
         const start = spans ? spans[i].startSec : ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0;
@@ -8411,7 +8536,8 @@ function NewsMinutePanel({ sdk, context }) {
         const changed = plan2.changed.includes(i), edited = plan2.edited.includes(i);
         const setParam = (k, val) => setScene(i, { ...scene, params: { ...scene.params ?? {}, [k]: val } });
         const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-        const still = view2 && i < view2.scenes.length ? stills[stillKey(view2, i)] : void 0;
+        const shown = view2 ?? (videoOff ? s.video : null);
+        const still = shown && i < shown.scenes.length ? stills[stillKey(shown, i)] : void 0;
         const canPick = !!view2 && i < view2.scenes.length;
         const photo = scene.assetRef ? plan2.thumbs[scene.assetRef] : void 0;
         const open = openRow === i;
@@ -8422,7 +8548,7 @@ function NewsMinutePanel({ sdk, context }) {
               /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
                 /* @__PURE__ */ jsx("strong", { style: thumbNumber, children: String(i + 1).padStart(2, "0") }),
                 still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
-                still?.state === "ready" ? stale ? /* @__PURE__ */ jsx("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("sourcePhoto") }) : null
+                still?.state === "ready" ? stale || videoOff ? /* @__PURE__ */ jsx("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("sourcePhoto") }) : null
               ] }),
               /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }, children: [
                 /* @__PURE__ */ jsxs("span", { style: { ...muted, wordBreak: "keep-all" }, children: [
@@ -8442,13 +8568,13 @@ function NewsMinutePanel({ sdk, context }) {
             }, children: T(open ? "closeScene" : "editScene") })
           ] }),
           open ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }, children: [
-            (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, fontWeight: 600, overflowWrap: "anywhere" }, children: "\u2716 " + x }, "e" + k)),
-            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, overflowWrap: "anywhere" }, children: "\u26A0 " + x }, "w" + k)),
-            /* @__PURE__ */ jsxs("label", { style: field, children: [
+            (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, fontWeight: 600, overflowWrap: "anywhere" }, children: "\u2716 " + say(x) }, "e" + k)),
+            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, overflowWrap: "anywhere" }, children: "\u26A0 " + say(x) }, "w" + k)),
+            /* @__PURE__ */ jsxs("label", { style: field2, children: [
               T("sceneType"),
               /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
             ] }),
-            canPhoto ? /* @__PURE__ */ jsxs("label", { style: field, children: [
+            canPhoto ? /* @__PURE__ */ jsxs("label", { style: field2, children: [
               T("scenePhoto"),
               /* @__PURE__ */ jsxs("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
                 const { assetRef: _x, ...rest } = scene;
@@ -8464,11 +8590,11 @@ function NewsMinutePanel({ sdk, context }) {
             ] }) : null,
             (SCENE_FIELDS[scene.type] ?? []).map((k) => {
               const raw = scene.params?.[k];
-              if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: field, children: [
+              if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: field2, children: [
                 T("field_lines"),
                 /* @__PURE__ */ jsx("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
               ] }, k);
-              return /* @__PURE__ */ jsxs("label", { style: field, children: [
+              return /* @__PURE__ */ jsxs("label", { style: field2, children: [
                 T("field_" + k),
                 k === "text" ? /* @__PURE__ */ jsx("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
               ] }, k);
@@ -8515,105 +8641,106 @@ function NewsMinutePanel({ sdk, context }) {
         ] })
       ] }),
       video ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("button", { ...confirmable ? {} : SECONDARY, disabled: busy || !confirmable, onClick: build, children: T("buildFromPlan") }),
-        /* @__PURE__ */ jsx("span", { style: unfit ? warn : muted, children: T(unfit ? "confirmNeedsFit" : previewFresh(s) ? "confirmHint" : "confirmNeedsPreview") })
+        !pv || !pv.planRev || stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T(pv ? "previewRebuild" : "previewBuild") }) : /* @__PURE__ */ jsx("button", { disabled: busy || !confirmable, onClick: build, children: T("buildFromPlan") }),
+        /* @__PURE__ */ jsx("span", { style: unfit || videoOff ? warn : muted, children: T(unfit ? "confirmNeedsFit" : previewFresh(s) ? "confirmHint" : videoOff ? "confirmAgain" : "confirmNeedsPreview") })
       ] })
     ] });
   };
-  return /* @__PURE__ */ jsxs("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }, children: [
-    /* @__PURE__ */ jsx("strong", { children: T("title") }),
-    /* @__PURE__ */ jsxs("label", { children: [
-      T("preset"),
-      " ",
-      /* @__PURE__ */ jsx("select", { value: s.presetId, disabled: busy, onChange: (e) => update({ ...s, presetId: e.target.value }), children: Object.values(PRESETS).map((p) => /* @__PURE__ */ jsx("option", { value: p.id, children: p.label }, p.id)) })
-    ] }),
-    !sc ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
-      /* @__PURE__ */ jsx("input", { style: input, placeholder: T("url"), value: url, disabled: busy, onChange: (e) => setUrl(e.target.value) }),
-      /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
-      /* @__PURE__ */ jsx("span", { style: muted, children: T("aiCredits") }),
-      /* @__PURE__ */ jsx("button", { disabled: busy || !url.trim() && text.trim().length < 80, onClick: writeScript2, children: T("write") })
-    ] }) : (
-      // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
-      /* @__PURE__ */ jsxs(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
-        /* @__PURE__ */ jsx("strong", { children: T("review") }),
-        /* @__PURE__ */ jsx("span", { style: muted, children: T("reviewHint") }),
-        liveErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
-        /* @__PURE__ */ jsxs("label", { children: [
-          T("headline1"),
-          /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
-        ] }),
-        /* @__PURE__ */ jsxs("label", { children: [
-          T("headline2"),
-          /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line2, disabled: busy || approved, onChange: (e) => setHead("line2", e.target.value) })
-        ] }),
-        /* @__PURE__ */ jsxs("label", { children: [
-          T("accent"),
-          /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
-        ] }),
-        sc.sentences.map((x, i) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-          /* @__PURE__ */ jsx("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
-          /* @__PURE__ */ jsxs("span", { style: muted, children: [
-            T("source"),
-            ": ",
-            x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
-          ] }),
-          x.rewritten ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9" }, children: T("rewritten") }) : null,
-          x.edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedCheck") }) : null,
-          x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
-            T("issues"),
-            ": ",
-            x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
-          ] }) : null
-        ] }, x.id)),
-        /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
-        chars > MAX_CHARS ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
-        approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
-          /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("approved") }),
-          /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
-        ] }) : /* @__PURE__ */ jsx("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
-      ] })
-    ),
-    approved && next ? /* @__PURE__ */ jsxs(Step, { done: !!plan && next.kind === "ready", summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [
+  return (
+    // Korean breaks between words, not inside one; a word longer than the line still wraps.
+    /* @__PURE__ */ jsxs("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13, wordBreak: "keep-all", overflowWrap: "break-word" }, children: [
+      /* @__PURE__ */ jsx("strong", { children: T("title") }),
       /* @__PURE__ */ jsxs("label", { children: [
-        T("voice"),
+        T("preset"),
         " ",
-        /* @__PURE__ */ jsx("select", { value: s.voiceId, disabled: busy || next.kind === "poll" || next.kind === "ready", onChange: (e) => update({ ...s, voiceId: e.target.value, approved: revisionOf(sc, e.target.value) }), children: (voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => /* @__PURE__ */ jsx("option", { value: v.voiceId, children: v.name }, v.voiceId)) })
+        /* @__PURE__ */ jsx("select", { value: s.presetId, disabled: busy, onChange: (e) => update({ ...s, presetId: e.target.value }), children: Object.values(PRESETS).map((p) => /* @__PURE__ */ jsx("option", { value: p.id, children: p.label }, p.id)) })
       ] }),
-      next.kind === "none" || next.kind === "stale" ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("narrate") })
-      ] }) : next.kind === "poll" ? /* @__PURE__ */ jsx("span", { children: T("narrating") }) : next.kind === "lost" ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: T("lost") }),
-        /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("newNarration") })
-      ] }) : next.kind === "failed" ? /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: next.error === "insufficient_credits" ? T("noCredits") : T("narrationFailed", { error: next.error }) }),
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("retry") })
-      ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-        /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) }) }),
-        plan ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
+      !sc ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
+        /* @__PURE__ */ jsx("input", { style: input, placeholder: T("url"), value: url, disabled: busy, onChange: (e) => setUrl(e.target.value) }),
+        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
+        /* @__PURE__ */ jsx("span", { style: muted, children: T("aiCredits") }),
+        /* @__PURE__ */ jsx("button", { disabled: busy || !url.trim() && text.trim().length < 80, onClick: writeScript2, children: T("write") })
+      ] }) : (
+        // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
+        /* @__PURE__ */ jsxs(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
+          /* @__PURE__ */ jsx("strong", { children: T("review") }),
+          /* @__PURE__ */ jsx("span", { style: muted, children: T("reviewHint") }),
+          liveErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
+          /* @__PURE__ */ jsxs("label", { children: [
+            T("headline1"),
+            /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
+          ] }),
+          /* @__PURE__ */ jsxs("label", { children: [
+            T("headline2"),
+            /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line2, disabled: busy || approved, onChange: (e) => setHead("line2", e.target.value) })
+          ] }),
+          /* @__PURE__ */ jsxs("label", { children: [
+            T("accent"),
+            /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
+          ] }),
+          sc.sentences.map((x, i) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+            /* @__PURE__ */ jsx("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
+            /* @__PURE__ */ jsxs("span", { style: muted, children: [
+              T("source"),
+              ": ",
+              x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
+            ] }),
+            x.rewritten ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9" }, children: T("rewritten") }) : null,
+            x.edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedCheck") }) : null,
+            x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
+              T("issues"),
+              ": ",
+              x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
+            ] }) : null
+          ] }, x.id)),
+          /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
+          chars > MAX_CHARS ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
+          approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
+            /* @__PURE__ */ jsx("span", { style: { whiteSpace: "nowrap", flex: "none" }, children: "\u2713 " + T("approved") }),
+            /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
+          ] }) : /* @__PURE__ */ jsx("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
+        ] })
+      ),
+      approved && next ? /* @__PURE__ */ jsxs(Step, { done: !!plan && next.kind === "ready", summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [
+        /* @__PURE__ */ jsxs("label", { children: [
+          T("voice"),
+          " ",
+          /* @__PURE__ */ jsx("select", { value: s.voiceId, disabled: busy || next.kind === "poll" || next.kind === "ready", onChange: (e) => update({ ...s, voiceId: e.target.value, approved: revisionOf(sc, e.target.value) }), children: (voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => /* @__PURE__ */ jsx("option", { value: v.voiceId, children: v.name }, v.voiceId)) })
+        ] }),
+        next.kind === "none" || next.kind === "stale" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
+          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("narrate") })
+        ] }) : next.kind === "poll" ? /* @__PURE__ */ jsx("span", { children: T("narrating") }) : next.kind === "lost" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: T("lost") }),
+          /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
+          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("newNarration") })
+        ] }) : next.kind === "failed" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: next.error === "insufficient_credits" ? T("noCredits") : T("narrationFailed", { error: next.error }) }),
+          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("retry") })
+        ] }) : /* @__PURE__ */ jsx(Fragment, { children: plan ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) }) }),
           /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
           /* @__PURE__ */ jsx("button", { disabled: busy, onClick: makePlan, children: T("makePlan") })
+        ] }) })
+      ] }) : null,
+      plan ? renderPlan(plan) : null,
+      s.draftId ? (
+        // A newer preview is open above: this box is the earlier edit Draft, not the preview's result.
+        /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
+          /* @__PURE__ */ jsx("span", { style: { ...pv ? muted : {}, flex: 1, minWidth: 0 }, children: T(pv ? "previousVideo" : videoOff ? "videoChanged" : "done") }),
+          /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
+          }), children: T("openDraft") })
         ] })
-      ] })
-    ] }) : null,
-    plan ? renderPlan(plan) : null,
-    s.draftId ? (
-      // A newer preview is open above: this box is the earlier edit Draft, not the preview's result.
-      /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
-        /* @__PURE__ */ jsx("span", { style: { ...pv ? muted : {}, flex: 1, minWidth: 0 }, children: T(pv ? "previousVideo" : "done") }),
-        /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
-        }), children: T("openDraft") })
-      ] })
-    ) : null,
-    status ? /* @__PURE__ */ jsx("span", { style: muted, children: status }) : null,
-    lines.length ? /* @__PURE__ */ jsxs("details", { children: [
-      /* @__PURE__ */ jsx("summary", { style: muted, children: "Log" }),
-      /* @__PURE__ */ jsx("pre", { style: { ...muted, whiteSpace: "pre-wrap", margin: 0 }, children: lines.join("\n") })
-    ] }) : null,
-    error ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12, whiteSpace: "pre-wrap" }, children: error }) : null,
-    sc ? /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: reset, children: T("startOver") }) : null
-  ] });
+      ) : null,
+      status ? /* @__PURE__ */ jsx("span", { style: muted, children: status }) : null,
+      lines.length ? /* @__PURE__ */ jsxs("details", { children: [
+        /* @__PURE__ */ jsx("summary", { style: muted, children: "Log" }),
+        /* @__PURE__ */ jsx("pre", { style: { ...muted, whiteSpace: "pre-wrap", margin: 0 }, children: lines.join("\n") })
+      ] }) : null,
+      error ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12, whiteSpace: "pre-wrap" }, children: error }) : null,
+      sc ? /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: reset, children: T("startOver") }) : null
+    ] })
+  );
 }
 var Panel_default = NewsMinutePanel;
 export {
