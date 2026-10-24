@@ -432,6 +432,14 @@ export function rowsDraft(s: Session): PreviewDraft | null {
   const v = s.video;
   return v && s.plan && s.draftId === v.draftId && v.planRev === previewRev(s) ? v : null;
 }
+// The Draft the scene thumbnails are rendered from: the rows' Draft, else the confirmed edit Draft after the plan
+// changed (shown "before edit"; it is kept, so its frames can be rendered again after the panel reopens).
+export function stillsDraft(s: Session): PreviewDraft | null {
+  const rows = rowsDraft(s);
+  if (rows || s.preview) return rows;
+  const v = s.video;
+  return v && s.draftId === v.draftId && v.planRev && v.frames > 0 && v.scenes.length ? v : null;
+}
 export const finalName = (s: Session) => s.script?.headline.line1 || s.article?.title || "News short";
 export const previewName = (s: Session, prefix: string) => prefix + " \u00b7 " + (s.article?.title || finalName(s));
 // A confirmed edit Draft's name when other Drafts already use it: "name (2)", "name (3)", ... (Drafts are never

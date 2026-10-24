@@ -8080,6 +8080,12 @@ function rowsDraft(s) {
   const v = s.video;
   return v && s.plan && s.draftId === v.draftId && v.planRev === previewRev(s) ? v : null;
 }
+function stillsDraft(s) {
+  const rows = rowsDraft(s);
+  if (rows || s.preview) return rows;
+  const v = s.video;
+  return v && s.draftId === v.draftId && v.planRev && v.frames > 0 && v.scenes.length ? v : null;
+}
 var finalName = (s) => s.script?.headline.line1 || s.article?.title || "News short";
 var previewName = (s, prefix) => prefix + " \xB7 " + (s.article?.title || finalName(s));
 function uniqueName(name, taken) {
@@ -8561,9 +8567,10 @@ function NewsMinutePanel({ sdk, context }) {
   const view2 = s ? rowsDraft(s) : null;
   const video = !pv ? view2 : null;
   const videoOff = !!(s && !pv && !view2 && s.video && s.draftId === s.video.draftId);
+  const shot = s ? stillsDraft(s) : null;
   const rendering = useRef(false);
   useEffect(() => {
-    const pv2 = view2;
+    const pv2 = shot;
     if (!pv2 || !pv2.planRev || busy || rendering.current) return;
     const order = pv2.scenes.map((_, i2) => i2);
     if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
@@ -8582,7 +8589,7 @@ function NewsMinutePanel({ sdk, context }) {
       rendering.current = false;
       setStills((m) => key in m ? { ...m, [key]: { state: "failed" } } : { ...m });
     });
-  }, [view2?.draftId, view2?.at, view2?.planRev, picked, busy, stills]);
+  }, [shot?.draftId, shot?.at, shot?.planRev, picked, busy, stills]);
   const stale = !!(pv && s?.plan && pv.planRev !== previewRev(s));
   useEffect(() => {
     if (!stale || busy) return;
@@ -8826,8 +8833,7 @@ function NewsMinutePanel({ sdk, context }) {
         const changed = plan2.changed.includes(i), edited = plan2.edited.includes(i);
         const setParam = (k, val) => setScene(i, { ...scene, params: { ...scene.params ?? {}, [k]: val } });
         const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-        const shown = view2 ?? (videoOff ? s.video : null);
-        const still = shown && i < shown.scenes.length ? stills[stillKey(shown, i)] : void 0;
+        const still = shot && i < shot.scenes.length ? stills[stillKey(shot, i)] : void 0;
         const canPick = !!view2 && i < view2.scenes.length;
         const photo = scene.assetRef ? plan2.thumbs[scene.assetRef] : void 0;
         const open = openRow === i;
