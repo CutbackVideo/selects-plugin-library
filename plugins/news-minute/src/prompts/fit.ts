@@ -23,13 +23,17 @@ export function fitProblems(type: string, p: Record<string, any>): { errors: str
   let reports: Report[];
   try { reports = layoutReports(type, p ?? {}); }
   catch { return { errors, warnings }; }
+  // Text whose finished frame already has an error: its entrance report (which follows it) adds no second cause.
+  const failed = new Set<string>();
   for (const r of reports) {
-    const [x0, y0, x1, y1] = r.box, [ax0, ay0, ax1, ay1] = r.area;
+    const [x0, y0, x1, y1] = r.box, [ax0, ay0, ax1, ay1] = r.area, key = r.what + "\u0000" + r.text, had = errors.length;
     const text = [...r.text].length > 40 ? [...r.text].slice(0, 39).join("") + "\u2026" : r.text;
     const quoted = `${r.what} "${text}"`;
     const at = r.size ? ` at ${r.size} px` : "";
     if (r.entrance) {
-      // The same text a moment larger while it comes in (pop, count-up); only its width is checked.
+      // The same text a moment larger while it comes in (pop, count-up); only its width is checked, and only when the
+      // finished frame fits.
+      if (failed.has(key)) continue;
       if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: it runs out of its ${r.room ?? "room"} while it comes in (${Math.round((r.entrance - 1) * 1000) / 10} % larger for a moment)${at}, so it would show outside it; shorten it`);
       continue;
     }
@@ -49,6 +53,7 @@ export function fitProblems(type: string, p: Record<string, any>): { errors: str
     } else if ((r.lines ?? 0) > (r.maxLines ?? Infinity)) {
       warnings.push(`${quoted} takes ${r.lines} lines${at} (text is never made smaller); shorten it or split the scene`);
     }
+    if (errors.length > had) failed.add(key);
   }
   // Cards with the same text report the same problem once.
   return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };

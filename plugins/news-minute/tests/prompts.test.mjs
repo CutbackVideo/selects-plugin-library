@@ -268,8 +268,15 @@ test('the layout check measures names and labels as drawn and values at their si
   const grown = (data) => layoutReports('highlight_card', data).filter((r) => r.what === 'value' && r.entrance);
   const [ten] = grown({ ...million.data, value: 10000000 });
   assert.ok(Math.abs(ten.box[0] - 102.89) < 0.5 && Math.abs(ten.box[2] - 977.11) < 0.5, ten.box.join());
-  assert.ok(fitProblems('highlight_card', { ...million.data, value: 10000000 }).errors.some((e) => /^value "10,000,000" does not fit: it runs out of its card while it comes in \(3 % larger for a moment\)/.test(e)));
+  // 10,000,000 is already wider than its room when finished: that is its one error. The entrance error alone is for
+  // text that fits when finished, e.g. the same value in a card without the 50 px padding check.
+  assert.deepEqual(fitProblems('highlight_card', { ...million.data, value: 10000000 }).errors.filter((e) => e.startsWith('value ')), ['value "10,000,000" does not fit: wider than its room at 150 px even on a line of its own (text is never made smaller), so it would be cut off; shorten it']);
   for (const v of [1000000, 9999999]) assert.deepEqual(fitProblems('highlight_card', { ...million.data, value: v }), { errors: [], warnings: [] }, String(v));
+  // The entrance message, for text that fits when finished (none of the review inputs: every template's padding is
+  // wider than 3 % of its text), has its Korean text.
+  const { issueText } = await import('../src/issues.ts');
+  const grownMsg = 'value "1" does not fit: it runs out of its card while it comes in (3 % larger for a moment) at 150 px, so it would show outside it; shorten it';
+  assert.match(issueText('ko', grownMsg), /3% /);
   // number_callout's new value pops in too: 199\uC5B55000\uB9CC reaches x 63.8..1016.2, inside the window.
   const two = f['number-two-lines'];
   const [to] = layoutReports(two.type, two.data).filter((r) => r.what === 'new value' && r.entrance);
