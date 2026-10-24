@@ -12,7 +12,8 @@ import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRen
 // decoration behind the numbers).
 // Text that does not fit keeps its size (style spec 1): the label breaks at a space, a value after \uC5B5/\uB9CC
 // (1\uC5B5 / 5000\uB9CC) or a space, and a unit that no longer fits beside its value takes a line of its own; the whole
-// column stays centred. A new value on several lines shows its final text, without the count-up.
+// column stays centred. A new value on several lines, or one whose count would run out of x 60..1020, shows its final
+// text without the count-up.
 const LBL = 52, FL = 104, FU = 86, TL = 160, TU = 120, W = 900;
 const show = (v) => {
   if (typeof v === 'number') {
@@ -58,6 +59,13 @@ export default function NumberCallout({ data }) {
   const last = (l) => l[l.length - 1];
   const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
   const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > toVW;
+  // The count runs from the old value to the new one in the new value's format, right-aligned in a slot as wide as the
+  // longest text it shows (one of its two ends: counting down from a longer number shows more digits than it lands on),
+  // so the new value lands at the right of that slot. It counts only on one line with the unit beside it, and only when
+  // that line still fits x 60..1020 at the popped size; else the value pops in its final text, laid out as without it.
+  const widest = same ? [counted({ ...ct, num: cf.num, decimals: Math.max(cf.decimals, ct.decimals) }, 1), to].reduce((a, b) => (toW(b) > toW(a) ? b : a)) : to;
+  const counts = toLines.length === 1 && !toOwn && toW(widest) + (unit ? 6 + toUnitW(-4) : 0) + (dir ? 62 : 0) <= toVW;
+  const slot = counts ? widest : to;
   // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
   const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
   const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
@@ -71,7 +79,6 @@ export default function NumberCallout({ data }) {
   };
   const first = place(mid - 190 + (label ? 30 : 0) + labelExtra);
   const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data) - 6), first.top - (top + 6))));
-  const counts = toLines.length === 1 && !toOwn;
   const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
   const area = [X0 + 30, top, X1 - 30, roomBottom(data)], valueArea = [X0, top, X1, roomBottom(data)];
   const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: 'c' }));
@@ -87,7 +94,7 @@ export default function NumberCallout({ data }) {
   };
   valueReport('old value', fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
   reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, 'safe area']);
+  valueReport('new value', toLines, yTo, TL, 150, (t) => toW(counts ? slot : t), (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, 'safe area']);
   reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, undefined, [POP_GROW, SAFE, 'safe area']);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
@@ -127,8 +134,8 @@ export default function NumberCallout({ data }) {
         <Pop key={'t' + j} s={s} t0={toAt} x={540} y={yTo + TL * j}>
           <div style={{ display: 'flex', alignItems: 'baseline', color: C.acc, fontWeight: 800, letterSpacing: -4 * k }}>
             <span style={{ position: 'relative' }}>
-              {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
-              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts ? 'hidden' : 'visible' }}>{l}</span>
+              {/* The slot (the longest text the count shows) sizes the line; the counting value is laid over it so nothing shifts. */}
+              <span style={{ ...tnum, fontSize: 150 * k, visibility: counts ? 'hidden' : 'visible' }}>{counts ? slot : l}</span>
               {counts ? <span style={{ ...tnum, fontSize: 150 * k, position: 'absolute', right: 0, bottom: 0 }}>{running}</span> : null}
             </span>
             {unit && !toOwn && j === toLines.length - 1 ? <span style={{ ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k }}>{unit}</span> : null}

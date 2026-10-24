@@ -655,6 +655,9 @@ const SCENE = {
       if (n && endText !== "") {
         report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
         reportGrown("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], count ? null : [POP_GROW, SAFE, "safe area", "r"], 84);
+        const first = count ? counted({ ...count, num: from }, 1) : "";
+        const firstW = count ? textW(first, 84, 800, -2) : 0;
+        if (count && firstW > textW(endText, 84, 800, -2)) report("end value", first, [X1 - endW + textW(endText, 84, 800, -2) - firstW, endY - 50, X1, endY + 50], SAFE, { size: 84, counting: true, room: "safe area" });
       }
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
@@ -737,6 +740,9 @@ const SCENE = {
       const last = (l) => l[l.length - 1];
       const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
       const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > toVW;
+      const widest = same ? [counted({ ...ct, num: cf.num, decimals: Math.max(cf.decimals, ct.decimals) }, 1), to].reduce((a, b) => toW(b) > toW(a) ? b : a) : to;
+      const counts = toLines.length === 1 && !toOwn && toW(widest) + (unit ? 6 + toUnitW(-4) : 0) + (dir ? 62 : 0) <= toVW;
+      const slot = counts ? widest : to;
       const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
       const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
       const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
@@ -753,7 +759,6 @@ const SCENE = {
       };
       const first = place(mid - 190 + (label ? 30 : 0) + labelExtra);
       const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data2) - 6), first.top - (top + 6))));
-      const counts = toLines.length === 1 && !toOwn;
       const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
       const area = [X0 + 30, top, X1 - 30, roomBottom(data2)], valueArea = [X0, top, X1, roomBottom(data2)];
       const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: "c" }));
@@ -768,7 +773,7 @@ const SCENE = {
       };
       valueReport("old value", fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
       reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
-      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, "safe area"]);
+      valueReport("new value", toLines, yTo, TL, 150, (t) => toW(counts ? slot : t), (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn, [POP_GROW, SAFE, "safe area"]);
       reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1, void 0, [POP_GROW, SAFE, "safe area"]);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
@@ -776,7 +781,7 @@ const SCENE = {
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: String(data2?.subtitle ?? "") }), labelLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: 0.4, dy: 10, x: 540, y: yFrom - 110 - labelExtra + LBL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 44 * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.95 })))), fromLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "f" + j, s, t0: fromAt, x: 540, y: yFrom + FL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.ink2, fontWeight: 800, letterSpacing: -2 * k } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 96 * k } }, l), unit && !fromOwn && j === fromLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * k, fontWeight: 700, marginLeft: 4 * k } }, unit) : null))), fromOwn ? /* @__PURE__ */ STUB(Rise, { s, t0: fromAt, x: 540, y: yFrom + (fromLines.length - 1) * FL + FU }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 53 * k, fontWeight: 700, color: C.ink2 } }, unit)) : null, ap > 0 ? (
         // Gold chevron, opening from its centre outwards.
         /* @__PURE__ */ STUB("svg", { width: 80 * k, height: 60 * k, viewBox: "0 0 80 60", style: { position: "absolute", left: 500 * k, top: (yArrow + 25) * k } }, /* @__PURE__ */ STUB("polyline", { points: 40 - 28 * ap + "," + (14 + 22 * (1 - ap)) + " 40,36 " + (40 + 28 * ap) + "," + (14 + 22 * (1 - ap)), fill: "none", stroke: C.gold, strokeWidth: "7", strokeLinecap: "round", strokeLinejoin: "round" }))
-      ) : null, toLines.map((l, j) => /* @__PURE__ */ STUB(Pop, { key: "t" + j, s, t0: toAt, x: 540, y: yTo + TL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, visibility: counts ? "hidden" : "visible" } }, l), counts ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, position: "absolute", right: 0, bottom: 0 } }, running) : null), unit && !toOwn && j === toLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, !toOwn && j === toLines.length - 1 ? triangle : null))), toOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yToUnit }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700 } }, unit), triangle)) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      ) : null, toLines.map((l, j) => /* @__PURE__ */ STUB(Pop, { key: "t" + j, s, t0: toAt, x: 540, y: yTo + TL * j }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, visibility: counts ? "hidden" : "visible" } }, counts ? slot : l), counts ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * k, position: "absolute", right: 0, bottom: 0 } }, running) : null), unit && !toOwn && j === toLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, !toOwn && j === toLines.length - 1 ? triangle : null))), toOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yToUnit }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * k, fontWeight: 700 } }, unit), triangle)) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
   },

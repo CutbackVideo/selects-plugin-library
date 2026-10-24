@@ -1,0 +1,113 @@
+[
+ {
+  "id": "number-down-wide",
+  "type": "number_callout",
+  "label": "0641a86 review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\uc218\uce58 \ubcc0\ud654",
+   "label": "\uc218\uce58",
+   "from": 1000000000,
+   "to": 1,
+   "unit": "\uc6d0",
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  },
+  "narration": "\uc218\uce58\uac00 1000000000\uc6d0\uc5d0\uc11c 1\uc6d0\uc73c\ub85c \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4.",
+  "frame": 70,
+  "plan": {
+   "assetSummaries": [],
+   "assets": [],
+   "scenes": [
+    {
+     "sentenceIds": [
+      "s1"
+     ],
+     "type": "number_callout",
+     "params": {
+      "title": "\uc218\uce58 \ubcc0\ud654",
+      "label": "\uc218\uce58",
+      "from": 1000000000,
+      "to": 1,
+      "unit": "\uc6d0",
+      "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+     },
+     "hideCaption": false,
+     "disclaimer": false
+    }
+   ],
+   "sentences": [
+    {
+     "id": "s1",
+     "text": "\uc218\uce58\uac00 1000000000\uc6d0\uc5d0\uc11c 1\uc6d0\uc73c\ub85c \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4.",
+     "startSec": 0,
+     "endSec": 10
+    }
+   ]
+  }
+ },
+ {
+  "id": "number-down-one-won",
+  "type": "number_callout",
+  "label": "0641a86 review blocking input (BLOCKING_CASES.json)",
+  "data": {
+   "title": "\uac00\uaca9 \ubcc0\ud654",
+   "label": "\uac00\uaca9",
+   "from": 1000000,
+   "to": 999999,
+   "unit": "\uc6d0",
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  },
+  "narration": "\uac00\uaca9\uc774 1000000\uc6d0\uc5d0\uc11c 999999\uc6d0\uc73c\ub85c 1\uc6d0 \ub0b4\ub838\uc2b5\ub2c8\ub2e4.",
+  "frame": 70,
+  "plan": {
+   "assetSummaries": [],
+   "assets": [],
+   "scenes": [
+    {
+     "sentenceIds": [
+      "s1"
+     ],
+     "type": "number_callout",
+     "params": {
+      "title": "\uac00\uaca9 \ubcc0\ud654",
+      "label": "\uac00\uaca9",
+      "from": 1000000,
+      "to": 999999,
+      "unit": "\uc6d0",
+      "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+     },
+     "hideCaption": false,
+     "disclaimer": false
+    }
+   ],
+   "sentences": [
+    {
+     "id": "s1",
+     "text": "\uac00\uaca9\uc774 1000000\uc6d0\uc5d0\uc11c 999999\uc6d0\uc73c\ub85c 1\uc6d0 \ub0b4\ub838\uc2b5\ub2c8\ub2e4.",
+     "startSec": 0,
+     "endSec": 10
+    }
+   ]
+  }
+ },
+ {
+  "id": "trend-down-wide",
+  "type": "line_trend_callout",
+  "label": "synthetic: the end value counts down from an 18-digit previous point",
+  "data": {
+   "title": "\uc218\uce58 \ucd94\uc774",
+   "points": [
+    {
+     "x": "2025",
+     "y": 100000000000000000
+    },
+    {
+     "x": "2026",
+     "y": 1
+    }
+   ],
+   "unit": "\uc6d0",
+   "accentFrom": 1,
+   "source": "\ud569\uc131 \uac80\uc99d \uc785\ub825"
+  }
+ }
+]
