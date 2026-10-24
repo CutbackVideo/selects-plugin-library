@@ -7,7 +7,7 @@
 
 import { layoutReports } from "../templates/entrance.generated.ts";
 
-type Report = { what: string; text: string; box: number[]; area: number[]; size?: number; lines?: number; maxLines?: number; overlap?: boolean; cause?: string[]; entrance?: number; room?: string };
+type Report = { what: string; text: string; box: number[]; area: number[]; size?: number; lines?: number; maxLines?: number; overlap?: boolean; cause?: string[]; entrance?: number; room?: string; counting?: boolean };
 
 // Every layout error carries this phrase (the Panel and settlePlan tell them from other plan errors by it).
 export const LAYOUT_ERROR = /\bdoes not fit\b/;
@@ -30,11 +30,12 @@ export function fitProblems(type: string, p: Record<string, any>): { errors: str
     const text = [...r.text].length > 40 ? [...r.text].slice(0, 39).join("") + "\u2026" : r.text;
     const quoted = `${r.what} "${text}"`;
     const at = r.size ? ` at ${r.size} px` : "";
-    if (r.entrance) {
-      // The same text a moment larger while it comes in (pop, count-up); only its width is checked, and only when the
-      // finished frame fits.
+    if (r.entrance || r.counting) {
+      // The same text a moment larger while it comes in (pop, count-up), or the longest number a count shows on its way;
+      // only its width is checked, and only when the finished frame fits.
       if (failed.has(key)) continue;
-      if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: it runs out of its ${r.room ?? "room"} while it comes in (${Math.round((r.entrance - 1) * 1000) / 10} % larger for a moment)${at}, so it would show outside it; shorten it`);
+      const grows = r.entrance ? ` (${Math.round((r.entrance - 1) * 1000) / 10} % larger for a moment)` : "";
+      if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: it runs out of its ${r.room ?? "room"} while it ${r.counting ? "counts" : "comes in"}${grows}${at}, so it would show outside it; shorten it`);
       continue;
     }
     if (r.what === "card") {
