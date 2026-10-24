@@ -1876,7 +1876,6 @@ function validatePlan(json, sentences, assets) {
       warnings.push(`${where}: text_card sub "${sc.params.sub}" looks like a source; sources belong in "source" of a data scene, not on a text card`);
     }
     if (typeof sc.hideCaption !== "boolean") errors.push(`${where}: hideCaption must be true or false`);
-    else if (sc.hideCaption && sc.type !== "number_callout") errors.push(`${where}: hideCaption is only allowed on number_callout`);
     if (typeof sc.disclaimer !== "boolean") errors.push(`${where}: disclaimer must be true or false`);
     const asset = sc.assetRef ? assetByRef.get(sc.assetRef) : void 0;
     if (sc.assetRef && !asset) errors.push(`${where}: assetRef "${sc.assetRef}" is not in the asset list`);
@@ -1918,7 +1917,7 @@ Every scene except news_photo and quote_card has params.title (the scene title, 
 1. news_photo  - a real article photo or graphic (assetRef required). params: {} plus optional "focus": "center|top|bottom|left|right" and "fit": "cover|contain" (contain for graphs and charts). Slow zoom is automatic. 4-8 s.
 2. text_card   - a key sentence on a plain card; the fallback when no photo or number fits. params: {"text": short key sentence (max ~20 chars per line, \\n allowed, emphasis markup allowed), "title": optional, "sub": optional smaller line, never a source or credit}. No assetRef.
 3. highlight_card - ONE big value (an amount, a rate, a count). params: {"title","subtitle":optional,"value": number or text with a digit copied from the article,"unit":optional,"source":optional}. The value counts up. Use this, not number_callout, whenever the narration gives a single value. 5-7 s.
-4. number_callout - a before-to-after value (rate, price) when the narration states both. params: {"title","label": "", "from": a value that contains a digit, copied from the article (for example 6.0 or 201,000), "to": likewise a value that contains a digit, never a phrase without a number, "unit": optional}. No assetRef (use a quote_card or news_photo when a person matters). Set hideCaption=true. 5-7 s.
+4. number_callout - a before-to-after value (rate, price) when the narration states both. params: {"title","label": "", "from": a value that contains a digit, copied from the article (for example 6.0 or 201,000), "to": likewise a value that contains a digit, never a phrase without a number, "unit": optional}. No assetRef (use a quote_card or news_photo when a person matters). 5-7 s.
 5. bar_compare_h - exactly 2 comparable values. params: {"title","subtitle":optional,"source","unit","bars":[{"label","value":number,"tone":"grey|accent","sub":optional period text}]}. Exactly one bar is the hero (accent), the other is grey. 4-5 s. source is the data attribution as written in the article.
 6. line_trend_callout - a time series ending in a record or jump (needs at least 3 data points stated in the article). params: {"title","subtitle":optional,"source","points":[{"x","y":number}],"accentFrom":index of the first highlighted point,"endLabel":number or text,"unit","threshold":optional {"y","label"},"cards":optional [{"text","tone":"grey|accent"}]}. 8-10 s.
 7. stat_cards  - 2-4 parallel items with one or two numbers each. params: {"title","subtitle":optional,"source":optional,"cards":[{"header","rows":[{"label","value":number or text,"unit":optional}]}]}. 6-8 s.
@@ -1976,7 +1975,7 @@ function plannerPrompt(input2) {
     '- Assets of kind "illustration" are generated images. Use them only for sentences that no article photo fits and only after every photo has been used. A scene that shows an illustration must set disclaimer=true. All other scenes set disclaimer=false.',
     "- When a scene's sentences state two comparable numbers (for example this year vs last year), prefer bar_compare_h over text_card; when they state 2-4 parallel items with numbers, prefer stat_cards. Fill every field from the narration only.",
     "- Use text_card as the fallback when no photo or data fits. Avoid three text_cards in a row, and keep text_card to at most one third of the scenes.",
-    "- hideCaption is true only for number_callout, false otherwise.",
+    "- hideCaption is always false: every scene keeps its caption, number scenes included.",
     "- When the scene's narration states exactly one notable value, use highlight_card. Never show a multiple, ratio or percentage that you calculated from article numbers (such as '11.5 times' or 'double'); show it only when the narration itself says it.",
     "- Inside a scene, list labels, values, bars, rows and points in the order the narration says them.",
     "- Only one hero per scene: one accent bar, slice or card. Everything else stays neutral.",
@@ -6120,15 +6119,6 @@ function sceneClips(plan, sentences, times, totalSec, photos) {
     return { type, label: `${labels[type]?.label ?? type} ${String(k + 1).padStart(2, "0")}`, params, startSec: wins[k].startSec, endSec: wins[k].endSec, disclaimer: !!sc.disclaimer };
   });
 }
-function hiddenCaptionSentences(plan, sentences) {
-  const index = new Map(sentences.map((s, i) => [s.id, i]));
-  const out = /* @__PURE__ */ new Set();
-  for (const sc of plan) if (sc.hideCaption) for (const id of sc.sentenceIds) {
-    const i = index.get(id);
-    if (i !== void 0) out.add(i);
-  }
-  return out;
-}
 function stableJson(v) {
   if (Array.isArray(v)) return "[" + v.map(stableJson).join(",") + "]";
   if (v && typeof v === "object") return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stableJson(v[k])).join(",") + "}";
@@ -6148,7 +6138,7 @@ function retypeScene(sc, type, firstSentence, photoRefs) {
   const keepsAsset = type === "news_photo" || type === "number_callout" || type === "quote_card";
   const assetRef = keepsAsset ? sc.assetRef ?? (type === "news_photo" ? photoRefs[0] : void 0) : void 0;
   const params = type === "text_card" ? { text: captionChunks(firstSentence, 12).slice(0, 2).join("\n") } : type === "number_callout" ? { label: "", from: "", to: "", unit: "" } : type === "news_photo" ? {} : { ...sc.params ?? {} };
-  const out = { sentenceIds: sc.sentenceIds, type, params, hideCaption: type === "number_callout", disclaimer: false };
+  const out = { sentenceIds: sc.sentenceIds, type, params, hideCaption: false, disclaimer: false };
   if (assetRef) out.assetRef = assetRef;
   return out;
 }
@@ -7090,8 +7080,7 @@ async function assemble(sdk, env, s, preset, log, rec, target) {
       return { ...p, fontFamily: "NM Sans" };
     }
   };
-  const hidden = hiddenCaptionSentences(plan, sentences);
-  const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
+  const captions = captionTimes(texts, times, chars);
   if (reuse) rec.notes.push("plate: reused " + (reuse.plateImage ? "image" : "colour") + " Resource " + reuse.plateId, "bands: " + (reuse.bandsId ? "reused image Resource " + reuse.bandsId : "frame graphic"));
   const bg = reuse ? { id: reuse.plateId, image: reuse.plateImage } : await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;

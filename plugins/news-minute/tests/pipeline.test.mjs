@@ -317,7 +317,8 @@ test("retypeScene gives the new type params it can show", async () => {
   assert.equal(card.assetRef, undefined);
   assert.ok(card.params.text.length > 0);
   const num = retypeScene(photo, "number_callout", "x", ["photo-1"]);
-  assert.equal(num.hideCaption, true);
+  // every scene keeps its caption, number scenes included (style spec 1)
+  assert.equal(num.hideCaption, false);
   assert.equal(num.assetRef, "photo-1");
   assert.equal(retypeScene(card, "news_photo", "x", ["photo-3"]).assetRef, "photo-3");
 });
@@ -432,6 +433,16 @@ test("the preview Draft is built once, then refilled in place without new Resour
   const v = await F.assemble(video.sdk, HOST_ENV, edited, preset, log, F.newRunRecord("chosun", "u"), { name: F.finalName(edited), reuse: a.preview });
   assert.equal(v.draftId, "d-new");
   assert.ok(video.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Head")'));
+});
+
+test("a number scene keeps its caption, even from a plan that still says hideCaption", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const plan = { ...s.plan, scenes: [s.plan.scenes[0], { type: "number_callout", sentenceIds: ["s2"], params: { from: "1", to: "2" }, hideCaption: true }] };
+  const h = fakeHost(DRAFT_ANSWERS);
+  await F.buildPreview(h.sdk, HOST_ENV, { ...s, plan }, preset, "Preview", () => {}, F.newRunRecord("chosun", "u"));
+  const captions = h.calls.find((c) => c.summary === "Add headline and captions (1/1)").script;
+  for (const x of s.plan.sentences) assert.ok(captions.includes(JSON.stringify(x.text.replace(/\.$/, "")).slice(1, -1)), x.text);
 });
 
 test("a preview Draft that cannot be refilled is left alone and a new one is built", async () => {

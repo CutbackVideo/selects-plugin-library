@@ -363,8 +363,8 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
       warnings.push(`${where}: text_card sub "${sc.params.sub}" looks like a source; sources belong in "source" of a data scene, not on a text card`);
     }
 
+    // Every scene keeps its caption (style spec 1); hideCaption stays in the plan format but is not used.
     if (typeof sc.hideCaption !== "boolean") errors.push(`${where}: hideCaption must be true or false`);
-    else if (sc.hideCaption && sc.type !== "number_callout") errors.push(`${where}: hideCaption is only allowed on number_callout`);
     if (typeof sc.disclaimer !== "boolean") errors.push(`${where}: disclaimer must be true or false`);
 
     const asset = sc.assetRef ? assetByRef.get(sc.assetRef) : undefined;
