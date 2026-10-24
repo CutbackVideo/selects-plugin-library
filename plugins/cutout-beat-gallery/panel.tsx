@@ -441,7 +441,198 @@ function Panel({sdk,context,ui}) {
       const imported=await runScript(sdk,'return await selects.project('+JSON.stringify(pid)+').importFiles({paths: '+JSON.stringify([result.outputDir])+'});','Import editable layers',true);
       if((imported.addedResourceIds||[]).length<result.base+result.stickers+1) throw Error('Some prepared layers were not imported.');
       const cues=JSON.stringify(result.cues||CUES.slice(0,result.stickers).map((c,i)=>({...c,file:String(i+1).padStart(2,'0')+'-sticker.mov',...(result.approvedStickers?{x:0,y:0,s:1}:{})})));
-      const code="const p=selects.project("+JSON.stringify(pid)+");const f=(await p.sourceFiles({folder:"+JSON.stringify(name)+"})).fileTree;const ids=new Map(f.filter(x=>x.type!=='dir').map(x=>[x.name,x.resourceId]));const d=await p.createDraft({name:"+JSON.stringify('Beat Cutout Gallery · '+name)+"});await d.setFrameSize({width:1080,height:1920});const fps=(await d.meta()).fps;const edges="+JSON.stringify(SCENE_EDGES)+";for(let i=0;i<"+result.base+";i++){const id=ids.get(String(i+1).padStart(2,'0')+'-base.mp4');if(!id)throw Error('Missing base '+i);await d.insertResource({resourceId:id});const before=(await d.meta()).durationFrames;const expected=Math.round(edges[i+1]*fps/30);if(before!==expected)await d.trimBoundary({frame:before,side:'before',byFrames:expected-before});if((await d.meta()).durationFrames!==expected)throw Error('Scene timing mismatch '+i)}const total=(await d.meta()).durationFrames;const at=n=>Math.min(total,Math.round(n*fps/30));const cues=("+cues+").map(c=>({...c,start:at(c.start),end:at(c.end)}));for(let i=0;i<cues.length;i++){const c=cues[i],id=ids.get(c.file);if(!id)throw Error('Missing sticker '+c.file);await d.overlayResource({resource:await p.resource(id),over:await d.rangeAtFrames(c.start,c.end)});const clip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='video'&&x.resourceId===id&&x.startFrame===c.start);if(clip)await d.addVideoEffect({clip,label:'Sticker entrance',tsxCode:"+JSON.stringify(MOTION)+",parameters:{dir:c.dir,x:c.x,y:c.y,s:c.s},editableParameters:[{key:'x',label:'Horizontal position',type:'number',defaultValue:c.x,min:-600,max:600,step:5},{key:'y',label:'Vertical position',type:'number',defaultValue:c.y,min:-900,max:900,step:5},{key:'s',label:'Size',type:'number',defaultValue:c.s,min:.3,max:1.3,step:.01}]})}const music=ids.get('fixed-bgm.mp3');if(!music)throw Error('Fixed music missing');await d.overlayResource({resource:await p.resource(music),over:await d.rangeAtFrames(0,total)});for(let i=0;i<"+result.base+";i++){const id=ids.get(String(i+1).padStart(2,'0')+'-base.mp4');const all=await d.clips({trackScope:'all'});const clip=all.find(x=>x.trackKind==='main'&&x.resourceId===id);if(!clip)continue;const cue=cues.find(x=>x.start>=clip.startFrame&&x.start<clip.endFrame);if(cue)await d.addVideoEffect({clip,label:'Warm vintage after sticker',tsxCode:"+JSON.stringify(GRADE)+",parameters:{at:cue.start-clip.startFrame}})}const fx=async(slot,label,code,params)=>{const id=ids.get(String(slot).padStart(2,'0')+'-base.mp4');const clip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='main'&&x.resourceId===id);if(clip)await d.addVideoEffect({clip,label,tsxCode:code,parameters:{...params,at:params.at-clip.startFrame}})};const spot="+JSON.stringify(result.spot||null)+";if(spot){await fx(6,'Spotlight and tint',"+JSON.stringify(SPOT)+",{at:at(211),x:spot.x,y:spot.y});await fx(15,'Colour split',"+JSON.stringify(SPLIT)+",{at:at(438)})}const saved=await d.commitAll('Create fixed beat cutout template');if(!saved.createdDraftId)throw Error('Draft did not save');await selects.editor.openDraft(saved.createdDraftId);return {draftId:saved.createdDraftId,bases:"+result.base+",stickers:"+result.stickers+",audio:1,frames:total};";
+      const code=`
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+  }
+  return { values, bindings, refs };
+}
+function choice(p, data, key, values, fallback) {
+  const value = data[key] ?? fallback, index = p.values.length;
+  if (!Object.hasOwn(values, String(value))) throw Error(\`Unsupported \${key}: \${value}\`);
+  p.values.push(values[String(value)]);
+  if (data[key] != null) p.bindings.push({ index, parameter: key, values });
+  return \`uniforms.values[\${Math.floor(index / 4)}][\${index % 4}]\`;
+}
+function cssColor(expression, filters) {
+  let c = expression;
+  if (!filters || filters === "none") return c;
+  const parts = [...filters.matchAll(/([a-z-]+)\\(([^()]*)\\)/g)];
+  if (parts.map((p) => p[0]).join("").replace(/\\s/g, "") !== filters.replace(/\\s/g, "")) throw Error("Unsupported color filter");
+  for (const [, kind, raw] of parts) {
+    const value = parseFloat(raw) / (raw.endsWith("%") ? 100 : 1);
+    const v = f32(value);
+    if (kind === "saturate") c = \`saturation(\${c},\${v})\`;
+    else if (kind === "grayscale") c = \`saturation(\${c},\${f32(1 - Math.min(1, Math.max(0, value)))})\`;
+    else if (kind === "sepia") c = \`sepia(\${c},\${v})\`;
+    else if (kind === "brightness" || kind === "contrast") c = \`\${kind}(\${c},\${v})\`;
+    else if (kind === "hue-rotate") c = \`hue(\${c},\${f32(value * (raw.endsWith("rad") ? 1 : raw.endsWith("turn") ? 2 * Math.PI : Math.PI / 180))})\`;
+    else throw Error(\`Unsupported color filter: \${kind}\`);
+  }
+  return c;
+}
+
+// shared/shader-effects/accents.mjs
+function sticker(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { x: 0, y: 0, s: 1 });
+  const dir = choice(p, data, "dir", { instant: 0, right: 1, left: 2, up: 3, down: 4, fade: 5 }, "instant");
+  g.pass(\`let e=ease(uniforms.clock.x/6.0);let dir=u32(\${dir});var offset=vec2f(\${p.refs.x},\${p.refs.y});
+    if(dir==1u){offset.x-=1250.0*(1.0-e);}if(dir==2u){offset.x+=1250.0*(1.0-e);}
+    if(dir==3u){offset.y+=2100.0*(1.0-e);}if(dir==4u){offset.y-=2100.0*(1.0-e);}
+    let coord=(uv-.5-offset/uniforms.resolution.xy)/max(.000001,\${p.refs.s})+.5;
+    return source(coord)*select(1.0,e,dir==5u);\`, p);
+  return g.finish();
+}
+function spotlight(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { at: 0, x: 0.5, y: 0.5 });
+  g.pass(\`let t=uniforms.clock.x-\${p.refs.at};var layer=vec4f(0.0);
+    if(t>=0.0&&t<6.0){let distance=length((uv-vec2f(\${p.refs.x},\${p.refs.y}))*uniforms.resolution.xy);
+      let a=.64*sat((distance-(70.0+75.0*t))/3.0);layer=vec4f(vec3f(8.0,40.0,44.0)/255.0*a,a);
+    }else if(t>=6.0&&t<9.0){layer=vec4f(vec3f(112.0,18.0,30.0)/255.0*.4,.4);}
+    return over(layer,source(uv));\`, p);
+  return g.finish();
+}
+var COLOR_BLEND = \`
+fn lum(c:vec3f)->f32{return dot(c,vec3f(.3,.59,.11));}
+fn setLum(c0:vec3f,l:f32)->vec3f {
+ var c=c0+vec3f(l-lum(c0));let n=min(min(c.r,c.g),c.b);let x=max(max(c.r,c.g),c.b);
+ if(n<0.0){c=vec3f(l)+(c-vec3f(l))*l/max(.000001,l-n);}
+ if(x>1.0){c=vec3f(l)+(c-vec3f(l))*(1.0-l)/max(.000001,x-l);}
+ return c;
+}\`;
+function colorSplit(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { at: 0 });
+  g.pass(\`let t=uniforms.clock.x-\${p.refs.at};let src=source(uv);if(t<0.0||t>=4.0){return src;}
+    let right=uv.x>=(46.0+t*3.0)/100.0;let rgb=select(vec3f(60.0,100.0,255.0),vec3f(255.0,150.0,105.0),right)/255.0;
+    let a=select(.5,.38,right);let blended=setLum(rgb,lum(straight(src).rgb));
+    return vec4f(blended*a*src.a+rgb*a*(1.0-src.a)+src.rgb*(1.0-a),a+src.a*(1.0-a));\`, { ...p, functions: COLOR_BLEND });
+  return g.finish();
+}
+function vintageAfter(data = null) {
+  data = data || {};
+  const g = new Graph(data), p = parameters(data, { at: 0 });
+  g.pass(\`let src=source(uv);if(uniforms.clock.x<\${p.refs.at}){return src;}
+    let c=straight(src);return premul(vec4f(\${cssColor("c.rgb", "sepia(0.14) saturate(0.82) contrast(1.07) brightness(0.97)")},c.a));\`, p);
+  return g.finish();
+}
+
+// shared/shader-effects/cutout-beat-gallery.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "sticker":
+      shader = sticker(data);
+      break;
+    case "spotlight":
+      shader = spotlight(data);
+      break;
+    case "split":
+      shader = colorSplit(data);
+      break;
+    case "look":
+      shader = vintageAfter(data);
+      break;
+    default:
+      throw Error("Unknown cutout-beat-gallery effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const p=selects.project(${JSON.stringify(pid)});const f=(await p.sourceFiles({folder:${JSON.stringify(name)}})).fileTree;const ids=new Map(f.filter(x=>x.type!=='dir').map(x=>[x.name,x.resourceId]));const d=await p.createDraft({name:${JSON.stringify('Beat Cutout Gallery · '+name)}});await d.setFrameSize({width:1080,height:1920});const fps=(await d.meta()).fps;const edges=${JSON.stringify(SCENE_EDGES)};for(let i=0;i<${result.base};i++){const id=ids.get(String(i+1).padStart(2,'0')+'-base.mp4');if(!id)throw Error('Missing base '+i);await d.insertResource({resourceId:id});const before=(await d.meta()).durationFrames;const expected=Math.round(edges[i+1]*fps/30);if(before!==expected)await d.trimBoundary({frame:before,side:'before',byFrames:expected-before});if((await d.meta()).durationFrames!==expected)throw Error('Scene timing mismatch '+i)}const total=(await d.meta()).durationFrames;const at=n=>Math.min(total,Math.round(n*fps/30));const cues=(${cues}).map(c=>({...c,start:at(c.start),end:at(c.end)}));for(let i=0;i<cues.length;i++){const c=cues[i],id=ids.get(c.file);if(!id)throw Error('Missing sticker '+c.file);await d.overlayResource({resource:await p.resource(id),over:await d.rangeAtFrames(c.start,c.end)});const clip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='video'&&x.resourceId===id&&x.startFrame===c.start);if(clip)await d.addVideoEffect(pluginShaderOptions("sticker",{clip,
+label:'Sticker entrance',
+parameters:{dir:c.dir,x:c.x,y:c.y,s:c.s},
+editableParameters:[{key:'x',label:'Horizontal position',type:'number',defaultValue:c.x,min:-600,max:600,step:5},{key:'y',label:'Vertical position',type:'number',defaultValue:c.y,min:-900,max:900,step:5},{key:'s',label:'Size',type:'number',defaultValue:c.s,min:.3,max:1.3,step:.01}]}))}const music=ids.get('fixed-bgm.mp3');if(!music)throw Error('Fixed music missing');await d.overlayResource({resource:await p.resource(music),over:await d.rangeAtFrames(0,total)});for(let i=0;i<${result.base};i++){const id=ids.get(String(i+1).padStart(2,'0')+'-base.mp4');const all=await d.clips({trackScope:'all'});const clip=all.find(x=>x.trackKind==='main'&&x.resourceId===id);if(!clip)continue;const cue=cues.find(x=>x.start>=clip.startFrame&&x.start<clip.endFrame);if(cue)await d.addVideoEffect(pluginShaderOptions("look",{clip,
+label:'Warm vintage after sticker',
+parameters:{at:cue.start-clip.startFrame}}))}const fx=async(slot,label,code,params)=>{const id=ids.get(String(slot).padStart(2,'0')+'-base.mp4');const clip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='main'&&x.resourceId===id);if(clip)await d.addVideoEffect(pluginShaderOptions(({'Sticker entrance':'sticker','Spotlight and tint':'spotlight','Colour split':'split','Warm vintage after sticker':'look'})[label],{clip,
+label,
+parameters:{...params,at:params.at-clip.startFrame}}))};const spot=${JSON.stringify(result.spot||null)};if(spot){await fx(6,'Spotlight and tint',${JSON.stringify(SPOT)},{at:at(211),x:spot.x,y:spot.y});await fx(15,'Colour split',${JSON.stringify(SPLIT)},{at:at(438)})}const saved=await d.commitAll('Create fixed beat cutout template');if(!saved.createdDraftId)throw Error('Draft did not save');await selects.editor.openDraft(saved.createdDraftId);return {draftId:saved.createdDraftId,bases:${result.base},stickers:${result.stickers},audio:1,frames:total};`;
       await runScript(sdk,code,'Create editable beat draft',true);
       setStatus(t.done+' '+t.export);setFailed(false);
     } catch(e) {setStatus(t.error+String(e.message||e));setFailed(true)}

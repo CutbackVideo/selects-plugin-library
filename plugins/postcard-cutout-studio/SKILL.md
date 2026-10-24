@@ -4,6 +4,9 @@ description: Build an editable "moving postcard" travel opener Draft from a fold
 triggers: ["postcard cutout studio", "moving postcard", "travel postcard opener", "layered postcard cutout"]
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Postcard Cutout Studio
 
 Use the installed Panel. It builds a new Draft in the open Project; it never edits

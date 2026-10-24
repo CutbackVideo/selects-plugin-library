@@ -3,6 +3,9 @@ name: no14-still-video
 description: Build the No.14 four-photo format as eight editable original Image clips, without converting selected JPG/PNG files to video.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Four Photo Reveal
 
 Use this plugin when the user asks for the No.14 four-photo format. The four inputs are existing Project JPG/PNG/HEIC Image resources in explicit A/B/C/D order; the output is an editable Selects Draft and, if requested, an exported MP4. Do not turn the source photos into MP4 files. Keep the format's screen geometry, timing, reveal, fullscreen order, and transitions. Photo content, decoration, and optional independent grid/fullscreen framing are user choices. Music defaults to the bundled song "Graceful Resolution" and gives the reference edit: a 7.84 s Draft at 25 fps (196 frames; other rates scale each frame by round(f*fps/25)) with the song on Main from 26.2 s. The four grid photos run 0–113 with the "Fade down" effect preset, then fullscreen A 95–143, B 127–161, D 143–175 and C 161–196 (C with Fade down too); each clip effect keeps the format's own reveal and crossfade timing. Select Music Off for a silent Draft with the single 266-frame reference phrase.

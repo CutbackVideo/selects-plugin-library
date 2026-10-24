@@ -1,0 +1,33 @@
+// Representative authoring inputs, including source geometry, timing and controls.
+// These are synthetic fixtures, with no user media or project data.
+export const cases=[];
+const add=(id,kind,data={})=>cases.push({id,kind,data});
+const g={w:1920,h:1080,mw:1080,mh:1080,left:420,top:0,q:1};
+add('a16z-style-captions','look');add('ali-abdaal-style','camera');
+for(const kind of ['look','motion','letterbox','fade'])add('archive-vlog',kind,{strength:.6,motion:'push-in',holdSeconds:4,enabled:true,durationFrames:120,fadeSeconds:1});
+add('camera-shutter-dump','crop',{g,focusX:.5,focusY:.5});
+add('cinema-vlog-studio','glitch');add('cinema-vlog-studio','card',{widthPct:65});
+add('city-weekend-vlog','look');add('city-weekend-vlog','motion',{motion:'drift-left',holdSeconds:4});
+for(const kind of ['sticker','spotlight','split','look'])add('cutout-beat-gallery',kind);
+add('four-photo-stop-motion','photo',{g,fps:30,startFrame:0,refStart:0,kind:'intro',introBlur:12,hitBlur:10,hitShake:[1,-2,1]});
+for(const kind of ['look','motion','punch'])add('mini-vlog',kind,{strength:1,motion:'pull-out',holdSeconds:4,punches:[0,30,60],beatFrames:30});
+add('no14-still-video','photo',{g,startFrame:0,revealStart:0,revealDuration:1,radius:8});
+add('photo-gallery-no2','tile',{sourceWidth:1920,sourceHeight:1080,frameWidth:1080,frameHeight:1080,cropLeft:420,cropTop:0,colorAfterLocalFrame:30,focusX:.5,focusY:.5});
+for(const kind of ['photo','frame'])add('polaroid-photo-dump',kind,{w:1080,h:1920,m:1,cx:540,cy:960,win:{x:100,y:100,width:880,height:1400},fps:30,startFrame:0,zoom:.01});
+add('shortform-clips','panels',{sourceW:1920,sourceH:1080,windowH:1920,panels:[{fit:'contain',backdrop:'blur'}]});
+add('six-clip-velocity','shot',{g,fps:30,speed:1,startFrame:0,blurSoft:8,blurLength:20,blurCuts:[30,60],profile:[.2,.5,1,.5,.2]});
+add('travel-beat-vlog','clip',{g,fps:30,startFrame:0,fade:[3,4],fadeTo:'rgb(8,6,5)'});
+for(const kind of ['look','frame'])add('the-end-credits',kind);
+for(const look of ['soft-glow','night-glam','clean','none'])for(const spin of ['dir','spin'])add('selfie-aesthetic','look',{look,kindIn:spin,kindOut:spin,whip:1,whipIn:1,whipOut:1,angleIn:30,angleOut:-30,cover:1,framing:'full',lookStrength:.5});
+add('chris-williamson-style','look');add('chris-williamson-style','broll',{text:'HELLO & <WORLD>',fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:150,keywordOnly:true,keyStart:0,keyEnd:120});
+add('summer-trip','look',{strength:.45,grain:.35,leakOutSeconds:.2,leakStrength:1,clipSeconds:4});
+add('summer-trip','filmFrame',{clipSeconds:4,fadeOutFrames:10,leakInSeconds:.5,pulses:[{at:2,dur:.4},{at:3,dur:1,kind:'flare'}],motion:{motion:'push-in',strength:1}});
+add('summer-trip','gridPanel',{insetPct:{top:10,left:10,bottom:10,right:10}});
+add('summer-trip','videoMotion',{clipSeconds:4,strength:1});add('summer-trip','motion',{motion:'tilt',holdSeconds:4});
+add('postcard-cutout-studio','panel',{leftPct:10,rightPct:90,revealSeconds:1});add('postcard-cutout-studio','matte',{maskFps:30,count:120,white:true});
+add('selects-ai-runtime','matte',{opacity:1});
+add('vlog-opening','desk',{holdFrames:30,beatFrames:12,paper:'#fbf8ee',check:'#e58497',laptop:'#cfcfd1',ink:'#262626'});add('vlog-opening','iris');
+for(const backdrop of ['night','red','kraft','photo'])add('torn-paper-love','torn',{backdrop,seed:15,holdFrames:120,inset:92,edge:1.4,tilt:2,look:.6,motion:'drift',entry:'slide',phases:{entry:[{name:'white',start:0,end:2}],exit:[{name:'flare',start:0,end:5}]}});
+add('eo-shorts','look',{nativeFrameOffset:0,execution:{fps:30,backgrounds:[{from:0,color:'#ff0000',print:{period:6,angle:23,radius:1,base:'#ccdd00',ink:'#222222'}}],footage:[{id:'s0',from:0,to:120,move:'slow-push',treatment:'warm-film',grade:{saturation:.8,brightness:1.1,gamma:.9}}],screen:{period:6,angle:23,amplitude:40,base:128,highlights:{from:150,to:255,keep:.1}}}});
+add('podcast-hook-captions','look',{camera:[{at:0,d:30,z:1.3,x:0,y:4,e:'whip'}]});
+for(const kind of ['portrait','portrait2','landscape'])add('podcast-hook-captions','look',{mode:'card',kind,dur:120,gridZoom:[[0,1],[15,1.2,'whip'],[45,1.4,'io']]});

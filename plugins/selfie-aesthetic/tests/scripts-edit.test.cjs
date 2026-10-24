@@ -58,7 +58,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     addVideoEffect: async (o) => {
       assert.ok(clips.some(c => c.clipId === o.clip.clipId), 'a current clip row');
       (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label });
-      log.push(['effect', o.clip.clipId, o.label, o.tsxCode, o.parameters, o.editableParameters]);
+      log.push(['effect', o.clip.clipId, o.label, o.shader, o.parameters, o.editableParameters]);
     },
     transitions: async () => trans.map(t => ({ ...t })),
     addTransition: async (o) => {
@@ -252,7 +252,7 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.deepEqual(m.clips.filter(c => c.trackKind === 'main').map(c => c.audioSourceIndexes), [[], [], [], [], [], [], null, null]);
   const fx = m.log.filter(x => x[0] === 'effect');
   assert.deepEqual(fx.map(x => x[1]), mains.map(c => c.clipId), 'one effect per clip in order');
-  assert.ok(fx.every(x => x[2] === 'Selfie whip + look' && x[3] === 'EFFECT_TSX'));
+  assert.ok(fx.every(x => x[2] === 'Selfie whip + look' && x[3]?.graph?.schema === 'Cutback.ShaderEffect.1'));
   assert.deepEqual(fx.map(x => [x[4].whipIn, x[4].whipOut]), [[0, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 0]]);
   assert.deepEqual(fx[5][4], { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: -30, angleIn: 33, angleOut: -30, whip: 1, look: 'soft-glow', lookStrength: 0.35, framing: 'full', cover: r.covers[5] });
   // Effect mode: the head whips on angleIn, the tail on angleOut; both clips of a cut carry the same angle.

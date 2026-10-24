@@ -2,6 +2,9 @@
 name: ali-abdaal-style
 description: Turn a talking-head draft into a concise, editable Ali Abdaal-inspired short with visual beats, captions, and camera motion.
 ---
+
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
 # Ali Abdaal Style
 
 Experimental. Open a talking-head Draft and choose **Create Ali Abdaal Style draft**.

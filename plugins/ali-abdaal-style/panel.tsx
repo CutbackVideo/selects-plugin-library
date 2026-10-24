@@ -252,7 +252,136 @@ function clipVerifyScript(words: Word[], durationFrames: number) {
 /** Camera movement, visual beats, and captions on `d`. */
 function styleScript(words: Word[], plan: Plan) {
   const {camera, scenes, captions} = plan;
-  return `const words=${JSON.stringify(words)};const codeCamera=${JSON.stringify(CAMERA_EFFECT)};const camera=${JSON.stringify(camera)};const mains=(await d.clips({trackScope:'main'})).filter(c=>c.trackKind==='video');for(const clip of mains){await d.addVideoEffect({clip,label:'Ali Abdaal Style · camera movement',tsxCode:codeCamera,parameters:{start:clip.startFrame,camera},editableParameters:[]});}const codeGraphic=${JSON.stringify(GRAPHIC)};const scenes=${JSON.stringify(scenes)};for(const scene of scenes){const start=words[scene.start].startFrame;const end=words[scene.end-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · '+scene.title,within:await d.rangeAtFrames(start,end),tsxCode:codeGraphic,parameters:{...scene,start,enter:2,end,camera},editableParameters:[{key:'title',label:'Headline',type:'text',defaultValue:scene.title},{key:'body',label:'Note',type:'text',defaultValue:scene.body}]});}const codeCaption=${JSON.stringify(CAPTION)};const captions=${JSON.stringify(captions)};for(const group of captions){const start=group[0].startFrame;const end=group[group.length-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · Caption · '+group.map(w=>w.text).join(' '),within:await d.rangeAtFrames(start,end),tsxCode:codeCaption,parameters:{text:group.map(w=>w.text).join(' '),starts:group.map(w=>w.startFrame-start)},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:group.map(w=>w.text).join(' ')}]});}`;
+  return `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function cssColor(expression, filters) {
+  let c = expression;
+  if (!filters || filters === "none") return c;
+  const parts = [...filters.matchAll(/([a-z-]+)\\(([^()]*)\\)/g)];
+  if (parts.map((p) => p[0]).join("").replace(/\\s/g, "") !== filters.replace(/\\s/g, "")) throw Error("Unsupported color filter");
+  for (const [, kind, raw] of parts) {
+    const value = parseFloat(raw) / (raw.endsWith("%") ? 100 : 1);
+    const v = f32(value);
+    if (kind === "saturate") c = \`saturation(\${c},\${v})\`;
+    else if (kind === "grayscale") c = \`saturation(\${c},\${f32(1 - Math.min(1, Math.max(0, value)))})\`;
+    else if (kind === "sepia") c = \`sepia(\${c},\${v})\`;
+    else if (kind === "brightness" || kind === "contrast") c = \`\${kind}(\${c},\${v})\`;
+    else if (kind === "hue-rotate") c = \`hue(\${c},\${f32(value * (raw.endsWith("rad") ? 1 : raw.endsWith("turn") ? 2 * Math.PI : Math.PI / 180))})\`;
+    else throw Error(\`Unsupported color filter: \${kind}\`);
+  }
+  return c;
+}
+
+// shared/shader-effects/accents.mjs
+function aliCamera(data = null) {
+  data = data || {};
+  const g = new Graph(data), keys = Array.isArray(data.camera) ? data.camera : [];
+  const moves = keys.map((k, i) => {
+    const prev = i ? keys[i - 1] : { zoom: 1, y: 0 };
+    return \`if(f>=\${f32(k.at)}){
+    let p=ease((f-\${f32(k.at)})/\${f32(Math.max(1, number(k.frames, 1)))});z=mix(\${f32(prev.zoom)},\${f32(k.zoom)},p);y=mix(\${f32(number(prev.y))},\${f32(number(k.y))},p);}\`;
+  }).join("\\n");
+  g.pass(\`let f=uniforms.clock.x+\${f32(number(data.start))};var z=1.0;var y=0.0;\${moves}
+    let coord=(uv-vec2f(.509,.17)-vec2f(0.0,y/100.0))/z+vec2f(.509,.17);
+    let c=straight(source(coord));return premul(vec4f(\${cssColor("c.rgb", "contrast(1.28) brightness(1.3) saturate(1.18)")},c.a));\`);
+  return g.finish();
+}
+
+// shared/shader-effects/ali-abdaal-style.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "camera":
+      shader = aliCamera(data);
+      break;
+    default:
+      throw Error("Unknown ali-abdaal-style effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const words=${JSON.stringify(words)};const codeCamera=${JSON.stringify(CAMERA_EFFECT)};const camera=${JSON.stringify(camera)};const mains=(await d.clips({trackScope:'main'})).filter(c=>c.trackKind==='video');for(const clip of mains){await d.addVideoEffect(pluginShaderOptions("camera",{clip,
+label:'Ali Abdaal Style · camera movement',
+parameters:{start:clip.startFrame,camera},
+editableParameters:[]}));}const codeGraphic=${JSON.stringify(GRAPHIC)};const scenes=${JSON.stringify(scenes)};for(const scene of scenes){const start=words[scene.start].startFrame;const end=words[scene.end-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · '+scene.title,within:await d.rangeAtFrames(start,end),tsxCode:codeGraphic,parameters:{...scene,start,enter:2,end,camera},editableParameters:[{key:'title',label:'Headline',type:'text',defaultValue:scene.title},{key:'body',label:'Note',type:'text',defaultValue:scene.body}]});}const codeCaption=${JSON.stringify(CAPTION)};const captions=${JSON.stringify(captions)};for(const group of captions){const start=group[0].startFrame;const end=group[group.length-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · Caption · '+group.map(w=>w.text).join(' '),within:await d.rangeAtFrames(start,end),tsxCode:codeCaption,parameters:{text:group.map(w=>w.text).join(' '),starts:group.map(w=>w.startFrame-start)},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:group.map(w=>w.text).join(' ')}]});}`;
 }
 
 const COMMIT_SCRIPT = `const saved=await d.commitAll('Create Ali Abdaal Style draft');return {id:saved.createdDraftId,name:(await d.meta()).name};`;

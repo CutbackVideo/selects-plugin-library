@@ -16,7 +16,7 @@ test('Chris cleanup removes only its legacy flash effect and patches its paramet
  const draft={clips:async()=>[row()],videoEffects:async clip=>{check(clip);return effects.map((effect,effectIndex)=>({...effect,effectIndex,revision}));},
   videoEffectProgram:async effect=>{check(effect);return {tsxCode:'export default()=>null',parameters:effect.parameters};},
   removeVideoEffect:async effect=>{check(effect);effects.splice(effect.effectIndex,1);revision++;},
-  replaceVideoEffect:async(effect,program)=>{check(effect);effects[effect.effectIndex].parameters=program.parameters;revision++;},
+  setVideoEffectParameters:async({effect,parameters})=>{check(effect);effects[effect.effectIndex].parameters=parameters;revision++;},
   motionGraphics:async()=>[{name:'Chris · Graphic',clip:row()}],motionGraphicProgram:async clip=>{check(clip);return graphic;},
   setMotionGraphicParameters:async({clip,parameters})=>{check(clip);graphic.parameters=parameters;revision++;},
   commitAll:async()=>{commits++;return {commitId:'c'};}};

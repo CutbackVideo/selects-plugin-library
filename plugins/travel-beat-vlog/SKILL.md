@@ -3,6 +3,9 @@ name: travel-beat-vlog
 description: Build the fast "travel beat vlog" short cut to the user's own song - two quick montages on the song's drum hits, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade to near-black - from 26 of the user's videos, one photo and one song. No music is bundled.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Travel Beat Vlog
 
 Use this plugin when the user asks for this travel vlog format. The format is fixed; the videos, the photo and the song are the user's. A song is required.

@@ -1,0 +1,233 @@
+{
+  "a16z-style-captions": {
+    "look": [
+      "speaker",
+      "a16zLook"
+    ]
+  },
+  "ali-abdaal-style": {
+    "camera": [
+      "accents",
+      "aliCamera"
+    ]
+  },
+  "archive-vlog": {
+    "look": [
+      "grades",
+      "grade",
+      "archive"
+    ],
+    "motion": [
+      "motion",
+      "photoMotion"
+    ],
+    "letterbox": [
+      "motion",
+      "letterbox"
+    ],
+    "fade": [
+      "motion",
+      "fadeOut"
+    ]
+  },
+  "camera-shutter-dump": {
+    "crop": [
+      "framing",
+      "photoCrop"
+    ]
+  },
+  "cinema-vlog-studio": {
+    "glitch": [
+      "accents",
+      "cinemaGlitch"
+    ],
+    "card": [
+      "accents",
+      "cinemaCard"
+    ]
+  },
+  "city-weekend-vlog": {
+    "look": [
+      "grades",
+      "grade",
+      "golden"
+    ],
+    "motion": [
+      "motion",
+      "photoMotion"
+    ]
+  },
+  "cutout-beat-gallery": {
+    "sticker": [
+      "accents",
+      "sticker"
+    ],
+    "spotlight": [
+      "accents",
+      "spotlight"
+    ],
+    "split": [
+      "accents",
+      "colorSplit"
+    ],
+    "look": [
+      "accents",
+      "vintageAfter"
+    ]
+  },
+  "four-photo-stop-motion": {
+    "photo": [
+      "framing",
+      "stopMotion"
+    ]
+  },
+  "mini-vlog": {
+    "look": [
+      "grades",
+      "grade",
+      "soft"
+    ],
+    "motion": [
+      "motion",
+      "photoMotion"
+    ],
+    "punch": [
+      "motion",
+      "beatPunch"
+    ]
+  },
+  "no14-still-video": {
+    "photo": [
+      "framing",
+      "fourPhotoReveal"
+    ]
+  },
+  "photo-gallery-no2": {
+    "tile": [
+      "framing",
+      "galleryTile"
+    ]
+  },
+  "polaroid-photo-dump": {
+    "photo": [
+      "framing",
+      "polaroid"
+    ],
+    "frame": [
+      "framing",
+      "polaroid",
+      true
+    ]
+  },
+  "shortform-clips": {
+    "panels": [
+      "framing",
+      "shortformPanels"
+    ]
+  },
+  "six-clip-velocity": {
+    "shot": [
+      "framing",
+      "velocity"
+    ]
+  },
+  "travel-beat-vlog": {
+    "clip": [
+      "framing",
+      "travelClip"
+    ]
+  },
+  "the-end-credits": {
+    "look": [
+      "grades",
+      "grade",
+      "credits"
+    ],
+    "frame": [
+      "credits",
+      "shotFrame"
+    ]
+  },
+  "selfie-aesthetic": {
+    "look": [
+      "selfie",
+      "selfie"
+    ]
+  },
+  "chris-williamson-style": {
+    "look": [
+      "chris",
+      "chrisLook"
+    ],
+    "broll": [
+      "chris",
+      "chrisBroll"
+    ]
+  },
+  "summer-trip": {
+    "look": [
+      "summer",
+      "summerLook"
+    ],
+    "filmFrame": [
+      "summer",
+      "filmFrame"
+    ],
+    "videoMotion": [
+      "summer",
+      "videoMotion"
+    ],
+    "gridPanel": [
+      "summer",
+      "gridPanel"
+    ],
+    "motion": [
+      "motion",
+      "photoMotion"
+    ]
+  },
+  "postcard-cutout-studio": {
+    "panel": [
+      "framing",
+      "panelReveal"
+    ],
+    "matte": [
+      "matte",
+      "postcardMatte"
+    ]
+  },
+  "selects-ai-runtime": {
+    "matte": [
+      "matte",
+      "packedMatte"
+    ]
+  },
+  "vlog-opening": {
+    "desk": [
+      "desk",
+      "desk"
+    ],
+    "iris": [
+      "accents",
+      "iris"
+    ]
+  },
+  "torn-paper-love": {
+    "torn": [
+      "torn",
+      "tornPhoto"
+    ]
+  },
+  "eo-shorts": {
+    "look": [
+      "eo",
+      "eoLook"
+    ]
+  },
+  "podcast-hook-captions": {
+    "look": [
+      "podcast",
+      "podcastLook"
+    ]
+  }
+}

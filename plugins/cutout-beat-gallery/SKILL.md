@@ -3,6 +3,9 @@ name: cutout-beat-gallery
 description: Turn a folder of portrait photos into an editable 15.9-second beat-cut gallery Draft where cut-out people with paper outlines slide in, stack, and lead into the next photo, on a fixed soundtrack.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Beat Cutout Gallery
 
 Open a project, choose a photo folder in the **Beat Cutout Gallery** panel, press

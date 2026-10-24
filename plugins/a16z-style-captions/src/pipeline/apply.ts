@@ -15,7 +15,145 @@ export async function createShort(sdk: Sdk, pid: string, sid: string, baseName: 
   const r = await script(
     sdk,
     "Create the 9:16 Short",
-    `const p = selects.project(${J(pid)});
+    `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return \`vec\${values.length}f(\${values.map(f32).join(",")})\`;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function cssColor(expression, filters) {
+  let c = expression;
+  if (!filters || filters === "none") return c;
+  const parts = [...filters.matchAll(/([a-z-]+)\\(([^()]*)\\)/g)];
+  if (parts.map((p) => p[0]).join("").replace(/\\s/g, "") !== filters.replace(/\\s/g, "")) throw Error("Unsupported color filter");
+  for (const [, kind, raw] of parts) {
+    const value = parseFloat(raw) / (raw.endsWith("%") ? 100 : 1);
+    const v = f32(value);
+    if (kind === "saturate") c = \`saturation(\${c},\${v})\`;
+    else if (kind === "grayscale") c = \`saturation(\${c},\${f32(1 - Math.min(1, Math.max(0, value)))})\`;
+    else if (kind === "sepia") c = \`sepia(\${c},\${v})\`;
+    else if (kind === "brightness" || kind === "contrast") c = \`\${kind}(\${c},\${v})\`;
+    else if (kind === "hue-rotate") c = \`hue(\${c},\${f32(value * (raw.endsWith("rad") ? 1 : raw.endsWith("turn") ? 2 * Math.PI : Math.PI / 180))})\`;
+    else throw Error(\`Unsupported color filter: \${kind}\`);
+  }
+  return c;
+}
+
+// shared/shader-effects/speaker.mjs
+function a16zLook(data = null) {
+  data = data || {};
+  const g = new Graph(data), W = number(data.W, 1080), H = number(data.H, 1920), sw = number(data.sw, 1920), sh = number(data.sh, 1080);
+  const start = number(data.start), shots = data.shots || [];
+  const fallback = shots.at(-1) || { x: 0, y: (H - W * sh / sw) / 2, w: W, h: W * sh / sw };
+  const windows = (data.windows || []).map((win) => \`if(f>=\${f32(win.from)}&&f<\${f32(win.to)}){
+    let progress=sat((f-\${f32(win.from)})/\${f32(Math.max(1, win.to - win.from))});let w=.78*\${f32(W)}*(1.0-.04*progress);let h=w*\${f32(sh / sw)};
+    let at=(uv*size-vec2f((\${f32(W)}-w)*.5,.54*\${f32(H)}-h*.5))/vec2f(w,h);
+    return over(source(at)*within(at,vec2f(w,h)),vec4f(vec3f(244.0,245.0,247.0)/255.0,1.0));
+  }\`).join("\\n");
+  const find = shots.map((s, i) => \`\${i ? "else " : ""}if(f>=\${f32(s.from)}&&f<\${f32(s.to)}){shot=\${vec([s.x, s.y, s.w, s.h])};first=\${i === 0 ? "true" : "false"};}\`).join("\\n");
+  let move = "";
+  if (data.push && data.end > start) move = \`z=floor((1.0+\${f32(data.push)}*sat((f-\${f32(start)})/\${f32(data.end - start)}))*10000.0+.5)/10000.0;\`;
+  else if (data.open && shots.length) move = \`if(first){let k=max(0.0,(f-\${f32(number(shots[0].from))})*\${f32(24 / number(data.fps, 24))});
+    let candidate=1.0+\${f32(data.open.s0 - 1)}*pow(.68,k);if(candidate>1.0005){z=floor(candidate*10000.0+.5)/10000.0;origin=\${vec([data.open.ax, data.open.ay])};}}\`;
+  g.pass(\`let size=\${vec([W, H])};let f=uniforms.clock.x+\${f32(start)};\${windows}
+    var shot=\${vec([fallback.x, fallback.y, fallback.w, fallback.h])};var first=false;\${find}
+    var z=1.0;var origin=size*.5;\${move}
+    let at=(uv*size-origin)/z+origin;let coord=(at-shot.xy)/shot.zw;
+    let c=straight(source(coord));return over(premul(vec4f(\${cssColor("c.rgb", data.grade)},c.a)),vec4f(0.0,0.0,0.0,1.0));\`);
+  return g.finish();
+}
+
+// shared/shader-effects/a16z-style-captions.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "look":
+      shader = a16zLook(data);
+      break;
+    default:
+      throw Error("Unknown a16z-style-captions effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const p = selects.project(${J(pid)});
 const src = selects.draft(${J(sid)});
 const taken: string[] = [];
 for (const id of ((await p.meta()) as any).draftIds || []) { try { taken.push((await selects.draft(id).meta()).name); } catch {} }
@@ -42,7 +180,10 @@ for (let k = 0; k < PLAN.length; k += 1) {
   const m = PLAN[k];
   const clip: any = (await mains()).find((c: any) => c.clipId === ids[k]);
   if (!clip) continue;
-  await d.addVideoEffect({ clip, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: m.sw, sh: m.sh, start: clip.startFrame, shots: m.shots, open: m.open }, editableParameters: [] });
+  await d.addVideoEffect(pluginShaderOptions("look",{clip,
+label: ${J(LOOK_LABEL)},
+parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: m.sw, sh: m.sh, start: clip.startFrame, shots: m.shots, open: m.open },
+editableParameters: []}));
 }
 const saved = await d.commitAll("a16z Style Captions: new 9:16 Short");
 if (!saved.createdDraftId) throw new Error("The Short was not created.");
@@ -96,7 +237,145 @@ export async function finishShort(
   return script(
     sdk,
     "Add B-roll, captions, graphics and music",
-    `const d = selects.draft(${J(rid)});
+    `
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = \`
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+\`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return \`vec\${values.length}f(\${values.map(f32).join(",")})\`;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = \`p\${this.passes.length}\`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + \`
+fn effect(uv:vec2f)->vec4f {\${body}}\`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = \`image\${this.images.length}\`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function cssColor(expression, filters) {
+  let c = expression;
+  if (!filters || filters === "none") return c;
+  const parts = [...filters.matchAll(/([a-z-]+)\\(([^()]*)\\)/g)];
+  if (parts.map((p) => p[0]).join("").replace(/\\s/g, "") !== filters.replace(/\\s/g, "")) throw Error("Unsupported color filter");
+  for (const [, kind, raw] of parts) {
+    const value = parseFloat(raw) / (raw.endsWith("%") ? 100 : 1);
+    const v = f32(value);
+    if (kind === "saturate") c = \`saturation(\${c},\${v})\`;
+    else if (kind === "grayscale") c = \`saturation(\${c},\${f32(1 - Math.min(1, Math.max(0, value)))})\`;
+    else if (kind === "sepia") c = \`sepia(\${c},\${v})\`;
+    else if (kind === "brightness" || kind === "contrast") c = \`\${kind}(\${c},\${v})\`;
+    else if (kind === "hue-rotate") c = \`hue(\${c},\${f32(value * (raw.endsWith("rad") ? 1 : raw.endsWith("turn") ? 2 * Math.PI : Math.PI / 180))})\`;
+    else throw Error(\`Unsupported color filter: \${kind}\`);
+  }
+  return c;
+}
+
+// shared/shader-effects/speaker.mjs
+function a16zLook(data = null) {
+  data = data || {};
+  const g = new Graph(data), W = number(data.W, 1080), H = number(data.H, 1920), sw = number(data.sw, 1920), sh = number(data.sh, 1080);
+  const start = number(data.start), shots = data.shots || [];
+  const fallback = shots.at(-1) || { x: 0, y: (H - W * sh / sw) / 2, w: W, h: W * sh / sw };
+  const windows = (data.windows || []).map((win) => \`if(f>=\${f32(win.from)}&&f<\${f32(win.to)}){
+    let progress=sat((f-\${f32(win.from)})/\${f32(Math.max(1, win.to - win.from))});let w=.78*\${f32(W)}*(1.0-.04*progress);let h=w*\${f32(sh / sw)};
+    let at=(uv*size-vec2f((\${f32(W)}-w)*.5,.54*\${f32(H)}-h*.5))/vec2f(w,h);
+    return over(source(at)*within(at,vec2f(w,h)),vec4f(vec3f(244.0,245.0,247.0)/255.0,1.0));
+  }\`).join("\\n");
+  const find = shots.map((s, i) => \`\${i ? "else " : ""}if(f>=\${f32(s.from)}&&f<\${f32(s.to)}){shot=\${vec([s.x, s.y, s.w, s.h])};first=\${i === 0 ? "true" : "false"};}\`).join("\\n");
+  let move = "";
+  if (data.push && data.end > start) move = \`z=floor((1.0+\${f32(data.push)}*sat((f-\${f32(start)})/\${f32(data.end - start)}))*10000.0+.5)/10000.0;\`;
+  else if (data.open && shots.length) move = \`if(first){let k=max(0.0,(f-\${f32(number(shots[0].from))})*\${f32(24 / number(data.fps, 24))});
+    let candidate=1.0+\${f32(data.open.s0 - 1)}*pow(.68,k);if(candidate>1.0005){z=floor(candidate*10000.0+.5)/10000.0;origin=\${vec([data.open.ax, data.open.ay])};}}\`;
+  g.pass(\`let size=\${vec([W, H])};let f=uniforms.clock.x+\${f32(start)};\${windows}
+    var shot=\${vec([fallback.x, fallback.y, fallback.w, fallback.h])};var first=false;\${find}
+    var z=1.0;var origin=size*.5;\${move}
+    let at=(uv*size-origin)/z+origin;let coord=(at-shot.xy)/shot.zw;
+    let c=straight(source(coord));return over(premul(vec4f(\${cssColor("c.rgb", data.grade)},c.a)),vec4f(0.0,0.0,0.0,1.0));\`);
+  return g.finish();
+}
+
+// shared/shader-effects/a16z-style-captions.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "look":
+      shader = a16zLook(data);
+      break;
+    default:
+      throw Error("Unknown a16z-style-captions effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
+const d = selects.draft(${J(rid)});
 const p = selects.project(${J(pid)});
 const INS: any[] = ${J(inserts)};
 const LOOK = ${J(inserts.length || relook ? lookCode : "")};
@@ -108,7 +387,10 @@ for (const m of FRAMES) {
   if (!clip) continue;
   for (const e of await d.videoEffects(clip)) if (e.name === ${J(LOOK_LABEL)}) await d.removeVideoEffect(e);
   const again: any = (await d.clips({ trackScope: "main" })).find((c: any) => c.clipId === clip.clipId);
-  await d.addVideoEffect({ clip: again, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: m.sw, sh: m.sh, start: again.startFrame, shots: m.shots, open: m.open, windows: WINDOWS }, editableParameters: [] });
+  await d.addVideoEffect(pluginShaderOptions("look",{clip: again,
+label: ${J(LOOK_LABEL)},
+parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: m.sw, sh: m.sh, start: again.startFrame, shots: m.shots, open: m.open, windows: WINDOWS },
+editableParameters: []}));
 }
 const stretch = (sw: number, sh: number) => { const k = Math.min(${W} / sw, ${H} / sh); return { x: ${W} / (sw * k), y: ${H} / (sh * k) }; };
 let placed = 0;
@@ -124,7 +406,10 @@ for (const b of INS) {
   const v1: any = (await d.clips({ trackScope: "all" })).find((c: any) => c.clipId === video.clipId);
   await d.setClipTransform({ clip: v1, scale: stretch(b.sw, b.sh), position: { x: 0, y: 0 }, rotation: 0 });
   const v2: any = (await d.clips({ trackScope: "all" })).find((c: any) => c.clipId === video.clipId);
-  await d.addVideoEffect({ clip: v2, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: b.sw, sh: b.sh, start: b.a, end: b.b, push: b.push, grade: "saturate(0.8) contrast(1.05) brightness(0.97) sepia(0.07)", shots: [{ from: b.a, to: b.b, ...b.rect }] }, editableParameters: [] });
+  await d.addVideoEffect(pluginShaderOptions("look",{clip: v2,
+label: ${J(LOOK_LABEL)},
+parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: b.sw, sh: b.sh, start: b.a, end: b.b, push: b.push, grade: "saturate(0.8) contrast(1.05) brightness(0.97) sepia(0.07)", shots: [{ from: b.a, to: b.b, ...b.rect }] },
+editableParameters: []}));
   placed += 1;
 }
 const g = await d.addMotionGraphic({ label: ${J(GRAPHIC_LABEL)}, tsxCode: ${J(graphicCode)}, parameters: ${J(data)}, editableParameters: [], within: await d.rangeAtFrames(0, ${endFrame}) });

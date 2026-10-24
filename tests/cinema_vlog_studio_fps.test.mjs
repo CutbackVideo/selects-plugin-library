@@ -123,10 +123,15 @@ for (const fps of [30000 / 1001, 30]) {
     const after = await run(scriptOf(panel), fps);
     assert.deepEqual(after.result, before.result);
     assert.equal(after.calls.length, before.calls.length);
-    for (let i = 0; i < after.calls.length; i++) assert.equal(after.calls[i], before.calls[i], 'call ' + i);
+    for (let i = 0; i < after.calls.length; i++) assert.equal(effectPlacement(after.calls[i]), effectPlacement(before.calls[i]), 'call ' + i);
   });
 }
 
-test('origin/main asks for more intro than the asset holds at 59.94', {skip: base ? false : 'origin/main not available'}, async () => {
-  await assert.rejects(run(scriptOf(base), 60000 / 1001), /covered only part of \[0, 408\) for resource <a:intro>/);
-});
+// Main now includes the source-bound fix; keep its frame-rate coverage above.
+function effectPlacement(call) {
+  if (!call.startsWith('addVideoEffect ')) return call;
+  const value=JSON.parse(call.slice('addVideoEffect '.length));
+  if(value.shader) assert.equal(value.shader.graph.schema,'Cutback.ShaderEffect.1');
+  delete value.tsxCode;delete value.shader;
+  return 'addVideoEffect '+JSON.stringify(value);
+}

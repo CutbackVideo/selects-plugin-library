@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "selects-ai-runtime",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "name": "Selects AI Runtime PoC",
   "summary": "Shared external YuNet, RVM and experimental Light-ASD runtime with verified native dependencies.",
   "status": "experimental",
@@ -101,7 +101,9 @@
     "tests/speakers.test.cjs",
     "tests/fixtures/speaker-mfcc-reference.json",
     "lib/frame-change.cjs",
-    "tests/frame-change.test.cjs"
+    "tests/frame-change.test.cjs",
+    "native-matte.js",
+    "tests/native-matte.test.cjs"
   ],
   "runtime": "runtime.json"
 }

@@ -531,7 +531,7 @@ export async function cleanLegacyDraft(selects,input) {
    const program=await draft.videoEffectProgram(effect);if(!program)continue;
    const parameters=clean(program.parameters);
    if(JSON.stringify(parameters)!==JSON.stringify(program.parameters)){
-    await draft.replaceVideoEffect(effect,{tsxCode:program.tsxCode,parameters});changed++;
+    await draft.setVideoEffectParameters({effect,parameters});changed++;
    }
   }
  }

@@ -46,7 +46,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       if (o.fadeOutSeconds != null || o.fadeInSeconds != null) log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]);
     },
     addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['letters', o.within, o.label, o.parameters, o.editableParameters, o.tsxCode]); return { clipId: 200, startFrame: o.within.a, endFrame: o.within.b }; },
-    addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label }); log.push(['effect', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.tsxCode]); return { clipId: o.clip.clipId, effectIndex: 0 }; },
+    addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label }); log.push(['effect', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.shader]); return { clipId: o.clip.clipId, effectIndex: 0 }; },
     motionGraphics: async () => graphics.map(g => ({ ...g })),
     videoEffects: async (clip) => (effects[clip.clipId] || []).map(e => ({ ...e })),
     commitAll: async (reason) => {
@@ -208,8 +208,9 @@ const cfgA = (extra = {}) => ({ projectId: 'p', draftName: 'Torn Paper Love Nigh
   eff.forEach((x, i) => {
     const c = mains(m)[i];
     assert.equal(x[2], 'Torn photo');
-    assert.equal(x[5], 'TORN');
-    assert.deepEqual(x[3], { ...cfgD().torn.clips[i].data, holdFrames: c.endFrame - c.startFrame, originFrame: c.resourceId === 'v1' ? 60 : 0 });
+    assert.equal(x[5].graph.schema, 'Cutback.ShaderEffect.1');
+    assert.ok(x[5].uniforms.some(binding => binding.parameter === 'seed'));
+    assert.deepEqual(x[3], { look:0.6, ...cfgD().torn.clips[i].data, holdFrames: c.endFrame - c.startFrame, originFrame: c.resourceId === 'v1' ? 60 : 0 });
     assert.deepEqual(x[4], tornEditable);
   });
   const lt = m.log.find(x => x[0] === 'letters');

@@ -3,6 +3,9 @@ name: photo-gallery-no2
 description: Create a 21-tile Photo Gallery Draft in Selects from ordered original photos and videos.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Photo Grid Reveal
 
 Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). Recreate the grid, reveal order, and simultaneous grayscale-to-color switch; the 21 tile contents may differ. Each chosen JPG/PNG remains its original Image Resource and becomes a separate editable Image clip. Do not convert photos to MP4, flatten the gallery, or silently fill a missing slot. A black Main video is unnecessary: the shared operation creates a 853-frame gap-backed Draft.

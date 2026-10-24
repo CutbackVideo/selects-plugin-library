@@ -3,6 +3,9 @@ name: six-clip-velocity
 description: Build the "velocity" short-form format - six videos with an opening shot under word-by-word subtitles, then a seven-shot block of speed ramps with vertical blur cuts, a white flash, the block again and a fade to black - as editable retimed video clips with bundled music.
 ---
 
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
+
 # Six Clip Velocity
 
 Use this plugin when the user asks for this velocity edit format. The format is fixed; the six videos and the subtitle words are the user's.

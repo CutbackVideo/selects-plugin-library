@@ -2,6 +2,9 @@
 name: a16z-style-captions
 description: One click turns a talking-head Draft into a 9:16 Short in the a16z house style - tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, stock B-roll, a name tag and a music bed.
 ---
+
+Clip effects are authored with the shipped WGSL graph factories. Use `shader` with `addVideoEffect` / `replaceVideoEffect`; do not add new `tsxCode` clip effects. Existing TSX clip-effect assets are reference fixtures. Captions, titles and other Motion Graphics retain their existing authoring format. This version requires the Selects host with editable WGSL selection/SVG bindings and fixed SVG image sizes; deploy that host before publishing this plugin update.
+
 # a16z Style Captions
 
 Experimental. Open a talking-head Draft that has a Selects transcript, open the

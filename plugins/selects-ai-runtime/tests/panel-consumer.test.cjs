@@ -34,10 +34,10 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
   async function loadTypechecker(videoOnly = false) {
     const module = { exports: {} };
     const built = await esbuild.build({
-      entryPoints: [path.join(appRoot, 'electron/mcp/script-runtime/typecheck.ts')],
+      entryPoints: [path.join(appRoot, 'src/shared/script-runtime/typecheck.ts')],
       bundle: true, write: false, platform: 'node', format: 'cjs', external: ['typescript'],
       plugins: [{ name: 'sdk-raw-declarations', setup(build) {
-        build.onResolve({ filter: /\?raw$/ }, args => ({ path: path.resolve(args.resolveDir, args.path.slice(0, -4)), namespace: 'sdk-raw' }));
+        build.onResolve({ filter: /\?raw$/ }, args => ({ path: args.path.startsWith('@shared/') ? path.join(appRoot,'src/shared',args.path.slice(8,-4)) : path.resolve(args.resolveDir, args.path.slice(0, -4)), namespace: 'sdk-raw' }));
         build.onLoad({ filter: /.*/, namespace: 'sdk-raw' }, async args => {
           let contents = await fs.readFile(args.path, 'utf8');
           if(videoOnly && path.basename(args.path)==='ai.d.ts') contents = contents.slice(0,contents.indexOf('interface AiService {'))+videoOnlyAiService;
@@ -306,8 +306,9 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.ok(dom.window.document.body.textContent.includes('1000 samples · 3000 faces'));
     });
     const BG = '33333333-3333-4333-8333-333333333333';
+    const PACKED = '77777777-7777-4777-8777-777777777777';
     const MANIFEST = { id: 'ai-artifact:manifest', name: 'matte.json', mediaType: 'application/json', byteSize: 500 };
-    const preparedMatte = { sourceResourceId: UUID_A, sourceRange: { startSeconds: 0.25, endSeconds: 2.25 },
+    const preparedMatte = { status:'ready',path:'/mattes/packed.mov',sourceKind:'video',sourceResourceId: UUID_A, sourceRange: { startSeconds: 0.25, endSeconds: 2.25 },
       frameSize: { width: 1920, height: 1080 }, alphaEncoding: 'grayscale-png-8bit', frameCount: 48 };
     const matteResult = { task: 'person.matte', manifest: MANIFEST, metrics: { totalMs: 20 }, diagnostics: {},
       data: { frameCount: 48, frames: [], foregroundVideo: { sourceStartSeconds: 0.25, durationSeconds: 2, frameCount: 48, frameRate: { numerator: 24, denominator: 1 } } } };
@@ -317,6 +318,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         [row(project === 'A' ? UUID_A : UUID_B, `${project} video`), { resourceId: BG, name: 'Blue background', type: 'Image' }],
         runScript: async input => {
           scripts.push(input);
+          if (input.script.includes('p.importFiles')) return answer(PACKED);
           if (input.script.includes('supportedMatteEncodings')) return answer('grayscale-png-8bit');
           if (input.script.includes('selects.ai.prepareMatte') && !input.script.includes('createDraft')) return answer(preparedMatte);
           if (input.script.includes('createDraft')) return answer({ draftId: 'draft-persistent-id' });
@@ -439,6 +441,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       const sdk = { call: async () => [row(UUID_A, 'Face source'), row(UUID_B, 'Matte source'), { resourceId: BG, name: 'Background', type: 'Image' }],
         runScript: async input => {
           calls.push(input.script);
+          if (input.script.includes('p.importFiles')) return answer(PACKED);
           if (input.script.includes('supportedMatteEncodings')) return answer('grayscale-png-8bit');
           if (input.script.includes('selects.ai.submit')) {
             const request = JSON.parse(input.script.match(/selects\.ai\.submit\((\{.*\})\)/s)[1]); submissions.push(request);
@@ -592,8 +595,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal((create.script.match(/overlayResource/g) || []).length, 2);
       assert.equal((create.script.match(/rangeAtFrames/g) || []).length, 2, 'Re-read the live Span after the background edit');
       assert.ok(create.script.includes(`p.resource(${JSON.stringify(BG)})`));
-      assert.ok(create.script.includes('p.resource(matte.sourceResourceId)'));
-      assert.ok(create.script.includes('sourceStartSeconds:matte.sourceRange.startSeconds'));
+      assert.ok(create.script.includes('p.resource('+JSON.stringify(PACKED)+')'));
+      assert.ok(create.script.includes('sourceStartSeconds:0'));
       assert.ok(create.script.includes('addVideoEffect'));
       assert.ok(!create.script.includes('importArtifact'));
       assert.ok(create.script.includes('commitAll')); assert.ok(!create.script.includes('openDraft'));
@@ -634,7 +637,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
           insertedFrames = Math.round(range.endSeconds * fps) - Math.round(range.startSeconds * fps); insertions++;
           return {};
         },
-        meta: async () => ({ fps, durationFrames: insertedFrames, durationSeconds: insertedFrames / fps }),
+        meta: async () => ({ fps, frameSize:{width:1920,height:1080},durationFrames: insertedFrames, durationSeconds: insertedFrames / fps }),
+        setClipTransform:async opts=>assert.deepEqual(opts.scale,{x:1,y:2}),
         rangeAtFrames: async (startFrame, endFrame) => {
           assert.equal(startFrame, 0); assert.equal(endFrame, count); return { startFrame, endFrame };
         },
@@ -665,7 +669,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
           const build=esbuild.transformSync(`async function prepare(selects) {${request.script}}`,{loader:'ts',format:'cjs'});
           const value=await new Function('selects',`${build.code}\nreturn prepare(selects);`)({ai:{
             job:()=>({result:async()=>({files:{manifest:MANIFEST}})}),prepareMatte:async()=>prepared,
-          }});
+          },project:()=>({sourceFiles:async()=>({fileTree:[{resourceId:UUID_A,path:'/original.mov'}]})}),files:{pathFromLocalUrl:async()=>'/mattes/first.png',exists:async()=>true}});
           assert.equal(value.frameCount,count); assert.equal(value.frames,undefined);
           assert.ok(Buffer.byteLength(JSON.stringify(value))<1024,'Thousands of durable URLs must not cross the Panel inline result limit');
           return answer(value);
@@ -679,40 +683,18 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(durationField().value, '120'); assert.ok(text().includes('2878 frames processed'));
       await click('Open in editor');
       assert.equal(insertions, 1, text()); assert.equal(insertedFrames, count); assert.equal(commits, 1);
-      assert.deepEqual(overlays.map(overlay => overlay.resource.id), [BG, UUID_A]);
+      assert.deepEqual(overlays.map(overlay => overlay.resource.id), [BG, PACKED]);
       assert.ok(overlays.every(overlay => overlay.over.startFrame === 0 && overlay.over.endFrame === count));
       assert.equal(overlays[1].sourceStartSeconds, 0);
       assert.ok(!base.scripts.some(request => request.script.includes('selects.ai.submit')), 'The successful long job is reused without inference');
       assert.equal(base.scripts.filter(request => request.script.includes('selects.ai.prepareMatte') && !request.script.includes('createDraft')).length, 1);
-      assert.equal(effects[0].clip.clipId, 3); assert.equal(effects[0].parameters.frames.length, count);
-      assert.equal(effects[0].parameters.sourceEndSeconds, sourceEnd);
+      assert.equal(effects[0].clip.clipId, 3); assert.deepEqual(effects[0].parameters,{opacity:1});
+      assert.equal(effects[0].shader.graph.schema,'Cutback.ShaderEffect.1');
       assert.ok(!base.scripts.some(request => request.script.includes('importArtifact')), 'No foreground MOV Resource is adopted');
       assert.ok(base.scripts.at(-1).script.includes('selects.editor.openDraft("long-fractional-draft")'));
       assert.equal(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'long-fractional-draft');
-      // Execute the exact RawTSX effect emitted by the real Panel. Its clock
-      // is source-relative, so a trim/seek does not replay mask frame zero.
-      const effectModule = { exports: {} }; let effectFrame = 0, effectFps = fps;
-      const effectCode = await esbuild.transform(effects[0].tsxCode, { loader: 'tsx', format: 'cjs', jsx: 'transform' });
-      new Function('require', 'module', 'exports', effectCode.code)(name => name === 'react' ? React : {
-        AbsoluteFill: 'mask-frame', useCurrentFrame: () => effectFrame, useVideoConfig: () => ({ fps: effectFps }),
-      }, effectModule, effectModule.exports);
-      const Source = () => h('video');
-      const renderMask = frame => { effectFrame = frame; return effectModule.exports.default({ Source, data: effects[0].parameters }); };
-      for (const frame of [0, 1439, count - 1]) {
-        const output = renderMask(frame);
-        assert.equal(output.props.style.maskMode, 'luminance', 'Opaque grayscale images need luminance rather than alpha masking');
-        assert.equal(output.props.style.maskImage, `url(${JSON.stringify(masks[frame].url)})`);
-        assert.equal(output.props.children.type, Source, 'The original pixels remain the effect input');
-      }
-      assert.equal(renderMask(count), null, 'Do not expose an unmasked source outside the adopted range');
-      effectFrame = 1; effectFps = 30;
-      const crossRate = { ...effects[0].parameters, sourceStartSeconds: 0.25, sourceEndSeconds: 1,
-        frames: [{ sourceTimeSeconds: 0.25, url: 'local://first.png' }, { sourceTimeSeconds: 0.291708, url: 'local://second.png' }] };
-      // A mismatched editor FPS still selects by source PTS, never by array ordinal.
-      const atFractional = effectModule.exports.default({ Source, data: crossRate });
-      assert.equal(atFractional.props.style.maskImage, 'url("local://first.png")');
-      effectFrame = 2;
-      assert.equal(effectModule.exports.default({ Source, data: crossRate }).props.style.maskImage, 'url("local://second.png")');
+      assert.equal(effects[0].tsxCode,undefined);
+      assert.ok(effects[0].shader.uniforms.some(binding=>binding.parameter==='opacity'));
     });
     await t.test('a preparation failure or source mismatch never records an unknown Draft or starts a commit', async () => {
       for (const outcome of [error('AI_ARTIFACT_TAMPERED','The masks cannot be verified'),answer({...preparedMatte,sourceResourceId:UUID_B}),
@@ -784,7 +766,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       storage.setItem = () => { throw new Error('Storage unavailable'); };
       try {
         await click('Open in editor');
-        assert.ok(dom.window.document.body.textContent.includes('Draft creation is blocked'));
+        assert.ok(dom.window.document.body.textContent.includes('Storage unavailable'));
         assert.ok(!sdk.scripts.some(input => input.script.includes('createDraft')));
       } finally { storage.setItem = original; }
     });
@@ -909,7 +891,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       const draft = {
         insertGap: async opts => { assert.deepEqual(opts,{seconds:5}); gaps++; durationFrames = 150; return {}; },
         insertResource: async () => { throw new Error('A photo must not fabricate a video source range'); },
-        meta: async () => ({ fps:30,durationFrames,durationSeconds:durationFrames/30 }),
+        meta: async () => ({ fps:30,frameSize:{width:1920,height:1080},durationFrames,durationSeconds:durationFrames/30 }),
+        setClipTransform:async opts=>assert.deepEqual(opts.scale,{x:1,y:2}),
         rangeAtFrames: async (startFrame,endFrame) => { assert.equal(startFrame,0);assert.equal(endFrame,150);return {startFrame,endFrame}; },
         overlayResource: async opts => { overlays.push(opts);return {}; },
         clips: async () => overlays.map((_row,index)=>({clipId:index+1,trackKind:'video'})),
@@ -922,7 +905,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
           if(request.script.includes('selects.ai.prepareMatte')) {
             base.scripts.push(request);
             const code = esbuild.transformSync(`async function apply(selects) {${request.script}}`,{loader:'ts',format:'cjs'}).code;
-            const selects = {project:()=>({readFootage:async()=>({drafts:[]}),createDraft:async()=>draft,resource:id=>({id})}),
+            const selects = {project:()=>({readFootage:async()=>({drafts:[]}),createDraft:async()=>draft,resource:id=>({id}),sourceFiles:async()=>({fileTree:[{resourceId:UUID_A,path:'/original.png'}]})}),files:{pathFromLocalUrl:async()=>'/mattes/photo.avif',exists:async()=>true},
               ai:{job:()=>({result:async()=>({files:{manifest:MANIFEST}})}),prepareMatte:async(_file,_project,options)=>{
                 assert.deepEqual(options,{sourceKind:'image'},'Photo preparation explicitly opts into the image result shape');return prepared;}}};
             return answer(await new Function('selects',`${code}\nreturn apply(selects);`)(selects));
@@ -936,31 +919,13 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       const input=JSON.parse(base.scripts.find(request=>request.script.includes('selects.ai.submit')).script.match(/selects\.ai\.submit\((\{.*\})\)/s)[1]);
       assert.equal(input.sourceRange,undefined);assert.deepEqual(input.options,{outputMode:'alpha-frames'});
       await click('Open in editor'); assert.equal(gaps,1,text());assert.equal(commits,1,text());
-      assert.deepEqual(overlays.map(row=>row.resource.id),[BG,UUID_A]);assert.equal(overlays[1].sourceStartSeconds,undefined);
-      assert.equal(effects.length,1);assert.deepEqual(effects[0].parameters,{maskUrl:prepared.maskUrl});
-      const effect = {exports:{}}; let currentFrame=0;
-      const compiledEffect = esbuild.transformSync(effects[0].tsxCode,{loader:'tsx',format:'cjs',jsx:'transform'}).code;
-      new Function('require','module','exports',compiledEffect)(name=>name==='react'?React:{
-        AbsoluteFill:'static-mask',useCurrentFrame:()=>currentFrame,useVideoConfig:()=>({fps:30})},effect,effect.exports);
-      const Source=()=>h('img');
-      for(const frame of [0,75,149]) { currentFrame=frame;const output=effect.exports.default({Source,data:effects[0].parameters});
-        assert.equal(output.props.style.maskImage,'url("local:///mattes/photo.avif")');
-        assert.equal(output.props.style.maskMode,'luminance');assert.equal(output.props.children.type,Source); }
+      assert.deepEqual(overlays.map(row=>row.resource.id),[BG,PACKED]);assert.equal(overlays[1].sourceStartSeconds,0);
+      assert.equal(effects.length,1);assert.deepEqual(effects[0].parameters,{opacity:1});
+      assert.equal(effects[0].shader.graph.schema,'Cutback.ShaderEffect.1');assert.equal(effects[0].tsxCode,undefined);
       await unmount();await mount(sdk,'A');await click('Remove background');await click('Open in editor');
       assert.equal(commits,1);assert.equal(gaps,1);
       assert.equal(base.scripts.filter(request=>request.script.includes('selects.ai.submit')).length,1);
       assert.ok(base.scripts.at(-1).script.includes('selects.editor.openDraft("photo-draft")'));
-    });
-    await t.test('updated video prepare and commit scripts still compile with the independently installed video-only SDK', () => {
-      const videoScripts=scriptChecks.filter(row=>row.script.includes('selects.ai.prepareMatte')&&!row.script.includes("sourceKind:'image'"));
-      assert.ok(videoScripts.some(row=>!row.script.includes('createDraft')));
-      assert.ok(videoScripts.some(row=>row.script.includes('createDraft')));
-      for(const {script} of videoScripts) {
-        assert.ok(!script.includes('sourceKind')&&!script.includes('maskUrl'),'Video scripts contain no image-only members, including the effect');
-        assert.deepEqual(typecheckVideoOnlyScript(script,{generatedMediaAuthoring:true}),{ok:true},script);
-      }
-      const photoScript=scriptChecks.find(row=>row.script.includes('createDraft')&&row.script.includes("sourceKind:'image'")).script;
-      assert.equal(typecheckVideoOnlyScript(photoScript,{generatedMediaAuthoring:true}).ok,false,'The old SDK rejects the new photo overload');
     });
     await t.test('checks the actual consumer script literals against the shipped SDK, including unknown JSON', () => {
       const invalid = typecheckQueryScript(`const r=await selects.ai.job('ai:job','A').result();
@@ -971,7 +936,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.ok(scriptChecks.some(row => row.script.includes('job.result()')));
       for (const { script, checked } of scriptChecks) assert.deepEqual(checked, { ok: true }, `${JSON.stringify(checked)}\n${script}`);
       const effectScript=scriptChecks.find(row=>row.script.includes('addVideoEffect')).script;
-      assert.equal(typecheckQueryScript(effectScript,{generatedMediaAuthoring:false}).ok,false, 'The existing effect authoring access policy remains enforced');
+      assert.equal(typecheckQueryScript(effectScript).ok,true, 'The current public SDK accepts the emitted WGSL authoring script');
     });
     await t.test('executes the typed literal projection for both face and matte output contracts', async () => {
       const { script } = scriptChecks.find(row => row.script.includes('job.result()'));

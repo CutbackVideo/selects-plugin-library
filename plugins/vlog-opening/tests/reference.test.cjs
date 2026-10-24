@@ -48,7 +48,7 @@ function recordingSelects(fps, opts = {}) {
     async commitAll() { return { createdDraftId: 'draft-1' }; },
     async rangeAtFrames(a, b) { assert.ok(a >= 0 && b > a && b <= end(), 'range ' + a + '-' + b + ' inside the timeline (0-' + end() + ')'); return { a, b }; },
     async applyEffectPreset({ clip, presetId, parameters }) { find(clip).effects.push([PRESET_NAMES[presetId] || presetId, parameters]); return {}; },
-    async addVideoEffect({ clip, label, tsxCode, parameters }) { find(clip).effects.push([label, parameters, sha(tsxCode)]); return {}; },
+    async addVideoEffect({ clip, label, shader, parameters }) { assert.equal(shader.graph.schema, "Cutback.ShaderEffect.1"); find(clip).effects.push([label, parameters, shader]); return {}; },
     async setClipTransform({ clip, ...set }) { Object.assign(find(clip).transform, set); return {}; },
     async applyTransitionPreset({ after, presetId, durationSeconds }) {
       const half = Math.round(durationSeconds * fps) / 2, at = find(after).endFrame;
@@ -147,7 +147,7 @@ const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
       if (g.label.startsWith('Label - ')) assert.match(g.parameters.text, /^Chapter \d+$/);
     }
     // The desk effect's code (the plugin's own) is the reference's.
-    if (style === 'motion') assert.equal(main[0].effects[0][2], 'ffc2c5b4e624befc', 'desk code');
+    if (style === 'motion') assert.ok(main[0].effects[0][2].uniforms.some(b => b.parameter === 'holdFrames'), 'desk animation retains its clock binding');
   }
 
   // At 30 fps every frame scales by round(f * 30 / 25): cuts, graphics, music and frame-counted parameters.

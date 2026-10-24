@@ -1,3 +1,128 @@
+
+const pluginShaderOptions=(()=>{// shared/shader-effects/graph.mjs
+var IMAGE = `
+fn sat(x:f32)->f32{return clamp(x,0.0,1.0);}
+fn straight(c:vec4f)->vec4f{return vec4f(c.rgb/max(c.a,0.000001),c.a);}
+fn premul(c:vec4f)->vec4f{return vec4f(c.rgb*c.a,c.a);}
+fn over(a:vec4f,b:vec4f)->vec4f{return a+b*(1.0-a.a);}
+fn within(p:vec2f,size:vec2f)->f32 {
+ let a=clamp(p*size+0.5,vec2f(0.0),vec2f(1.0));
+ let b=clamp((1.0-p)*size+0.5,vec2f(0.0),vec2f(1.0));return a.x*a.y*b.x*b.y;
+}
+fn source(p:vec2f)->vec4f{return textureSampleLevel(input0,linearSampler,p,0.0)*within(p,vec2f(textureDimensions(input0)));}
+fn rotate(p:vec2f,a:f32)->vec2f {let c=cos(a);let s=sin(a);return vec2f(c*p.x-s*p.y,s*p.x+c*p.y);}
+fn ease(p:f32)->f32{let q=sat(p);return q*q*(3.0-2.0*q);}
+fn outCubic(p:f32)->f32{return 1.0-pow(1.0-sat(p),3.0);}
+fn roundRect(p:vec2f,size:vec2f,r:f32)->f32 {
+ let q=abs(p-size*0.5)-size*0.5+r;
+ let d=length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0)-r;
+ return sat(0.5-d);
+}
+fn saturation(c:vec3f,s:f32)->vec3f{return clamp(mix(vec3f(dot(c,vec3f(.213,.715,.072))),c,s),vec3f(0.0),vec3f(1.0));}
+fn sepia(c:vec3f,s:f32)->vec3f {
+ let v=vec3f(dot(c,vec3f(.393,.769,.189)),dot(c,vec3f(.349,.686,.168)),dot(c,vec3f(.272,.534,.131)));
+ return clamp(mix(c,v,sat(s)),vec3f(0.0),vec3f(1.0));
+}
+fn hue(c:vec3f,a:f32)->vec3f {
+ let co=cos(a);let si=sin(a);
+ let r=vec3f(.213,.715,.072)+co*vec3f(.787,-.715,-.072)+si*vec3f(-.213,-.715,.928);
+ let g=vec3f(.213,.715,.072)+co*vec3f(-.213,.285,-.072)+si*vec3f(.143,.140,-.283);
+ let b=vec3f(.213,.715,.072)+co*vec3f(-.213,-.715,.928)+si*vec3f(-.787,.715,.072);
+ return clamp(vec3f(dot(c,r),dot(c,g),dot(c,b)),vec3f(0.0),vec3f(1.0));
+}
+fn contrast(c:vec3f,s:f32)->vec3f{return clamp((c-.5)*s+.5,vec3f(0.0),vec3f(1.0));}
+fn brightness(c:vec3f,s:f32)->vec3f{return clamp(c*s,vec3f(0.0),vec3f(1.0));}
+`;
+function number(value, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  return value == null || value === "" || !Number.isFinite(n) ? fallback : n;
+}
+function f32(value) {
+  const n = number(value, NaN);
+  if (!Number.isFinite(n) || Math.abs(n) > 34028234663852886e22) throw Error("Invalid shader coefficient");
+  const s = String(n);
+  return /[.e]/i.test(s) ? s : s + ".0";
+}
+function vec(values) {
+  return `vec${values.length}f(${values.map(f32).join(",")})`;
+}
+var Graph = class {
+  data = null;
+  passes = [];
+  images = [];
+  uniforms = [];
+  svgParameters = [];
+  constructor(data = {}) {
+    this.data = data;
+  }
+  pass(body, { inputs = ["source"], values = [], bindings = [], functions = "", scale = 1 } = {}) {
+    const id = `p${this.passes.length}`;
+    this.passes.push({ id, inputs, parameters: values, wgsl: IMAGE + functions + `
+fn effect(uv:vec2f)->vec4f {${body}}`, ...scale !== 1 ? { scale } : {} });
+    for (const binding of bindings) this.uniforms.push({ pass: id, ...binding });
+    return id;
+  }
+  image(svg, size = null) {
+    const id = `image${this.images.length}`;
+    this.images.push({ id, svg, ...size ? { size } : {} });
+    return id;
+  }
+  finish(output = this.passes.at(-1)?.id) {
+    if (!output || !this.passes.some((p) => p.id === output)) throw Error("Missing shader output");
+    if (this.passes.length > 128 || this.images.length > 16) throw Error("Effect exceeds shader graph budget");
+    for (const p of this.passes) {
+      if (p.parameters.length > 4096 || p.parameters.some((n) => !Number.isFinite(n))) throw Error("Invalid shader parameters");
+      if (p.wgsl.length > 262144 || p.inputs.length > 8) throw Error("Effect exceeds shader pass budget");
+    }
+    return { graph: { schema: "Cutback.ShaderEffect.1", passes: this.passes, output, ...this.images.length ? { images: this.images } : {} }, ...this.uniforms.length ? { uniforms: this.uniforms } : {}, ...this.svgParameters.length ? { svgParameters: this.svgParameters } : {} };
+  }
+};
+function parameters(data, defaults) {
+  const values = [], bindings = [], refs = /* @__PURE__ */ Object.create(null);
+  for (const [key, fallback] of Object.entries(defaults)) {
+    const index = values.length;
+    values.push(number(data[key], Number(fallback)));
+    if (data[key] != null) bindings.push({ index, parameter: key });
+    refs[key] = `uniforms.values[${Math.floor(index / 4)}][${index % 4}]`;
+  }
+  return { values, bindings, refs };
+}
+
+// shared/shader-effects/framing.mjs
+function cropCode(data, p) {
+  const b = data.g;
+  if (!b || ![b.w, b.h, b.mw, b.mh].every((n) => Number.isFinite(n) && n > 0)) throw Error("Invalid crop geometry");
+  const size = vec([b.w, b.h]), window = vec([b.mw, b.mh]);
+  return `let size=${size};let win=${window};let at=uv*size-${vec([b.left, b.top])};
+    let focus=vec2f(${p.refs.focusX},${p.refs.focusY});let offset=max(win-size,min(vec2f(0.0),win*.5-focus*size));
+    let coord=(at-offset)/size;let mask=within(at/win,win);`;
+}
+function galleryTile(data) {
+  const d = { ...data, g: { w: data.sourceWidth, h: data.sourceHeight, mw: data.frameWidth, mh: data.frameHeight, left: data.cropLeft, top: data.cropTop } };
+  const g = new Graph(data), p = parameters(data, { focusX: 0.5, focusY: 0.5 });
+  g.pass(`${cropCode(d, p)}let c=straight(source(coord));
+    let rgb=select(c.rgb,saturation(c.rgb,0.0),uniforms.clock.x<${f32(data.colorAfterLocalFrame)});
+    return premul(vec4f(rgb,c.a))*mask;`, p);
+  return g.finish();
+}
+
+// shared/shader-effects/photo-gallery-no2.mjs
+function options(kind, input, context = null) {
+  context = context || {};
+  if ("tsxCode" in input) throw Error("A WGSL effect cannot carry legacy TSX");
+  const data = { ...Object.fromEntries((input.editableParameters || []).map((control) => [control.key, control.defaultValue])), ...input.parameters };
+  let shader;
+  switch (kind) {
+    case "tile":
+      shader = galleryTile(data);
+      break;
+    default:
+      throw Error("Unknown photo-gallery-no2 effect: " + kind);
+  }
+  return { ...input, parameters: data, shader };
+}
+
+return options;})();
 // Executed inside Selects run_script by both the panel and the chat skill.
 const TILE_EFFECT = `import {useCurrentFrame} from 'remotion';
 export default function PhotoGalleryTile({Source,data}) {
@@ -238,15 +363,13 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
     if (added.length !== 1) galleryFail(`Could not identify tile ${i + 1} after placement; no Draft was saved`);
     const clip = added[0];
     const geometry = galleryGeometry(tile, source, plan.colorFrame);
-    await draft.addVideoEffect({
-      clip, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,
-      tsxCode: TILE_EFFECT,
-      parameters: geometry.effect,
-      editableParameters: [
+    await draft.addVideoEffect(pluginShaderOptions("tile",{clip,
+label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,
+parameters: geometry.effect,
+editableParameters: [
         { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
         { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
-      ],
-    });
+      ]}));
     const freshClip = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);
     if (!freshClip) galleryFail(`Tile ${i + 1} disappeared before placement was complete`);
     await draft.setClipTransform({ clip: freshClip, position: geometry.transform.position, scale: geometry.transform.scale });
@@ -443,12 +566,13 @@ async function galleryStyleExisting(selects, project, input, inventory, onCommit
     const geometry = galleryGeometry(tile, source, plan.colorFrame);
     const current = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);
     if (!current) galleryFail(`Target tile ${tile.slotKey} disappeared before styling`);
-    await draft.addVideoEffect({ clip: current, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,
-      tsxCode: TILE_EFFECT, parameters: geometry.effect,
-      editableParameters: [
+    await draft.addVideoEffect(pluginShaderOptions("tile",{clip: current,
+label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,
+parameters: geometry.effect,
+editableParameters: [
         { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
         { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
-      ] });
+      ]}));
     const fresh = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);
     if (!fresh) galleryFail(`Target tile ${tile.slotKey} disappeared during styling`);
     await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });
