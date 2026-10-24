@@ -55,8 +55,9 @@ var MESSAGES = {
   planDemoted: ["{n} number callout(s) had no number and are shown as text cards.", "\uC22B\uC790\uAC00 \uC5C6\uB294 \uC22B\uC790 \uAC15\uC870 \uC7A5\uBA74 {n}\uAC1C\uB97C \uAE00\uC790 \uCE74\uB4DC\uB85C \uBC14\uAFE8\uC5B4\uC694."],
   plate: ["Preparing the background\u2026", "\uBC30\uACBD\uC744 \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694\u2026"],
   assembling: ["Building the Draft\u2026", "Draft\uB97C \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694\u2026"],
-  done: ["Done. The Draft is open in the editor.", "\uC644\uB8CC\uD588\uC5B4\uC694. \uD3B8\uC9D1\uAE30\uC5D0\uC11C Draft\uB97C \uC5F4\uC5C8\uC5B4\uC694."],
-  openDraft: ["Open Draft", "Draft \uC5F4\uAE30"],
+  done: ["Edit Draft ready. It is open in the editor.", "\uD3B8\uC9D1\uBCF8 \uC900\uBE44 \uC644\uB8CC. \uD3B8\uC9D1\uAE30\uC5D0\uC11C \uC5F4\uC5C8\uC5B4\uC694."],
+  previousVideo: ["Earlier edit Draft of this article (not the preview above).", "\uC774 \uAE30\uC0AC\uB85C \uC804\uC5D0 \uB9CC\uB4E0 \uD3B8\uC9D1\uBCF8\uC774\uC5D0\uC694(\uC704 \uBBF8\uB9AC\uBCF4\uAE30\uC640 \uB2E4\uB978 Draft)."],
+  openDraft: ["Open the edit Draft", "\uD3B8\uC9D1\uBCF8 \uC5F4\uAE30"],
   startOver: ["New article", "\uC0C8 \uAE30\uC0AC"],
   error: ["Something went wrong: {error}", "\uBB38\uC81C\uAC00 \uC0DD\uACBC\uC5B4\uC694: {error}"],
   needProject: ["Open or create a Project first.", "\uBA3C\uC800 \uD504\uB85C\uC81D\uD2B8\uB97C \uC5F4\uAC70\uB098 \uB9CC\uB4E4\uC5B4 \uC8FC\uC138\uC694."],
@@ -76,15 +77,16 @@ var MESSAGES = {
   fontFallback: ["The embedded font could not be loaded; the installed fonts are used.", "\uB0B4\uC7A5 \uAE00\uAF34\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD574 \uC124\uCE58\uB41C \uAE00\uAF34\uB85C \uB9CC\uB4E4\uC5B4\uC694."],
   makePlan: ["Plan the scenes", "\uD654\uBA74 \uAD6C\uC131 \uB9CC\uB4E4\uAE30"],
   planReview: ["Review the scene plan", "\uD654\uBA74 \uAD6C\uC131 \uAC80\uD1A0"],
-  planReviewHint: ["One row per scene. Click a row to see that scene in the preview Draft on the right; Edit opens its type, photo and text. You can also describe what to change below and rebuild. The preview is a Draft in this Project: building the video renames it and keeps it as the video.", '\uD55C \uC904\uC774 \uC7A5\uBA74 \uD558\uB098\uC608\uC694. \uC904\uC744 \uB204\uB974\uBA74 \uC624\uB978\uCABD \uBBF8\uB9AC\uBCF4\uAE30 Draft\uC5D0\uC11C \uADF8 \uC7A5\uBA74\uC744 \uBCF4\uC5EC \uC918\uC694. "\uACE0\uCE58\uAE30"\uB97C \uB204\uB974\uBA74 \uC7A5\uBA74\uC758 \uC885\uB958\xB7\uC0AC\uC9C4\xB7\uBB38\uAD6C\uB97C \uBC14\uAFC0 \uC218 \uC788\uC5B4\uC694. \uC544\uB798\uC5D0 \uBC14\uAFC0 \uC810\uC744 \uC801\uACE0 \uB2E4\uC2DC \uB9CC\uB4E4 \uC218\uB3C4 \uC788\uC5B4\uC694. \uBBF8\uB9AC\uBCF4\uAE30\uB294 \uC774 \uD504\uB85C\uC81D\uD2B8\uC5D0 Draft\uB85C \uC800\uC7A5\uB3FC\uC694. \uC601\uC0C1 \uB9CC\uB4E4\uAE30\uB97C \uB204\uB974\uBA74 \uC0C8\uB85C \uB9CC\uB4E4\uC9C0 \uC54A\uACE0 \uC774 Draft\uB97C \uCD5C\uC885 \uC774\uB984\uC73C\uB85C \uBC14\uAFD4 \uADF8\uB300\uB85C \uC368\uC694.'],
+  planReviewHint: ["Pick a scene to see it large in the viewer on the right. Edit opens its type, photo and text.", "\uC7A5\uBA74\uC744 \uC120\uD0DD\uD558\uBA74 \uC624\uB978\uCABD \uBDF0\uC5B4\uC5D0\uC11C \uD06C\uAC8C \uBCFC \uC218 \uC788\uC5B4\uC694. \uC218\uC815\uC5D0\uC11C \uC720\uD615\xB7\uC0AC\uC9C4\xB7\uAE00\uC790\uB97C \uBC14\uAFD4\uC694."],
   stillTime: ["Scene {n} thumbnail: {sec} s", "{n}\uBC88 \uC7A5\uBA74 \uC378\uB124\uC77C: {sec}\uCD08"],
   previewPrefix: ["Preview", "\uBBF8\uB9AC\uBCF4\uAE30"],
   stalePrefix: ["Outdated preview", "\uC218\uC815 \uC804 \uBBF8\uB9AC\uBCF4\uAE30"],
   previewBuilding: ["Building the preview Draft\u2026", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694\u2026"],
   previewReady: ["The preview Draft is open on the right. Click a scene to see it there.", "\uC624\uB978\uCABD \uBDF0\uC5B4\uC5D0 \uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uC5F4\uC5C8\uC5B4\uC694. \uC7A5\uBA74\uC744 \uB204\uB974\uBA74 \uADF8 \uC7A5\uBA74\uC744 \uBCF4\uC5EC \uC918\uC694."],
+  previewFresh: ["Preview up to date \xB7 {n} scenes", "\uBBF8\uB9AC\uBCF4\uAE30 \uCD5C\uC2E0 \xB7 {n}\uAC1C \uC7A5\uBA74"],
   previewStale: ["The plan changed. The viewer and thumbnails still show the preview from before the change.", "\uACC4\uD68D\uC774 \uBC14\uB00C\uC5C8\uC5B4\uC694. \uBDF0\uC5B4\uC640 \uC378\uB124\uC77C\uC740 \uC218\uC815 \uC804 \uBBF8\uB9AC\uBCF4\uAE30\uC608\uC694."],
   previewPartial: ["The preview Draft was only partly built. Build it again to fill it.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uAC00 \uB2E4 \uB9CC\uB4E4\uC5B4\uC9C0\uC9C0 \uC54A\uC558\uC5B4\uC694. \uB2E4\uC2DC \uB9CC\uB4E4\uBA74 \uAC19\uC740 Draft\uB97C \uC0C8\uB85C \uCC44\uC6CC\uC694."],
-  previewRebuild: ["Update the preview", "\uBBF8\uB9AC\uBCF4\uAE30 \uB2E4\uC2DC \uB9CC\uB4E4\uAE30"],
+  previewRebuild: ["Update the preview", "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C5\uB370\uC774\uD2B8"],
   previewBuild: ["Build the preview", "\uBBF8\uB9AC\uBCF4\uAE30 \uB9CC\uB4E4\uAE30"],
   previewFailed: ["The preview Draft could not be built: {error}", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uB9CC\uB4E4\uC9C0 \uBABB\uD588\uC5B4\uC694: {error}"],
   previewBlocked: ["Fix these before the preview can be built: {errors}", "\uBBF8\uB9AC\uBCF4\uAE30\uB97C \uB9CC\uB4E4\uB824\uBA74 \uBA3C\uC800 \uACE0\uCCD0 \uC8FC\uC138\uC694: {errors}"],
@@ -92,7 +94,7 @@ var MESSAGES = {
   staleBadge: ["Before edit", "\uC218\uC815 \uC804"],
   rendering: ["Rendering\u2026", "\uADF8\uB9AC\uB294 \uC911"],
   sourcePhoto: ["Article photo", "\uC6D0\uBB38 \uC0AC\uC9C4"],
-  editScene: ["Edit", "\uACE0\uCE58\uAE30"],
+  editScene: ["Edit", "\uC218\uC815"],
   closeScene: ["Close", "\uB2EB\uAE30"],
   videoFromPreview: ["The preview Draft is now the video.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uADF8\uB300\uB85C \uC601\uC0C1\uC73C\uB85C \uC37C\uC5B4\uC694."],
   previewNotOpened: ["The preview Draft did not open in the viewer.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uAC00 \uBDF0\uC5B4\uC5D0 \uC5F4\uB9AC\uC9C0 \uC54A\uC558\uC5B4\uC694."],
@@ -123,7 +125,17 @@ var MESSAGES = {
   revised: ["Rebuilt: {n} of {of} scenes changed.", "\uB2E4\uC2DC \uB9CC\uB4E4\uC5C8\uC5B4\uC694. \uC7A5\uBA74 {of}\uAC1C \uC911 {n}\uAC1C\uAC00 \uBC14\uB00C\uC5C8\uC5B4\uC694."],
   reviseKept: ["The rebuilt plan did not pass its check, so the previous plan is kept.", "\uB2E4\uC2DC \uB9CC\uB4E0 \uACC4\uD68D\uC774 \uAC80\uC0AC\uB97C \uD1B5\uACFC\uD558\uC9C0 \uBABB\uD574 \uC774\uC804 \uACC4\uD68D\uC744 \uADF8\uB300\uB85C \uB450\uC5C8\uC5B4\uC694."],
   rounds: ["Rebuilt {n} time(s)", "\uB2E4\uC2DC \uB9CC\uB4E4\uAE30 {n}\uD68C"],
-  buildFromPlan: ["Build the video as planned", "\uC774\uB300\uB85C \uC601\uC0C1 \uB9CC\uB4E4\uAE30"],
+  buildFromPlan: ["Use this layout", "\uC774 \uAD6C\uC131\uC73C\uB85C \uD655\uC815"],
+  confirmHint: ["The preview you checked becomes the edit Draft.", "\uD655\uC778\uD55C \uBBF8\uB9AC\uBCF4\uAE30\uB97C \uD3B8\uC9D1\uBCF8\uC73C\uB85C \uC0AC\uC6A9\uD574\uC694."],
+  confirmNeedsPreview: ["Update the preview and check it in the viewer first; then you can confirm.", "\uBBF8\uB9AC\uBCF4\uAE30\uB97C \uC5C5\uB370\uC774\uD2B8\uD558\uACE0 \uBDF0\uC5B4\uC5D0\uC11C \uD655\uC778\uD55C \uB4A4 \uD655\uC815\uD560 \uC218 \uC788\uC5B4\uC694."],
+  feedbackOpen: ["Leave a note on the layout", "\uD654\uBA74 \uAD6C\uC131\uC5D0 \uC758\uACAC \uB0A8\uAE30\uAE30"],
+  rowErrors: ["{n} problem(s) to fix \xB7 see Edit", "\uACE0\uCCD0\uC57C \uD560 \uC810 {n}\uAC1C \xB7 \uC218\uC815\uC5D0\uC11C \uBCF4\uAE30"],
+  rowWarnings: ["{n} thing(s) to check \xB7 see Edit", "\uD655\uC778\uD560 \uC810 {n}\uAC1C \xB7 \uC218\uC815\uC5D0\uC11C \uBCF4\uAE30"],
+  pickedMark: ["Selected scene", "\uC120\uD0DD\uD55C \uC7A5\uBA74"],
+  scriptDone: ["Script approved \xB7 {n} lines", "\uB300\uBCF8 \uC2B9\uC778 \uC644\uB8CC \xB7 {n}\uBB38\uC7A5"],
+  videoRows: ["The edit Draft is ready. Pick a scene to go to it there.", "\uD3B8\uC9D1\uBCF8\uC774 \uC900\uBE44\uB410\uC5B4\uC694. \uC7A5\uBA74\uC744 \uB204\uB974\uBA74 \uD3B8\uC9D1\uBCF8\uC758 \uADF8 \uC7A5\uBA74\uC73C\uB85C \uAC00\uC694."],
+  videoRowsOff: ["The scenes are not linked to places on the edit Draft (the layout changed after it was confirmed, or the Draft was made by an earlier version), so clicking a scene does not move. Build a new preview to move between scenes.", "\uC7A5\uBA74\uC774 \uD3B8\uC9D1\uBCF8 \uC704\uCE58\uC640 \uC5F0\uACB0\uB3FC \uC788\uC9C0 \uC54A\uC544 \uC904\uC744 \uB20C\uB7EC\uB3C4 \uC774\uB3D9\uD558\uC9C0 \uC54A\uC544\uC694(\uD655\uC815 \uB4A4 \uAD6C\uC131\uC774 \uBC14\uB00C\uC5C8\uAC70\uB098 \uC774\uC804 \uBC84\uC804\uC5D0\uC11C \uB9CC\uB4E0 \uD3B8\uC9D1\uBCF8). \uC0C8 \uBBF8\uB9AC\uBCF4\uAE30\uB97C \uB9CC\uB4E4\uBA74 \uB2E4\uC2DC \uC7A5\uBA74\uC73C\uB85C \uC774\uB3D9\uD560 \uC218 \uC788\uC5B4\uC694."],
+  rowNoSeek: ["No up-to-date Draft to show this scene on yet", "\uC774 \uC7A5\uBA74\uC744 \uBCF4\uC5EC \uC904 \uCD5C\uC2E0 Draft\uAC00 \uC544\uC9C1 \uC5C6\uC5B4\uC694"],
   planBlocked: ["Fix these first: {errors}", "\uBA3C\uC800 \uACE0\uCCD0\uC57C \uD574\uC694: {errors}"],
   planAnyway: ["The check still reports these problems. Build anyway?", "\uAC80\uC0AC\uC5D0\uC11C \uC544\uB798 \uBB38\uC81C\uAC00 \uB0A8\uC544 \uC788\uC5B4\uC694. \uADF8\uB798\uB3C4 \uB9CC\uB4E4\uAE4C\uC694?"],
   type_news_photo: ["Photo", "\uC0AC\uC9C4"],
@@ -1315,7 +1327,7 @@ var SCENE = {
       const a = clamp(p * 2), b = clamp(p * 2 - 1);
       return /* @__PURE__ */ STUB("svg", { width: D * s.k, height: D * s.k, viewBox: "0 0 196 196" }, /* @__PURE__ */ STUB("circle", { cx: "98", cy: "98", r: "98", fill: C.accL }), a > 0 ? /* @__PURE__ */ STUB("line", { x1: "62", y1: "62", x2: lerp(62, 134, a), y2: lerp(62, 134, a), stroke: C.acc, strokeWidth: "16", strokeLinecap: "round" }) : null, b > 0 ? /* @__PURE__ */ STUB("line", { x1: "134", y1: "62", x2: lerp(134, 62, b), y2: lerp(62, 134, b), stroke: C.acc, strokeWidth: "16", strokeLinecap: "round" }) : null);
     }
-    function twoLines(text) {
+    function twoLines2(text) {
       const given = text.split("\n").filter((l) => l.trim() !== "");
       if (given.length !== 1) return given.slice(0, 2);
       const one = given[0];
@@ -1332,7 +1344,7 @@ var SCENE = {
       const cards = (Array.isArray(data2?.cards) ? data2.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ""), tone: c?.tone === "contrast" ? "contrast" : "accent" }));
       const subtitle = String(data2?.subtitle ?? "");
       const starts = cards.map((_, i) => i === 0 ? 0.35 : 2);
-      const lineEnd = (c, i) => Math.max(0, ...twoLines(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+      const lineEnd = (c, i) => Math.max(0, ...twoLines2(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
       const s = useScene(data2, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
       const k = s.k;
       const top = subtitle ? 200 : 150;
@@ -1340,7 +1352,7 @@ var SCENE = {
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(GoldRule, { s, y: 78, t0: 0, ornament: false }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.3, x: 540, y: 78 }, /* @__PURE__ */ STUB(Ribbon, { s, text: String(data2?.title ?? ""), size: 44 })), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 10, x: 540, y: 152 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.05 }))) : null, cards.map((c, i) => {
         const t0 = starts[i];
         const y0 = top + gap + i * (CH + gap), cy = y0 + CH / 2;
-        const lines = twoLines(c.text);
+        const lines = twoLines2(c.text);
         const tx = X0 + 36 + D + 44;
         const size = Math.min(64, ...lines.map((l) => (X1 - 36 - tx) / Math.max(0.01, ems(plainText(l)))));
         const lh = size * 1.25;
@@ -7642,6 +7654,11 @@ function sceneSpans(sp) {
 }
 var previewRev = (s) => ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
 var previewFresh = (s) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s) && !s.videos?.includes(s.preview.draftId));
+function rowsDraft(s) {
+  if (s.preview) return s.preview.planRev ? s.preview : null;
+  const v = s.video;
+  return v && s.plan && s.draftId === v.draftId && v.planRev === previewRev(s) ? v : null;
+}
 var finalName = (s) => s.script?.headline.line1 || s.article?.title || "News short";
 var previewName = (s, prefix) => prefix + " \xB7 " + (s.article?.title || finalName(s));
 var canRefill = (p, projectId, presetId, plateLen, videos = []) => !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
@@ -7823,10 +7840,19 @@ var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit
 var MAX_CHARS = TARGET_CHARS.max;
 var warn = { color: "#d9822b", fontSize: 12 };
 var field = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
-var thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
-var thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" };
-var oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+var thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
+var thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 10, lineHeight: "14px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" };
+var thumbNumber = { position: "absolute", left: 3, top: 3, zIndex: 1, fontSize: 10, lineHeight: "14px", padding: "0 3px", borderRadius: 3, color: "#fff", background: "rgba(0,0,0,0.7)" };
+var twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" };
 var rowButton = { flex: "none", width: "auto", whiteSpace: "nowrap" };
+var rowSelect = { display: "flex", gap: 8, alignItems: "center", flex: 1, minWidth: 0, maxWidth: "none", height: "auto", padding: 0, margin: 0, border: "none", background: "none", color: "inherit", font: "inherit", textAlign: "left" };
+var SECONDARY = { "data-variant": "secondary" };
+function Step({ done, summary, children }) {
+  return done ? /* @__PURE__ */ jsxs("details", { style: box, children: [
+    /* @__PURE__ */ jsx("summary", { style: { cursor: "pointer" }, children: "\u2713 " + summary }),
+    /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }, children })
+  ] }) : /* @__PURE__ */ jsx("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children });
+}
 function thumbOf(dataUrl, w = 160) {
   return new Promise((resolve, reject) => {
     const im = new Image();
@@ -7879,7 +7905,7 @@ function NewsMinutePanel({ sdk, context }) {
   latest.current = s;
   const onDraft = useRef(draftQueue()).current;
   const renameNow = (projectId, draftId, name) => renameDraft(sdk, { projectId, draftId, name });
-  const viewer = previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview);
+  const viewer = previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
   const openNow = (projectId, draftId) => viewer.open(projectId, draftId).then((ok) => {
     if (!ok) log("previewNotOpened");
   }, () => log("previewNotOpened"));
@@ -7953,18 +7979,21 @@ function NewsMinutePanel({ sdk, context }) {
     };
   }, [tts?.workflowId, tts?.state]);
   const pv = s?.preview ?? null;
+  const view2 = s ? rowsDraft(s) : null;
+  const video = !pv ? view2 : null;
   const rendering = useRef(false);
   useEffect(() => {
-    if (!pv || !pv.planRev || busy || rendering.current) return;
-    const order = pv.scenes.map((_, i2) => i2);
+    const pv2 = view2;
+    if (!pv2 || !pv2.planRev || busy || rendering.current) return;
+    const order = pv2.scenes.map((_, i2) => i2);
     if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
-    const i = order.find((k) => !stills[stillKey(pv, k)]);
+    const i = order.find((k) => !stills[stillKey(pv2, k)]);
     if (i === void 0) return;
-    const key = stillKey(pv, i), build2 = stillBuild(pv);
+    const key = stillKey(pv2, i), build2 = stillBuild(pv2);
     const mine = (m) => Object.fromEntries(Object.entries(m).filter(([k]) => k.startsWith(build2)));
     rendering.current = true;
     setStills((m) => ({ ...mine(m), [key]: { state: "rendering" } }));
-    viewer.still(pv, i).then(async (r) => {
+    viewer.still(pv2, i).then(async (r) => {
       const small = await thumbOf(r.dataUrl, 216).catch(() => r.dataUrl);
       rendering.current = false;
       setStills((m) => key in m ? { ...m, [key]: { state: "ready", dataUrl: small } } : { ...m });
@@ -7973,7 +8002,7 @@ function NewsMinutePanel({ sdk, context }) {
       rendering.current = false;
       setStills((m) => key in m ? { ...m, [key]: { state: "failed" } } : { ...m });
     });
-  }, [pv?.draftId, pv?.at, pv?.planRev, picked, busy, stills]);
+  }, [view2?.draftId, view2?.at, view2?.planRev, picked, busy, stills]);
   const stale = !!(pv && s?.plan && pv.planRev !== previewRev(s));
   useEffect(() => {
     if (!stale || busy) return;
@@ -8098,14 +8127,14 @@ function NewsMinutePanel({ sdk, context }) {
   });
   const build = () => guard(async () => {
     const plan2 = s.plan;
-    if (!plan2) return;
+    if (!plan2 || !previewFresh(s)) return;
     const v = checkPlan(plan2);
     const blocking = v.errors.filter((e) => BLOCKING_PLAN_ERROR.test(e));
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
     const name = finalName(s);
-    let draftId;
+    let draftId, placed;
     try {
       let renamed = false;
       if (previewFresh(s) && s.preview.projectId === s.projectId) {
@@ -8118,11 +8147,13 @@ function NewsMinutePanel({ sdk, context }) {
       }
       if (renamed) {
         draftId = s.preview.draftId;
+        placed = { ...s.preview, name };
         rec.notes.push("video: preview Draft " + draftId + " renamed");
         log("videoFromPreview");
       } else {
         const r = await onDraft(() => assemble(sdk, env.current, s, preset, log, rec, { name, reuse: s.preview }));
         draftId = r.draftId;
+        placed = { ...r.draft, name, planRev: previewRev(s), at: (/* @__PURE__ */ new Date()).toISOString() };
         rec.notes.push("video: " + (r.refilled ? "preview Draft " + draftId + " refilled" : "new Draft " + draftId));
       }
     } catch (e) {
@@ -8132,7 +8163,7 @@ function NewsMinutePanel({ sdk, context }) {
     } finally {
       await finish(rec);
     }
-    await update({ ...s, draftId, preview: null, videos: [...(s.videos ?? []).filter((d) => d !== draftId), draftId].slice(-50) });
+    await update({ ...s, draftId, preview: null, video: placed, videos: [...(s.videos ?? []).filter((d) => d !== draftId), draftId].slice(-50) });
     await viewer.open(s.projectId, draftId).catch(() => {
     });
   });
@@ -8152,7 +8183,7 @@ function NewsMinutePanel({ sdk, context }) {
   });
   const pick = (i) => {
     setPicked(i);
-    const p = latest.current?.preview;
+    const p = view2;
     if (!p || !p.planRev || i >= p.scenes.length) return;
     viewer.seek(p, i).then((r) => {
       if (!r.confirmed) log("seekUnconfirmed", { n: i + 1 });
@@ -8172,7 +8203,7 @@ function NewsMinutePanel({ sdk, context }) {
     const general = [];
     const sort = (list, into, rest) => {
       for (const e of list) {
-        const m = /^scene (\d+): (.*)$/.exec(e);
+        const m = /^scene (\d+)\b:? ?(.*)$/.exec(e);
         if (m) into.set(Number(m[1]) - 1, [...into.get(Number(m[1]) - 1) ?? [], m[2]]);
         else if (rest) rest.push(e);
       }
@@ -8201,11 +8232,14 @@ function NewsMinutePanel({ sdk, context }) {
         lastRound.fallback ? "" : " \xB7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })
       ] }) : null,
       general.length ? /* @__PURE__ */ jsx("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
-      pv ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }, children: [
-        /* @__PURE__ */ jsx("span", { style: stale ? warn : muted, children: T(!pv.planRev ? "previewPartial" : stale ? "previewStale" : "previewReady") }),
-        stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewRebuild") }) : null,
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: () => openNow(s.projectId, pv.draftId), children: T("openPreview") })
-      ] }) : /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewBuild") }),
+      pv ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
+        /* @__PURE__ */ jsx("span", { style: !pv.planRev || stale ? warn : muted, children: !pv.planRev ? T("previewPartial") : stale ? T("previewStale") : "\u2713 " + T("previewFresh", { n: pv.scenes.length }) }),
+        !pv.planRev || stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewRebuild") }) : null,
+        /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: () => openNow(s.projectId, pv.draftId), children: T("openPreview") })
+      ] }) : video ? /* @__PURE__ */ jsx("span", { style: muted, children: T("videoRows") }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+        s.draftId ? /* @__PURE__ */ jsx("span", { style: warn, children: T("videoRowsOff") }) : null,
+        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewBuild") })
+      ] }),
       plan2.scenes.map((scene, i) => {
         const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean);
         const start = spans ? spans[i].startSec : ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0;
@@ -8213,31 +8247,39 @@ function NewsMinutePanel({ sdk, context }) {
         const changed = plan2.changed.includes(i), edited = plan2.edited.includes(i);
         const setParam = (k, val) => setScene(i, { ...scene, params: { ...scene.params ?? {}, [k]: val } });
         const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-        const still = pv && pv.planRev && i < pv.scenes.length ? stills[stillKey(pv, i)] : void 0;
+        const still = view2 && i < view2.scenes.length ? stills[stillKey(view2, i)] : void 0;
+        const canPick = !!view2 && i < view2.scenes.length;
         const photo = scene.assetRef ? plan2.thumbs[scene.assetRef] : void 0;
         const open = openRow === i;
+        const nErr = rowErrors.get(i)?.length ?? 0, nWarn = rowWarnings.get(i)?.length ?? 0;
         return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : void 0 }, children: [
-          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", cursor: pv?.planRev && i < pv.scenes.length ? "pointer" : void 0 }, onClick: () => pick(i), children: [
-            /* @__PURE__ */ jsx("strong", { style: { flex: "none" }, children: String(i + 1).padStart(2, "0") }),
-            /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
-              still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
-              still?.state === "ready" ? stale ? /* @__PURE__ */ jsx("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("sourcePhoto") }) : null
-            ] }),
-            /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }, children: [
-              /* @__PURE__ */ jsxs("span", { style: { ...muted, ...oneLine }, children: [
-                start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \xB7 " + T("type_" + scene.type),
-                changed ? /* @__PURE__ */ jsx("span", { style: { color: "#4a90d9", fontWeight: 600 }, children: " \xB7 " + T("changedMark") }) : null,
-                edited ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: " \xB7 " + T("editedMark") }) : null
+          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
+            /* @__PURE__ */ jsxs("button", { style: { ...rowSelect, cursor: canPick ? "pointer" : "default" }, "aria-pressed": picked === i, "aria-disabled": !canPick, title: canPick ? void 0 : T("rowNoSeek"), onClick: () => pick(i), children: [
+              /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
+                /* @__PURE__ */ jsx("strong", { style: thumbNumber, children: String(i + 1).padStart(2, "0") }),
+                still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
+                still?.state === "ready" ? stale ? /* @__PURE__ */ jsx("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("sourcePhoto") }) : null
               ] }),
-              /* @__PURE__ */ jsx("span", { style: oneLine, children: ss.map((x) => x.text).join(" ") }),
-              (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, ...oneLine }, children: "\u2022 " + x }, "e" + k))
+              /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }, children: [
+                /* @__PURE__ */ jsxs("span", { style: { ...muted, wordBreak: "keep-all" }, children: [
+                  start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \xB7 " + T("type_" + scene.type),
+                  changed ? /* @__PURE__ */ jsx("span", { style: { color: "#4a90d9", fontWeight: 600 }, children: " \xB7 " + T("changedMark") }) : null,
+                  edited ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: " \xB7 " + T("editedMark") }) : null
+                ] }),
+                /* @__PURE__ */ jsx("span", { style: twoLines, children: ss.map((x) => x.text).join(" ") }),
+                picked === i ? /* @__PURE__ */ jsx("span", { style: { ...muted, fontWeight: 600 }, children: "\u2713 " + T("pickedMark") }) : null,
+                nErr ? /* @__PURE__ */ jsx("span", { style: { ...warn, fontWeight: 600 }, children: "\u2716 " + T("rowErrors", { n: nErr }) }) : null,
+                nWarn ? /* @__PURE__ */ jsx("span", { style: warn, children: "\u26A0 " + T("rowWarnings", { n: nWarn }) }) : null
+              ] })
             ] }),
-            /* @__PURE__ */ jsx("button", { style: rowButton, onClick: (e) => {
+            /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, "aria-expanded": open, onClick: (e) => {
               e.stopPropagation();
               setOpenRow(open ? null : i);
             }, children: T(open ? "closeScene" : "editScene") })
           ] }),
           open ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }, children: [
+            (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, fontWeight: 600, overflowWrap: "anywhere" }, children: "\u2716 " + x }, "e" + k)),
+            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, overflowWrap: "anywhere" }, children: "\u26A0 " + x }, "w" + k)),
             /* @__PURE__ */ jsxs("label", { style: field, children: [
               T("sceneType"),
               /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
@@ -8293,18 +8335,25 @@ function NewsMinutePanel({ sdk, context }) {
                 JSON.stringify(scene.params ?? {})
               ),
               jsonErr[i] ? /* @__PURE__ */ jsx("span", { style: warn, children: jsonErr[i] }) : null
-            ] }),
-            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: muted, children: "\u2022 " + x }, "w" + k))
+            ] })
           ] }) : null
         ] }, i + ":" + scene.sentenceIds.join(","));
       }),
-      /* @__PURE__ */ jsxs("label", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-        T("feedback"),
-        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
+      /* @__PURE__ */ jsxs("details", { children: [
+        /* @__PURE__ */ jsx("summary", { style: { cursor: "pointer" }, children: T("feedbackOpen") }),
+        /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }, children: [
+          /* @__PURE__ */ jsxs("label", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+            T("feedback"),
+            /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
+          ] }),
+          /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
+          /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || !feedback.trim(), onClick: revise, children: T("revise") })
+        ] })
       ] }),
-      /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
-      /* @__PURE__ */ jsx("button", { disabled: busy || !feedback.trim(), onClick: revise, children: T("revise") }),
-      /* @__PURE__ */ jsx("button", { disabled: busy, onClick: build, children: T("buildFromPlan") })
+      video ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("button", { ...previewFresh(s) ? {} : SECONDARY, disabled: busy || !previewFresh(s), onClick: build, children: T("buildFromPlan") }),
+        /* @__PURE__ */ jsx("span", { style: muted, children: T(previewFresh(s) ? "confirmHint" : "confirmNeedsPreview") })
+      ] })
     ] });
   };
   return /* @__PURE__ */ jsxs("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }, children: [
@@ -8319,45 +8368,48 @@ function NewsMinutePanel({ sdk, context }) {
       /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
       /* @__PURE__ */ jsx("span", { style: muted, children: T("aiCredits") }),
       /* @__PURE__ */ jsx("button", { disabled: busy || !url.trim() && text.trim().length < 80, onClick: writeScript2, children: T("write") })
-    ] }) : /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
-      /* @__PURE__ */ jsx("strong", { children: T("review") }),
-      /* @__PURE__ */ jsx("span", { style: muted, children: T("reviewHint") }),
-      liveErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
-      /* @__PURE__ */ jsxs("label", { children: [
-        T("headline1"),
-        /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
-      ] }),
-      /* @__PURE__ */ jsxs("label", { children: [
-        T("headline2"),
-        /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line2, disabled: busy || approved, onChange: (e) => setHead("line2", e.target.value) })
-      ] }),
-      /* @__PURE__ */ jsxs("label", { children: [
-        T("accent"),
-        /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
-      ] }),
-      sc.sentences.map((x, i) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-        /* @__PURE__ */ jsx("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
-        /* @__PURE__ */ jsxs("span", { style: muted, children: [
-          T("source"),
-          ": ",
-          x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
+    ] }) : (
+      // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
+      /* @__PURE__ */ jsxs(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
+        /* @__PURE__ */ jsx("strong", { children: T("review") }),
+        /* @__PURE__ */ jsx("span", { style: muted, children: T("reviewHint") }),
+        liveErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
+        /* @__PURE__ */ jsxs("label", { children: [
+          T("headline1"),
+          /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
         ] }),
-        x.rewritten ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9" }, children: T("rewritten") }) : null,
-        x.edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedCheck") }) : null,
-        x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
-          T("issues"),
-          ": ",
-          x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
-        ] }) : null
-      ] }, x.id)),
-      /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
-      chars > MAX_CHARS ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
-      approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
-        /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("approved") }),
-        /* @__PURE__ */ jsx("button", { disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
-      ] }) : /* @__PURE__ */ jsx("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
-    ] }),
-    approved && next ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
+        /* @__PURE__ */ jsxs("label", { children: [
+          T("headline2"),
+          /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line2, disabled: busy || approved, onChange: (e) => setHead("line2", e.target.value) })
+        ] }),
+        /* @__PURE__ */ jsxs("label", { children: [
+          T("accent"),
+          /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
+        ] }),
+        sc.sentences.map((x, i) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+          /* @__PURE__ */ jsx("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
+          /* @__PURE__ */ jsxs("span", { style: muted, children: [
+            T("source"),
+            ": ",
+            x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
+          ] }),
+          x.rewritten ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9" }, children: T("rewritten") }) : null,
+          x.edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedCheck") }) : null,
+          x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
+            T("issues"),
+            ": ",
+            x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
+          ] }) : null
+        ] }, x.id)),
+        /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
+        chars > MAX_CHARS ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
+        approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
+          /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("approved") }),
+          /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
+        ] }) : /* @__PURE__ */ jsx("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
+      ] })
+    ),
+    approved && next ? /* @__PURE__ */ jsxs(Step, { done: !!plan && next.kind === "ready", summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [
       /* @__PURE__ */ jsxs("label", { children: [
         T("voice"),
         " ",
@@ -8382,18 +8434,21 @@ function NewsMinutePanel({ sdk, context }) {
       ] })
     ] }) : null,
     plan ? renderPlan(plan) : null,
-    s.draftId ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
-      /* @__PURE__ */ jsx("span", { children: T("done") }),
-      /* @__PURE__ */ jsx("button", { disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
-      }), children: T("openDraft") })
-    ] }) : null,
+    s.draftId ? (
+      // A newer preview is open above: this box is the earlier edit Draft, not the preview's result.
+      /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
+        /* @__PURE__ */ jsx("span", { style: { ...pv ? muted : {}, flex: 1, minWidth: 0 }, children: T(pv ? "previousVideo" : "done") }),
+        /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
+        }), children: T("openDraft") })
+      ] })
+    ) : null,
     status ? /* @__PURE__ */ jsx("span", { style: muted, children: status }) : null,
     lines.length ? /* @__PURE__ */ jsxs("details", { children: [
       /* @__PURE__ */ jsx("summary", { style: muted, children: "Log" }),
       /* @__PURE__ */ jsx("pre", { style: { ...muted, whiteSpace: "pre-wrap", margin: 0 }, children: lines.join("\n") })
     ] }) : null,
     error ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12, whiteSpace: "pre-wrap" }, children: error }) : null,
-    sc ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: reset, children: T("startOver") }) : null
+    sc ? /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: reset, children: T("startOver") }) : null
   ] });
 }
 var Panel_default = NewsMinutePanel;

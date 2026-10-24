@@ -24,11 +24,25 @@ const warn = { color: "#d9822b", fontSize: 12 } as const;
 // Review fields stack the label over its control at any panel width.
 const field = { ...muted, display: "flex", flexDirection: "column", gap: 2 } as const;
 // A 9:16 thumbnail slot in a scene row.
-const thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" } as const;
-const thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" } as const;
+const thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" } as const;
+const thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 10, lineHeight: "14px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" } as const;
+// The scene number sits on the thumbnail's corner, leaving the row's width to the sentence.
+const thumbNumber = { position: "absolute", left: 3, top: 3, zIndex: 1, fontSize: 10, lineHeight: "14px", padding: "0 3px", borderRadius: 3, color: "#fff", background: "rgba(0,0,0,0.7)" } as const;
 const oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+// A scene's sentence: up to two lines, then an ellipsis.
+const twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" } as const;
 // The host stretches buttons to the full width; a button beside a scene row keeps its own size.
 const rowButton = { flex: "none", width: "auto", whiteSpace: "nowrap" } as const;
+// The scene row itself is a button (keyboard and screen readers); it drops the host's button look.
+const rowSelect = { display: "flex", gap: 8, alignItems: "center", flex: 1, minWidth: 0, maxWidth: "none", height: "auto", padding: 0, margin: 0, border: "none", background: "none", color: "inherit", font: "inherit", textAlign: "left" } as const;
+// The host fills every <button> as the panel's one action; the others say they are secondary.
+const SECONDARY = { "data-variant": "secondary" } as const;
+// A finished step: one summary line that opens to its full form.
+function Step({ done, summary, children }: { done: boolean; summary: string; children: React.ReactNode }) {
+  return done
+    ? <details style={box}><summary style={{ cursor: "pointer" }}>{"\u2713 " + summary}</summary><div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>{children}</div></details>
+    : <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>{children}</div>;
+}
 
 type Still = { state: "rendering" | "ready" | "failed"; dataUrl?: string };
 
@@ -88,7 +102,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   // Every call on the preview Draft goes through one queue, so a rename never overlaps a refill.
   const onDraft = useRef(F.draftQueue()).current;
   const renameNow = (projectId: string, draftId: string, name: string) => renameDraft(sdk, { projectId, draftId, name });
-  const viewer = F.previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview);
+  const viewer = F.previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
   const openNow = (projectId: string, draftId: string) => viewer.open(projectId, draftId).then((ok) => { if (!ok) log("previewNotOpened"); }, () => log("previewNotOpened"));
   useAppUpdateGuard(sdk, context?.language, () => busy);
 
@@ -134,12 +148,16 @@ function NewsMinutePanel({ sdk, context }: Props) {
     return () => { stop = true; };
   }, [tts?.workflowId, tts?.state]);
 
-  // Finished-frame thumbnails of the preview Draft, one at a time, the picked scene first; kept for the open panel.
+  // The Draft the scene rows show and go to: the preview, or once confirmed the video, while it still matches the plan.
+  const pv = s?.preview ?? null;
+  const view = s ? F.rowsDraft(s) : null;
+  const video = !pv ? view : null;
+  // Finished-frame thumbnails of that Draft, one at a time, the picked scene first; kept for the open panel.
   // Only the current build's thumbnails are kept; a result for an older build is dropped (the copy still re-runs
   // this effect, so the next thumbnail starts).
-  const pv = s?.preview ?? null;
   const rendering = useRef(false);
   useEffect(() => {
+    const pv = view;
     if (!pv || !pv.planRev || busy || rendering.current) return;
     const order = pv.scenes.map((_, i) => i);
     if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
@@ -157,7 +175,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) });
       })
       .catch(() => { rendering.current = false; setStills((m) => (key in m ? { ...m, [key]: { state: "failed" } } : { ...m })); });
-  }, [pv?.draftId, pv?.at, pv?.planRev, picked, busy, stills]);
+  }, [view?.draftId, view?.at, view?.planRev, picked, busy, stills]);
 
   // Once the plan moves past the preview, the Draft's name says so in the editor too (once per change).
   const stale = !!(pv && s?.plan && pv.planRev !== F.previewRev(s));
@@ -262,16 +280,17 @@ function NewsMinutePanel({ sdk, context }: Props) {
     else { setFeedback(""); log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length }); await previewInto(next2); }
   });
 
+  // "Use this layout": only the preview the reviewer has seen becomes the video; a changed plan updates the preview first.
   const build = () => guard(async () => {
     const plan = s.plan;
-    if (!plan) return;
+    if (!plan || !F.previewFresh(s)) return;
     const v = F.checkPlan(plan);
     const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e));
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     const name = F.finalName(s);
-    let draftId: string;
+    let draftId: string, placed: F.PreviewDraft;
     try {
       // The reviewed preview becomes the video: renamed when it shows this plan, else filled again first.
       // A preview Draft removed by hand fails the rename; the refill below then reports it gone and builds anew.
@@ -282,11 +301,13 @@ function NewsMinutePanel({ sdk, context }: Props) {
       }
       if (renamed) {
         draftId = s.preview!.draftId;
+        placed = { ...s.preview!, name };
         rec.notes.push("video: preview Draft " + draftId + " renamed");
         log("videoFromPreview");
       } else {
         const r = await onDraft(() => F.assemble(sdk, env.current!, s, preset, log, rec, { name, reuse: s.preview }));
         draftId = r.draftId;
+        placed = { ...r.draft, name, planRev: F.previewRev(s), at: new Date().toISOString() };
         rec.notes.push("video: " + (r.refilled ? "preview Draft " + draftId + " refilled" : "new Draft " + draftId));
       }
     }
@@ -297,7 +318,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     }
     finally { await finish(rec); }
     // The preview is used up: a later change to the plan starts a new preview Draft.
-    await update({ ...s, draftId, preview: null, videos: [...(s.videos ?? []).filter((d) => d !== draftId), draftId].slice(-50) });
+    await update({ ...s, draftId, preview: null, video: placed, videos: [...(s.videos ?? []).filter((d) => d !== draftId), draftId].slice(-50) });
     await viewer.open(s.projectId!, draftId).catch(() => {});
   });
 
@@ -315,7 +336,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   const pick = (i: number) => {
     setPicked(i);
-    const p = latest.current?.preview;
+    const p = view;
     if (!p || !p.planRev || i >= p.scenes.length) return;
     viewer.seek(p, i).then((r) => { if (!r.confirmed) log("seekUnconfirmed", { n: i + 1 }); }).catch(() => log("seekUnconfirmed", { n: i + 1 }));
   };
@@ -335,7 +356,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     const general: string[] = [];
     const sort = (list: string[], into: Map<number, string[]>, rest: string[] | null) => {
       for (const e of list) {
-        const m = /^scene (\d+): (.*)$/.exec(e);
+        // "scene 7: ...", "scene 7 (highlight_card): ..." and "scene 7.from ..." all belong to row 7.
+        const m = /^scene (\d+)\b:? ?(.*)$/.exec(e);
         if (m) into.set(Number(m[1]) - 1, [...(into.get(Number(m[1]) - 1) ?? []), m[2]]);
         else if (rest) rest.push(e);
       }
@@ -361,13 +383,18 @@ function NewsMinutePanel({ sdk, context }: Props) {
         {plan.fallback ? <span style={warn}>{T("planFallbackNote")}</span> : null}
         {lastRound ? <span style={muted}>{T("rounds", { n: plan.rounds.length })}{lastRound.fallback ? "" : " \u00b7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })}</span> : null}
         {general.length ? <div style={warn}>{general.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
+        {/* After a change the next step is updating the preview; only a preview the reviewer has seen is confirmed. */}
         {pv ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={stale ? warn : muted}>{T(!pv.planRev ? "previewPartial" : stale ? "previewStale" : "previewReady")}</span>
-            {stale ? <button disabled={busy} onClick={refreshPreview}>{T("previewRebuild")}</button> : null}
-            <button disabled={busy} onClick={() => openNow(s.projectId!, pv.draftId)}>{T("openPreview")}</button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={!pv.planRev || stale ? warn : muted}>{!pv.planRev ? T("previewPartial") : stale ? T("previewStale") : "\u2713 " + T("previewFresh", { n: pv.scenes.length })}</span>
+            {!pv.planRev || stale ? <button disabled={busy} onClick={refreshPreview}>{T("previewRebuild")}</button> : null}
+            <button {...SECONDARY} disabled={busy} onClick={() => openNow(s.projectId!, pv.draftId)}>{T("openPreview")}</button>
           </div>
-        ) : <button disabled={busy} onClick={refreshPreview}>{T("previewBuild")}</button>}
+        ) : video ? <span style={muted}>{T("videoRows")}</span>
+          : <>
+            {s.draftId ? <span style={warn}>{T("videoRowsOff")}</span> : null}
+            <button disabled={busy} onClick={refreshPreview}>{T("previewBuild")}</button>
+          </>}
         {plan.scenes.map((scene, i) => {
           const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean) as F.ScenePlan["sentences"];
           // The graphic's own span (what the viewer jumps to); the sentences' times only while the plan cannot be placed.
@@ -376,14 +403,17 @@ function NewsMinutePanel({ sdk, context }: Props) {
           const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
           const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
           const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-          const still = pv && pv.planRev && i < pv.scenes.length ? stills[F.stillKey(pv, i)] : undefined;
+          const still = view && i < view.scenes.length ? stills[F.stillKey(view, i)] : undefined;
+          const canPick = !!view && i < view.scenes.length;
           const photo = scene.assetRef ? plan.thumbs[scene.assetRef] : undefined;
           const open = openRow === i;
+          const nErr = rowErrors.get(i)?.length ?? 0, nWarn = rowWarnings.get(i)?.length ?? 0;
           return (
             <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : undefined }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: pv?.planRev && i < pv.scenes.length ? "pointer" : undefined }} onClick={() => pick(i)}>
-                <strong style={{ flex: "none" }}>{String(i + 1).padStart(2, "0")}</strong>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button style={{ ...rowSelect, cursor: canPick ? "pointer" : "default" }} aria-pressed={picked === i} aria-disabled={!canPick} title={canPick ? undefined : T("rowNoSeek")} onClick={() => pick(i)}>
                 <div style={thumbBox}>
+                  <strong style={thumbNumber}>{String(i + 1).padStart(2, "0")}</strong>
                   {still?.state === "ready" ? <img src={still.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     : photo ? <img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 }} />
                     : <span style={{ ...muted, fontSize: 10, textAlign: "center", padding: 2 }}>{T("type_" + scene.type)}</span>}
@@ -392,17 +422,24 @@ function NewsMinutePanel({ sdk, context }: Props) {
                     : photo ? <span style={thumbTag}>{T("sourcePhoto")}</span> : null}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
-                  <span style={{ ...muted, ...oneLine }}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \u00b7 " + T("type_" + scene.type)}
+                  {/* Time and kind wrap in a narrow panel rather than cut the kind short. */}
+                  <span style={{ ...muted, wordBreak: "keep-all" }}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \u00b7 " + T("type_" + scene.type)}
                     {changed ? <span style={{ color: "#4a90d9", fontWeight: 600 }}>{" \u00b7 " + T("changedMark")}</span> : null}
                     {edited ? <span style={{ color: "#d9822b" }}>{" \u00b7 " + T("editedMark")}</span> : null}
                   </span>
-                  <span style={oneLine}>{ss.map((x) => x.text).join(" ")}</span>
-                  {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={{ ...warn, ...oneLine }}>{"\u2022 " + x}</span>)}
+                  <span style={twoLines}>{ss.map((x) => x.text).join(" ")}</span>
+                  {picked === i ? <span style={{ ...muted, fontWeight: 600 }}>{"\u2713 " + T("pickedMark")}</span> : null}
+                  {/* A scene that needs a fix says so on the closed row; Edit lists the problems in full. */}
+                  {nErr ? <span style={{ ...warn, fontWeight: 600 }}>{"\u2716 " + T("rowErrors", { n: nErr })}</span> : null}
+                  {nWarn ? <span style={warn}>{"\u26a0 " + T("rowWarnings", { n: nWarn })}</span> : null}
                 </div>
-                <button style={rowButton} onClick={(e) => { e.stopPropagation(); setOpenRow(open ? null : i); }}>{T(open ? "closeScene" : "editScene")}</button>
+                </button>
+                <button {...SECONDARY} style={rowButton} aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpenRow(open ? null : i); }}>{T(open ? "closeScene" : "editScene")}</button>
               </div>
               {open ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
+                  {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={{ ...warn, fontWeight: 600, overflowWrap: "anywhere" }}>{"\u2716 " + x}</span>)}
+                  {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={{ ...warn, overflowWrap: "anywhere" }}>{"\u26a0 " + x}</span>)}
                   <label style={field}>{T("sceneType")}
                     <select value={scene.type} disabled={busy} onChange={(e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs))}>
                       {SCENE_TYPES.map((t2) => <option key={t2} value={t2}>{T("type_" + t2)}</option>)}
@@ -446,18 +483,27 @@ function NewsMinutePanel({ sdk, context }: Props) {
                       }} />
                     {jsonErr[i] ? <span style={warn}>{jsonErr[i]}</span> : null}
                   </details>
-                  {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={muted}>{"\u2022 " + x}</span>)}
                 </div>
               ) : null}
             </div>
           );
         })}
-        <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>{T("feedback")}
-          <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
-        </label>
-        <span style={muted}>{T("buildCredits")}</span>
-        <button disabled={busy || !feedback.trim()} onClick={revise}>{T("revise")}</button>
-        <button disabled={busy} onClick={build}>{T("buildFromPlan")}</button>
+        <details>
+          <summary style={{ cursor: "pointer" }}>{T("feedbackOpen")}</summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>{T("feedback")}
+              <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
+            </label>
+            <span style={muted}>{T("buildCredits")}</span>
+            <button {...SECONDARY} disabled={busy || !feedback.trim()} onClick={revise}>{T("revise")}</button>
+          </div>
+        </details>
+        {video ? null : (
+          <>
+            <button {...(F.previewFresh(s) ? {} : SECONDARY)} disabled={busy || !F.previewFresh(s)} onClick={build}>{T("buildFromPlan")}</button>
+            <span style={muted}>{T(F.previewFresh(s) ? "confirmHint" : "confirmNeedsPreview")}</span>
+          </>
+        )}
       </div>
     );
   };
@@ -479,7 +525,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
           <button disabled={busy || (!url.trim() && text.trim().length < 80)} onClick={writeScript}>{T("write")}</button>
         </div>
       ) : (
-        <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
+        // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
+        <Step done={!!plan} summary={T("scriptDone", { n: sc.sentences.length })}>
           <strong>{T("review")}</strong>
           <span style={muted}>{T("reviewHint")}</span>
           {liveErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{liveErrors.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
@@ -500,16 +547,16 @@ function NewsMinutePanel({ sdk, context }: Props) {
           {approved ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span>{"\u2713 " + T("approved")}</span>
-              <button disabled={busy || tts?.state === "submitted" || tts?.state === "submitting"} onClick={() => update({ ...s, approved: null })}>{T("edit")}</button>
+              <button {...SECONDARY} disabled={busy || tts?.state === "submitted" || tts?.state === "submitting"} onClick={() => update({ ...s, approved: null })}>{T("edit")}</button>
             </div>
           ) : (
             <button disabled={busy || chars > MAX_CHARS} onClick={approve}>{T("approve")}</button>
           )}
-        </div>
+        </Step>
       )}
 
       {approved && next ? (
-        <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
+        <Step done={!!plan && next.kind === "ready"} summary={next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : ""}>
           <label>{T("voice")}{" "}
             <select value={s.voiceId} disabled={busy || next.kind === "poll" || next.kind === "ready"} onChange={(e) => update({ ...s, voiceId: e.target.value, approved: F.revisionOf(sc!, e.target.value) })}>
               {(voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name}</option>)}
@@ -542,22 +589,23 @@ function NewsMinutePanel({ sdk, context }: Props) {
               </>}
             </>
           )}
-        </div>
+        </Step>
       ) : null}
 
       {plan ? renderPlan(plan) : null}
 
       {s.draftId ? (
+        // A newer preview is open above: this box is the earlier edit Draft, not the preview's result.
         <div style={{ ...box, display: "flex", gap: 8, alignItems: "center" }}>
-          <span>{T("done")}</span>
-          <button disabled={busy} onClick={() => run(sdk, openDraftScript(s.draftId!)).catch(() => {})}>{T("openDraft")}</button>
+          <span style={{ ...(pv ? muted : {}), flex: 1, minWidth: 0 }}>{T(pv ? "previousVideo" : "done")}</span>
+          <button {...SECONDARY} style={rowButton} disabled={busy} onClick={() => run(sdk, openDraftScript(s.draftId!)).catch(() => {})}>{T("openDraft")}</button>
         </div>
       ) : null}
 
       {status ? <span style={muted}>{status}</span> : null}
       {lines.length ? <details><summary style={muted}>Log</summary><pre style={{ ...muted, whiteSpace: "pre-wrap", margin: 0 }}>{lines.join("\n")}</pre></details> : null}
       {error ? <span style={{ color: "#d9822b", fontSize: 12, whiteSpace: "pre-wrap" }}>{error}</span> : null}
-      {sc ? <button disabled={busy} onClick={reset}>{T("startOver")}</button> : null}
+      {sc ? <button {...SECONDARY} disabled={busy} onClick={reset}>{T("startOver")}</button> : null}
     </div>
   );
 }
