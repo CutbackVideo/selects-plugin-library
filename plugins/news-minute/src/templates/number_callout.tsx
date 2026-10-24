@@ -22,8 +22,9 @@ const show = (v) => {
 export default function NumberCallout({ data }) {
   const reveal = Math.max(0, Number(data?.revealSec ?? 0.75));
   const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
-  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts.
-  const s = useScene(data, toAt + 1.6);
+  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts (label and header brushes end earlier
+  // unless the reveal is very short).
+  const s = useScene(data, Math.max(toAt + 1.6, brushEnd(data?.label, 0.95), headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? ''))));
   const k = s.k;
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');

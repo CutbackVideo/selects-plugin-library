@@ -80,7 +80,7 @@ export default function QuoteCard({ data }) {
   const at = (i) => FIRST_LINE + step * i;
   // Last entrance: the last quote line (or the gold rule, 0.6 + 0.9 s, when there are no lines).
   // (+0.1 s slack, also kept when a short clip speeds the scene up).
-  const s = useScene(data, (n ? at(n - 1) + tail : 1.5) + 0.1);
+  const s = useScene(data, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
   const k = s.k;
   const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
   // Each line keeps 66 unless it would pass X1; then that line alone shrinks just enough to fit

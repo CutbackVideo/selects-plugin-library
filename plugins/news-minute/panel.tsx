@@ -622,10 +622,19 @@ async function readFileBase64(sdk, path, maxBytes) {
 }
 
 // src/templates/entrance.generated.ts
-var React = { useState: () => [null], useEffect: () => {
-}, useMemo: (f) => f(), useRef: () => ({}) };
-var STUB = () => null;
-var Img = STUB;
+var FRAGMENT = "Fragment";
+var NULL_H = () => null;
+var H = NULL_H;
+var React = { useState: (v) => [typeof v === "function" ? v() : v], useEffect: () => {
+}, useMemo: (f) => f(), useRef: () => ({}), Fragment: FRAGMENT };
+var STUB = (type, props, ...children) => H(type === STUB ? FRAGMENT : type, props, children);
+var Img = "img";
+var delayRender = () => 0;
+var continueRender = () => {
+};
+var cancelRender = () => {
+};
+var FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
 var C = {
   ivory: "#F6F1E4",
   ink: "#1E2422",
@@ -658,7 +667,38 @@ var settle = (x, over = 0.03) => {
   return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28));
 };
 var lerp = (a, b, x) => a + (b - a) * x;
+function useEmbeddedFont(data) {
+  const css = typeof data?.fontCss === "string" ? data.fontCss : "";
+  const [hold] = React.useState(() => css ? delayRender("News minute font") : null);
+  React.useEffect(() => {
+    if (hold === null) return;
+    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
+    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
+  }, [hold]);
+  return css ? /* @__PURE__ */ STUB("style", null, css) : null;
+}
 var HOLD = 1.5;
+function realUseScene(data, natural = 0) {
+  const fontFace = useEmbeddedFont(data);
+  const frame = useCurrentFrame();
+  const { width, fps, durationInFrames } = useVideoConfig();
+  const family = typeof data?.fontFamily === "string" ? data.fontFamily.trim() : "";
+  const end = durationInFrames / fps;
+  const room = Math.max(end * 0.5, end - HOLD);
+  const speed = natural > room ? natural / room : 1;
+  return {
+    fontFace,
+    fps,
+    frame,
+    t: frame / fps * speed,
+    speed,
+    end,
+    k: width / 1080,
+    fontFamily: family === "" ? FALLBACK : '"' + family + '", ' + FALLBACK,
+    top: Number(data?.windowTop ?? 481),
+    height: Number(data?.windowHeight ?? 809)
+  };
+}
 function Win({ s, data, children }) {
   const bg = String(data?.background ?? C.ivory);
   const paper = bg === "transparent" || bg === "none" || /^#[0-9a-f]{6}00$/i.test(bg) ? "transparent" : "radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), " + bg;
@@ -722,6 +762,8 @@ function Brush({ p, seed = 0 }) {
   const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
   return /* @__PURE__ */ STUB("svg", { viewBox: "0 0 100 100", preserveAspectRatio: "none", style: { position: "absolute", left: "-0.12em", right: "-0.12em", top: "0.02em", height: "1.08em", width: "calc(100% + 0.24em)", zIndex: -1 } }, /* @__PURE__ */ STUB("defs", null, /* @__PURE__ */ STUB("linearGradient", { id }, /* @__PURE__ */ STUB("stop", { offset: Math.max(0, p * 1.15 - 0.15), stopColor: "#fff" }), /* @__PURE__ */ STUB("stop", { offset: p * 1.15, stopColor: "#000" })), /* @__PURE__ */ STUB("mask", { id: id + "m" }, /* @__PURE__ */ STUB("rect", { width: "100", height: "100", fill: "url(#" + id + ")" }))), /* @__PURE__ */ STUB("g", { mask: "url(#" + id + "m)" }, /* @__PURE__ */ STUB("polygon", { points: top.concat(bot).join(" "), fill: C.hl }), streaks.map((q, i) => /* @__PURE__ */ STUB("line", { key: i, x1: q.x, y1: q.y, x2: "100", y2: q.y + 1, stroke: C.ivory, strokeWidth: q.w }))));
 }
+var brushEnd = (text, hlAt) => /\{[^}]*\}/.test(String(text ?? "")) ? hlAt + 0.9 : 0;
+var headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return /* @__PURE__ */ STUB(STUB, null, parseMarks(text).map((p, i) => p.mark === "" ? /* @__PURE__ */ STUB("span", { key: i }, p.text) : /* @__PURE__ */ STUB("span", { key: i, style: { color: accent, position: "relative", zIndex: 0, isolation: "isolate" } }, p.mark === "hl" ? /* @__PURE__ */ STUB(Brush, { p: smooth(prog(s.t, hlAt, hlAt + 0.9)), seed: i }) : null, p.text)));
 }
@@ -747,13 +789,16 @@ function countable(v) {
 var counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString("en-US", { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
 var ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 var fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+var NATURAL = null;
+var CONFIG = { frame: 0, video: null };
+var useVideoConfig = () => CONFIG.video;
+var useCurrentFrame = () => CONFIG.frame;
 function useScene(data, natural = 0) {
-  throw { natural };
+  if (NATURAL === null) NATURAL = natural;
+  return realUseScene(data, natural);
 }
-var ENTRANCE = {
-  "bar_compare_h": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+var SCENE = {
+  "bar_compare_h": (data) => {
     const BASE = 600;
     const decimals = (v) => {
       const t2 = String(v);
@@ -772,19 +817,22 @@ var ENTRANCE = {
       const gap = (i) => i === hero ? 1.5 : 1;
       const tail = (i) => i === hero ? 2.5 : 1.4;
       const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));
-      const natural = Math.max(1.2, ...base.map((t0, i) => t0 + tail(i)));
-      const s = useScene(data2, natural);
-      const k = s.k;
-      const extra = n > 1 && s.speed === 1 ? Math.min(1, Math.max(0, s.end - HOLD - natural) * 0.5 / (n - 1)) : 0;
+      const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));
+      const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));
+      const { fps, durationInFrames } = useVideoConfig();
+      const end = durationInFrames / fps;
+      const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;
       const start = base.map((t0, i) => t0 + extra * i);
+      const s = useScene(data2, Math.max(tight + extra * (n - 1), headerEnd(String(data2?.title ?? ""), subtitle)));
+      const k = s.k;
       const ws = bars.map((_, i) => i === hero ? 290 : 200);
       const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);
       const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);
       const max = Math.max(1e-9, ...vals);
       const top = vals.indexOf(Math.max(...vals));
       const tallH = top === hero ? 400 : subtitle ? 340 : 380;
-      const H = vals.map((v) => v / max * tallH);
-      const inside = hero >= 0 && H[hero] >= 150;
+      const H2 = vals.map((v) => v / max * tallH);
+      const inside = hero >= 0 && H2[hero] >= 150;
       const pb = smooth(prog(s.t, 0.1, 1));
       const valueRun = (text, size, uSize, color, maxW) => {
         const sc = Math.min(1, maxW / Math.max(1, ems(text) * size + ems(unit) * uSize + 4));
@@ -792,25 +840,17 @@ var ENTRANCE = {
       };
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), pb > 0 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold } }) : null, bars.map((b, i) => {
         const big = i === hero, t0 = start[i], w = ws[i];
-        const h = H[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1)), big ? 0.015 : 0.03);
+        const h = H2[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1)), big ? 0.015 : 0.03);
         const slot = w + space - 8;
         const label = String(b?.label ?? ""), sub = String(b?.sub ?? "");
         const v = Number(b?.value) || 0;
         const cp = prog(s.t, t0 + 1.2, t0 + 2.5);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: label, hlAt: t0 + 0.6 }))), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: t0 + 0.72 }))) : null, !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: BASE - H[i] - 48 }, valueRun(fmt(v, dec), 58, 34, C.ink2, slot)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, w - 24))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: BASE - H[i] - 52 }, valueRun(fmt(v, dec), 72, 40, accent, slot)) : null);
+        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(label), 54, slot) * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: label, hlAt: t0 + 0.6 }))), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(sub), 30, slot) * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: t0 + 0.72 }))) : null, !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: BASE - H2[i] - 48 }, valueRun(fmt(v, dec), 58, 34, C.ink2, slot)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, w - 24))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: BASE - H2[i] - 52 }, valueRun(fmt(v, dec), 72, 40, accent, slot)) : null);
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("bar_compare_h did not reach useScene");
+    return Scene({ data });
   },
-  "donut_ratio": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "donut_ratio": (data) => {
     const GREYS = ["#968E7E", "#BAB2A0", "#D6CEBC"];
     const DCX = 300, DCY = 472, R = 225, RI = 138;
     const HERO = [0.5, 1.5], REST = [1.9, 3.1];
@@ -851,7 +891,12 @@ var ENTRANCE = {
         }
         return tRest(before + span(i) / 2);
       });
-      const s = useScene(data2, Math.max(2.6, ...rowAt.map((x) => x + 0.8)));
+      const s = useScene(data2, Math.max(
+        2.6,
+        ...rowAt.map((x, i) => Math.max(x + 0.8, brushEnd(all[i].label, x + 0.55))),
+        brushEnd(all[hi]?.label, 2.65),
+        headerEnd(String(data2?.title ?? ""), String(data2?.subtitle ?? ""))
+      ));
       const k = s.k;
       const unit = String(data2?.unit ?? "");
       const reach = span(hi) * smooth(prog(s.t, HERO[0], HERO[1])) + restSpan * smooth(prog(s.t, REST[0], REST[1]));
@@ -886,17 +931,9 @@ var ENTRANCE = {
         return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "center", gap: 12 * k } }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } }), /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(x.label), sz, 300) * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: x.label, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("donut_ratio did not reach useScene");
+    return Scene({ data });
   },
-  "flow_cause_effect": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "flow_cause_effect": (data) => {
     const FW = 400, FH = 330, LCX = 290, RCX = 790;
     function Card({ s, cx, cy, t0, hero, caption, word }) {
       const k = s.k;
@@ -907,50 +944,35 @@ var ENTRANCE = {
       const cause = { word: String(data2?.cause?.word ?? ""), caption: String(data2?.cause?.caption ?? "") };
       const effect = { word: String(data2?.effect?.word ?? ""), caption: String(data2?.effect?.caption ?? "") };
       const tCause = 0.5, tArrow = 1.6, tEffect = 2.2;
-      const s = useScene(data2, tEffect + 1.25);
       const subtitle = String(data2?.subtitle ?? "");
+      const cardEnd = (c, t0) => Math.max(brushEnd(c.caption, t0 + 0.8), brushEnd(c.word, t0 + 1));
+      const s = useScene(data2, Math.max(tEffect + 1.25, cardEnd(cause, tCause), cardEnd(effect, tEffect), headerEnd(String(data2?.title ?? ""), subtitle)));
       const cy = (subtitle ? 190 : 150) + (794 - (subtitle ? 190 : 150)) / 2;
       const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
       const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
       const L = (ax1 - ax0) * ap, head = 26;
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), /* @__PURE__ */ STUB(Card, { s, cx: LCX, cy, t0: tCause, hero: false, ...cause }), ap > 0 ? /* @__PURE__ */ STUB("svg", { width: 1080 * s.k, height: 809 * s.k, viewBox: "0 0 1080 809", style: { position: "absolute", left: 0, top: 0 } }, L > head ? /* @__PURE__ */ STUB("line", { x1: ax0, y1: cy, x2: ax0 + L - head + 2, y2: cy, stroke: C.gold, strokeWidth: "9", strokeLinecap: "round" }) : null, /* @__PURE__ */ STUB("polygon", { points: ax0 + L + "," + cy + " " + (ax0 + L - head) + "," + (cy - head * 0.62 * Math.min(1, L / head)) + " " + (ax0 + L - head) + "," + (cy + head * 0.62 * Math.min(1, L / head)), fill: C.gold })) : null, /* @__PURE__ */ STUB(Card, { s, cx: RCX, cy, t0: tEffect, hero: true, ...effect }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("flow_cause_effect did not reach useScene");
+    return Scene({ data });
   },
-  "highlight_card": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "highlight_card": (data) => {
     function Scene({ data: data2 }) {
-      const s = useScene(data2, 2);
-      const k = s.k;
       const title = String(data2?.title ?? "");
       const subtitle = String(data2?.subtitle ?? "");
+      const s = useScene(data2, Math.max(2, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
+      const k = s.k;
       const value = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
       const unit = String(data2?.unit ?? "");
-      const W = 860, H = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
+      const W = 860, H2 = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
       const count = countable(value);
       const cp = prog(s.t, 0.8, 0.8 + 1.2);
       const scale = Math.min(1, (W - 100) / Math.max(1, ems(value) * 150 + ems(unit) * 80 + 8));
       const num = { fontSize: 150 * scale * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * scale * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
-      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H * k } })), title ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: title, hlAt: 0.85 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136, t0: 0.5 }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: y0 + (title ? 262 : 200) }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, value), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 80 * scale * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 } }, unit) : null)), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 1.2, dy: 10, x: 540, y: y0 + H + 58 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.75 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
+      return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), title ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(title), 50, W - 80) * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: title, hlAt: 0.85 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136, t0: 0.5 }), /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: y0 + (title ? 262 : 200) }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, value), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 80 * scale * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 } }, unit) : null)), subtitle ? /* @__PURE__ */ STUB(Rise, { s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: subtitle, hlAt: 1.75 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("highlight_card did not reach useScene");
+    return Scene({ data });
   },
-  "line_trend_callout": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "line_trend_callout": (data) => {
     const PX0 = 110, PX1 = 950, PLOT_TOP = 238;
     const SWEEP_FROM = 0.6, SWEEP_MAX = 6.4, SWEEP_MIN = 2.6;
     const CARD_H = 96, CARD_TOP = 642, CARD_GAP = 24;
@@ -967,7 +989,7 @@ var ENTRANCE = {
       return out.concat([n - 1]);
     }
     function Scene({ data: data2 }) {
-      const { fps: fps2, durationInFrames: durationInFrames2 } = useVideoConfig2();
+      const { fps, durationInFrames } = useVideoConfig();
       const pts = (Array.isArray(data2?.points) ? data2.points : []).filter((p) => Number.isFinite(Number(p?.y)));
       const n = pts.length;
       const vals = pts.map((p) => Number(p.y));
@@ -975,11 +997,12 @@ var ENTRANCE = {
       const unit = String(data2?.unit ?? "");
       const threshold = data2?.threshold && Number.isFinite(Number(data2.threshold.y)) ? data2.threshold : null;
       const cards = (Array.isArray(data2?.cards) ? data2.cards : []).filter((c) => String(c?.text ?? "").trim() !== "").slice(0, 2);
-      const end = durationInFrames2 / fps2;
+      const end = durationInFrames / fps;
       const room = Math.max(end * 0.5, end - HOLD);
-      const cardsTail = cards.length ? 0.3 + 0.4 * (cards.length - 1) + 0.9 : 0;
+      const cardsTail = Math.max(0, ...cards.map((c, i) => Math.max(0.3 + 0.4 * i + 0.9, brushEnd(c.text, 0.85 + 0.4 * i))));
       const sweepEnd = clamp(room - 0.1 - cardsTail, SWEEP_MIN, SWEEP_MAX);
-      const s = useScene(data2, Math.max(1.5, sweepEnd + cardsTail) + 0.1);
+      const early = Math.max(headerEnd(String(data2?.title ?? ""), String(data2?.subtitle ?? "")), brushEnd(threshold?.label, 1.25), ...pts.map((p, j) => brushEnd(p?.x, 0.7 + 0.08 * j)));
+      const s = useScene(data2, Math.max(1.5, early, sweepEnd + cardsTail) + 0.1);
       const k = s.k;
       const base = cards.length ? 540 : 560;
       const ys = vals.concat(threshold ? [Number(threshold.y)] : []);
@@ -1036,17 +1059,9 @@ var ENTRANCE = {
         return /* @__PURE__ */ STUB(Rise, { key: i, s, t0: sweepEnd + 0.3 + 0.4 * i, dur: 0.9, dy: 22, x: X0 + i * (w + CARD_GAP), y: CARD_TOP, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, hot), width: w * k, height: CARD_H * k, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 * k } }, head ? /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(head), 26, w - 40) * k, fontWeight: 600, color: C.gray, lineHeight: 1.15 } }, /* @__PURE__ */ STUB(Marked, { s, text: head, hlAt: sweepEnd + 0.85 + 0.4 * i })) : null, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(value), 40, w - 40) * k, fontWeight: 800, color: hot ? C.acc : C.ink, letterSpacing: -1 * k, lineHeight: 1.15 } }, /* @__PURE__ */ STUB(Marked, { s, text: value, hlAt: sweepEnd + 0.85 + 0.4 * i }))));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("line_trend_callout did not reach useScene");
+    return Scene({ data });
   },
-  "news_photo": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "news_photo": (data) => {
     const MOVES = {
       push_in: { s: [0, 1], x: [0, -0.012], y: [0, -8e-3] },
       pull_out: { s: [1, 0], x: [0, 0], y: [0, 0] },
@@ -1073,17 +1088,9 @@ var ENTRANCE = {
       const pad = contain ? 16 : 0;
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.8, dy: 20, x: fx, y: fy, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { position: "relative", width: fw * k, height: fh * k, borderRadius: 12 * k, overflow: "hidden", background: contain ? C.card : C.line } }, image ? /* @__PURE__ */ STUB(Img, { src: image, style: { position: "absolute", left: pad * k, top: pad * k, width: (fw - 2 * pad) * k, height: (fh - 2 * pad) * k, objectFit: contain ? "contain" : "cover", objectPosition: FOCUS2[String(data2?.focus ?? "center")] ?? FOCUS2.center, transform: "translate(" + dx * k + "px," + dy * k + "px) scale(" + scale + ")", transformOrigin: "50% 50%" } }) : null, data2?.dim ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", inset: 0, background: "rgba(0,0,0," + Number(data2.dim) + ")" } }) : null, /* @__PURE__ */ STUB("div", { style: { position: "absolute", inset: 0, borderRadius: 12 * k, border: 2 * k + "px solid " + C.gold, boxSizing: "border-box" } }))), /* @__PURE__ */ STUB(Source, { s, text: credit }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("news_photo did not reach useScene");
+    return Scene({ data });
   },
-  "number_callout": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "number_callout": (data) => {
     const show = (v) => {
       if (typeof v === "number") {
         const str = String(v);
@@ -1095,7 +1102,7 @@ var ENTRANCE = {
     function Scene({ data: data2 }) {
       const reveal = Math.max(0, Number(data2?.revealSec ?? 0.75));
       const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
-      const s = useScene(data2, toAt + 1.6);
+      const s = useScene(data2, Math.max(toAt + 1.6, brushEnd(data2?.label, 0.95), headerEnd(String(data2?.title ?? ""), String(data2?.subtitle ?? ""))));
       const k = s.k;
       const title = String(data2?.title ?? "");
       const label = String(data2?.label ?? "");
@@ -1118,17 +1125,9 @@ var ENTRANCE = {
         /* @__PURE__ */ STUB("svg", { width: 80 * k, height: 60 * k, viewBox: "0 0 80 60", style: { position: "absolute", left: 500 * k, top: (yArrow + 25) * k } }, /* @__PURE__ */ STUB("polyline", { points: 40 - 28 * ap + "," + (14 + 22 * (1 - ap)) + " 40,36 " + (40 + 28 * ap) + "," + (14 + 22 * (1 - ap)), fill: "none", stroke: C.gold, strokeWidth: "7", strokeLinecap: "round", strokeLinejoin: "round" }))
       ) : null, /* @__PURE__ */ STUB(Pop, { s, t0: toAt, x: 540, y: yTo }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: C.acc, fontWeight: 800, letterSpacing: -4 * sTo * k } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * sTo * k, visibility: "hidden" } }, to), /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 150 * sTo * k, position: "absolute", right: 0, bottom: 0 } }, running)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 80 * sTo * k, fontWeight: 700, marginLeft: 6 * k } }, unit) : null, dir ? /* @__PURE__ */ STUB("svg", { width: 44 * sTo * k, height: 40 * sTo * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * sTo * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null)), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("number_callout did not reach useScene");
+    return Scene({ data });
   },
-  "quote_card": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "quote_card": (data) => {
     const MEDAL_D = 230, MEDAL_X = X0 + MEDAL_D / 2, MEDAL_Y = 155;
     const LINE_X = X0, LINE_Y = 404, LINE_GAP = 92, LINE_SIZE = 66;
     const FIRST_LINE = 1.4, STEP_MIN = 0.8, STEP_MAX = 1.5;
@@ -1144,7 +1143,7 @@ var ENTRANCE = {
       return /* @__PURE__ */ STUB(At, { s, x: MEDAL_X, y: MEDAL_Y }, /* @__PURE__ */ STUB("div", { style: { position: "relative", width: MEDAL_D * k, height: MEDAL_D * k, opacity: smooth(pp / 0.5), transform: "scale(" + scale + ")" } }, /* @__PURE__ */ STUB("div", { style: disc(0, { background: C.goldL }) }), /* @__PURE__ */ STUB("div", { style: disc(5, { background: C.ivory }) }), /* @__PURE__ */ STUB("div", { style: disc(8, { overflow: "hidden", background: C.card }) }, headshot ? /* @__PURE__ */ STUB(Img, { src: headshot, style: { width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 25%" } }) : /* @__PURE__ */ STUB(SuitPictogram, null))));
     }
     function Scene({ data: data2 }) {
-      const { fps: fps2, durationInFrames: durationInFrames2 } = useVideoConfig2();
+      const { fps, durationInFrames } = useVideoConfig();
       const headshot = typeof data2?.headshot === "string" ? data2.headshot : "";
       const name = String(data2?.name ?? "");
       const affiliation = String(data2?.affiliation ?? "");
@@ -1153,28 +1152,20 @@ var ENTRANCE = {
       const marked = raw.some((l) => /\{[^}]*\}/.test(l));
       const lines = marked ? raw : raw.map((l, i) => accentLines.has(i) ? "{" + l + "}" : l);
       const n = lines.length;
-      const end = durationInFrames2 / fps2;
+      const end = durationInFrames / fps;
       const room = Math.max(end * 0.5, end - HOLD);
       const tail = n && /\{[^}]*\}/.test(lines[n - 1]) ? 1.45 : 0.8;
       const step = n > 1 ? clamp((room - 0.1 - FIRST_LINE - tail) / (n - 1), STEP_MIN, STEP_MAX) : 0;
       const at = (i) => FIRST_LINE + step * i;
-      const s = useScene(data2, (n ? at(n - 1) + tail : 1.5) + 0.1);
+      const s = useScene(data2, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
       const k = s.k;
       const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
       const sizeOf = (l) => Math.min(LINE_SIZE, (X1 - LINE_X) / Math.max(0.01, ems(plainText(l))));
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Medal, { s, headshot }), name ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.3, dy: 16, x: 330, y: 122, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(name), 76, X1 - 330) * k, fontWeight: 900, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: name, hlAt: 0.85 }))) : null, affiliation ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.5, dy: 16, x: 332, y: 198, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(affiliation), 40, X1 - 332) * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: affiliation, hlAt: 1.05 }))) : null, /* @__PURE__ */ STUB(GoldRule, { s, y: 318, t0: 0.6 }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: LINE_X, y: LINE_Y + gap * i, t0: at(i), size: sizeOf(l) })), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("quote_card did not reach useScene");
+    return Scene({ data });
   },
-  "stat_cards": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "stat_cards": (data) => {
     const fmt = (v) => {
       const c = countable(v);
       return c && typeof v === "number" ? counted(c, 1) : String(v ?? "");
@@ -1190,7 +1181,11 @@ var ENTRANCE = {
       const at = (i) => 0.45 + 0.42 * i;
       const numAt = at(n - 1) + 0.9;
       const row2At = numAt + 0.8;
-      const s = useScene(data2, two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8);
+      const brushes = cards.map((c, i) => {
+        const [r0, r1] = rowsOf(c);
+        return Math.max(brushEnd(r0?.label, at(i) + 0.85), brushEnd(r1?.label, row2At + 0.18 * i + 0.55));
+      });
+      const s = useScene(data2, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data2?.title ?? ""), subtitle)));
       const k = s.k;
       const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
       const Hc = two ? 450 : 300;
@@ -1205,23 +1200,15 @@ var ENTRANCE = {
         return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: BAND * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontSize: fitSize(plainText(header), 44, W - 24) * k, fontWeight: 800, letterSpacing: -1 * k } }, plainText(header)), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: 279 * k, height: 2 * k, background: C.line } }) : null)), r0?.label ? /* @__PURE__ */ STUB(Rise, { s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(r0.label), 32, W - 24) * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: String(r0.label), hlAt: t0 + 0.85 }))) : null, r0 ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * sc * k, letterSpacing: -1.5 * sc * k } }, v0), u0 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * sc * k, fontWeight: 700, marginLeft: 2 * sc * k } }, u0) : null)) : null, r1?.label ? /* @__PURE__ */ STUB(Rise, { s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(plainText(r1.label), 30, W - 24) * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: String(r1.label), hlAt: row2At + 0.18 * i + 0.55 }))) : null, r1 ? /* @__PURE__ */ STUB(Rise, { s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 }, /* @__PURE__ */ STUB("div", { style: { fontSize: fitSize(v1, 38, W - 24) * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, v1)) : null);
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("stat_cards did not reach useScene");
+    return Scene({ data });
   },
-  "text_card": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "text_card": (data) => {
     function Scene({ data: data2 }) {
       const title = String(data2?.title ?? "");
       const sub = String(data2?.sub ?? "");
       const lines = String(data2?.text ?? "").split("\n").filter((l) => l.trim() !== "");
       const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
-      const s = useScene(data2, Math.max(sub ? at(lines.length) + 0.8 : 0, at(Math.max(0, lines.length - 1)) + 1.45));
+      const s = useScene(data2, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, "")));
       const k = s.k;
       const want = Number(data2?.fontSize ?? 72);
       const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
@@ -1231,17 +1218,9 @@ var ENTRANCE = {
       const y0 = top + (794 - top - block) / 2;
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title, subtitle: "" }), lines.map((l, i) => /* @__PURE__ */ STUB(Say, { key: i, s, text: l, x: 540, y: y0 + lh * (i + 0.5), t0: at(i), size, anchor: "c" })), sub ? /* @__PURE__ */ STUB(Rise, { s, t0: at(lines.length), dy: 10, x: 540, y: y0 + lines.length * lh + 36 + 22 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 36 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: sub, hlAt: at(lines.length) + 0.55 }))) : null, /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("text_card did not reach useScene");
+    return Scene({ data });
   },
-  "verdict_card": (data, fps, durationInFrames) => {
-    const useVideoConfig2 = () => ({ fps, durationInFrames, width: 1080, height: 1920 });
-    const useCurrentFrame2 = () => 0;
+  "verdict_card": (data) => {
     const CW = X1 - X0, CH = 270, D = 196;
     function Mark({ s, tone, t0 }) {
       const p = smooth(prog(s.t, t0, t0 + 0.9));
@@ -1269,7 +1248,8 @@ var ENTRANCE = {
       const cards = (Array.isArray(data2?.cards) ? data2.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ""), tone: c?.tone === "contrast" ? "contrast" : "accent" }));
       const subtitle = String(data2?.subtitle ?? "");
       const starts = cards.map((_, i) => i === 0 ? 0.35 : 2);
-      const s = useScene(data2, cards.length ? starts[cards.length - 1] + 1.9 : 1.1);
+      const lineEnd = (c, i) => Math.max(0, ...twoLines(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+      const s = useScene(data2, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
       const k = s.k;
       const top = subtitle ? 200 : 150;
       const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;
@@ -1284,14 +1264,26 @@ var ENTRANCE = {
         return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: CH * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: tx, y: cy + (j - (lines.length - 1) / 2) * lh, t0: t0 + 0.4 + 0.2 * j, size, dy: 14 })));
       }));
     }
-    try {
-      Scene({ data });
-    } catch (e) {
-      if (e && typeof e.natural === "number") return e.natural;
-      throw e;
-    }
-    throw new Error("verdict_card did not reach useScene");
+    return Scene({ data });
   }
+};
+function run2(type, data, fps, durationInFrames, frame, h) {
+  const before = [H, NATURAL, CONFIG];
+  H = h;
+  NATURAL = null;
+  CONFIG = { frame, video: { fps, durationInFrames, width: 1080, height: 1920 } };
+  try {
+    const tree = SCENE[type](data);
+    return { tree, natural: NATURAL };
+  } finally {
+    [H, NATURAL, CONFIG] = before;
+  }
+}
+var ENTRANCE = {};
+for (const t2 of Object.keys(SCENE)) ENTRANCE[t2] = (data, fps, durationInFrames) => {
+  const r = run2(t2, data, fps, durationInFrames, 0, NULL_H);
+  if (typeof r.natural !== "number") throw new Error(t2 + " did not reach useScene");
+  return r.natural;
 };
 
 // src/pipeline/preview.ts
@@ -2533,6 +2525,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -2620,14 +2618,19 @@ export default function BarCompareH({ data }) {
   const gap = (i) => (i === hero ? 1.5 : 1.0);
   const tail = (i) => (i === hero ? 2.5 : 1.4);
   const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));
-  // Last entrance: the hero count-up (bar start + 1.2 + 1.3 s) or a grey value pop (start + 0.6 + 0.8 s).
-  const natural = Math.max(1.2, ...base.map((t0, i) => t0 + tail(i)));
-  const s = useScene(data, natural);
-  const k = s.k;
+  // Last entrance at the tightest spacing: the hero count-up (bar start + 1.2 + 1.3 s), a grey value pop
+  // (start + 0.6 + 0.8 s) or a name/sub brush (start + 0.6/0.72 + 0.9 s).
+  const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));
+  const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));
   // A clip with room to spare spaces the bars out (up to +1 s each, half the slack) so they follow the
-  // narration; a sped-up clip has no slack.
-  const extra = n > 1 && s.speed === 1 ? Math.min(1, Math.max(0, s.end - HOLD - natural) * 0.5 / (n - 1)) : 0;
+  // narration; a clip too short for the tight timeline has no slack. Worked out before useScene so its
+  // \`natural\` (where the preview seeks to) includes the spacing.
+  const { fps, durationInFrames } = useVideoConfig();
+  const end = durationInFrames / fps;
+  const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;
   const start = base.map((t0, i) => t0 + extra * i);
+  const s = useScene(data, Math.max(tight + extra * (n - 1), headerEnd(String(data?.title ?? ''), subtitle)));
+  const k = s.k;
   // Equal gaps between the bars and the margins x 60..1020.
   const ws = bars.map((_, i) => (i === hero ? 290 : 200));
   const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);
@@ -2873,6 +2876,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -2973,8 +2982,9 @@ export default function DonutRatio({ data }) {
     for (const j of order.slice(1)) { if (j === i) break; before += span(j); }
     return tRest(before + span(i) / 2);
   });
-  // Last entrance: the legend row that arrives last (0.8 s), or the count-up.
-  const s = useScene(data, Math.max(2.6, ...rowAt.map((x) => x + 0.8)));
+  // Last entrance: the legend row that arrives last (0.8 s, its brush 0.55 + 0.9 s), the count-up, or the hero label brush.
+  const s = useScene(data, Math.max(2.6, ...rowAt.map((x, i) => Math.max(x + 0.8, brushEnd(all[i].label, x + 0.55))), brushEnd(all[hi]?.label, 2.65),
+    headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? ''))));
   const k = s.k;
   const unit = String(data?.unit ?? '');
   const reach = span(hi) * smooth(prog(s.t, HERO[0], HERO[1])) + restSpan * smooth(prog(s.t, REST[0], REST[1]));
@@ -3230,6 +3240,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -3321,9 +3337,10 @@ export default function FlowCauseEffect({ data }) {
   const cause = { word: String(data?.cause?.word ?? ''), caption: String(data?.cause?.caption ?? '') };
   const effect = { word: String(data?.effect?.word ?? ''), caption: String(data?.effect?.caption ?? '') };
   const tCause = 0.5, tArrow = 1.6, tEffect = 2.2;
-  // Last entrance: the effect word, 0.45 + 0.8 s after its card.
-  const s = useScene(data, tEffect + 1.25);
   const subtitle = String(data?.subtitle ?? '');
+  // Last entrance: the effect word, 0.45 + 0.8 s after its card, or a caption/word brush (0.8 / 1.0 + 0.9 s after it).
+  const cardEnd = (c, t0) => Math.max(brushEnd(c.caption, t0 + 0.8), brushEnd(c.word, t0 + 1.0));
+  const s = useScene(data, Math.max(tEffect + 1.25, cardEnd(cause, tCause), cardEnd(effect, tEffect), headerEnd(String(data?.title ?? ''), subtitle)));
   const cy = (subtitle ? 190 : 150) + (794 - (subtitle ? 190 : 150)) / 2;
   const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
   const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
@@ -3530,6 +3547,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -3596,11 +3619,11 @@ const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(t
 // up from 0 and slows to a stop so its last digits read; text around it (a "$" prefix, a word before it) stays fixed.
 // \`subtitle\` sits under the card, \`source\` bottom-right.
 export default function HighlightCard({ data }) {
-  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s.
-  const s = useScene(data, 2.0);
-  const k = s.k;
   const title = String(data?.title ?? '');
   const subtitle = String(data?.subtitle ?? '');
+  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s, or a brush in the title or sub line.
+  const s = useScene(data, Math.max(2.0, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
+  const k = s.k;
   const value = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
   const unit = String(data?.unit ?? '');
   const W = 860, H = 400, x0 = (1080 - W) / 2, y0 = subtitle ? 190 : 214;
@@ -3825,6 +3848,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -3924,12 +3953,15 @@ export default function LineTrendCallout({ data }) {
   // The sweep fills the room before the hold, up to the sian's 0.6..6.4 s; cards rise after it.
   const end = durationInFrames / fps;
   const room = Math.max(end * 0.5, end - HOLD);
-  const cardsTail = cards.length ? 0.3 + 0.4 * (cards.length - 1) + 0.9 : 0;
+  // Card i rises 0.3 + 0.4 i s after the sweep (0.9 s); its brush starts 0.85 + 0.4 i s after it (0.9 s).
+  const cardsTail = Math.max(0, ...cards.map((c, i) => Math.max(0.3 + 0.4 * i + 0.9, brushEnd(c.text, 0.85 + 0.4 * i))));
   // 0.1 s of slack so the frame at the hold's first frame is already final.
   const sweepEnd = clamp(room - 0.1 - cardsTail, SWEEP_MIN, SWEEP_MAX);
   // Last entrance: the sweep (the end value lands with it), then the cards; the header is done by 1.5 s.
   // (+0.1 s slack, also kept when a short clip speeds the scene up).
-  const s = useScene(data, Math.max(1.5, sweepEnd + cardsTail) + 0.1);
+  // Axis label and threshold brushes start by 1.25 s.
+  const early = Math.max(headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? '')), brushEnd(threshold?.label, 1.25), ...pts.map((p, j) => brushEnd(p?.x, 0.7 + 0.08 * j)));
+  const s = useScene(data, Math.max(1.5, early, sweepEnd + cardsTail) + 0.1);
   const k = s.k;
 
   // Value axis from the data (and threshold): the top value sits at PLOT_TOP, the floor leaves room
@@ -4238,6 +4270,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -4532,6 +4570,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -4612,8 +4656,9 @@ const show = (v) => {
 export default function NumberCallout({ data }) {
   const reveal = Math.max(0, Number(data?.revealSec ?? 0.75));
   const fromAt = 0.5, arrowAt = fromAt + reveal, toAt = arrowAt + 0.5;
-  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts.
-  const s = useScene(data, toAt + 1.6);
+  // Last entrance: the rise/fall triangle, 1.0 + 0.6 s after the new value starts (label and header brushes end earlier
+  // unless the reveal is very short).
+  const s = useScene(data, Math.max(toAt + 1.6, brushEnd(data?.label, 0.95), headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? ''))));
   const k = s.k;
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
@@ -4860,6 +4905,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -4998,7 +5049,7 @@ export default function QuoteCard({ data }) {
   const at = (i) => FIRST_LINE + step * i;
   // Last entrance: the last quote line (or the gold rule, 0.6 + 0.9 s, when there are no lines).
   // (+0.1 s slack, also kept when a short clip speeds the scene up).
-  const s = useScene(data, (n ? at(n - 1) + tail : 1.5) + 0.1);
+  const s = useScene(data, Math.max((n ? at(n - 1) + tail : 1.5) + 0.1, brushEnd(name, 0.85), brushEnd(affiliation, 1.05)));
   const k = s.k;
   const gap = n > 4 ? Math.min(LINE_GAP, (740 - LINE_Y) / (n - 1)) : LINE_GAP;
   // Each line keeps 66 unless it would pass X1; then that line alone shrinks just enough to fit
@@ -5209,6 +5260,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -5289,8 +5346,10 @@ export default function StatCards({ data }) {
   const at = (i) => 0.45 + 0.42 * i;
   const numAt = at(n - 1) + 0.9;
   const row2At = numAt + 0.8;
-  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise) or the last number pop.
-  const s = useScene(data, two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8);
+  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise), the last number pop, or a label
+  // brush (0.85 s after its card / 0.55 s after its second-row label).
+  const brushes = cards.map((c, i) => { const [r0, r1] = rowsOf(c); return Math.max(brushEnd(r0?.label, at(i) + 0.85), brushEnd(r1?.label, row2At + 0.18 * i + 0.55)); });
+  const s = useScene(data, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data?.title ?? ''), subtitle)));
   const k = s.k;
   const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
   // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.
@@ -5533,6 +5592,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -5603,8 +5668,8 @@ export default function TextCard({ data }) {
   const sub = String(data?.sub ?? '');
   const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '');
   const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
-  // Last entrance: the sub line (0.8 s) or the last line's brush (0.55 + 0.9 s after the line starts).
-  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, at(Math.max(0, lines.length - 1)) + 1.45));
+  // Last entrance: the sub line (0.8 s, its brush 0.55 + 0.9 s) or the last line's brush (0.55 + 0.9 s after the line starts).
+  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, '')));
   const k = s.k;
   // One size for every line: the longest decides, between 56 and the requested size.
   const want = Number(data?.fontSize ?? 72);
@@ -5812,6 +5877,12 @@ function Brush({ p, seed = 0 }) {
   );
 }
 
+// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
+// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
+const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
+// The scene title and sub line brushes (Header with t0 = 0).
+const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
+
 // One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
 function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
   return (
@@ -5925,8 +5996,10 @@ export default function VerdictCard({ data }) {
   const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ''), tone: c?.tone === 'contrast' ? 'contrast' : 'accent' }));
   const subtitle = String(data?.subtitle ?? '');
   const starts = cards.map((_, i) => (i === 0 ? 0.35 : 2.0));
-  // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card) or its second line.
-  const s = useScene(data, cards.length ? starts[cards.length - 1] + 1.9 : 1.1);
+  // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card), its second line, or a line brush
+  // (0.4 + 0.2 j + 0.55 + 0.9 s after the card).
+  const lineEnd = (c, i) => Math.max(0, ...twoLines(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+  const s = useScene(data, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
   const k = s.k;
   const top = subtitle ? 200 : 150;
   const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;

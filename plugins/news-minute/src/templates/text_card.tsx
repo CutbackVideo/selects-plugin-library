@@ -12,8 +12,8 @@ export default function TextCard({ data }) {
   const sub = String(data?.sub ?? '');
   const lines = String(data?.text ?? '').split('\n').filter((l) => l.trim() !== '');
   const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
-  // Last entrance: the sub line (0.8 s) or the last line's brush (0.55 + 0.9 s after the line starts).
-  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, at(Math.max(0, lines.length - 1)) + 1.45));
+  // Last entrance: the sub line (0.8 s, its brush 0.55 + 0.9 s) or the last line's brush (0.55 + 0.9 s after the line starts).
+  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, '')));
   const k = s.k;
   // One size for every line: the longest decides, between 56 and the requested size.
   const want = Number(data?.fontSize ?? 72);

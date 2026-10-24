@@ -41,12 +41,15 @@ export default function LineTrendCallout({ data }) {
   // The sweep fills the room before the hold, up to the sian's 0.6..6.4 s; cards rise after it.
   const end = durationInFrames / fps;
   const room = Math.max(end * 0.5, end - HOLD);
-  const cardsTail = cards.length ? 0.3 + 0.4 * (cards.length - 1) + 0.9 : 0;
+  // Card i rises 0.3 + 0.4 i s after the sweep (0.9 s); its brush starts 0.85 + 0.4 i s after it (0.9 s).
+  const cardsTail = Math.max(0, ...cards.map((c, i) => Math.max(0.3 + 0.4 * i + 0.9, brushEnd(c.text, 0.85 + 0.4 * i))));
   // 0.1 s of slack so the frame at the hold's first frame is already final.
   const sweepEnd = clamp(room - 0.1 - cardsTail, SWEEP_MIN, SWEEP_MAX);
   // Last entrance: the sweep (the end value lands with it), then the cards; the header is done by 1.5 s.
   // (+0.1 s slack, also kept when a short clip speeds the scene up).
-  const s = useScene(data, Math.max(1.5, sweepEnd + cardsTail) + 0.1);
+  // Axis label and threshold brushes start by 1.25 s.
+  const early = Math.max(headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? '')), brushEnd(threshold?.label, 1.25), ...pts.map((p, j) => brushEnd(p?.x, 0.7 + 0.08 * j)));
+  const s = useScene(data, Math.max(1.5, early, sweepEnd + cardsTail) + 0.1);
   const k = s.k;
 
   // Value axis from the data (and threshold): the top value sits at PLOT_TOP, the floor leaves room

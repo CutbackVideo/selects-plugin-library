@@ -55,8 +55,10 @@ export default function VerdictCard({ data }) {
   const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 2).map((c) => ({ text: String(c?.text ?? ''), tone: c?.tone === 'contrast' ? 'contrast' : 'accent' }));
   const subtitle = String(data?.subtitle ?? '');
   const starts = cards.map((_, i) => (i === 0 ? 0.35 : 2.0));
-  // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card) or its second line.
-  const s = useScene(data, cards.length ? starts[cards.length - 1] + 1.9 : 1.1);
+  // Last entrance: the last card's icon mark (1.0 + 0.9 s after its card), its second line, or a line brush
+  // (0.4 + 0.2 j + 0.55 + 0.9 s after the card).
+  const lineEnd = (c, i) => Math.max(0, ...twoLines(c.text).map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
+  const s = useScene(data, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
   const k = s.k;
   const top = subtitle ? 200 : 150;
   const gap = cards.length > 1 ? (794 - top - 2 * CH) / 3 : (794 - top - CH) / 2;

@@ -42,8 +42,9 @@ export default function DonutRatio({ data }) {
     for (const j of order.slice(1)) { if (j === i) break; before += span(j); }
     return tRest(before + span(i) / 2);
   });
-  // Last entrance: the legend row that arrives last (0.8 s), or the count-up.
-  const s = useScene(data, Math.max(2.6, ...rowAt.map((x) => x + 0.8)));
+  // Last entrance: the legend row that arrives last (0.8 s, its brush 0.55 + 0.9 s), the count-up, or the hero label brush.
+  const s = useScene(data, Math.max(2.6, ...rowAt.map((x, i) => Math.max(x + 0.8, brushEnd(all[i].label, x + 0.55))), brushEnd(all[hi]?.label, 2.65),
+    headerEnd(String(data?.title ?? ''), String(data?.subtitle ?? ''))));
   const k = s.k;
   const unit = String(data?.unit ?? '');
   const reach = span(hi) * smooth(prog(s.t, HERO[0], HERO[1])) + restSpan * smooth(prog(s.t, REST[0], REST[1]));

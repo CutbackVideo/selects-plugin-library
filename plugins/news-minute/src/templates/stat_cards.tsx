@@ -22,8 +22,10 @@ export default function StatCards({ data }) {
   const at = (i) => 0.45 + 0.42 * i;
   const numAt = at(n - 1) + 0.9;
   const row2At = numAt + 0.8;
-  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise) or the last number pop.
-  const s = useScene(data, two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8);
+  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise), the last number pop, or a label
+  // brush (0.85 s after its card / 0.55 s after its second-row label).
+  const brushes = cards.map((c, i) => { const [r0, r1] = rowsOf(c); return Math.max(brushEnd(r0?.label, at(i) + 0.85), brushEnd(r1?.label, row2At + 0.18 * i + 0.55)); });
+  const s = useScene(data, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data?.title ?? ''), subtitle)));
   const k = s.k;
   const gap = 36, W = (X1 - X0 - gap * (n - 1)) / n, BAND = 84;
   // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.
