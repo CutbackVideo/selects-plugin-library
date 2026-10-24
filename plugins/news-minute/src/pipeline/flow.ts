@@ -434,6 +434,24 @@ export function rowsDraft(s: Session): PreviewDraft | null {
 }
 export const finalName = (s: Session) => s.script?.headline.line1 || s.article?.title || "News short";
 export const previewName = (s: Session, prefix: string) => prefix + " \u00b7 " + (s.article?.title || finalName(s));
+// A confirmed edit Draft's name when other Drafts already use it: "name (2)", "name (3)", ... (Drafts are never
+// renamed for it; the earlier ones keep theirs).
+export function uniqueName(name: string, taken: string[]): string {
+  const used = new Set(taken.map((x) => x.trim()));
+  let out = name;
+  for (let n = 2; used.has(out.trim()); n++) out = name + " (" + n + ")";
+  return out;
+}
+// The names of the Project's other Drafts (not `except`, the Draft about to take the name).
+export async function draftNames(sdk: PanelSdk, projectId: string, except: string | null): Promise<string[]> {
+  const names = await run<string[]>(sdk, { summary: "Read the Project's Draft names", script: `const out = [];
+for (const id of (await selects.project(${JSON.stringify(projectId)}).meta()).draftIds ?? []) {
+  if (id === ${JSON.stringify(except ?? "")}) continue;
+  try { out.push(String((await selects.draft(id).meta()).name ?? "")); } catch {}
+}
+return out;` });
+  return Array.isArray(names) ? names : [];
+}
 
 // The Draft a recorded preview can be refilled into: same Project, look and plate length (the narration is put
 // back on, so a new narration of the same length still fits).

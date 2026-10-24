@@ -8082,6 +8082,21 @@ function rowsDraft(s) {
 }
 var finalName = (s) => s.script?.headline.line1 || s.article?.title || "News short";
 var previewName = (s, prefix) => prefix + " \xB7 " + (s.article?.title || finalName(s));
+function uniqueName(name, taken) {
+  const used = new Set(taken.map((x) => x.trim()));
+  let out = name;
+  for (let n = 2; used.has(out.trim()); n++) out = name + " (" + n + ")";
+  return out;
+}
+async function draftNames(sdk, projectId, except) {
+  const names = await run(sdk, { summary: "Read the Project's Draft names", script: `const out = [];
+for (const id of (await selects.project(${JSON.stringify(projectId)}).meta()).draftIds ?? []) {
+  if (id === ${JSON.stringify(except ?? "")}) continue;
+  try { out.push(String((await selects.draft(id).meta()).name ?? "")); } catch {}
+}
+return out;` });
+  return Array.isArray(names) ? names : [];
+}
 var canRefill = (p, projectId, presetId, plateLen, videos = []) => !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
 var PartialDraftError = class extends Error {
   draft;
@@ -8698,7 +8713,7 @@ function NewsMinutePanel({ sdk, context }) {
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n"))) return;
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
-    const name = finalName(s);
+    const name = uniqueName(finalName(s), await draftNames(sdk, s.projectId, s.preview?.draftId ?? null).catch(() => []));
     let draftId, placed;
     try {
       let renamed = false;
