@@ -316,7 +316,7 @@ test('text outside a card stays inside x 60..1020 while it comes in; the trend e
   assert.match(fitProblems('line_trend_callout', wide).errors[0], /^end value ".*" does not fit: it runs out of its safe area while it comes in/);
 });
 
-test('a count lays out at the longest text it shows; a count that would leave x 60..1020 does not run', async () => {
+test('a count down is centred on what it shows; a count that would leave x 60..1020 does not run', async () => {
   const { fitProblems } = await import('../src/prompts/fit.ts');
   const { layoutReports } = await import('../src/templates/entrance.generated.ts');
   const { issueText } = await import('../src/issues.ts');
@@ -326,10 +326,13 @@ test('a count lays out at the longest text it shows; a count that would leave x 
   // x -370.75..520.98 (1000000000 -> 1\uC6D0) at frame 70.
   const cases = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-0641a86.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
   const reps = (id) => layoutReports(cases[id].type, cases[id].data).filter((r) => r.what === cases[id].type.replace(/^number_callout$/, 'new value').replace(/^line_trend_callout$/, 'end value'));
-  // The slot is as wide as 1,000,000: the line (with unit and triangle) fits x 60..1020 at the popped size, so it counts;
-  // its left edge at the peak is where Chrome draws 1,000,000 (x 83.73 at frame 70).
+  // Counting down, the line is centred on what the count shows: 1,000,000 with its unit and triangle fits x 60..1020 at
+  // the popped size, so it counts; its left edge at the peak is where Chrome draws 1,000,000 (x 83.73 at frame 70), and
+  // the finished 999,999 is centred.
   const [won, wonGrown] = reps('number-down-one-won');
   assert.equal(won.text, '999,999\uC6D0');
+  assert.ok(Math.abs((won.box[0] + won.box[2]) / 2 - 540) < 0.01, won.box.join());
+  assert.equal(wonGrown.text, '1,000,000\uC6D0');
   assert.ok(Math.abs(wonGrown.box[0] - 83.73) < 0.5, wonGrown.box.join());
   assert.deepEqual(fitProblems(cases['number-down-one-won'].type, cases['number-down-one-won'].data), { errors: [], warnings: [] });
   // 1000000000 is wider than x 60..1020 allows at 150 px: the value pops in as 1\uC6D0, centred, without counting.
