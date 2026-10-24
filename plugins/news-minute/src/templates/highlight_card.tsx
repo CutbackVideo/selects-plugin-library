@@ -17,13 +17,18 @@ export default function HighlightCard({ data }) {
   // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s, or a brush in the title or sub line.
   const s = useScene(data, Math.max(2.0, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
   const k = s.k;
-  const value = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
+  const raw = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
+  // The count-up lands on its final text (1000000 -> 1,000,000): the lines and the layout check use that text.
+  const final = countable(raw);
+  const value = final ? counted(final, 1) : raw;
   const unit = String(data?.unit ?? '');
   const titleLines = title ? wrapLines(title, 50, W - 80) : [];
   const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
-  const vLines = wrapLines(value, 150, IN);
+  // Value and unit at their drawn widths (tabular digits, letter spacing, the unit's 6 px margin).
+  const valueW = (t) => textW(t, 150, 800, -4), unitW = unit ? textW(unit, 80, 700) : 0;
+  const vLines = wrapLines(value, 150, IN, valueW);
   // The unit stays beside the last value line when it fits there.
-  const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
+  const unitOwn = !!unit && valueW(vLines[vLines.length - 1]) + 6 + unitW > IN;
   const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
   const H = 400 + grow;
   const x0 = (1080 - W) / 2;
@@ -37,8 +42,9 @@ export default function HighlightCard({ data }) {
   const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H];
   report('card', title + ' ' + value + unit, [x0, y0, x0 + W, y0 + H], [X0, 0, X1, roomBottom(data)]);
   reportLines('title', titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: 'c' })), 50, inCard(40));
-  reportLines('value', vLines.map((l, r) => ({ text: l, x: 540, y: vy + VL * r, anchor: 'c' })), 150, inCard(50));
-  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c' }] : [], 80, inCard(50), 1);
+  const beside = (r) => !!unit && !unitOwn && r === vLines.length - 1;
+  reportLines('value', vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ''), x: 540, y: vy + VL * r, anchor: 'c', w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50));
+  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c', w: unitW }] : [], 80, inCard(50), 1);
   reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H + 58 + 40 * j, anchor: 'c' })), 30, [X0, 0, X1, roomBottom(data)]);
   return (
     <Win s={s} data={data}>

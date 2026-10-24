@@ -33,20 +33,23 @@ export default function StatCards({ data }) {
   const s = useScene(data, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data?.title ?? ''), subtitle)));
   const k = s.k;
   const gap = 36;
-  const widest = (w) => Math.max(0, ...cards.map((c) => { const r0 = rowsOf(c)[0]; return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0; }));
+  // Key numbers and units at their drawn widths (tabular digits, letter spacing); the second-row value is not tabular.
+  const numW = (t) => textW(t, 72, 800, -1.5), unitW = (u) => textW(u, 36, 700), row2W = (t) => textW(t, 38, 800, -0.5, false);
+  const widest = (w) => Math.max(0, ...cards.map((c) => { const r0 = rowsOf(c)[0]; return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28, numW).map(numW)) : 0; }));
   const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
   const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
   // Each card's text as lines, then each row's height from the card that needs the most lines.
   const laid = cards.map((c) => {
     const [r0, r1] = rowsOf(c);
-    const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
+    const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28, numW) : [];
     const u0 = String(r0?.unit ?? '');
-    const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
+    // The unit (2 px after the number) stays beside the last number line when the two fit the card together.
+    const unitOwn = !!u0 && v0.length > 0 && numW(v0[v0.length - 1]) + 2 + unitW(u0) > W - 28;
     return {
       header: wrapLines(plainText(String(c?.header ?? '')), 44, W - 24), r0, r1, v0, u0, unitOwn,
       label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
       label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
-      v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ''), 38, W - 24) : [],
+      v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ''), 38, W - 24, row2W) : [],
     };
   });
   const most = (f) => Math.max(1, ...laid.map(f));
@@ -71,10 +74,12 @@ export default function StatCards({ data }) {
     report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)], { cause });
     reportLines('card name', lines(c.header, y0 - 2 + (BAND + d1) / 2 - (BL * (c.header.length - 1)) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
     reportLines('card label', lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
-    reportLines('card number', lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
-    reportLines('card unit', c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: 'c' }] : [], 36, inCard(14), 1);
+    // The number with its unit when the unit is beside the last line, as drawn.
+    const beside = (j) => !!c.u0 && !c.unitOwn && j === c.v0.length - 1;
+    reportLines('card number', lines(c.v0, y0 + 214 + d2, VL).map((l, j) => ({ ...l, text: l.text + (beside(j) ? c.u0 : ''), w: numW(l.text) + (beside(j) ? 2 + unitW(c.u0) : 0) })), 72, inCard(14));
+    reportLines('card unit', c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: 'c', w: unitW(c.u0) }] : [], 36, inCard(14), 1);
     reportLines('second label', lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));
-    reportLines('second value', lines(c.v1, y0 + 385 + d4, V2), 38, inCard(12));
+    reportLines('second value', lines(c.v1, y0 + 385 + d4, V2).map((l) => ({ ...l, w: row2W(l.text) })), 38, inCard(12));
   });
   return (
     <Win s={s} data={data}>

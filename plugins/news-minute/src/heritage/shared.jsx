@@ -246,15 +246,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
+// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
+// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at
+// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
+// `ls` is the letter spacing in px, which Chrome adds after every character.
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+};
+// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+// At weight 800 (the 700 widths are at most 3% less).
+const ADV_MORE = { '\u00B7': 292, '\u00B0': 445, '\u2103': 1159, '\u00D7': 662, '\u2013': 482, '\u2014': 969, '\u2026': 875, '\u20A9': 917, '\u20AC': 669, '\u00A3': 660, '\u2030': 1360, '\u2191': 924, '\u2193': 924, '\u2192': 924, '\u25B2': 1025, '\u25BC': 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 0x20 && c <= 0x7e) {
+    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+  }
+  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
+  return (ADV_MORE[ch] ?? 1000) / 1000;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at `size` (by ems): '\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \uC5B5/\uB9CC when digits follow (1\uC5B55000\uB9CC -> 1\uC5B5 / 5000\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? '').split('\n')) {
     // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.
@@ -270,7 +294,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     // A mark that fits a line is one word; a longer one stays as its pieces.
     const words = [];
     for (let i = 0; i < pieces.length;) {
@@ -319,12 +343,13 @@ function wrapLines(text, size, maxW) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
+// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
 function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== 'function' || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));

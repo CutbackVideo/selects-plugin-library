@@ -33,22 +33,30 @@ export default function NumberCallout({ data }) {
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
   const unit = String(data?.unit ?? '');
-  const from = show(data?.from), to = show(data?.to);
-  const cf = countable(from), ct = countable(to);
+  const from = show(data?.from), raw = show(data?.to);
+  const cf = countable(from), ct = countable(raw);
   const cp = smooth(prog(s.t, toAt, toAt + 1.2));
   // Count from the old value when both hold one number in the same format, else from 0.
-  const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail
+  const same = cf && ct && cf.head === ct.head && cf.tail === ct.tail;
+  const running = !ct ? raw : same
     ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1)
     : counted(ct, cp);
+  // The text the count-up lands on ("1000000" -> 1,000,000): the lines and the layout check use it.
+  const to = !ct ? raw : same ? counted({ ...ct, decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, 1);
   const top = title ? 150 : 40;
   const mid = (top + 794) / 2;
   // Rose or fell: only when both values hold one number in the same format.
   const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
   const labelLines = label ? wrapLines(label, 44, W) : [];
-  const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+  // Values and units at their drawn widths: tabular digits, the line's letter spacing (on the unit beside it too),
+  // the unit's margin; the new value's triangle takes 62 px (18 + 44). Values may use the whole graphic area x 60..1020.
+  const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
+  const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
+  const VW = X1 - X0;
+  const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, VW, toW);
   const last = (l) => l[l.length - 1];
-  const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
-  const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+  const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
+  const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > VW;
   // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
   const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
   const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
@@ -64,20 +72,20 @@ export default function NumberCallout({ data }) {
   const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data) - 6), first.top - (top + 6))));
   const counts = toLines.length === 1 && !toOwn;
   const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
-  const area = [X0 + 30, top, X1 - 30, roomBottom(data)];
+  const area = [X0 + 30, top, X1 - 30, roomBottom(data)], valueArea = [X0, top, X1, roomBottom(data)];
   const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: 'c' }));
   reportLines('label', col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
   // A value's lines with the unit (at its own smaller size) beside the last one, as drawn.
-  const valueReport = (what, list, y, step, size, uSize, own) => {
+  const valueReport = (what, list, y, step, size, lineW, beside, own) => {
     if (!list.length) return;
-    const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+    const w = list.map((l, j) => lineW(l) + (j === list.length - 1 ? beside : 0));
     const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
-    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], valueArea, { size, lines: list.length, maxLines: 2 });
   };
-  valueReport('old value', fromLines, yFrom, FL, 96, 53, fromOwn);
-  reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
-  valueReport('new value', toLines, yTo, TL, 150, 80, toOwn);
-  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
+  valueReport('old value', fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
+  reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
+  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn);
+  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   const triangle = dir ? (
