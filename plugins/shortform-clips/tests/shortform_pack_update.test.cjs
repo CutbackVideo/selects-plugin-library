@@ -119,7 +119,7 @@ test('template pack update button follows the published catalog without the GitH
  // The panel's handlers, run against a fake host that re-checks the catalog on each registration.
  function harness({latest=commit,installedVersion='1.0.0',installSource={kind:'catalog',url:official('a'.repeat(40))},hostAnswers=true,catalogVersion='2.0.0',dirty=false,registers=true,becomesBusy=false}={}){
   const start=source.indexOf('  const catalogWaiters = React.useRef');
-  const end=source.indexOf('  React.useEffect(() => {\n    if (!sdk.updates?.register || !sdk.runShell) return;',start);
+  const end=source.indexOf('  React.useEffect(() => {\n    if (!templatesReady || !sdk.updates?.register || !sdk.runShell) return;',start);
   const updStart=source.indexOf('  const [packUpdate, setPackUpdate]');
   const updEnd=source.indexOf('  async function transferTemplate(',updStart);
   const code=esbuild.transformSync(source.slice(start,end)+source.slice(updStart,updEnd)+';return {readCatalogLatest,updatePack};',{loader:'tsx'}).code;
