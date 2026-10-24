@@ -1315,8 +1315,10 @@ var SCENE = {
       }), n && done ? /* @__PURE__ */ STUB("circle", { cx: P[n - 1][0], cy: P[n - 1][1], r: 13, fill: C.ivory, stroke: C.acc, strokeWidth: 6 }) : null, !done && drawn.length > 1 ? /* @__PURE__ */ STUB("circle", { cx: drawn[drawn.length - 1][0], cy: drawn[drawn.length - 1][1], r: 8, fill: u > accentFrom ? C.acc : C.ink2 }) : null), labels.map((i, j) => /* @__PURE__ */ STUB(Rise, { key: i, s, t0: 0.15 + 0.08 * j, dy: 8, x: X(i), y: base + 38 }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: String(pts[i].x ?? ""), hlAt: 0.7 + 0.08 * j })))), threshold && String(threshold.label ?? "") !== "" ? /* @__PURE__ */ STUB(Rise, { s, t0: 0.7, dy: 8, x: X0, y: thY - 24, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 800, color: C.accD } }, /* @__PURE__ */ STUB(Marked, { s, text: String(threshold.label), hlAt: 1.25 }))) : null, keys.map((i) => {
         const q = smooth(clamp((u - i) / 0.9 + (i === 0 && s.t > SWEEP_FROM ? 0.3 : 0)));
         const text = valueText(vals[i]);
-        const half = ems(text) * 40 / 2;
-        return /* @__PURE__ */ STUB(At, { key: i, s, x: Math.max(X0 + half, P[i][0] - (i === 0 ? 14 : 0)), y: P[i][1] - 48, style: { opacity: q, transform: "translate(-50%,-50%) translateY(" + (1 - q) * 10 * k + "px)" } }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 800, letterSpacing: -1 * k } }, text));
+        const w = font(40, 800, -1)(text);
+        const x = Math.max(X0 + w / 2, P[i][0] - (i === 0 ? 14 : 0)), y = P[i][1] - 48;
+        report("point value", text, [x - w / 2, y - 24, x + w / 2, y + 24], [X0, 112, X1, base], { size: 40, lines: 1, maxLines: 1 });
+        return /* @__PURE__ */ STUB(At, { key: i, s, x, y, style: { opacity: q, transform: "translate(-50%,-50%) translateY(" + (1 - q) * 10 * k + "px)" } }, /* @__PURE__ */ STUB("div", { style: { fontSize: 40 * k, fontWeight: 800, letterSpacing: -1 * k } }, text));
       }), n && endText !== "" ? count ? /* @__PURE__ */ STUB(At, { s, x: X1, y: endY, anchor: "r", style: { opacity: smooth(Math.min(1, f * 2.5)) } }, endLabel) : /* @__PURE__ */ STUB(Pop, { s, t0: popAt, x: X1, y: endY, anchor: "r" }, endLabel) : null, cards.map((c, i) => {
         const hot = c?.tone === "accent";
         const { head, value } = cardText[i];
@@ -3341,9 +3343,12 @@ export default function LineTrendCallout({ data }) {
       {keys.map((i) => {
         const q = smooth(clamp((u - i) / 0.9 + (i === 0 && s.t > SWEEP_FROM ? 0.3 : 0)));
         const text = valueText(vals[i]);
-        const half = (ems(text) * 40) / 2;
+        // Measured as drawn, so a label near the left edge starts at x 60 (it fades in without growing).
+        const w = font(40, 800, -1)(text);
+        const x = Math.max(X0 + w / 2, P[i][0] - (i === 0 ? 14 : 0)), y = P[i][1] - 48;
+        report('point value', text, [x - w / 2, y - 24, x + w / 2, y + 24], [X0, 112, X1, base], { size: 40, lines: 1, maxLines: 1 });
         return (
-          <At key={i} s={s} x={Math.max(X0 + half, P[i][0] - (i === 0 ? 14 : 0))} y={P[i][1] - 48} style={{ opacity: q, transform: 'translate(-50%,-50%) translateY(' + (1 - q) * 10 * k + 'px)' }}>
+          <At key={i} s={s} x={x} y={y} style={{ opacity: q, transform: 'translate(-50%,-50%) translateY(' + (1 - q) * 10 * k + 'px)' }}>
             <div style={{ fontSize: 40 * k, fontWeight: 800, letterSpacing: -1 * k }}>{text}</div>
           </At>
         );
@@ -5624,6 +5629,7 @@ var WHAT = {
   "card header": "\uCE74\uB4DC \uBA38\uB9AC\uAE00",
   "card value": "\uCE74\uB4DC \uAC12",
   "end value": "\uB05D \uAC12",
+  "point value": "\uC810 \uAC12",
   sentence: "\uBB38\uC7A5"
 };
 var field = (path) => path.split(".").map((seg) => {

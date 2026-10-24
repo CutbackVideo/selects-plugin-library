@@ -348,6 +348,24 @@ test('a count down is centred on what it shows; a count that would leave x 60..1
   assert.match(issueText('ko', err), /\uC22B\uC790\uAC00 \uBC14\uB00C\uB294 \uB3D9\uC548 \uC548\uC804 \uC601\uC5ED\(x60~1020\) \uBC16\uC73C\uB85C/);
 });
 
+test('trend point values are placed and checked at their drawn width', async () => {
+  const { fitProblems } = await import('../src/prompts/fit.ts');
+  const { layoutReports } = await import('../src/templates/entrance.generated.ts');
+  const { issueText } = await import('../src/issues.ts');
+  // F106B06 review input trend-cards-long: placed by an estimate, the first point's "1440" was drawn at x 58.43 with no
+  // error (Chrome, finished frame). Measured, it starts at x 60.
+  const data = { title: '\uD604\uAE08 \uBCF4\uC720\uC561', source: '\uD68C\uC0AC \uC790\uB8CC', unit: '\uC5B5 \uB2EC\uB7EC', points: [{ x: '2021', y: 1440 }, { x: '2022', y: 1289 }, { x: '2023', y: 1676 }, { x: '2024', y: 3252 }], endLabel: 3252, accentFrom: 2 };
+  const points = layoutReports('line_trend_callout', data).filter((r) => r.what === 'point value');
+  assert.deepEqual(points.map((r) => r.text), ['1440', '1289', '1676']);
+  assert.ok(Math.abs(points[0].box[0] - 60) < 0.01, points[0].box.join());
+  assert.deepEqual(fitProblems('line_trend_callout', data), { errors: [], warnings: [] });
+  // A point value wider than x 60..1020 is an error.
+  const wide = { ...data, points: [{ x: 'a', y: 1 }, { x: 'b', y: 1e33 }, { x: 'c', y: 2 }, { x: 'd', y: 3 }], endLabel: 3 };
+  const [err] = fitProblems('line_trend_callout', wide).errors;
+  assert.match(err, /^point value ".*" does not fit: wider than its room at 40 px/);
+  assert.match(issueText('ko', err), /^\uC810 \uAC12 /);
+});
+
 test('heritage scene types validate and allow one hero only', () => {
   const sents = [{id: 's1', text: '46 of 105, 43.8 percent.', startSec: 0, endSec: 6}];
   const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});
