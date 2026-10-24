@@ -89,3 +89,15 @@ test("long text keeps its style-spec size and breaks onto more lines", () => {
     assert.equal(drawn.filter((d) => d.fs === spec[0]).length, lines, t + " " + JSON.stringify(drawn));
   }
 });
+
+test('a { } mark wider than a line breaks at its spaces and each line keeps its brush', async () => {
+  const { readFileSync } = await import('node:fs');
+  const c = JSON.parse(readFileSync(new URL('./fixtures/layout-cases-14b3d80.json', import.meta.url), 'utf8')).find((x) => x.id === 'text-marked');
+  const tree = render(c.type, c.data, 300, 299);
+  const lines = [];
+  const walk = (n) => { if (!n || typeof n !== 'object') return; if (n.props?.style?.transform === 'translate(-50%,-50%)' && /\uBC18\uB3C4\uCCB4\uC8FC|\uBC84\uD06C\uC154/.test(text(n))) lines.push(n); else n.children.forEach(walk); };
+  walk(tree);
+  assert.deepEqual(lines.map(text), ['\uBC18\uB3C4\uCCB4\uC8FC 14% \uC774\uC0C1 \uD558\uB77D', '\uBC84\uD06C\uC154 7% \uC774\uC0C1 \uC0C1\uC2B9']);
+  const brushed = (n) => n && typeof n === 'object' && (n.type === 'svg' || n.children.some(brushed));
+  assert.ok(lines.every(brushed));
+});

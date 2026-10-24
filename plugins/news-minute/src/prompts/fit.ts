@@ -1,59 +1,44 @@
 // Will a scene's text fit at its style-spec size? The templates never shrink text (style spec 1): a line that
-// is too wide breaks onto the next one (src/heritage/shared.jsx wrapLines). These are the same width estimates,
-// used to warn about text that would take more than two lines or cannot fit its box even broken up.
+// is too wide breaks onto the next one (src/heritage/shared.jsx wrapLines). Rather than estimate the layout
+// again, this runs the template source itself at its last frame (layoutReports) and reads where each block of
+// text ended up and the room it may use. Text outside its room (cut off at the window edge, over the source
+// line, out of its card) or lines on top of each other is an error: the scene cannot become the video until the
+// text is shortened or the scene split. More lines than the type's usual count is only a warning.
 
-// Width in em: Latin and digits ~0.58, Hangul ~0.95, a space 0.3 (heritage `ems`).
-const ems = (text: string) => [...text].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-const plain = (text: string) => text.replace(/[[\]{}]/g, "");
+import { layoutReports } from "../templates/entrance.generated.ts";
 
-// Words a template may break between: spaces, and in a number after the Korean units for 10^8 / 10^4 when
-// digits follow (1\uC5B55000\uB9CC -> 1\uC5B5 / 5000\uB9CC).
-const words = (text: string) => plain(text).split(" ").flatMap((w) => w.split(/(?<=\d[\uC5B5\uB9CC])(?=\d)/)).filter(Boolean);
+type Report = { what: string; text: string; box: number[]; area: number[]; size?: number; lines?: number; maxLines?: number; overlap?: boolean };
 
-// Lines `text` takes at `size` px in `maxW` px (greedy), and whether one word alone is wider than maxW.
-export function lineFit(text: string, size: number, maxW: number): { lines: number; tooWide: boolean } {
-  let lines = 0, tooWide = false;
-  for (const para of String(text).split("\n")) {
-    let line = "";
-    for (const w of words(para)) {
-      if (ems(w) * size > maxW) tooWide = true;
-      const next = line ? line + " " + w : w;
-      if (line && ems(next) * size > maxW) { lines++; line = w; } else line = next;
+// Every layout error carries this phrase (the Panel and settlePlan tell them from other plan errors by it).
+export const LAYOUT_ERROR = /\bdoes not fit\b/;
+
+// Less than this past the room is rounding in the width estimate, not a cut.
+const SLACK = 1;
+
+// Errors and warnings (without the scene prefix) for the scene's text as the template lays it out.
+export function fitProblems(type: string, p: Record<string, any>): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [], warnings: string[] = [];
+  let reports: Report[];
+  try { reports = layoutReports(type, p ?? {}); }
+  catch { return { errors, warnings }; }
+  for (const r of reports) {
+    const [x0, y0, x1, y1] = r.box, [ax0, ay0, ax1, ay1] = r.area;
+    const text = [...r.text].length > 40 ? [...r.text].slice(0, 39).join("") + "\u2026" : r.text;
+    const quoted = `${r.what} "${text}"`;
+    const at = r.size ? ` at ${r.size} px` : "";
+    if (r.what === "card") {
+      if (y1 > ay1 + SLACK) errors.push(`${quoted} does not fit: the cards run below their room (over the source line); shorten the card names and labels or use fewer cards`);
+      else if (y0 < ay0 - SLACK || x0 < ax0 - SLACK || x1 > ax1 + SLACK) errors.push(`${quoted} does not fit: the card runs out of the window; shorten its text or use fewer cards`);
+    } else if (x0 < ax0 - SLACK || x1 > ax1 + SLACK) {
+      errors.push(`${quoted} does not fit: wider than its room${at} even on a line of its own (text is never made smaller), so it would be cut off; shorten it`);
+    } else if (y0 < ay0 - SLACK || y1 > ay1 + SLACK) {
+      errors.push(`${quoted} does not fit: ${r.lines === 1 ? "its line" : r.lines + " lines"}${at} run${r.lines === 1 ? "s" : ""} past its room (text is never made smaller), so it would be cut off or cover the source; shorten it or split the scene`);
+    } else if (r.overlap) {
+      errors.push(`${quoted} does not fit: its lines overlap; shorten it or split the scene`);
+    } else if ((r.lines ?? 0) > (r.maxLines ?? Infinity)) {
+      warnings.push(`${quoted} takes ${r.lines} lines${at} (text is never made smaller); shorten it or split the scene`);
     }
-    lines++;
   }
-  return { lines, tooWide };
-}
-
-const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
-
-// Warnings (without the scene prefix) for text that will not sit at its size within two lines.
-export function fitWarnings(type: string, p: Record<string, any>): string[] {
-  const out: string[] = [];
-  const check = (what: string, text: string, size: number, maxW: number, maxLines = 2) => {
-    if (!text.trim()) return;
-    const f = lineFit(text, size, maxW);
-    if (f.tooWide) out.push(`${what} "${plain(text)}" is wider than its box at ${size} px even on a line of its own; shorten it`);
-    else if (f.lines > maxLines) out.push(`${what} "${plain(text)}" takes ${f.lines} lines at ${size} px (text is never made smaller); shorten it or split the scene`);
-  };
-  if (type === "text_card") for (const l of str(p.text).split("\n")) check("text line", l, Number(p.fontSize ?? 72), 960);
-  if (type === "quote_card") {
-    for (const l of Array.isArray(p.lines) ? p.lines : []) check("quote line", str(l), 66, 960);
-    check("name", str(p.name), 76, 690, 1);
-  }
-  if (type === "highlight_card") {
-    check("title", str(p.title), 50, 780);
-    check("value", str(p.value), 150, 760);
-  }
-  if (type === "stat_cards" && Array.isArray(p.cards)) {
-    const cards = p.cards.slice(0, 4);
-    const two = cards.some((c: any) => Array.isArray(c?.rows) && c.rows.length > 1);
-    // Four one-row cards whose numbers do not fit a quarter of the width go two by two (462 wide).
-    const quarter = (960 - 36 * 3) / 4 - 28;
-    const grid = cards.length === 4 && !two && cards.some((c: any) => words(str(c?.rows?.[0]?.value)).some((w) => ems(w) * 72 > quarter));
-    const n = grid ? 2 : Math.max(1, cards.length);
-    const w = (960 - 36 * (n - 1)) / n;
-    for (const c of cards) check("card number", str(c?.rows?.[0]?.value), 72, w - 28);
-  }
-  return out;
+  // Cards with the same text report the same problem once.
+  return { errors: [...new Set(errors)], warnings: [...new Set(warnings)] };
 }

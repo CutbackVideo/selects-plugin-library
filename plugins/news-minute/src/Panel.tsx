@@ -10,7 +10,7 @@ import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
 import { renameDraft } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
-import { SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
+import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
 
@@ -285,7 +285,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     const plan = s.plan;
     if (!plan || !F.previewFresh(s)) return;
     const v = F.checkPlan(plan);
-    const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e));
+    // Text that does not fit (cut off, over the source, out of its card) cannot become the video either.
+    const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e) || LAYOUT_ERROR.test(e));
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
     if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
@@ -363,6 +364,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
       }
     };
     sort(v.errors, rowErrors, general);
+    const unfit = v.errors.some((e) => LAYOUT_ERROR.test(e));
+    const confirmable = F.previewFresh(s) && !unfit;
     // An asset used too often is reported once by ref; show it on every row that uses that asset.
     const notes: string[] = [];
     sort(v.warnings, rowWarnings, notes);
@@ -500,8 +503,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
         </details>
         {video ? null : (
           <>
-            <button {...(F.previewFresh(s) ? {} : SECONDARY)} disabled={busy || !F.previewFresh(s)} onClick={build}>{T("buildFromPlan")}</button>
-            <span style={muted}>{T(F.previewFresh(s) ? "confirmHint" : "confirmNeedsPreview")}</span>
+            <button {...(confirmable ? {} : SECONDARY)} disabled={busy || !confirmable} onClick={build}>{T("buildFromPlan")}</button>
+            <span style={unfit ? warn : muted}>{T(unfit ? "confirmNeedsFit" : F.previewFresh(s) ? "confirmHint" : "confirmNeedsPreview")}</span>
           </>
         )}
       </div>

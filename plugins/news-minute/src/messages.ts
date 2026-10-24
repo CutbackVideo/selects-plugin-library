@@ -119,6 +119,7 @@ export const MESSAGES: Record<string, [string, string]> = {
   rounds: ["Rebuilt {n} time(s)", "\ub2e4\uc2dc \ub9cc\ub4e4\uae30 {n}\ud68c"],
   buildFromPlan: ["Use this layout", "\uc774 \uad6c\uc131\uc73c\ub85c \ud655\uc815"],
   confirmHint: ["The preview you checked becomes the edit Draft.", "\ud655\uc778\ud55c \ubbf8\ub9ac\ubcf4\uae30\ub97c \ud3b8\uc9d1\ubcf8\uc73c\ub85c \uc0ac\uc6a9\ud574\uc694."],
+  confirmNeedsFit: ["Some scenes have text that does not fit (\u2716 on the row). Shorten it or split the scene, update the preview, then confirm.", "\uae00\uc790\uac00 \ud654\uba74\uc5d0 \ub2e4 \ub4e4\uc5b4\uac00\uc9c0 \uc54a\ub294 \uc7a5\uba74\uc774 \uc788\uc5b4\uc694(\uc904\uc758 \u2716). \ubb38\uad6c\ub97c \uc904\uc774\uac70\ub098 \uc7a5\uba74\uc744 \ub098\ub208 \ub4a4 \ubbf8\ub9ac\ubcf4\uae30\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uba74 \ud655\uc815\ud560 \uc218 \uc788\uc5b4\uc694."],
   confirmNeedsPreview: ["Update the preview and check it in the viewer first; then you can confirm.", "\ubbf8\ub9ac\ubcf4\uae30\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uace0 \ubdf0\uc5b4\uc5d0\uc11c \ud655\uc778\ud55c \ub4a4 \ud655\uc815\ud560 \uc218 \uc788\uc5b4\uc694."],
   feedbackOpen: ["Leave a note on the layout", "\ud654\uba74 \uad6c\uc131\uc5d0 \uc758\uacac \ub0a8\uae30\uae30"],
   rowErrors: ["{n} problem(s) to fix \u00b7 see Edit", "\uace0\uccd0\uc57c \ud560 \uc810 {n}\uac1c \u00b7 \uc218\uc815\uc5d0\uc11c \ubcf4\uae30"],

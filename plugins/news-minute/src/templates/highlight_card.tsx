@@ -34,6 +34,12 @@ export default function HighlightCard({ data }) {
   const num = { fontSize: 150 * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * k, fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   const unitStyle = { fontSize: 80 * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 };
   const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
+  const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H];
+  report('card', title + ' ' + value + unit, [x0, y0, x0 + W, y0 + H], [X0, 0, X1, roomBottom(data)]);
+  reportLines('title', titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: 'c' })), 50, inCard(40));
+  reportLines('value', vLines.map((l, r) => ({ text: l, x: 540, y: vy + VL * r, anchor: 'c' })), 150, inCard(50));
+  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c' }] : [], 80, inCard(50), 1);
+  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H + 58 + 40 * j, anchor: 'c' })), 30, [X0, 0, X1, roomBottom(data)]);
   return (
     <Win s={s} data={data}>
       <Rise s={s} t0={0} dur={0.9} dy={22} x={x0} y={y0} anchor="lt">
