@@ -804,8 +804,24 @@ function countable(v) {
 }
 var counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString("en-US", { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
 var ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
+var ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662]
+};
+var ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+var ADV_MORE = { "\xB7": 292, "\xB0": 445, "\u2103": 1159, "\xD7": 662, "\u2013": 482, "\u2014": 969, "\u2026": 875, "\u20A9": 917, "\u20AC": 669, "\xA3": 660, "\u2030": 1360, "\u2191": 924, "\u2193": 924, "\u2192": 924, "\u25B2": 1025, "\u25BC": 1025 };
+var advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 32 && c <= 126) {
+    const prop = tnum ? -1 : "0123456789,".indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 32]) / 1e3;
+  }
+  if (c >= 44032 && c <= 55203 || c >= 12592 && c <= 12687 || c >= 4352 && c <= 4607) return 0.864;
+  return (ADV_MORE[ch] ?? 1e3) / 1e3;
+};
+var textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 var CLOSE = { "[": "]", "{": "}" };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t2) => ems(t2) * size) {
   const out = [];
   for (const para of String(text ?? "").split("\n")) {
     const pieces = [];
@@ -827,7 +843,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: " ", inMark: false });
     const join2 = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : "")).join("");
-    const wide = (ws) => ems(plainText(join2(ws))) * size;
+    const wide = (ws) => width(plainText(join2(ws)));
     const words = [];
     for (let i = 0; i < pieces.length; ) {
       let j = i;
@@ -880,7 +896,7 @@ function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== "function" || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === "l" ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === "l" ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left);
     x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size);
@@ -936,9 +952,10 @@ var SCENE = {
       const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
       const BASE = BASE0 - nameExtra - subExtra;
       const max = Math.max(1e-9, ...vals);
-      const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;
+      const numW = (text, size) => textW(text, size, 800, -1), unitW = (uSize) => unit ? textW(unit, uSize, 700) : 0;
+      const unitOwn = (text, size, uSize, maxW) => !!unit && numW(text, size) + 3 + unitW(uSize) > maxW;
       const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));
-      const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;
+      const fitsInside = hero >= 0 && numW(finals[hero], 86) <= ws[hero] - 24;
       const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);
       const above = (i) => i === hero ? fitsInside ? null : { size: 72, uSize: 40, lift: 52 } : { size: 58, uSize: 34, lift: 48 };
       const top = vals.indexOf(Math.max(...vals));
@@ -961,7 +978,7 @@ var SCENE = {
         reportLines("bar sub line", subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: "c" })), 30, area);
         const v = valueAt[i];
         const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H2[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H2[i]];
-        const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;
+        const vw = numW(finals[i], v.size), uw = unitW(v.uSize);
         const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
         report("bar value", finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size], vArea, { size: v.size, lines: 1, maxLines: 1 });
       });
@@ -1046,14 +1063,15 @@ var SCENE = {
       const cp = prog(s.t, 1.3, 2.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const heroText = fmt(hero.value);
-      const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+      const heroW = textW(heroText, 76, 800), heroUnitW = unit ? textW(unit, 42, 700) : 0;
+      const unitOwn = !!unit && heroW + heroUnitW > HOLE;
       const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
       const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
       const vy = DCY - holeH / 2 + VH / 2;
       const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
       const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
-      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c" }], 76, holeArea, 1);
-      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c" }] : [], 42, holeArea, 1);
+      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c", w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1);
+      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c", w: heroUnitW }] : [], 42, holeArea, 1);
       reportLines("label", heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: "c" })), 28, holeArea);
       const rows = [];
       let y = 300;
@@ -1061,7 +1079,7 @@ var SCENE = {
         const x = all[i];
         if (!x) return;
         const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
-        const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+        const valueW = textW(fmt(x.value), big ? 40 : 32, 800) + textW(unit, big ? 28 : 22, 700);
         let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
         if (names.length > 2) {
           names = wrapLines(x.label, sz, X1 - LEG_X);
@@ -1128,12 +1146,15 @@ var SCENE = {
       const subtitle = String(data2?.subtitle ?? "");
       const s = useScene(data2, Math.max(2, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
       const k = s.k;
-      const value = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
+      const raw = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
+      const final = countable(raw);
+      const value = final ? counted(final, 1) : raw;
       const unit = String(data2?.unit ?? "");
       const titleLines = title ? wrapLines(title, 50, W - 80) : [];
       const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
-      const vLines = wrapLines(value, 150, IN);
-      const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
+      const valueW = (t2) => textW(t2, 150, 800, -4), unitW = unit ? textW(unit, 80, 700) : 0;
+      const vLines = wrapLines(value, 150, IN, valueW);
+      const unitOwn = !!unit && valueW(vLines[vLines.length - 1]) + 6 + unitW > IN;
       const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
       const H2 = 400 + grow;
       const x0 = (1080 - W) / 2;
@@ -1147,8 +1168,9 @@ var SCENE = {
       const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H2];
       report("card", title + " " + value + unit, [x0, y0, x0 + W, y0 + H2], [X0, 0, X1, roomBottom(data2)]);
       reportLines("title", titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: "c" })), 50, inCard(40));
-      reportLines("value", vLines.map((l, r) => ({ text: l, x: 540, y: vy + VL * r, anchor: "c" })), 150, inCard(50));
-      reportLines("unit", unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: "c" }] : [], 80, inCard(50), 1);
+      const beside = (r) => !!unit && !unitOwn && r === vLines.length - 1;
+      reportLines("value", vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ""), x: 540, y: vy + VL * r, anchor: "c", w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50));
+      reportLines("unit", unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: "c", w: unitW }] : [], 80, inCard(50), 1);
       reportLines("sub line", subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H2 + 58 + 40 * j, anchor: "c" })), 30, [X0, 0, X1, roomBottom(data2)]);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), titleLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "t" + j, s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 + TL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.85 })))), /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136 + Math.max(0, titleLines.length - 1) * TL, t0: 0.5 }), vLines.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: 0.8, x: 540, y: vy + VL * r }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, l), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit && !unitOwn && r === vLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: unitStyle }, unit) : null))), unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: vy + VL * (vLines.length - 1) + 128 }, /* @__PURE__ */ STUB("span", { style: { ...unitStyle, marginLeft: 0 } }, unit)) : null, subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 + 40 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.75 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
@@ -1228,8 +1250,9 @@ var SCENE = {
       const thY = threshold ? Y(Number(threshold.y)) : 0;
       const rawEnd = data2?.endLabel;
       const endValue = rawEnd == null || rawEnd === "" ? n ? vals[n - 1] : "" : rawEnd;
-      const endText = typeof endValue === "number" ? valueText(endValue) : String(endValue);
-      const count = countable(endText);
+      const rawText = typeof endValue === "number" ? valueText(endValue) : String(endValue);
+      const count = countable(rawText);
+      const endText = count ? counted(count, 1) : rawText;
       const f = n > 1 ? clamp(u - (n - 2)) : done ? 1 : 0;
       const from = count && n > 1 && Math.abs(count.num - vals[n - 1]) < 1e-9 ? vals[n - 2] : 0;
       const shown = count ? counted({ ...count, num: lerp(from, count.num, f) }, 1) : endText;
@@ -1237,7 +1260,7 @@ var SCENE = {
       const numStyle = { fontSize: 84 * k, fontWeight: 800, color: C.acc, letterSpacing: -2 * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const endLabel = /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...numStyle, visibility: count ? "hidden" : "visible" } }, endText), count ? /* @__PURE__ */ STUB("span", { style: { ...numStyle, position: "absolute", right: 0, bottom: 0 } }, shown) : null), showUnit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 46 * k, fontWeight: 700, color: C.acc, marginLeft: 4 * k, lineHeight: 1 } }, unit) : null);
       const endY = n ? P[n - 1][1] - 68 : 0;
-      const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+      const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
       if (n && endText !== "") report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
@@ -1303,18 +1326,23 @@ var SCENE = {
       const title = String(data2?.title ?? "");
       const label = String(data2?.label ?? "");
       const unit = String(data2?.unit ?? "");
-      const from = show(data2?.from), to = show(data2?.to);
-      const cf = countable(from), ct = countable(to);
+      const from = show(data2?.from), raw = show(data2?.to);
+      const cf = countable(from), ct = countable(raw);
       const cp = smooth(prog(s.t, toAt, toAt + 1.2));
-      const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, cp);
+      const same = cf && ct && cf.head === ct.head && cf.tail === ct.tail;
+      const running = !ct ? raw : same ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, cp);
+      const to = !ct ? raw : same ? counted({ ...ct, decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, 1);
       const top = title ? 150 : 40;
       const mid = (top + 794) / 2;
       const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? ct.num > cf.num ? "up" : "down" : "";
       const labelLines = label ? wrapLines(label, 44, W) : [];
-      const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+      const fromW = (t2) => textW(t2, 96, 800, -2), toW = (t2) => textW(t2, 150, 800, -4);
+      const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
+      const VW = X1 - X0;
+      const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, VW, toW);
       const last = (l) => l[l.length - 1];
-      const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
-      const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+      const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
+      const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > VW;
       const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
       const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
       const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
@@ -1333,19 +1361,19 @@ var SCENE = {
       const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data2) - 6), first.top - (top + 6))));
       const counts = toLines.length === 1 && !toOwn;
       const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
-      const area = [X0 + 30, top, X1 - 30, roomBottom(data2)];
+      const area = [X0 + 30, top, X1 - 30, roomBottom(data2)], valueArea = [X0, top, X1, roomBottom(data2)];
       const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: "c" }));
       reportLines("label", col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
-      const valueReport = (what, list, y, step, size, uSize, own) => {
+      const valueReport = (what, list, y, step, size, lineW, beside, own) => {
         if (!list.length) return;
-        const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+        const w = list.map((l, j) => lineW(l) + (j === list.length - 1 ? beside : 0));
         const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
-        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], valueArea, { size, lines: list.length, maxLines: 2 });
       };
-      valueReport("old value", fromLines, yFrom, FL, 96, 53, fromOwn);
-      reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
-      valueReport("new value", toLines, yTo, TL, 150, 80, toOwn);
-      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
+      valueReport("old value", fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
+      reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
+      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn);
+      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const triangle = dir ? /* @__PURE__ */ STUB("svg", { width: 44 * k, height: 40 * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null;
@@ -1421,17 +1449,18 @@ var SCENE = {
       const s = useScene(data2, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data2?.title ?? ""), subtitle)));
       const k = s.k;
       const gap = 36;
+      const numW = (t2) => textW(t2, 72, 800, -1.5), unitW = (u) => textW(u, 36, 700), row2W = (t2) => textW(t2, 38, 800, -0.5, false);
       const widest = (w) => Math.max(0, ...cards.map((c) => {
         const r0 = rowsOf(c)[0];
-        return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0;
+        return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28, numW).map(numW)) : 0;
       }));
       const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
       const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
       const laid = cards.map((c) => {
         const [r0, r1] = rowsOf(c);
-        const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
+        const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28, numW) : [];
         const u0 = String(r0?.unit ?? "");
-        const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
+        const unitOwn = !!u0 && v0.length > 0 && numW(v0[v0.length - 1]) + 2 + unitW(u0) > W - 28;
         return {
           header: wrapLines(plainText(String(c?.header ?? "")), 44, W - 24),
           r0,
@@ -1441,7 +1470,7 @@ var SCENE = {
           unitOwn,
           label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
           label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
-          v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24) : []
+          v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24, row2W) : []
         };
       });
       const most = (f) => Math.max(1, ...laid.map(f));
@@ -1461,10 +1490,11 @@ var SCENE = {
         report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)], { cause });
         reportLines("card name", lines(c.header, y0 - 2 + (BAND + d1) / 2 - BL * (c.header.length - 1) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
         reportLines("card label", lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
-        reportLines("card number", lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
-        reportLines("card unit", c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: "c" }] : [], 36, inCard(14), 1);
+        const beside = (j) => !!c.u0 && !c.unitOwn && j === c.v0.length - 1;
+        reportLines("card number", lines(c.v0, y0 + 214 + d2, VL).map((l, j) => ({ ...l, text: l.text + (beside(j) ? c.u0 : ""), w: numW(l.text) + (beside(j) ? 2 + unitW(c.u0) : 0) })), 72, inCard(14));
+        reportLines("card unit", c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: "c", w: unitW(c.u0) }] : [], 36, inCard(14), 1);
         reportLines("second label", lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));
-        reportLines("second value", lines(c.v1, y0 + 385 + d4, V2), 38, inCard(12));
+        reportLines("second value", lines(c.v1, y0 + 385 + d4, V2).map((l) => ({ ...l, w: row2W(l.text) })), 38, inCard(12));
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), laid.map((c, i) => {
         const { x, y0 } = cardAt(i), cx = x + W / 2, t0 = at(i);
@@ -2671,7 +2701,7 @@ var LABELS = {
 
 // src/templates/generated.ts
 var TEMPLATES = {
-  "bar_compare_h": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => ems(plainText(join(ws))) * size;\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Bar comparison (style spec 6-1), 2-3 vertical bars on a gold baseline (window y 600, drawn left to\n// right 0.1-1.0 s), no grid. The accent bar is the hero: crimson, 290 wide, grows 1.7 s and settles\n// 1.5 %, its value counts up in white inside the bar once it is up. Grey bars are 200 wide, grow 1.0 s\n// and settle 3 %, their value pops above the bar 0.6 s after it starts. Name (54/800) and optional\n// `sub` (30/500 grey) sit under the baseline. Bars come in array order (narration order); a long\n// clip spaces them further apart. No multiples or ratios are drawn (spec 7).\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\n// Text that does not fit keeps its size (style spec 1): a name or sub line breaks onto more lines at a space and the\n// baseline rises by those lines (the bars get shorter) so they stay above the source line; a value with its unit\n// wider than its slot puts the unit on a line of its own; a hero value that does not fit inside its bar goes above\n// it (72) like a short bar's. What still does not fit is reported for the layout check.\nconst BASE0 = 600, LL = 60, SL = 36, UL = 44;\nconst decimals = (v) => { const t = String(v); return t.includes('.') && !/e/i.test(t) ? t.length - t.indexOf('.') - 1 : 0; };\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => (Number(v.toFixed(d)) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\nexport default function BarCompareH({ data }) {\n  const accent = String(data?.accentColor ?? C.acc);\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const n = bars.length;\n  const unit = String(data?.unit ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  const vals = bars.map((b) => Math.abs(Number(b?.value) || 0));\n  const hero = bars.findIndex((b) => b?.tone === 'accent');\n  // One decimal count for every bar, so 0.6 and 0.69 read 0.60 and 0.69.\n  const dec = Math.min(3, Math.max(0, ...bars.map((b) => decimals(Number(b?.value) || 0))));\n  // Bar i starts after the previous one: 1.0 s after a grey bar, 1.5 s after the hero.\n  const gap = (i) => (i === hero ? 1.5 : 1.0);\n  const tail = (i) => (i === hero ? 2.5 : 1.4);\n  const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));\n  // Last entrance at the tightest spacing: the hero count-up (bar start + 1.2 + 1.3 s), a grey value pop\n  // (start + 0.6 + 0.8 s) or a name/sub brush (start + 0.6/0.72 + 0.9 s).\n  const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));\n  const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));\n  // A clip with room to spare spaces the bars out (up to +1 s each, half the slack) so they follow the\n  // narration; a clip too short for the tight timeline has no slack. Worked out before useScene so its\n  // `natural` (where the preview seeks to) includes the spacing.\n  const { fps, durationInFrames } = useVideoConfig();\n  const end = durationInFrames / fps;\n  const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;\n  const start = base.map((t0, i) => t0 + extra * i);\n  const s = useScene(data, Math.max(tight + extra * (n - 1), headerEnd(String(data?.title ?? ''), subtitle)));\n  const k = s.k;\n  // Equal gaps between the bars and the margins x 60..1020.\n  const ws = bars.map((_, i) => (i === hero ? 290 : 200));\n  const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);\n  const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);\n  const slots = ws.map((w) => w + space - 8);\n  // Names and sub lines at full size on as many lines as they need; the baseline rises by the longest.\n  const names = bars.map((b, i) => wrapLines(String(b?.label ?? ''), 54, slots[i]));\n  const subs = bars.map((b, i) => (String(b?.sub ?? '') ? wrapLines(String(b.sub), 30, slots[i]) : []));\n  const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;\n  const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;\n  const BASE = BASE0 - nameExtra - subExtra;\n  const max = Math.max(1e-9, ...vals);\n  // A value with its unit wider than maxW puts the unit under it.\n  const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;\n  const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));\n  // The hero value counts up inside its bar (86, its unit under it when they do not fit side by side) when the number\n  // fits the bar's width; else it pops above the bar (72).\n  const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;\n  const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);\n  const above = (i) => (i === hero ? (fitsInside ? null : { size: 72, uSize: 40, lift: 52 }) : { size: 58, uSize: 34, lift: 48 });\n  // The tallest bar is 400 when it holds its value inside; a value above it needs room under the header (and a line\n  // more for a unit of its own). Lines the names and sub lines took come off the bars.\n  const top = vals.indexOf(Math.max(...vals));\n  const ownAbove = bars.some((_, i) => above(i) && unitOwn(finals[i], above(i).size, above(i).uSize, slots[i]));\n  const tallH = (top === hero && fitsInside ? 400 : subtitle ? 340 : 380) - nameExtra - subExtra - (ownAbove ? UL : 0);\n  const H = vals.map((v) => (v / max) * tallH);\n  const inside = fitsInside && H[hero] >= 150 + (ownInside ? UL : 0);\n  const pb = smooth(prog(s.t, 0.1, 1.0));\n  const valueRun = (text, size, uSize, color, own) => (\n    <div style={{ display: 'flex', flexDirection: own ? 'column' : 'row', alignItems: own ? 'center' : 'baseline', color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>\n      <span style={{ fontSize: size * k, letterSpacing: -1 * k }}>{text}</span>\n      {unit ? <span style={{ fontSize: uSize * k, fontWeight: 700, marginLeft: own ? 0 : 3 * k, marginTop: own ? (UL - uSize) * k : 0 }}>{unit}</span> : null}\n    </div>\n  );\n  // Where each value's line(s) sit: above the bar (its centre `lift` over the bar top, raised half a line when the unit\n  // has its own), or inside the hero bar.\n  const valueAt = bars.map((_, i) => {\n    const a = i === hero && inside ? null : above(i) ?? { size: 72, uSize: 40, lift: 52 };\n    if (!a) return { inside: true, size: 86, uSize: 48, own: ownInside, y: BASE - H[i] + 80 + (ownInside ? UL / 2 : 0) };\n    const own = unitOwn(finals[i], a.size, a.uSize, slots[i]);\n    return { inside: false, size: a.size, uSize: a.uSize, own, y: BASE - H[i] - a.lift - (own ? UL / 2 : 0) };\n  });\n  const roomTop = subtitle ? 162 : 112;\n  bars.forEach((_, i) => {\n    const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data)];\n    reportLines('bar name', names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: 'c' })), 54, area);\n    reportLines('bar sub line', subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: 'c' })), 30, area);\n    const v = valueAt[i];\n    const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H[i]];\n    // The value and its unit at their own sizes, side by side or the unit under the value.\n    const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;\n    const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;\n    report('bar value', finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)], vArea, { size: v.size, lines: 1, maxLines: 1 });\n  });\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />\n      {pb > 0 ? <div style={{ position: 'absolute', left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold }} /> : null}\n      {bars.map((b, i) => {\n        const big = i === hero, t0 = start[i], w = ws[i];\n        const h = H[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1.0)), big ? 0.015 : 0.03);\n        const v = Number(b?.value) || 0;\n        // Hero count-up: starts once the bar is about up, slows into its final value (1.3 s).\n        const cp = prog(s.t, t0 + 1.2, t0 + 2.5);\n        return (\n          <React.Fragment key={i}>\n            {h > 0.5 ? <div style={{ position: 'absolute', left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + 'px ' + Math.min(8, h) * k + 'px 0 0' }} /> : null}\n            {names[i].map((l, j) => (\n              <Rise key={'n' + j} s={s} t0={t0 + 0.05} dy={14} x={cx[i]} y={BASE + 48 + LL * j}>\n                <div style={{ fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}><Marked s={s} text={l} hlAt={t0 + 0.6} /></div>\n              </Rise>\n            ))}\n            {subs[i].map((l, j) => (\n              <Rise key={'u' + j} s={s} t0={t0 + 0.17} dy={14} x={cx[i]} y={BASE + 100 + nameExtra + SL * j}>\n                <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={l} hlAt={t0 + 0.72} /></div>\n              </Rise>\n            ))}\n            {!big ? <Pop s={s} t0={t0 + 0.6} x={cx[i]} y={valueAt[i].y}>{valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)}</Pop> : null}\n            {big && inside && cp > 0 ? (\n              <At s={s} x={cx[i]} y={BASE - h + 80 + (ownInside ? UL / 2 : 0)}>\n                <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')' }}>{valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside)}</div>\n              </At>\n            ) : null}\n            {big && !inside ? <Pop s={s} t0={t0 + 1.2} x={cx[i]} y={valueAt[i].y}>{valueRun(finals[i], 72, 40, accent, valueAt[i].own)}</Pop> : null}\n          </React.Fragment>\n        );\n      })}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
+  "bar_compare_h": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses\n// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and\n// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,\n// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at\n// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.\n// `ls` is the letter spacing in px, which Chrome adds after every character.\nconst ADV = {\n  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],\n  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],\n};\n// Proportional digits 0..9 and the comma, for text not set in tabular-nums.\nconst ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };\n// At weight 800 (the 700 widths are at most 3% less).\nconst ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };\nconst advance = (ch, weight, tnum) => {\n  const c = ch.codePointAt(0);\n  if (c >= 0x20 && c <= 0x7e) {\n    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);\n    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;\n  }\n  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;\n  return (ADV_MORE[ch] ?? 1000) / 1000;\n};\nconst textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW, width = (t) => ems(t) * size) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => width(plainText(join(ws)));\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.\n// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Bar comparison (style spec 6-1), 2-3 vertical bars on a gold baseline (window y 600, drawn left to\n// right 0.1-1.0 s), no grid. The accent bar is the hero: crimson, 290 wide, grows 1.7 s and settles\n// 1.5 %, its value counts up in white inside the bar once it is up. Grey bars are 200 wide, grow 1.0 s\n// and settle 3 %, their value pops above the bar 0.6 s after it starts. Name (54/800) and optional\n// `sub` (30/500 grey) sit under the baseline. Bars come in array order (narration order); a long\n// clip spaces them further apart. No multiples or ratios are drawn (spec 7).\n// `bars: [{ label, sub?, value, tone: \"grey\" | \"accent\" }]`, values are numbers in `unit`.\n// Text that does not fit keeps its size (style spec 1): a name or sub line breaks onto more lines at a space and the\n// baseline rises by those lines (the bars get shorter) so they stay above the source line; a value with its unit\n// wider than its slot puts the unit on a line of its own; a hero value that does not fit inside its bar goes above\n// it (72) like a short bar's. What still does not fit is reported for the layout check.\nconst BASE0 = 600, LL = 60, SL = 36, UL = 44;\nconst decimals = (v) => { const t = String(v); return t.includes('.') && !/e/i.test(t) ? t.length - t.indexOf('.') - 1 : 0; };\n// Korean graphics write 5000 but 12,500: group thousands only from five digits up.\nconst fmt = (v, d) => (Number(v.toFixed(d)) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: Math.abs(v) >= 10000 });\n\nexport default function BarCompareH({ data }) {\n  const accent = String(data?.accentColor ?? C.acc);\n  const bars = (Array.isArray(data?.bars) ? data.bars : []).slice(0, 3);\n  const n = bars.length;\n  const unit = String(data?.unit ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  const vals = bars.map((b) => Math.abs(Number(b?.value) || 0));\n  const hero = bars.findIndex((b) => b?.tone === 'accent');\n  // One decimal count for every bar, so 0.6 and 0.69 read 0.60 and 0.69.\n  const dec = Math.min(3, Math.max(0, ...bars.map((b) => decimals(Number(b?.value) || 0))));\n  // Bar i starts after the previous one: 1.0 s after a grey bar, 1.5 s after the hero.\n  const gap = (i) => (i === hero ? 1.5 : 1.0);\n  const tail = (i) => (i === hero ? 2.5 : 1.4);\n  const base = bars.map((_, i) => 0.6 + bars.slice(0, i).reduce((a, __, j) => a + gap(j), 0));\n  // Last entrance at the tightest spacing: the hero count-up (bar start + 1.2 + 1.3 s), a grey value pop\n  // (start + 0.6 + 0.8 s) or a name/sub brush (start + 0.6/0.72 + 0.9 s).\n  const brushed = (b) => Math.max(brushEnd(b?.label, 0.6), brushEnd(b?.sub, 0.72));\n  const tight = Math.max(1.2, ...base.map((t0, i) => t0 + Math.max(tail(i), brushed(bars[i]))));\n  // A clip with room to spare spaces the bars out (up to +1 s each, half the slack) so they follow the\n  // narration; a clip too short for the tight timeline has no slack. Worked out before useScene so its\n  // `natural` (where the preview seeks to) includes the spacing.\n  const { fps, durationInFrames } = useVideoConfig();\n  const end = durationInFrames / fps;\n  const extra = n > 1 && tight <= Math.max(end * 0.5, end - HOLD) ? Math.min(1, Math.max(0, end - HOLD - tight) * 0.5 / (n - 1)) : 0;\n  const start = base.map((t0, i) => t0 + extra * i);\n  const s = useScene(data, Math.max(tight + extra * (n - 1), headerEnd(String(data?.title ?? ''), subtitle)));\n  const k = s.k;\n  // Equal gaps between the bars and the margins x 60..1020.\n  const ws = bars.map((_, i) => (i === hero ? 290 : 200));\n  const space = (X1 - X0 - ws.reduce((a, w) => a + w, 0)) / (n + 1);\n  const cx = ws.map((w, i) => X0 + space * (i + 1) + ws.slice(0, i).reduce((a, x) => a + x, 0) + w / 2);\n  const slots = ws.map((w) => w + space - 8);\n  // Names and sub lines at full size on as many lines as they need; the baseline rises by the longest.\n  const names = bars.map((b, i) => wrapLines(String(b?.label ?? ''), 54, slots[i]));\n  const subs = bars.map((b, i) => (String(b?.sub ?? '') ? wrapLines(String(b.sub), 30, slots[i]) : []));\n  const nameExtra = (Math.max(1, ...names.map((l) => l.length)) - 1) * LL;\n  const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;\n  const BASE = BASE0 - nameExtra - subExtra;\n  const max = Math.max(1e-9, ...vals);\n  // Values and units at their drawn widths (tabular digits, the value's letter spacing, the unit's 3 px margin).\n  const numW = (text, size) => textW(text, size, 800, -1), unitW = (uSize) => (unit ? textW(unit, uSize, 700) : 0);\n  // A value with its unit wider than maxW puts the unit under it.\n  const unitOwn = (text, size, uSize, maxW) => !!unit && numW(text, size) + 3 + unitW(uSize) > maxW;\n  const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));\n  // The hero value counts up inside its bar (86, its unit under it when they do not fit side by side) when the number\n  // fits the bar's width; else it pops above the bar (72).\n  const fitsInside = hero >= 0 && numW(finals[hero], 86) <= ws[hero] - 24;\n  const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);\n  const above = (i) => (i === hero ? (fitsInside ? null : { size: 72, uSize: 40, lift: 52 }) : { size: 58, uSize: 34, lift: 48 });\n  // The tallest bar is 400 when it holds its value inside; a value above it needs room under the header (and a line\n  // more for a unit of its own). Lines the names and sub lines took come off the bars.\n  const top = vals.indexOf(Math.max(...vals));\n  const ownAbove = bars.some((_, i) => above(i) && unitOwn(finals[i], above(i).size, above(i).uSize, slots[i]));\n  const tallH = (top === hero && fitsInside ? 400 : subtitle ? 340 : 380) - nameExtra - subExtra - (ownAbove ? UL : 0);\n  const H = vals.map((v) => (v / max) * tallH);\n  const inside = fitsInside && H[hero] >= 150 + (ownInside ? UL : 0);\n  const pb = smooth(prog(s.t, 0.1, 1.0));\n  const valueRun = (text, size, uSize, color, own) => (\n    <div style={{ display: 'flex', flexDirection: own ? 'column' : 'row', alignItems: own ? 'center' : 'baseline', color, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>\n      <span style={{ fontSize: size * k, letterSpacing: -1 * k }}>{text}</span>\n      {unit ? <span style={{ fontSize: uSize * k, fontWeight: 700, marginLeft: own ? 0 : 3 * k, marginTop: own ? (UL - uSize) * k : 0 }}>{unit}</span> : null}\n    </div>\n  );\n  // Where each value's line(s) sit: above the bar (its centre `lift` over the bar top, raised half a line when the unit\n  // has its own), or inside the hero bar.\n  const valueAt = bars.map((_, i) => {\n    const a = i === hero && inside ? null : above(i) ?? { size: 72, uSize: 40, lift: 52 };\n    if (!a) return { inside: true, size: 86, uSize: 48, own: ownInside, y: BASE - H[i] + 80 + (ownInside ? UL / 2 : 0) };\n    const own = unitOwn(finals[i], a.size, a.uSize, slots[i]);\n    return { inside: false, size: a.size, uSize: a.uSize, own, y: BASE - H[i] - a.lift - (own ? UL / 2 : 0) };\n  });\n  const roomTop = subtitle ? 162 : 112;\n  bars.forEach((_, i) => {\n    const area = [cx[i] - slots[i] / 2, BASE, cx[i] + slots[i] / 2, roomBottom(data)];\n    reportLines('bar name', names[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 48 + LL * j, anchor: 'c' })), 54, area);\n    reportLines('bar sub line', subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: 'c' })), 30, area);\n    const v = valueAt[i];\n    const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H[i]];\n    // The value and its unit at their own sizes, side by side or the unit under the value.\n    const vw = numW(finals[i], v.size), uw = unitW(v.uSize);\n    const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;\n    report('bar value', finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)], vArea, { size: v.size, lines: 1, maxLines: 1 });\n  });\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />\n      {pb > 0 ? <div style={{ position: 'absolute', left: X0 * k, top: BASE * k, width: (X1 - X0) * pb * k, height: 2 * k, background: C.gold }} /> : null}\n      {bars.map((b, i) => {\n        const big = i === hero, t0 = start[i], w = ws[i];\n        const h = H[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1.0)), big ? 0.015 : 0.03);\n        const v = Number(b?.value) || 0;\n        // Hero count-up: starts once the bar is about up, slows into its final value (1.3 s).\n        const cp = prog(s.t, t0 + 1.2, t0 + 2.5);\n        return (\n          <React.Fragment key={i}>\n            {h > 0.5 ? <div style={{ position: 'absolute', left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + 'px ' + Math.min(8, h) * k + 'px 0 0' }} /> : null}\n            {names[i].map((l, j) => (\n              <Rise key={'n' + j} s={s} t0={t0 + 0.05} dy={14} x={cx[i]} y={BASE + 48 + LL * j}>\n                <div style={{ fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? (accent === C.acc ? C.accD : accent) : C.ink }}><Marked s={s} text={l} hlAt={t0 + 0.6} /></div>\n              </Rise>\n            ))}\n            {subs[i].map((l, j) => (\n              <Rise key={'u' + j} s={s} t0={t0 + 0.17} dy={14} x={cx[i]} y={BASE + 100 + nameExtra + SL * j}>\n                <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={l} hlAt={t0 + 0.72} /></div>\n              </Rise>\n            ))}\n            {!big ? <Pop s={s} t0={t0 + 0.6} x={cx[i]} y={valueAt[i].y}>{valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)}</Pop> : null}\n            {big && inside && cp > 0 ? (\n              <At s={s} x={cx[i]} y={BASE - h + 80 + (ownInside ? UL / 2 : 0)}>\n                <div style={{ opacity: smooth(cp / 0.35), transform: 'scale(' + lerp(0.94, 1, settle(cp, 0.3)) + ')' }}>{valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside)}</div>\n              </At>\n            ) : null}\n            {big && !inside ? <Pop s={s} t0={t0 + 1.2} x={cx[i]} y={valueAt[i].y}>{valueRun(finals[i], 72, 40, accent, valueAt[i].own)}</Pop> : null}\n          </React.Fragment>\n        );\n      })}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["bar_compare_h"] ?? [], timeIndependent: !!TIME_INDEPENDENT["bar_compare_h"], label: LABELS["bar_compare_h"] ?? "bar_compare_h" },
   "caption": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// One caption chunk (2-4 words of the approved script), one line, centred under the graphics on a box that\n// hugs the text with padX each side (translucent black unless the preset gives a colour). The line shrinks to\n// fit maxWidth.\n// Chunks switch with a hard cut, so no animation.\nexport default function Caption({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  const em = [...text].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.56 : 1), 0);\n  const size = Math.min(Number(data?.fontSize ?? 54), Number(data?.maxWidth ?? 980) / Math.max(1, em));\n  const bottom = Number(data?.bottom ?? 1385);\n  const boxHeight = Number(data?.boxHeight ?? 70);\n  const padX = Number(data?.padX ?? 12);\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom - boxHeight) * k, height: boxHeight * k, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: Number(data?.fontWeight ?? 600), fontSize: size * k, lineHeight: boxHeight * k + 'px', height: boxHeight * k, padding: '0 ' + padX * k + 'px', background: String(data?.boxColor ?? 'rgba(0,0,0,0.44)'), color: String(data?.textColor ?? '#FFFFFF'), letterSpacing: -1 * k, whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["caption"] ?? [], timeIndependent: !!TIME_INDEPENDENT["caption"], label: LABELS["caption"] ?? "caption" },
   "disclaimer": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Per-scene notice under the logo block, placed only over scenes that show illustrative imagery.\n// The sentence itself comes from the preset.\nexport default function Disclaimer({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const text = String(data?.text ?? '');\n  if (!text) return null;\n  return (\n    <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.top ?? 1672) * k, height: 50 * k, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ fontFamily, fontWeight: 300, fontSize: Number(data?.fontSize ?? 35) * k, color: String(data?.color ?? '#FFFFFF'), whiteSpace: 'nowrap' }}>{text}</div>\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["disclaimer"] ?? [], timeIndependent: !!TIME_INDEPENDENT["disclaimer"], label: LABELS["disclaimer"] ?? "disclaimer" },
   "donut_ratio": { tsxCode: `import React from 'react';
@@ -2925,15 +2955,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
+// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
+// digits tabular (every value is set in tabular-nums; \`tnum\` false for one that is not), measured in Chrome 155 at
+// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
+// \`ls\` is the letter spacing in px, which Chrome adds after every character.
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+};
+// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+// At weight 800 (the 700 widths are at most 3% less).
+const ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 0x20 && c <= 0x7e) {
+    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+  }
+  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
+  return (ADV_MORE[ch] ?? 1000) / 1000;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at \`size\` (by ems, or \`width(text)\` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? '').split('\\n')) {
     // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
@@ -2949,7 +3003,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     // A mark that fits a line is one word; a longer one stays as its pieces.
     const words = [];
     for (let i = 0; i < pieces.length;) {
@@ -2998,12 +3052,13 @@ function wrapLines(text, size, maxW) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
+// \`w\` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
 function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== 'function' || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
@@ -3084,14 +3139,16 @@ export default function DonutRatio({ data }) {
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   // The hole: value, unit (beside it or under it) and label lines, centred on the donut's middle.
   const heroText = fmt(hero.value);
-  const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+  // Value and unit at their drawn widths (tabular digits, no margin between them).
+  const heroW = textW(heroText, 76, 800), heroUnitW = unit ? textW(unit, 42, 700) : 0;
+  const unitOwn = !!unit && heroW + heroUnitW > HOLE;
   const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
   const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
   const vy = DCY - holeH / 2 + VH / 2;
   const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
   const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
-  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c' }], 76, holeArea, 1);
-  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c' }] : [], 42, holeArea, 1);
+  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c', w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1);
+  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c', w: heroUnitW }] : [], 42, holeArea, 1);
   reportLines('label', heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: 'c' })), 28, holeArea);
   // Legend rows: the hero row first and larger, then the others in narration order; a name takes the room left of
   // its value.
@@ -3101,7 +3158,7 @@ export default function DonutRatio({ data }) {
     const x = all[i];
     if (!x) return;
     const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
-    const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+    const valueW = textW(fmt(x.value), big ? 40 : 32, 800) + textW(unit, big ? 28 : 22, 700);
     // The name beside its value; a name that would take more than two lines there gets the full width and its value
     // goes on the line under it.
     let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
@@ -3160,831 +3217,10 @@ export default function DonutRatio({ data }) {
   );
 }
 `, editableParameters: PARAM_SCHEMAS["donut_ratio"] ?? [], timeIndependent: !!TIME_INDEPENDENT["donut_ratio"], label: LABELS["donut_ratio"] ?? "donut_ratio" },
-  "flow_cause_effect": { tsxCode: `import React from 'react';
-import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
-
-// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
-// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
-// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
-// delayRender, continueRender and cancelRender imported by the template.
-//
-// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
-// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-const C = {
-  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
-  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
-  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
-};
-const X0 = 60, X1 = 1020;
-
-// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
-// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
-const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
-const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
-const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
-const lerp = (a, b, x) => a + (b - a) * x;
-
-// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
-// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
-// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
-// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
-// whole timeline faster instead of cutting entrances off.
-const HOLD = 1.5;
-function useScene(data, natural = 0) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const end = durationInFrames / fps;
-  const room = Math.max(end * 0.5, end - HOLD);
-  const speed = natural > room ? natural / room : 1;
-  return {
-    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
-    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
-    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
-  };
-}
-
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
-// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
-// plate laid underneath.
-function Win({ s, data, children }) {
-  const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
-    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
-      {s.fontFace}
-      {children}
-    </div>
-  );
-}
-
-// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
-// b (centre-bottom). The box takes its content's size.
-const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
-function At({ s, x, y, anchor = 'c', style, children }) {
-  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
-}
-
-// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
-function rise(s, t0, dur = 0.8, dy = 20) {
-  const p = prog(s.t, t0, t0 + dur);
-  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
-}
-function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor} style={style}>
-      <div style={rise(s, t0, dur, dy)}>{children}</div>
-    </At>
-  );
-}
-// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
-function pop(s, t0, dur = 0.8) {
-  const p = prog(s.t, t0, t0 + dur);
-  const sc = lerp(0.9, 1, settle(p, 0.3));
-  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
-}
-function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor}>
-      <div style={pop(s, t0, dur)}>{children}</div>
-    </At>
-  );
-}
-
-// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
-// the centre outwards over \`dur\`.
-function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
-  const p = smooth(prog(s.t, t0, t0 + dur));
-  if (p <= 0) return null;
-  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
-  const seg = (yy, lw) => (
-    <g key={yy} stroke={C.gold} strokeWidth={lw}>
-      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
-      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
-    </g>
-  );
-  return (
-    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
-      {seg(6, 2.2)}
-      {seg(12, 1.2)}
-      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
-    </svg>
-  );
-}
-
-// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;
-// the sub line takes [ ] / { } marks like any sentence.
-// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
-function Header({ s, title, subtitle, t0 = 0 }) {
-  return (
-    <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
-      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
-      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
-    </>
-  );
-}
-
-// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
-function Source({ s, text, t0 = 0.3 }) {
-  if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
-}
-
-// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
-function parseMarks(text) {
-  const out = [];
-  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
-    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
-    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
-    else out.push({ text: m[3], mark: '' });
-  }
-  return out.filter((p) => p.text);
-}
-const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
-
-// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
-// swept in left to right by p (0..1).
-function Brush({ p, seed = 0 }) {
-  const id = 'nmb' + seed + Math.round(p * 1000);
-  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
-  const top = [], bot = [];
-  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
-  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
-      <defs>
-        <linearGradient id={id}>
-          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
-          <stop offset={p * 1.15} stopColor="#000" />
-        </linearGradient>
-        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
-      </defs>
-      <g mask={'url(#' + id + 'm)'}>
-        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
-        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
-      </g>
-    </svg>
-  );
-}
-
-// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
-// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
-const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
-// The scene title and sub line brushes (Header with t0 = 0).
-const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
-
-// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
-function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
-  return (
-    <>
-      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
-        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
-          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
-          {p.text}
-        </span>
-      ))}
-    </>
-  );
-}
-
-// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
-// settled (t0 + 0.55 s), riding with the line.
-function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
-  return (
-    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
-      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
-    </Rise>
-  );
-}
-
-// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
-// Its text is one colour on the ribbon, so emphasis marks are dropped.
-function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
-  const k = s.k, n = 14 * k;
-  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
-  return (
-    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
-      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
-      <div style={{ ...line, top: 4.25 * k }} />
-      <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{plainText(text)}</span>
-    </div>
-  );
-}
-
-// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
-function cardStyle(s, hero = false) {
-  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
-}
-
-// Count-up: split a value into fixed text around one number so it can count from 0.
-// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
-const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
-function countable(v) {
-  const text = typeof v === 'number' ? String(v) : String(v ?? '');
-  const hits = text.match(NUM) || [];
-  if (hits.length !== 1) return null;
-  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
-  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
-}
-// Rounded first so a negative value starts at 0, not -0.
-const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
-
-// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
-const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
-
-// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
-// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
-// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
-// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
-// report() then flags it (the scene's validation uses these same lines).
-const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
-  const out = [];
-  for (const para of String(text ?? '').split('\\n')) {
-    // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
-    const pieces = [];
-    let cur = '', depth = 0;
-    const chars = [...para];
-    chars.forEach((ch, i) => {
-      if (ch === '[' || ch === '{') depth += 1;
-      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }
-      cur += ch;
-      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }
-    });
-    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
-    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
-    // A mark that fits a line is one word; a longer one stays as its pieces.
-    const words = [];
-    for (let i = 0; i < pieces.length;) {
-      let j = i;
-      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;
-      const group = pieces.slice(i, j + 1);
-      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });
-      else words.push(...group);
-      i = j + 1;
-    }
-    const lines = [];
-    let line = [];
-    for (const w of words) {
-      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
-    }
-    if (line.length || !words.length) lines.push(line);
-    let texts = lines.map(join);
-    if (lines.length === 2) {
-      // Two lines: the split whose longer half is shortest.
-      const all = words;
-      let best = lines[0].length, bestW = Infinity;
-      for (let i = 1; i < all.length; i += 1) {
-        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
-        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
-      }
-      texts = [join(all.slice(0, best)), join(all.slice(best))];
-    }
-    // A mark cut by a line break is closed at the line's end and opened again on the next line.
-    let carry = '';
-    for (const t of texts) {
-      const full = carry + t;
-      let open = '';
-      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }
-      out.push(full + (open ? CLOSE[open] : ''));
-      carry = open;
-    }
-  }
-  return out;
-}
-
-// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.
-// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where
-// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,
-// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are
-// [x0, y0, x1, y1].
-function report(what, text, box, area, extra) {
-  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
-}
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
-function reportLines(what, lines, size, area, maxLines = 2) {
-  if (typeof REPORT !== 'function' || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
-  lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
-    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
-    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
-    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
-  });
-  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
-}
-// Under the source line (26 px, centred on y 772) when the scene has one.
-const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
-
-// "Because of A, B happens" (style spec 6-7, bottom row): the cause card (400 x 330, gold edge) rises
-// in, a gold arrow grows to the right, then the effect card (crimson 3 px edge) follows. Each card
-// shows an optional small \`caption\` (green) over its big \`word\`; the effect word is crimson. Under
-// the scene title and rule. No pictograms: the cards carry words only until a shared icon set exists.
-// Text that does not fit keeps its size (style spec 1): the caption and the word break at a space onto more lines,
-// stacked in the middle of the card; both cards grow together (never below 330) to hold the taller text.
-const FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, CGAP = 20, PAD = 60;
-
-// A card's text as lines and the height of their stack.
-function laidOut(c) {
-  const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];
-  const word = wrapLines(c.word, 64, IN);
-  return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };
-}
-
-function Card({ s, cx, cy, t0, hero, lines, H }) {
-  const k = s.k;
-  const y0 = cy - lines.h / 2, wy = y0 + lines.caption.length * CL + (lines.caption.length ? CGAP : 0);
-  return (
-    <>
-      <Rise s={s} t0={t0} dur={0.9} dy={22} x={cx} y={cy}>
-        <div style={{ ...cardStyle(s, hero), width: FW * k, height: H * k }} />
-      </Rise>
-      {lines.caption.map((l, j) => (
-        <Rise key={'c' + j} s={s} t0={t0 + 0.25} dy={10} x={cx} y={y0 + CL * (j + 0.5)}>
-          <div style={{ fontSize: 40 * k, fontWeight: 800, color: C.green }}><Marked s={s} text={l} hlAt={t0 + 0.8} /></div>
-        </Rise>
-      ))}
-      {lines.word.map((l, j) => (
-        <Rise key={'w' + j} s={s} t0={t0 + (lines.caption.length ? 0.45 : 0.3)} dy={12} x={cx} y={wy + WL * (j + 0.5)}>
-          <div style={{ fontSize: 64 * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}><Marked s={s} text={l} hlAt={t0 + 1.0} /></div>
-        </Rise>
-      ))}
-    </>
-  );
-}
-
-export default function FlowCauseEffect({ data }) {
-  const cause = { word: String(data?.cause?.word ?? ''), caption: String(data?.cause?.caption ?? '') };
-  const effect = { word: String(data?.effect?.word ?? ''), caption: String(data?.effect?.caption ?? '') };
-  const tCause = 0.5, tArrow = 1.6, tEffect = 2.2;
-  const subtitle = String(data?.subtitle ?? '');
-  // Last entrance: the effect word, 0.45 + 0.8 s after its card, or a caption/word brush (0.8 / 1.0 + 0.9 s after it).
-  const cardEnd = (c, t0) => Math.max(brushEnd(c.caption, t0 + 0.8), brushEnd(c.word, t0 + 1.0));
-  const s = useScene(data, Math.max(tEffect + 1.25, cardEnd(cause, tCause), cardEnd(effect, tEffect), headerEnd(String(data?.title ?? ''), subtitle)));
-  const cy = (subtitle ? 190 : 150) + (794 - (subtitle ? 190 : 150)) / 2;
-  const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));
-  const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;
-  const L = (ax1 - ax0) * ap, head = 26;
-  const lc = laidOut(cause), le = laidOut(effect);
-  const H = Math.max(FH, lc.h + 2 * PAD, le.h + 2 * PAD);
-  const top = subtitle ? 162 : 112;
-  [[lc, LCX], [le, RCX]].forEach(([c, cx]) => {
-    const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);
-    const inCard = [cx - FW / 2 + 30, cy - H / 2, cx + FW / 2 - 30, cy + H / 2];
-    report('card', c.caption.join(' ') + ' ' + c.word.join(' '), [cx - FW / 2, cy - H / 2, cx + FW / 2, cy + H / 2], [X0, top, X1, roomBottom(data)]);
-    reportLines('caption', c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: 'c' })), 40, inCard);
-    reportLines('word', c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: 'c' })), 64, inCard);
-  });
-  return (
-    <Win s={s} data={data}>
-      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
-      <Card s={s} cx={LCX} cy={cy} t0={tCause} hero={false} lines={lc} H={H} />
-      {ap > 0 ? (
-        <svg width={1080 * s.k} height={809 * s.k} viewBox="0 0 1080 809" style={{ position: 'absolute', left: 0, top: 0 }}>
-          {L > head ? <line x1={ax0} y1={cy} x2={ax0 + L - head + 2} y2={cy} stroke={C.gold} strokeWidth="9" strokeLinecap="round" /> : null}
-          <polygon points={(ax0 + L) + ',' + cy + ' ' + (ax0 + L - head) + ',' + (cy - head * 0.62 * Math.min(1, L / head)) + ' ' + (ax0 + L - head) + ',' + (cy + head * 0.62 * Math.min(1, L / head))} fill={C.gold} />
-        </svg>
-      ) : null}
-      <Card s={s} cx={RCX} cy={cy} t0={tEffect} hero lines={le} H={H} />
-    </Win>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["flow_cause_effect"] ?? [], timeIndependent: !!TIME_INDEPENDENT["flow_cause_effect"], label: LABELS["flow_cause_effect"] ?? "flow_cause_effect" },
+  "flow_cause_effect": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses\n// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and\n// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,\n// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at\n// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.\n// `ls` is the letter spacing in px, which Chrome adds after every character.\nconst ADV = {\n  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],\n  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],\n};\n// Proportional digits 0..9 and the comma, for text not set in tabular-nums.\nconst ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };\n// At weight 800 (the 700 widths are at most 3% less).\nconst ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };\nconst advance = (ch, weight, tnum) => {\n  const c = ch.codePointAt(0);\n  if (c >= 0x20 && c <= 0x7e) {\n    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);\n    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;\n  }\n  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;\n  return (ADV_MORE[ch] ?? 1000) / 1000;\n};\nconst textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW, width = (t) => ems(t) * size) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => width(plainText(join(ws)));\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.\n// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// \"Because of A, B happens\" (style spec 6-7, bottom row): the cause card (400 x 330, gold edge) rises\n// in, a gold arrow grows to the right, then the effect card (crimson 3 px edge) follows. Each card\n// shows an optional small `caption` (green) over its big `word`; the effect word is crimson. Under\n// the scene title and rule. No pictograms: the cards carry words only until a shared icon set exists.\n// Text that does not fit keeps its size (style spec 1): the caption and the word break at a space onto more lines,\n// stacked in the middle of the card; both cards grow together (never below 330) to hold the taller text.\nconst FW = 400, FH = 330, LCX = 290, RCX = 790, IN = FW - 60, CL = 48, WL = 76, CGAP = 20, PAD = 60;\n\n// A card's text as lines and the height of their stack.\nfunction laidOut(c) {\n  const caption = c.caption ? wrapLines(c.caption, 40, IN) : [];\n  const word = wrapLines(c.word, 64, IN);\n  return { caption, word, h: caption.length * CL + (caption.length ? CGAP : 0) + word.length * WL };\n}\n\nfunction Card({ s, cx, cy, t0, hero, lines, H }) {\n  const k = s.k;\n  const y0 = cy - lines.h / 2, wy = y0 + lines.caption.length * CL + (lines.caption.length ? CGAP : 0);\n  return (\n    <>\n      <Rise s={s} t0={t0} dur={0.9} dy={22} x={cx} y={cy}>\n        <div style={{ ...cardStyle(s, hero), width: FW * k, height: H * k }} />\n      </Rise>\n      {lines.caption.map((l, j) => (\n        <Rise key={'c' + j} s={s} t0={t0 + 0.25} dy={10} x={cx} y={y0 + CL * (j + 0.5)}>\n          <div style={{ fontSize: 40 * k, fontWeight: 800, color: C.green }}><Marked s={s} text={l} hlAt={t0 + 0.8} /></div>\n        </Rise>\n      ))}\n      {lines.word.map((l, j) => (\n        <Rise key={'w' + j} s={s} t0={t0 + (lines.caption.length ? 0.45 : 0.3)} dy={12} x={cx} y={wy + WL * (j + 0.5)}>\n          <div style={{ fontSize: 64 * k, fontWeight: 900, letterSpacing: -1 * k, color: hero ? C.acc : C.ink }}><Marked s={s} text={l} hlAt={t0 + 1.0} /></div>\n        </Rise>\n      ))}\n    </>\n  );\n}\n\nexport default function FlowCauseEffect({ data }) {\n  const cause = { word: String(data?.cause?.word ?? ''), caption: String(data?.cause?.caption ?? '') };\n  const effect = { word: String(data?.effect?.word ?? ''), caption: String(data?.effect?.caption ?? '') };\n  const tCause = 0.5, tArrow = 1.6, tEffect = 2.2;\n  const subtitle = String(data?.subtitle ?? '');\n  // Last entrance: the effect word, 0.45 + 0.8 s after its card, or a caption/word brush (0.8 / 1.0 + 0.9 s after it).\n  const cardEnd = (c, t0) => Math.max(brushEnd(c.caption, t0 + 0.8), brushEnd(c.word, t0 + 1.0));\n  const s = useScene(data, Math.max(tEffect + 1.25, cardEnd(cause, tCause), cardEnd(effect, tEffect), headerEnd(String(data?.title ?? ''), subtitle)));\n  const cy = (subtitle ? 190 : 150) + (794 - (subtitle ? 190 : 150)) / 2;\n  const ap = smooth(prog(s.t, tArrow, tArrow + 0.7));\n  const ax0 = LCX + FW / 2 + 14, ax1 = RCX - FW / 2 - 14;\n  const L = (ax1 - ax0) * ap, head = 26;\n  const lc = laidOut(cause), le = laidOut(effect);\n  const H = Math.max(FH, lc.h + 2 * PAD, le.h + 2 * PAD);\n  const top = subtitle ? 162 : 112;\n  [[lc, LCX], [le, RCX]].forEach(([c, cx]) => {\n    const y0 = cy - c.h / 2, wy = y0 + c.caption.length * CL + (c.caption.length ? CGAP : 0);\n    const inCard = [cx - FW / 2 + 30, cy - H / 2, cx + FW / 2 - 30, cy + H / 2];\n    report('card', c.caption.join(' ') + ' ' + c.word.join(' '), [cx - FW / 2, cy - H / 2, cx + FW / 2, cy + H / 2], [X0, top, X1, roomBottom(data)]);\n    reportLines('caption', c.caption.map((l, j) => ({ text: l, x: cx, y: y0 + CL * (j + 0.5), anchor: 'c' })), 40, inCard);\n    reportLines('word', c.word.map((l, j) => ({ text: l, x: cx, y: wy + WL * (j + 0.5), anchor: 'c' })), 64, inCard);\n  });\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />\n      <Card s={s} cx={LCX} cy={cy} t0={tCause} hero={false} lines={lc} H={H} />\n      {ap > 0 ? (\n        <svg width={1080 * s.k} height={809 * s.k} viewBox=\"0 0 1080 809\" style={{ position: 'absolute', left: 0, top: 0 }}>\n          {L > head ? <line x1={ax0} y1={cy} x2={ax0 + L - head + 2} y2={cy} stroke={C.gold} strokeWidth=\"9\" strokeLinecap=\"round\" /> : null}\n          <polygon points={(ax0 + L) + ',' + cy + ' ' + (ax0 + L - head) + ',' + (cy - head * 0.62 * Math.min(1, L / head)) + ' ' + (ax0 + L - head) + ',' + (cy + head * 0.62 * Math.min(1, L / head))} fill={C.gold} />\n        </svg>\n      ) : null}\n      <Card s={s} cx={RCX} cy={cy} t0={tEffect} hero lines={le} H={H} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["flow_cause_effect"] ?? [], timeIndependent: !!TIME_INDEPENDENT["flow_cause_effect"], label: LABELS["flow_cause_effect"] ?? "flow_cause_effect" },
   "frame": { tsxCode: "import React from 'react';\nimport { Img, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst SERIF = \"'Noto Serif KR','AppleMyungjo','Batang','Times New Roman',serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Persistent frame: brand background above and below the 1080x920 media window (y 480-1400), plus the\n// logo block under the window. The window itself stays transparent so the scene clips show through\n// whatever the track order is. Brand text comes in as parameters (the preset supplies it).\nexport default function Frame({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const bg = String(data?.background ?? '#21302A');\n  const top = Number(data?.windowTop ?? 480);\n  const bottom = Number(data?.windowBottom ?? 1400);\n  const gold = String(data?.accentColor ?? '#D8B66A');\n  const logo = typeof data?.logo === 'string' ? data.logo : '';\n  const logoMain = String(data?.logoMain ?? '');\n  const logoAccent = String(data?.logoAccent ?? '');\n  const tagline = String(data?.tagline ?? '');\n  // `backgroundImage` (data URL of a clean full 1080x1920 frame, e.g. with the damask pattern) replaces the flat colour.\n  const art = typeof data?.backgroundImage === 'string' ? data.backgroundImage : '';\n  const band = { position: 'absolute', left: 0, width: '100%', background: art ? bg + ' url(' + art + ') no-repeat' : bg, backgroundSize: art ? width + 'px auto' : undefined };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      <div style={{ ...band, top: 0, height: top * k }} />\n      <div style={{ ...band, top: bottom * k, bottom: 0, backgroundPosition: art ? '0 ' + -bottom * k + 'px' : undefined }} />\n      {logo ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 20) * k, height: 240 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <Img src={logo} style={{ maxHeight: 240 * k, maxWidth: 900 * k, objectFit: 'contain' }} />\n        </div>\n      ) : (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: (bottom + 12) * k, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 22 * k, height: 150 * k }}>\n            {logoMain ? <div style={{ fontFamily, fontWeight: 900, fontStyle: 'italic', fontSize: 100 * k, color: '#FFFFFF', letterSpacing: -2 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoMain}</div> : null}\n            {logoAccent ? <div style={{ fontFamily: SERIF, fontWeight: 900, fontStyle: 'italic', fontSize: 134 * k, color: gold, letterSpacing: -3 * k, textShadow: '0 ' + 4 * k + 'px ' + 10 * k + 'px rgba(0,0,0,0.45)' }}>{logoAccent}</div> : null}\n          </div>\n          {logoMain || logoAccent ? <div style={{ width: 486 * k, height: 3 * k, marginTop: 8 * k, background: gold }} /> : null}\n          {tagline ? <div style={{ fontFamily, fontWeight: 300, fontSize: 52 * k, color: '#FFFFFF', marginTop: 16 * k, letterSpacing: -1 * k }}>{tagline}</div> : null}\n        </div>\n      )}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["frame"] ?? [], timeIndependent: !!TIME_INDEPENDENT["frame"], label: LABELS["frame"] ?? "frame" },
   "headline": { tsxCode: "import React from 'react';\nimport { useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Fixed two-line headline above the media window, on screen for the whole video with no animation.\n// Line 1: white text (an optional accent substring in the box colour). Line 2: black text on a box\n// that hugs the text width. Both lines shrink to fit when they run long.\nexport default function Headline({ data }) {\n  const fontFace = useEmbeddedFont(data);\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK;\n  const size = Number(data?.fontSize ?? 96);\n  const boxColor = String(data?.boxColor ?? '#FFD700');\n  const line1 = String(data?.line1 ?? '');\n  const line2 = String(data?.line2 ?? '');\n  const accent = String(data?.accent ?? '');\n  // Hangul glyphs at this weight run close to 0.95em; digits and spaces are narrower.\n  const em = (s) => [...s].reduce((n, c) => n + (c === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(c) ? 0.58 : 0.95), 0);\n  const fit = (s, max) => Math.min(size, max / Math.max(1, em(s)));\n  const size1 = fit(line1, 1010);\n  const size2 = fit(line2, 1030);\n  const at = accent && line1.includes(accent) ? line1.indexOf(accent) : -1;\n  const text1 = at < 0 ? line1 : (\n    <>\n      {line1.slice(0, at)}\n      <span style={{ color: boxColor }}>{accent}</span>\n      {line1.slice(at + accent.length)}\n    </>\n  );\n  const type = { fontFamily, fontWeight: 900, letterSpacing: -2 * k, whiteSpace: 'nowrap' };\n  return (\n    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>\n      {fontFace}\n      {line1 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line1Top ?? 228) * k, height: 110 * k, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>\n          <div style={{ ...type, fontSize: size1 * k, lineHeight: 1, color: String(data?.line1Color ?? '#FFFFFF') }}>{text1}</div>\n        </div>\n      ) : null}\n      {line2 ? (\n        <div style={{ position: 'absolute', left: 0, right: 0, top: Number(data?.line2Top ?? 343) * k, height: 114 * k, display: 'flex', justifyContent: 'center' }}>\n          <div style={{ ...type, fontSize: size2 * k, lineHeight: 114 * k + 'px', height: 114 * k, padding: '0 ' + 18 * k + 'px', maxWidth: 1050 * k, background: boxColor, color: String(data?.line2Color ?? '#000000') }}>{line2}</div>\n        </div>\n      ) : null}\n    </div>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["headline"] ?? [], timeIndependent: !!TIME_INDEPENDENT["headline"], label: LABELS["headline"] ?? "headline" },
-  "highlight_card": { tsxCode: `import React from 'react';
-import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
-
-// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
-// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
-// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
-// delayRender, continueRender and cancelRender imported by the template.
-//
-// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
-// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-const C = {
-  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
-  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
-  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
-};
-const X0 = 60, X1 = 1020;
-
-// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
-// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
-const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
-const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
-const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
-const lerp = (a, b, x) => a + (b - a) * x;
-
-// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
-// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
-// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
-// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
-// whole timeline faster instead of cutting entrances off.
-const HOLD = 1.5;
-function useScene(data, natural = 0) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const end = durationInFrames / fps;
-  const room = Math.max(end * 0.5, end - HOLD);
-  const speed = natural > room ? natural / room : 1;
-  return {
-    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
-    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
-    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
-  };
-}
-
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
-// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
-// plate laid underneath.
-function Win({ s, data, children }) {
-  const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
-    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
-      {s.fontFace}
-      {children}
-    </div>
-  );
-}
-
-// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
-// b (centre-bottom). The box takes its content's size.
-const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
-function At({ s, x, y, anchor = 'c', style, children }) {
-  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
-}
-
-// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
-function rise(s, t0, dur = 0.8, dy = 20) {
-  const p = prog(s.t, t0, t0 + dur);
-  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
-}
-function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor} style={style}>
-      <div style={rise(s, t0, dur, dy)}>{children}</div>
-    </At>
-  );
-}
-// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
-function pop(s, t0, dur = 0.8) {
-  const p = prog(s.t, t0, t0 + dur);
-  const sc = lerp(0.9, 1, settle(p, 0.3));
-  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
-}
-function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor}>
-      <div style={pop(s, t0, dur)}>{children}</div>
-    </At>
-  );
-}
-
-// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
-// the centre outwards over \`dur\`.
-function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
-  const p = smooth(prog(s.t, t0, t0 + dur));
-  if (p <= 0) return null;
-  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
-  const seg = (yy, lw) => (
-    <g key={yy} stroke={C.gold} strokeWidth={lw}>
-      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
-      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
-    </g>
-  );
-  return (
-    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
-      {seg(6, 2.2)}
-      {seg(12, 1.2)}
-      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
-    </svg>
-  );
-}
-
-// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;
-// the sub line takes [ ] / { } marks like any sentence.
-// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
-function Header({ s, title, subtitle, t0 = 0 }) {
-  return (
-    <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
-      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
-      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
-    </>
-  );
-}
-
-// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
-function Source({ s, text, t0 = 0.3 }) {
-  if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
-}
-
-// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
-function parseMarks(text) {
-  const out = [];
-  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
-    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
-    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
-    else out.push({ text: m[3], mark: '' });
-  }
-  return out.filter((p) => p.text);
-}
-const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
-
-// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
-// swept in left to right by p (0..1).
-function Brush({ p, seed = 0 }) {
-  const id = 'nmb' + seed + Math.round(p * 1000);
-  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
-  const top = [], bot = [];
-  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
-  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
-      <defs>
-        <linearGradient id={id}>
-          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
-          <stop offset={p * 1.15} stopColor="#000" />
-        </linearGradient>
-        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
-      </defs>
-      <g mask={'url(#' + id + 'm)'}>
-        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
-        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
-      </g>
-    </svg>
-  );
-}
-
-// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
-// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
-const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
-// The scene title and sub line brushes (Header with t0 = 0).
-const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
-
-// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
-function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
-  return (
-    <>
-      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
-        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
-          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
-          {p.text}
-        </span>
-      ))}
-    </>
-  );
-}
-
-// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
-// settled (t0 + 0.55 s), riding with the line.
-function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
-  return (
-    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
-      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
-    </Rise>
-  );
-}
-
-// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
-// Its text is one colour on the ribbon, so emphasis marks are dropped.
-function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
-  const k = s.k, n = 14 * k;
-  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
-  return (
-    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
-      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
-      <div style={{ ...line, top: 4.25 * k }} />
-      <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{plainText(text)}</span>
-    </div>
-  );
-}
-
-// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
-function cardStyle(s, hero = false) {
-  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
-}
-
-// Count-up: split a value into fixed text around one number so it can count from 0.
-// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
-const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
-function countable(v) {
-  const text = typeof v === 'number' ? String(v) : String(v ?? '');
-  const hits = text.match(NUM) || [];
-  if (hits.length !== 1) return null;
-  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
-  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
-}
-// Rounded first so a negative value starts at 0, not -0.
-const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
-
-// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
-const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
-
-// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
-// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
-// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
-// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
-// report() then flags it (the scene's validation uses these same lines).
-const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
-  const out = [];
-  for (const para of String(text ?? '').split('\\n')) {
-    // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
-    const pieces = [];
-    let cur = '', depth = 0;
-    const chars = [...para];
-    chars.forEach((ch, i) => {
-      if (ch === '[' || ch === '{') depth += 1;
-      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }
-      cur += ch;
-      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }
-    });
-    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
-    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
-    // A mark that fits a line is one word; a longer one stays as its pieces.
-    const words = [];
-    for (let i = 0; i < pieces.length;) {
-      let j = i;
-      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;
-      const group = pieces.slice(i, j + 1);
-      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });
-      else words.push(...group);
-      i = j + 1;
-    }
-    const lines = [];
-    let line = [];
-    for (const w of words) {
-      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
-    }
-    if (line.length || !words.length) lines.push(line);
-    let texts = lines.map(join);
-    if (lines.length === 2) {
-      // Two lines: the split whose longer half is shortest.
-      const all = words;
-      let best = lines[0].length, bestW = Infinity;
-      for (let i = 1; i < all.length; i += 1) {
-        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
-        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
-      }
-      texts = [join(all.slice(0, best)), join(all.slice(best))];
-    }
-    // A mark cut by a line break is closed at the line's end and opened again on the next line.
-    let carry = '';
-    for (const t of texts) {
-      const full = carry + t;
-      let open = '';
-      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }
-      out.push(full + (open ? CLOSE[open] : ''));
-      carry = open;
-    }
-  }
-  return out;
-}
-
-// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.
-// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where
-// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,
-// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are
-// [x0, y0, x1, y1].
-function report(what, text, box, area, extra) {
-  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
-}
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
-function reportLines(what, lines, size, area, maxLines = 2) {
-  if (typeof REPORT !== 'function' || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
-  lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
-    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
-    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
-    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
-  });
-  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
-}
-// Under the source line (26 px, centred on y 772) when the scene has one.
-const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
-
-// One big value (style spec 6-3, last line): a crimson-bordered card 860 x 400 holding the title (50),
-// a short gold rule and the value (150, crimson) with its unit (80). The number inside \`value\` counts
-// up from 0 and slows to a stop so its last digits read; text around it (a "$" prefix, a word before it) stays fixed.
-// Text that does not fit keeps its size and breaks onto more lines (style spec 1): the title at a space, the
-// value after \\uC5B5/\\uB9CC (1\\uC5B5 / 5000\\uB9CC) or a space, the unit onto a line of its own; the card grows to hold them (a
-// value on several lines shows its final text, without the count-up). \`subtitle\` sits under the card,
-// \`source\` bottom-right.
-const W = 860, IN = W - 100, TL = 62, VL = 160, UL = 96;
-export default function HighlightCard({ data }) {
-  const title = String(data?.title ?? '');
-  const subtitle = String(data?.subtitle ?? '');
-  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s, or a brush in the title or sub line.
-  const s = useScene(data, Math.max(2.0, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
-  const k = s.k;
-  const value = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');
-  const unit = String(data?.unit ?? '');
-  const titleLines = title ? wrapLines(title, 50, W - 80) : [];
-  const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
-  const vLines = wrapLines(value, 150, IN);
-  // The unit stays beside the last value line when it fits there.
-  const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
-  const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
-  const H = 400 + grow;
-  const x0 = (1080 - W) / 2;
-  const below = subLines.length ? 58 + 40 * subLines.length : 0;
-  const y0 = Math.max(0, Math.min(subtitle ? 190 : 214, 770 - H - below));
-  const count = vLines.length === 1 && !unitOwn ? countable(value) : null;
-  const cp = prog(s.t, 0.8, 0.8 + 1.2);
-  const num = { fontSize: 150 * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * k, fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
-  const unitStyle = { fontSize: 80 * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 };
-  const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;
-  const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H];
-  report('card', title + ' ' + value + unit, [x0, y0, x0 + W, y0 + H], [X0, 0, X1, roomBottom(data)]);
-  reportLines('title', titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: 'c' })), 50, inCard(40));
-  reportLines('value', vLines.map((l, r) => ({ text: l, x: 540, y: vy + VL * r, anchor: 'c' })), 150, inCard(50));
-  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c' }] : [], 80, inCard(50), 1);
-  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H + 58 + 40 * j, anchor: 'c' })), 30, [X0, 0, X1, roomBottom(data)]);
-  return (
-    <Win s={s} data={data}>
-      <Rise s={s} t0={0} dur={0.9} dy={22} x={x0} y={y0} anchor="lt">
-        <div style={{ ...cardStyle(s, true), width: W * k, height: H * k }} />
-      </Rise>
-      {titleLines.map((l, j) => (
-        <Rise key={'t' + j} s={s} t0={0.3} dy={14} x={540} y={y0 + 78 + TL * j}>
-          <div style={{ fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k }}><Marked s={s} text={l} hlAt={0.85} /></div>
-        </Rise>
-      ))}
-      <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136 + Math.max(0, titleLines.length - 1) * TL} t0={0.5} />
-      {vLines.map((l, r) => (
-        <Pop key={'v' + r} s={s} t0={0.8} x={540} y={vy + VL * r}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline' }}>
-            {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}
-            <span style={{ position: 'relative' }}>
-              <span style={{ ...num, visibility: count ? 'hidden' : 'visible' }}>{l}</span>
-              {count ? <span style={{ ...num, position: 'absolute', right: 0, bottom: 0 }}>{counted(count, smooth(cp))}</span> : null}
-            </span>
-            {unit && !unitOwn && r === vLines.length - 1 ? <span style={unitStyle}>{unit}</span> : null}
-          </div>
-        </Pop>
-      ))}
-      {unitOwn ? <Pop s={s} t0={0.8} x={540} y={vy + VL * (vLines.length - 1) + 128}><span style={{ ...unitStyle, marginLeft: 0 }}>{unit}</span></Pop> : null}
-      {subLines.map((l, j) => (
-        <Rise key={'s' + j} s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58 + 40 * j}>
-          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={l} hlAt={1.75} /></div>
-        </Rise>
-      ))}
-      <Source s={s} text={String(data?.source ?? '')} />
-    </Win>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["highlight_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["highlight_card"], label: LABELS["highlight_card"] ?? "highlight_card" },
+  "highlight_card": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses\n// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and\n// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,\n// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at\n// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.\n// `ls` is the letter spacing in px, which Chrome adds after every character.\nconst ADV = {\n  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],\n  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],\n};\n// Proportional digits 0..9 and the comma, for text not set in tabular-nums.\nconst ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };\n// At weight 800 (the 700 widths are at most 3% less).\nconst ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };\nconst advance = (ch, weight, tnum) => {\n  const c = ch.codePointAt(0);\n  if (c >= 0x20 && c <= 0x7e) {\n    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);\n    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;\n  }\n  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;\n  return (ADV_MORE[ch] ?? 1000) / 1000;\n};\nconst textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW, width = (t) => ems(t) * size) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => width(plainText(join(ws)));\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.\n// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// One big value (style spec 6-3, last line): a crimson-bordered card 860 x 400 holding the title (50),\n// a short gold rule and the value (150, crimson) with its unit (80). The number inside `value` counts\n// up from 0 and slows to a stop so its last digits read; text around it (a \"$\" prefix, a word before it) stays fixed.\n// Text that does not fit keeps its size and breaks onto more lines (style spec 1): the title at a space, the\n// value after \\uC5B5/\\uB9CC (1\\uC5B5 / 5000\\uB9CC) or a space, the unit onto a line of its own; the card grows to hold them (a\n// value on several lines shows its final text, without the count-up). `subtitle` sits under the card,\n// `source` bottom-right.\nconst W = 860, IN = W - 100, TL = 62, VL = 160, UL = 96;\nexport default function HighlightCard({ data }) {\n  const title = String(data?.title ?? '');\n  const subtitle = String(data?.subtitle ?? '');\n  // Last entrance: count-up 0.8 + 1.2 s, sub line 1.2 + 0.8 s, or a brush in the title or sub line.\n  const s = useScene(data, Math.max(2.0, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));\n  const k = s.k;\n  const raw = typeof data?.value === 'number' ? String(data.value) : String(data?.value ?? '');\n  // The count-up lands on its final text (1000000 -> 1,000,000): the lines and the layout check use that text.\n  const final = countable(raw);\n  const value = final ? counted(final, 1) : raw;\n  const unit = String(data?.unit ?? '');\n  const titleLines = title ? wrapLines(title, 50, W - 80) : [];\n  const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];\n  // Value and unit at their drawn widths (tabular digits, letter spacing, the unit's 6 px margin).\n  const valueW = (t) => textW(t, 150, 800, -4), unitW = unit ? textW(unit, 80, 700) : 0;\n  const vLines = wrapLines(value, 150, IN, valueW);\n  // The unit stays beside the last value line when it fits there.\n  const unitOwn = !!unit && valueW(vLines[vLines.length - 1]) + 6 + unitW > IN;\n  const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);\n  const H = 400 + grow;\n  const x0 = (1080 - W) / 2;\n  const below = subLines.length ? 58 + 40 * subLines.length : 0;\n  const y0 = Math.max(0, Math.min(subtitle ? 190 : 214, 770 - H - below));\n  const count = vLines.length === 1 && !unitOwn ? countable(value) : null;\n  const cp = prog(s.t, 0.8, 0.8 + 1.2);\n  const num = { fontSize: 150 * k, fontWeight: 800, color: C.acc, letterSpacing: -4 * k, fontVariantNumeric: 'tabular-nums', lineHeight: 1 };\n  const unitStyle = { fontSize: 80 * k, fontWeight: 700, color: C.acc, marginLeft: 6 * k, lineHeight: 1 };\n  const vy = y0 + (title ? 262 : 200) + Math.max(0, titleLines.length - 1) * TL;\n  const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H];\n  report('card', title + ' ' + value + unit, [x0, y0, x0 + W, y0 + H], [X0, 0, X1, roomBottom(data)]);\n  reportLines('title', titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: 'c' })), 50, inCard(40));\n  const beside = (r) => !!unit && !unitOwn && r === vLines.length - 1;\n  reportLines('value', vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ''), x: 540, y: vy + VL * r, anchor: 'c', w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50));\n  reportLines('unit', unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: 'c', w: unitW }] : [], 80, inCard(50), 1);\n  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H + 58 + 40 * j, anchor: 'c' })), 30, [X0, 0, X1, roomBottom(data)]);\n  return (\n    <Win s={s} data={data}>\n      <Rise s={s} t0={0} dur={0.9} dy={22} x={x0} y={y0} anchor=\"lt\">\n        <div style={{ ...cardStyle(s, true), width: W * k, height: H * k }} />\n      </Rise>\n      {titleLines.map((l, j) => (\n        <Rise key={'t' + j} s={s} t0={0.3} dy={14} x={540} y={y0 + 78 + TL * j}>\n          <div style={{ fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k }}><Marked s={s} text={l} hlAt={0.85} /></div>\n        </Rise>\n      ))}\n      <GoldRule s={s} x0={540 - 120} x1={540 + 120} y={y0 + 136 + Math.max(0, titleLines.length - 1) * TL} t0={0.5} />\n      {vLines.map((l, r) => (\n        <Pop key={'v' + r} s={s} t0={0.8} x={540} y={vy + VL * r}>\n          <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline' }}>\n            {/* The final value sizes the line; the counting value is laid over it so nothing shifts. */}\n            <span style={{ position: 'relative' }}>\n              <span style={{ ...num, visibility: count ? 'hidden' : 'visible' }}>{l}</span>\n              {count ? <span style={{ ...num, position: 'absolute', right: 0, bottom: 0 }}>{counted(count, smooth(cp))}</span> : null}\n            </span>\n            {unit && !unitOwn && r === vLines.length - 1 ? <span style={unitStyle}>{unit}</span> : null}\n          </div>\n        </Pop>\n      ))}\n      {unitOwn ? <Pop s={s} t0={0.8} x={540} y={vy + VL * (vLines.length - 1) + 128}><span style={{ ...unitStyle, marginLeft: 0 }}>{unit}</span></Pop> : null}\n      {subLines.map((l, j) => (\n        <Rise key={'s' + j} s={s} t0={1.2} dy={10} x={540} y={y0 + H + 58 + 40 * j}>\n          <div style={{ fontSize: 30 * k, fontWeight: 500, color: C.gray }}><Marked s={s} text={l} hlAt={1.75} /></div>\n        </Rise>\n      ))}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["highlight_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["highlight_card"], label: LABELS["highlight_card"] ?? "highlight_card" },
   "line_trend_callout": { tsxCode: `import React from 'react';
 import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
@@ -4236,15 +3472,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
+// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
+// digits tabular (every value is set in tabular-nums; \`tnum\` false for one that is not), measured in Chrome 155 at
+// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
+// \`ls\` is the letter spacing in px, which Chrome adds after every character.
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+};
+// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+// At weight 800 (the 700 widths are at most 3% less).
+const ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 0x20 && c <= 0x7e) {
+    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+  }
+  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
+  return (ADV_MORE[ch] ?? 1000) / 1000;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at \`size\` (by ems, or \`width(text)\` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? '').split('\\n')) {
     // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
@@ -4260,7 +3520,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     // A mark that fits a line is one word; a longer one stays as its pieces.
     const words = [];
     for (let i = 0; i < pieces.length;) {
@@ -4309,12 +3569,13 @@ function wrapLines(text, size, maxW) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
+// \`w\` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
 function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== 'function' || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
@@ -4427,8 +3688,10 @@ export default function LineTrendCallout({ data }) {
   // slows to a stop with the sine sweep.
   const rawEnd = data?.endLabel;
   const endValue = rawEnd == null || rawEnd === '' ? (n ? vals[n - 1] : '') : rawEnd;
-  const endText = typeof endValue === 'number' ? valueText(endValue) : String(endValue);
-  const count = countable(endText);
+  const rawText = typeof endValue === 'number' ? valueText(endValue) : String(endValue);
+  const count = countable(rawText);
+  // The text the count-up lands on ("1000000" -> 1,000,000) sizes the label and the layout check.
+  const endText = count ? counted(count, 1) : rawText;
   const f = n > 1 ? clamp(u - (n - 2)) : done ? 1 : 0;
   const from = count && n > 1 && Math.abs(count.num - vals[n - 1]) < 1e-9 ? vals[n - 2] : 0;
   const shown = count ? counted({ ...count, num: lerp(from, count.num, f) }, 1) : endText;
@@ -4446,7 +3709,7 @@ export default function LineTrendCallout({ data }) {
   );
   const endY = n ? P[n - 1][1] - 68 : 0;
   // The end value runs left from the window's right edge; a text label wider than the window is cut off.
-  const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+  const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
   if (n && endText !== '') report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
   // A text end label without one number pops in as the last segment starts, at rest before the hold.
   const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
@@ -4511,393 +3774,7 @@ export default function LineTrendCallout({ data }) {
   );
 }
 `, editableParameters: PARAM_SCHEMAS["line_trend_callout"] ?? [], timeIndependent: !!TIME_INDEPENDENT["line_trend_callout"], label: LABELS["line_trend_callout"] ?? "line_trend_callout" },
-  "news_photo": { tsxCode: `import React from 'react';
-import { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
-
-// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
-// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
-// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
-// delayRender, continueRender and cancelRender imported by the template.
-//
-// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
-// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-const C = {
-  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
-  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
-  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
-};
-const X0 = 60, X1 = 1020;
-
-// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
-// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
-const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
-const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
-const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
-const lerp = (a, b, x) => a + (b - a) * x;
-
-// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
-// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
-// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
-// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
-// whole timeline faster instead of cutting entrances off.
-const HOLD = 1.5;
-function useScene(data, natural = 0) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const end = durationInFrames / fps;
-  const room = Math.max(end * 0.5, end - HOLD);
-  const speed = natural > room ? natural / room : 1;
-  return {
-    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
-    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
-    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
-  };
-}
-
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
-// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
-// plate laid underneath.
-function Win({ s, data, children }) {
-  const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
-    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
-      {s.fontFace}
-      {children}
-    </div>
-  );
-}
-
-// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
-// b (centre-bottom). The box takes its content's size.
-const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
-function At({ s, x, y, anchor = 'c', style, children }) {
-  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
-}
-
-// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
-function rise(s, t0, dur = 0.8, dy = 20) {
-  const p = prog(s.t, t0, t0 + dur);
-  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
-}
-function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor} style={style}>
-      <div style={rise(s, t0, dur, dy)}>{children}</div>
-    </At>
-  );
-}
-// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
-function pop(s, t0, dur = 0.8) {
-  const p = prog(s.t, t0, t0 + dur);
-  const sc = lerp(0.9, 1, settle(p, 0.3));
-  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
-}
-function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor}>
-      <div style={pop(s, t0, dur)}>{children}</div>
-    </At>
-  );
-}
-
-// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
-// the centre outwards over \`dur\`.
-function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
-  const p = smooth(prog(s.t, t0, t0 + dur));
-  if (p <= 0) return null;
-  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
-  const seg = (yy, lw) => (
-    <g key={yy} stroke={C.gold} strokeWidth={lw}>
-      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
-      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
-    </g>
-  );
-  return (
-    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
-      {seg(6, 2.2)}
-      {seg(12, 1.2)}
-      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
-    </svg>
-  );
-}
-
-// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;
-// the sub line takes [ ] / { } marks like any sentence.
-// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
-function Header({ s, title, subtitle, t0 = 0 }) {
-  return (
-    <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
-      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
-      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
-    </>
-  );
-}
-
-// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
-function Source({ s, text, t0 = 0.3 }) {
-  if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
-}
-
-// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
-function parseMarks(text) {
-  const out = [];
-  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
-    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
-    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
-    else out.push({ text: m[3], mark: '' });
-  }
-  return out.filter((p) => p.text);
-}
-const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
-
-// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
-// swept in left to right by p (0..1).
-function Brush({ p, seed = 0 }) {
-  const id = 'nmb' + seed + Math.round(p * 1000);
-  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
-  const top = [], bot = [];
-  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
-  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
-      <defs>
-        <linearGradient id={id}>
-          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
-          <stop offset={p * 1.15} stopColor="#000" />
-        </linearGradient>
-        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
-      </defs>
-      <g mask={'url(#' + id + 'm)'}>
-        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
-        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
-      </g>
-    </svg>
-  );
-}
-
-// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
-// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
-const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
-// The scene title and sub line brushes (Header with t0 = 0).
-const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
-
-// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
-function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
-  return (
-    <>
-      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
-        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
-          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
-          {p.text}
-        </span>
-      ))}
-    </>
-  );
-}
-
-// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
-// settled (t0 + 0.55 s), riding with the line.
-function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
-  return (
-    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
-      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
-    </Rise>
-  );
-}
-
-// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
-// Its text is one colour on the ribbon, so emphasis marks are dropped.
-function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
-  const k = s.k, n = 14 * k;
-  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
-  return (
-    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
-      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
-      <div style={{ ...line, top: 4.25 * k }} />
-      <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{plainText(text)}</span>
-    </div>
-  );
-}
-
-// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
-function cardStyle(s, hero = false) {
-  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
-}
-
-// Count-up: split a value into fixed text around one number so it can count from 0.
-// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
-const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
-function countable(v) {
-  const text = typeof v === 'number' ? String(v) : String(v ?? '');
-  const hits = text.match(NUM) || [];
-  if (hits.length !== 1) return null;
-  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
-  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
-}
-// Rounded first so a negative value starts at 0, not -0.
-const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
-
-// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
-const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
-
-// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
-// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
-// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
-// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
-// report() then flags it (the scene's validation uses these same lines).
-const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
-  const out = [];
-  for (const para of String(text ?? '').split('\\n')) {
-    // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
-    const pieces = [];
-    let cur = '', depth = 0;
-    const chars = [...para];
-    chars.forEach((ch, i) => {
-      if (ch === '[' || ch === '{') depth += 1;
-      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }
-      cur += ch;
-      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }
-    });
-    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
-    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
-    // A mark that fits a line is one word; a longer one stays as its pieces.
-    const words = [];
-    for (let i = 0; i < pieces.length;) {
-      let j = i;
-      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;
-      const group = pieces.slice(i, j + 1);
-      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });
-      else words.push(...group);
-      i = j + 1;
-    }
-    const lines = [];
-    let line = [];
-    for (const w of words) {
-      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
-    }
-    if (line.length || !words.length) lines.push(line);
-    let texts = lines.map(join);
-    if (lines.length === 2) {
-      // Two lines: the split whose longer half is shortest.
-      const all = words;
-      let best = lines[0].length, bestW = Infinity;
-      for (let i = 1; i < all.length; i += 1) {
-        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
-        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
-      }
-      texts = [join(all.slice(0, best)), join(all.slice(best))];
-    }
-    // A mark cut by a line break is closed at the line's end and opened again on the next line.
-    let carry = '';
-    for (const t of texts) {
-      const full = carry + t;
-      let open = '';
-      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }
-      out.push(full + (open ? CLOSE[open] : ''));
-      carry = open;
-    }
-  }
-  return out;
-}
-
-// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.
-// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where
-// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,
-// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are
-// [x0, y0, x1, y1].
-function report(what, text, box, area, extra) {
-  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
-}
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
-function reportLines(what, lines, size, area, maxLines = 2) {
-  if (typeof REPORT !== 'function' || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
-  lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
-    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
-    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
-    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
-  });
-  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
-}
-// Under the source line (26 px, centred on y 772) when the scene has one.
-const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
-
-// Article photo in a gold-edged frame (radius 12, 2 px gold) on the paper, zooming slowly over the
-// whole clip (100 -> 106 % by default, or a pan). \`image\` is a data URL; \`credit\` sits bottom-right
-// like a source line. \`fit: "contain"\` (graphics, charts, tall images) shows the whole image on the
-// card colour inside the frame with a third of the move, so axes and titles never leave it.
-const MOVES = {
-  push_in: { s: [0, 1], x: [0, -0.012], y: [0, -0.008] },
-  pull_out: { s: [1, 0], x: [0, 0], y: [0, 0] },
-  pan_left: { s: [0.6, 0.6], x: [0.03, -0.03], y: [0, 0] },
-  pan_right: { s: [0.6, 0.6], x: [-0.03, 0.03], y: [0, 0] },
-  pan_up: { s: [0.6, 0.6], x: [0, 0], y: [0.03, -0.03] },
-  pan_down: { s: [0.6, 0.6], x: [0, 0], y: [-0.03, 0.03] },
-};
-const FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '20% 50%', right: '80% 50%' };
-
-export default function NewsPhoto({ data }) {
-  // Last entrance: the credit line, 0.3 + 0.8 s.
-  const s = useScene(data, 1.1);
-  const k = s.k;
-  // The move runs over the real clip length, not the entrance clock.
-  const p = smooth(s.frame / s.fps / Math.max(0.1, s.end));
-  const move = MOVES[String(data?.motion ?? 'push_in')] ?? MOVES.push_in;
-  const contain = data?.fit === 'contain';
-  const gentle = contain ? 1 / 3 : 1;
-  const zoom = Number(data?.zoom ?? 0.06) * gentle;
-  const scale = 1 + zoom * lerp(move.s[0], move.s[1], p);
-  const credit = String(data?.credit ?? '');
-  // Frame x 60..1020; from y 40 down to 40 px above the credit line (or the content floor).
-  const fx = X0, fy = 40, fw = X1 - X0, fh = (credit ? 740 : 794) - fy;
-  const dx = lerp(move.x[0], move.x[1], p) * fw * gentle;
-  const dy = lerp(move.y[0], move.y[1], p) * fh * gentle;
-  const image = typeof data?.image === 'string' ? data.image : '';
-  const pad = contain ? 16 : 0;
-  return (
-    <Win s={s} data={data}>
-      <Rise s={s} t0={0} dur={0.8} dy={20} x={fx} y={fy} anchor="lt">
-        <div style={{ position: 'relative', width: fw * k, height: fh * k, borderRadius: 12 * k, overflow: 'hidden', background: contain ? C.card : C.line }}>
-          {image ? (
-            <Img src={image} style={{ position: 'absolute', left: pad * k, top: pad * k, width: (fw - 2 * pad) * k, height: (fh - 2 * pad) * k, objectFit: contain ? 'contain' : 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />
-          ) : null}
-          {data?.dim ? <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data.dim) + ')' }} /> : null}
-          <div style={{ position: 'absolute', inset: 0, borderRadius: 12 * k, border: 2 * k + 'px solid ' + C.gold, boxSizing: 'border-box' }} />
-        </div>
-      </Rise>
-      <Source s={s} text={credit} />
-    </Win>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["news_photo"] ?? [], timeIndependent: !!TIME_INDEPENDENT["news_photo"], label: LABELS["news_photo"] ?? "news_photo" },
+  "news_photo": { tsxCode: "import React from 'react';\nimport { Img, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses\n// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and\n// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,\n// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at\n// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.\n// `ls` is the letter spacing in px, which Chrome adds after every character.\nconst ADV = {\n  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],\n  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],\n};\n// Proportional digits 0..9 and the comma, for text not set in tabular-nums.\nconst ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };\n// At weight 800 (the 700 widths are at most 3% less).\nconst ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };\nconst advance = (ch, weight, tnum) => {\n  const c = ch.codePointAt(0);\n  if (c >= 0x20 && c <= 0x7e) {\n    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);\n    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;\n  }\n  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;\n  return (ADV_MORE[ch] ?? 1000) / 1000;\n};\nconst textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW, width = (t) => ems(t) * size) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => width(plainText(join(ws)));\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.\n// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Article photo in a gold-edged frame (radius 12, 2 px gold) on the paper, zooming slowly over the\n// whole clip (100 -> 106 % by default, or a pan). `image` is a data URL; `credit` sits bottom-right\n// like a source line. `fit: \"contain\"` (graphics, charts, tall images) shows the whole image on the\n// card colour inside the frame with a third of the move, so axes and titles never leave it.\nconst MOVES = {\n  push_in: { s: [0, 1], x: [0, -0.012], y: [0, -0.008] },\n  pull_out: { s: [1, 0], x: [0, 0], y: [0, 0] },\n  pan_left: { s: [0.6, 0.6], x: [0.03, -0.03], y: [0, 0] },\n  pan_right: { s: [0.6, 0.6], x: [-0.03, 0.03], y: [0, 0] },\n  pan_up: { s: [0.6, 0.6], x: [0, 0], y: [0.03, -0.03] },\n  pan_down: { s: [0.6, 0.6], x: [0, 0], y: [-0.03, 0.03] },\n};\nconst FOCUS = { center: '50% 50%', top: '50% 20%', bottom: '50% 80%', left: '20% 50%', right: '80% 50%' };\n\nexport default function NewsPhoto({ data }) {\n  // Last entrance: the credit line, 0.3 + 0.8 s.\n  const s = useScene(data, 1.1);\n  const k = s.k;\n  // The move runs over the real clip length, not the entrance clock.\n  const p = smooth(s.frame / s.fps / Math.max(0.1, s.end));\n  const move = MOVES[String(data?.motion ?? 'push_in')] ?? MOVES.push_in;\n  const contain = data?.fit === 'contain';\n  const gentle = contain ? 1 / 3 : 1;\n  const zoom = Number(data?.zoom ?? 0.06) * gentle;\n  const scale = 1 + zoom * lerp(move.s[0], move.s[1], p);\n  const credit = String(data?.credit ?? '');\n  // Frame x 60..1020; from y 40 down to 40 px above the credit line (or the content floor).\n  const fx = X0, fy = 40, fw = X1 - X0, fh = (credit ? 740 : 794) - fy;\n  const dx = lerp(move.x[0], move.x[1], p) * fw * gentle;\n  const dy = lerp(move.y[0], move.y[1], p) * fh * gentle;\n  const image = typeof data?.image === 'string' ? data.image : '';\n  const pad = contain ? 16 : 0;\n  return (\n    <Win s={s} data={data}>\n      <Rise s={s} t0={0} dur={0.8} dy={20} x={fx} y={fy} anchor=\"lt\">\n        <div style={{ position: 'relative', width: fw * k, height: fh * k, borderRadius: 12 * k, overflow: 'hidden', background: contain ? C.card : C.line }}>\n          {image ? (\n            <Img src={image} style={{ position: 'absolute', left: pad * k, top: pad * k, width: (fw - 2 * pad) * k, height: (fh - 2 * pad) * k, objectFit: contain ? 'contain' : 'cover', objectPosition: FOCUS[String(data?.focus ?? 'center')] ?? FOCUS.center, transform: 'translate(' + dx * k + 'px,' + dy * k + 'px) scale(' + scale + ')', transformOrigin: '50% 50%' }} />\n          ) : null}\n          {data?.dim ? <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,' + Number(data.dim) + ')' }} /> : null}\n          <div style={{ position: 'absolute', inset: 0, borderRadius: 12 * k, border: 2 * k + 'px solid ' + C.gold, boxSizing: 'border-box' }} />\n        </div>\n      </Rise>\n      <Source s={s} text={credit} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["news_photo"] ?? [], timeIndependent: !!TIME_INDEPENDENT["news_photo"], label: LABELS["news_photo"] ?? "news_photo" },
   "number_callout": { tsxCode: `import React from 'react';
 import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
@@ -5149,15 +4026,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
+// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
+// digits tabular (every value is set in tabular-nums; \`tnum\` false for one that is not), measured in Chrome 155 at
+// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
+// \`ls\` is the letter spacing in px, which Chrome adds after every character.
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+};
+// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+// At weight 800 (the 700 widths are at most 3% less).
+const ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 0x20 && c <= 0x7e) {
+    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+  }
+  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
+  return (ADV_MORE[ch] ?? 1000) / 1000;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at \`size\` (by ems, or \`width(text)\` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? '').split('\\n')) {
     // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
@@ -5173,7 +4074,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     // A mark that fits a line is one word; a longer one stays as its pieces.
     const words = [];
     for (let i = 0; i < pieces.length;) {
@@ -5222,12 +4123,13 @@ function wrapLines(text, size, maxW) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
+// \`w\` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
 function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== 'function' || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
@@ -5267,22 +4169,30 @@ export default function NumberCallout({ data }) {
   const title = String(data?.title ?? '');
   const label = String(data?.label ?? '');
   const unit = String(data?.unit ?? '');
-  const from = show(data?.from), to = show(data?.to);
-  const cf = countable(from), ct = countable(to);
+  const from = show(data?.from), raw = show(data?.to);
+  const cf = countable(from), ct = countable(raw);
   const cp = smooth(prog(s.t, toAt, toAt + 1.2));
   // Count from the old value when both hold one number in the same format, else from 0.
-  const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail
+  const same = cf && ct && cf.head === ct.head && cf.tail === ct.tail;
+  const running = !ct ? raw : same
     ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1)
     : counted(ct, cp);
+  // The text the count-up lands on ("1000000" -> 1,000,000): the lines and the layout check use it.
+  const to = !ct ? raw : same ? counted({ ...ct, decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, 1);
   const top = title ? 150 : 40;
   const mid = (top + 794) / 2;
   // Rose or fell: only when both values hold one number in the same format.
   const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? (ct.num > cf.num ? 'up' : 'down') : '';
   const labelLines = label ? wrapLines(label, 44, W) : [];
-  const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+  // Values and units at their drawn widths: tabular digits, the line's letter spacing (on the unit beside it too),
+  // the unit's margin; the new value's triangle takes 62 px (18 + 44). Values may use the whole graphic area x 60..1020.
+  const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
+  const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
+  const VW = X1 - X0;
+  const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, VW, toW);
   const last = (l) => l[l.length - 1];
-  const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
-  const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+  const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
+  const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > VW;
   // Lines past one (and units on their own line) push the column down; it moves up by half of that to stay centred.
   const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
   const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
@@ -5298,20 +4208,20 @@ export default function NumberCallout({ data }) {
   const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data) - 6), first.top - (top + 6))));
   const counts = toLines.length === 1 && !toOwn;
   const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
-  const area = [X0 + 30, top, X1 - 30, roomBottom(data)];
+  const area = [X0 + 30, top, X1 - 30, roomBottom(data)], valueArea = [X0, top, X1, roomBottom(data)];
   const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: 'c' }));
   reportLines('label', col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
   // A value's lines with the unit (at its own smaller size) beside the last one, as drawn.
-  const valueReport = (what, list, y, step, size, uSize, own) => {
+  const valueReport = (what, list, y, step, size, lineW, beside, own) => {
     if (!list.length) return;
-    const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+    const w = list.map((l, j) => lineW(l) + (j === list.length - 1 ? beside : 0));
     const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
-    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+    report(what, list.join(' ') + (own ? '' : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], valueArea, { size, lines: list.length, maxLines: 2 });
   };
-  valueReport('old value', fromLines, yFrom, FL, 96, 53, fromOwn);
-  reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
-  valueReport('new value', toLines, yTo, TL, 150, 80, toOwn);
-  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
+  valueReport('old value', fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
+  reportLines('old value unit', fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
+  valueReport('new value', toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn);
+  reportLines('new value unit', toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1);
   const tri = prog(s.t, toAt + 1.0, toAt + 1.6);
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   const triangle = dir ? (
@@ -5623,15 +4533,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
+// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
+// digits tabular (every value is set in tabular-nums; \`tnum\` false for one that is not), measured in Chrome 155 at
+// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
+// \`ls\` is the letter spacing in px, which Chrome adds after every character.
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+};
+// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+// At weight 800 (the 700 widths are at most 3% less).
+const ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 0x20 && c <= 0x7e) {
+    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+  }
+  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
+  return (ADV_MORE[ch] ?? 1000) / 1000;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at \`size\` (by ems, or \`width(text)\` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? '').split('\\n')) {
     // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
@@ -5647,7 +4581,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     // A mark that fits a line is one word; a longer one stays as its pieces.
     const words = [];
     for (let i = 0; i < pieces.length;) {
@@ -5696,12 +4630,13 @@ function wrapLines(text, size, maxW) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
+// \`w\` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
 function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== 'function' || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
@@ -5819,849 +4754,8 @@ export default function QuoteCard({ data }) {
   );
 }
 `, editableParameters: PARAM_SCHEMAS["quote_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["quote_card"], label: LABELS["quote_card"] ?? "quote_card" },
-  "stat_cards": { tsxCode: `import React from 'react';
-import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
-
-// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
-// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
-// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
-// delayRender, continueRender and cancelRender imported by the template.
-//
-// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
-// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-const C = {
-  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
-  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
-  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
-};
-const X0 = 60, X1 = 1020;
-
-// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
-// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
-const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
-const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
-const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
-const lerp = (a, b, x) => a + (b - a) * x;
-
-// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
-// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
-// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
-// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
-// whole timeline faster instead of cutting entrances off.
-const HOLD = 1.5;
-function useScene(data, natural = 0) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const end = durationInFrames / fps;
-  const room = Math.max(end * 0.5, end - HOLD);
-  const speed = natural > room ? natural / room : 1;
-  return {
-    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
-    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
-    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
-  };
-}
-
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
-// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
-// plate laid underneath.
-function Win({ s, data, children }) {
-  const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
-    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
-      {s.fontFace}
-      {children}
-    </div>
-  );
-}
-
-// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
-// b (centre-bottom). The box takes its content's size.
-const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
-function At({ s, x, y, anchor = 'c', style, children }) {
-  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
-}
-
-// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
-function rise(s, t0, dur = 0.8, dy = 20) {
-  const p = prog(s.t, t0, t0 + dur);
-  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
-}
-function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor} style={style}>
-      <div style={rise(s, t0, dur, dy)}>{children}</div>
-    </At>
-  );
-}
-// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
-function pop(s, t0, dur = 0.8) {
-  const p = prog(s.t, t0, t0 + dur);
-  const sc = lerp(0.9, 1, settle(p, 0.3));
-  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
-}
-function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor}>
-      <div style={pop(s, t0, dur)}>{children}</div>
-    </At>
-  );
-}
-
-// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
-// the centre outwards over \`dur\`.
-function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
-  const p = smooth(prog(s.t, t0, t0 + dur));
-  if (p <= 0) return null;
-  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
-  const seg = (yy, lw) => (
-    <g key={yy} stroke={C.gold} strokeWidth={lw}>
-      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
-      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
-    </g>
-  );
-  return (
-    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
-      {seg(6, 2.2)}
-      {seg(12, 1.2)}
-      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
-    </svg>
-  );
-}
-
-// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;
-// the sub line takes [ ] / { } marks like any sentence.
-// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
-function Header({ s, title, subtitle, t0 = 0 }) {
-  return (
-    <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
-      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
-      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
-    </>
-  );
-}
-
-// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
-function Source({ s, text, t0 = 0.3 }) {
-  if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
-}
-
-// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
-function parseMarks(text) {
-  const out = [];
-  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
-    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
-    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
-    else out.push({ text: m[3], mark: '' });
-  }
-  return out.filter((p) => p.text);
-}
-const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
-
-// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
-// swept in left to right by p (0..1).
-function Brush({ p, seed = 0 }) {
-  const id = 'nmb' + seed + Math.round(p * 1000);
-  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
-  const top = [], bot = [];
-  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
-  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
-      <defs>
-        <linearGradient id={id}>
-          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
-          <stop offset={p * 1.15} stopColor="#000" />
-        </linearGradient>
-        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
-      </defs>
-      <g mask={'url(#' + id + 'm)'}>
-        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
-        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
-      </g>
-    </svg>
-  );
-}
-
-// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
-// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
-const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
-// The scene title and sub line brushes (Header with t0 = 0).
-const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
-
-// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
-function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
-  return (
-    <>
-      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
-        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
-          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
-          {p.text}
-        </span>
-      ))}
-    </>
-  );
-}
-
-// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
-// settled (t0 + 0.55 s), riding with the line.
-function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
-  return (
-    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
-      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
-    </Rise>
-  );
-}
-
-// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
-// Its text is one colour on the ribbon, so emphasis marks are dropped.
-function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
-  const k = s.k, n = 14 * k;
-  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
-  return (
-    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
-      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
-      <div style={{ ...line, top: 4.25 * k }} />
-      <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{plainText(text)}</span>
-    </div>
-  );
-}
-
-// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
-function cardStyle(s, hero = false) {
-  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
-}
-
-// Count-up: split a value into fixed text around one number so it can count from 0.
-// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
-const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
-function countable(v) {
-  const text = typeof v === 'number' ? String(v) : String(v ?? '');
-  const hits = text.match(NUM) || [];
-  if (hits.length !== 1) return null;
-  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
-  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
-}
-// Rounded first so a negative value starts at 0, not -0.
-const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
-
-// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
-const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
-
-// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
-// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
-// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
-// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
-// report() then flags it (the scene's validation uses these same lines).
-const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
-  const out = [];
-  for (const para of String(text ?? '').split('\\n')) {
-    // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
-    const pieces = [];
-    let cur = '', depth = 0;
-    const chars = [...para];
-    chars.forEach((ch, i) => {
-      if (ch === '[' || ch === '{') depth += 1;
-      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }
-      cur += ch;
-      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }
-    });
-    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
-    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
-    // A mark that fits a line is one word; a longer one stays as its pieces.
-    const words = [];
-    for (let i = 0; i < pieces.length;) {
-      let j = i;
-      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;
-      const group = pieces.slice(i, j + 1);
-      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });
-      else words.push(...group);
-      i = j + 1;
-    }
-    const lines = [];
-    let line = [];
-    for (const w of words) {
-      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
-    }
-    if (line.length || !words.length) lines.push(line);
-    let texts = lines.map(join);
-    if (lines.length === 2) {
-      // Two lines: the split whose longer half is shortest.
-      const all = words;
-      let best = lines[0].length, bestW = Infinity;
-      for (let i = 1; i < all.length; i += 1) {
-        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
-        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
-      }
-      texts = [join(all.slice(0, best)), join(all.slice(best))];
-    }
-    // A mark cut by a line break is closed at the line's end and opened again on the next line.
-    let carry = '';
-    for (const t of texts) {
-      const full = carry + t;
-      let open = '';
-      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }
-      out.push(full + (open ? CLOSE[open] : ''));
-      carry = open;
-    }
-  }
-  return out;
-}
-
-// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.
-// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where
-// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,
-// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are
-// [x0, y0, x1, y1].
-function report(what, text, box, area, extra) {
-  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
-}
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
-function reportLines(what, lines, size, area, maxLines = 2) {
-  if (typeof REPORT !== 'function' || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
-  lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
-    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
-    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
-    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
-  });
-  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
-}
-// Under the source line (26 px, centred on y 772) when the scene has one.
-const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
-
-// Number cards (style spec 6-3): 2-4 cards side by side in x 60..1020 (gap 36; three cards are 296
-// wide), each with a green header band (84 tall, white 44/800 name) over a logo-gold 3 px line.
-// Cards rise 0.42 s apart, their first label 0.3 s later; once the last card is in, each card's key
-// number (72 crimson, unit 36) pops 0.22 s apart, then the second row (label 30/600 grey, value 38/800
-// ink, under a quiet divider) rises 0.18 s apart. Numbers pop, no count-up (spec 5-3).
-// \`cards: [{ header, rows: [{ label, value: number | text, unit? }] }]\`, at most two rows per card.
-// Text that does not fit its card keeps its size and breaks onto more lines (style spec 1): names and labels at
-// a space, a number after \\uC5B5/\\uB9CC (1\\uC5B5 / 5000\\uB9CC), the unit onto a line of its own. Every card grows by the most
-// lines any card needs in that row, so the rows stay level across the cards. Four one-row cards whose key
-// number cannot fit a quarter of the width even broken up go two by two instead (cards 462 wide, at most 300 tall).
-const fmt = (v) => { const c = countable(v); return c && typeof v === 'number' ? counted(c, 1) : String(v ?? ''); };
-const BAND = 84, BL = 52, LL = 40, VL = 76, UL = 44, L2 = 38, V2 = 46;
-
-export default function StatCards({ data }) {
-  const accent = String(data?.accentColor ?? C.acc);
-  const band = String(data?.headerColor ?? C.green);
-  const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 4);
-  const n = Math.max(1, cards.length);
-  const subtitle = String(data?.subtitle ?? '');
-  const rowsOf = (c) => (Array.isArray(c?.rows) ? c.rows.slice(0, 2) : []);
-  const two = cards.some((c) => rowsOf(c).length > 1);
-  const at = (i) => 0.45 + 0.42 * i;
-  const numAt = at(n - 1) + 0.9;
-  const row2At = numAt + 0.8;
-  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise), the last number pop, or a label
-  // brush (0.85 s after its card / 0.55 s after its second-row label).
-  const brushes = cards.map((c, i) => { const [r0, r1] = rowsOf(c); return Math.max(brushEnd(r0?.label, at(i) + 0.85), brushEnd(r1?.label, row2At + 0.18 * i + 0.55)); });
-  const s = useScene(data, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data?.title ?? ''), subtitle)));
-  const k = s.k;
-  const gap = 36;
-  const widest = (w) => Math.max(0, ...cards.map((c) => { const r0 = rowsOf(c)[0]; return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0; }));
-  const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
-  const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
-  // Each card's text as lines, then each row's height from the card that needs the most lines.
-  const laid = cards.map((c) => {
-    const [r0, r1] = rowsOf(c);
-    const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
-    const u0 = String(r0?.unit ?? '');
-    const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
-    return {
-      header: wrapLines(plainText(String(c?.header ?? '')), 44, W - 24), r0, r1, v0, u0, unitOwn,
-      label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
-      label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
-      v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ''), 38, W - 24) : [],
-    };
-  });
-  const most = (f) => Math.max(1, ...laid.map(f));
-  const d1 = (most((c) => c.header.length) - 1) * BL;
-  const d2 = d1 + (most((c) => c.label0.length) - 1) * LL;
-  const d3 = d2 + (most((c) => c.v0.length) - 1) * VL + (laid.some((c) => c.unitOwn) ? UL : 0);
-  const d4 = d3 + (most((c) => c.label1.length) - 1) * L2;
-  const d5 = d4 + (most((c) => c.v1.length) - 1) * V2;
-  // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.
-  // Two by two, the two rows of cards share the room from under the header to y 750 (20 px apart), but a card
-  // is never shorter than its text (name, label, number and unit, 280 + d3): cards that then run past y 750 are
-  // left for the layout check to flag rather than drawn with the number outside the card.
-  const vgap = 20, top = subtitle ? 176 : 150;
-  const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;
-  const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);
-  const cardAt = (i) => ({ x: X0 + (i % cols) * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });
-  // The cards whose text takes more lines than one: every card grows with them (the layout check names them).
-  const cause = laid.filter((c) => c.header.length > 1 || c.label0.length > 1 || c.v0.length > 1 || c.unitOwn || c.label1.length > 1 || c.v1.length > 1).map((c) => c.header.join(' '));
-  laid.forEach((c, i) => {
-    const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];
-    const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: 'c' }));
-    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)], { cause });
-    reportLines('card name', lines(c.header, y0 - 2 + (BAND + d1) / 2 - (BL * (c.header.length - 1)) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
-    reportLines('card label', lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
-    reportLines('card number', lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
-    reportLines('card unit', c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: 'c' }] : [], 36, inCard(14), 1);
-    reportLines('second label', lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));
-    reportLines('second value', lines(c.v1, y0 + 385 + d4, V2), 38, inCard(12));
-  });
-  return (
-    <Win s={s} data={data}>
-      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />
-      {laid.map((c, i) => {
-        const { x, y0 } = cardAt(i), cx = x + W / 2, t0 = at(i);
-        const { r0, r1, v0, u0 } = c;
-        return (
-          <React.Fragment key={i}>
-            <Rise s={s} t0={t0} dur={0.9} dy={22} x={x} y={y0} anchor="lt">
-              <div style={{ ...cardStyle(s), position: 'relative', width: W * k, height: Hc * k }}>
-                {/* Inner coordinates are 2 px (the border) above and left of the sian card's. */}
-                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + 'px', whiteSpace: 'nowrap' }}>
-                  {c.header.map((l, j) => <div key={j}>{l}</div>)}
-                </div>
-                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL }} />
-                {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line }} /> : null}
-              </div>
-            </Rise>
-            {c.label0.map((l, j) => (
-              <Rise key={'l' + j} s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140 + d1 + LL * j}>
-                <div style={{ fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}><Marked s={s} text={l} hlAt={t0 + 0.85} /></div>
-              </Rise>
-            ))}
-            {v0.map((l, r) => (
-              <Pop key={'v' + r} s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214 + d2 + VL * r}>
-                <div style={{ display: 'flex', alignItems: 'baseline', color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ fontSize: 72 * k, letterSpacing: -1.5 * k }}>{l}</span>
-                  {u0 && !c.unitOwn && r === v0.length - 1 ? <span style={{ fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k }}>{u0}</span> : null}
-                </div>
-              </Pop>
-            ))}
-            {c.unitOwn ? (
-              <Pop s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214 + d2 + VL * (v0.length - 1) + 58}>
-                <span style={{ fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 }}>{u0}</span>
-              </Pop>
-            ) : null}
-            {c.label1.map((l, j) => (
-              <Rise key={'m' + j} s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330 + d3 + L2 * j}>
-                <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={row2At + 0.18 * i + 0.55} /></div>
-              </Rise>
-            ))}
-            {c.v1.map((l, j) => (
-              <Rise key={'w' + j} s={s} t0={row2At + 0.18 * i + 0.12} dy={10} x={cx} y={y0 + 385 + d4 + V2 * j}>
-                <div style={{ fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k }}>{l}</div>
-              </Rise>
-            ))}
-          </React.Fragment>
-        );
-      })}
-      <Source s={s} text={String(data?.source ?? '')} />
-    </Win>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["stat_cards"] ?? [], timeIndependent: !!TIME_INDEPENDENT["stat_cards"], label: LABELS["stat_cards"] ?? "stat_cards" },
-  "text_card": { tsxCode: `import React from 'react';
-import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
-
-// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its
-// omin_style.py). build.mjs pastes this file in place of the \`// @heritage\` line of each template, so
-// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,
-// delayRender, continueRender and cancelRender imported by the template.
-//
-// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);
-// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
-const C = {
-  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',
-  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',
-  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',
-};
-const X0 = 60, X1 = 1020;
-
-// Every move starts and ends at rest (smootherstep). settle passes the target by \`over\` at 72 % of the
-// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.
-const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-const prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
-const smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
-const settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };
-const lerp = (a, b, x) => a + (b - a) * x;
-
-// Hold rendering until the face the panel embedded in \`fontCss\` has loaded, so no frame is drawn
-// in a fallback font. Without \`fontCss\` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
-// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.
-// \`natural\` is when the template's last entrance ends at normal speed. The finished frame must hold
-// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the
-// whole timeline faster instead of cutting entrances off.
-const HOLD = 1.5;
-function useScene(data, natural = 0) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps, durationInFrames } = useVideoConfig();
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const end = durationInFrames / fps;
-  const room = Math.max(end * 0.5, end - HOLD);
-  const speed = natural > room ? natural / room : 1;
-  return {
-    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,
-    fontFamily: family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK,
-    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),
-  };
-}
-
-// The graphic window: ivory paper with a slightly lighter middle. \`background: "transparent"\` or a
-// zero-alpha hex such as "#F6F1E400" (the form a colour control accepts) leaves it clear for a damask
-// plate laid underneath.
-function Win({ s, data, children }) {
-  const bg = String(data?.background ?? C.ivory);
-  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'
-    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;
-  return (
-    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>
-      {s.fontFace}
-      {children}
-    </div>
-  );
-}
-
-// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),
-// b (centre-bottom). The box takes its content's size.
-const ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };
-function At({ s, x, y, anchor = 'c', style, children }) {
-  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;
-}
-
-// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).
-function rise(s, t0, dur = 0.8, dy = 20) {
-  const p = prog(s.t, t0, t0 + dur);
-  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };
-}
-function Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor} style={style}>
-      <div style={rise(s, t0, dur, dy)}>{children}</div>
-    </At>
-  );
-}
-// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.
-function pop(s, t0, dur = 0.8) {
-  const p = prog(s.t, t0, t0 + dur);
-  const sc = lerp(0.9, 1, settle(p, 0.3));
-  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));
-  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };
-}
-function Pop({ s, t0, dur, x, y, anchor = 'c', children }) {
-  return (
-    <At s={s} x={x} y={y} anchor={anchor}>
-      <div style={pop(s, t0, dur)}>{children}</div>
-    </At>
-  );
-}
-
-// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from
-// the centre outwards over \`dur\`.
-function GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {
-  const p = smooth(prog(s.t, t0, t0 + dur));
-  if (p <= 0) return null;
-  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;
-  const seg = (yy, lw) => (
-    <g key={yy} stroke={C.gold} strokeWidth={lw}>
-      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />
-      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />
-    </g>
-  );
-  return (
-    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>
-      {seg(6, 2.2)}
-      {seg(12, 1.2)}
-      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}
-    </svg>
-  );
-}
-
-// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;
-// the sub line takes [ ] / { } marks like any sentence.
-// Order: title 0 s, rule 0.2 s, sub line 0.4 s.
-function Header({ s, title, subtitle, t0 = 0 }) {
-  return (
-    <>
-      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor="l"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}
-      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}
-      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor="l"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}
-    </>
-  );
-}
-
-// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.
-function Source({ s, text, t0 = 0.3 }) {
-  if (!text) return null;
-  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor="r"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;
-}
-
-// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.
-function parseMarks(text) {
-  const out = [];
-  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {
-    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });
-    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });
-    else out.push({ text: m[3], mark: '' });
-  }
-  return out.filter((p) => p.text);
-}
-const plainText = (text) => parseMarks(text).map((p) => p.text).join('');
-
-// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,
-// swept in left to right by p (0..1).
-function Brush({ p, seed = 0 }) {
-  const id = 'nmb' + seed + Math.round(p * 1000);
-  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };
-  const top = [], bot = [];
-  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }
-  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>
-      <defs>
-        <linearGradient id={id}>
-          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor="#fff" />
-          <stop offset={p * 1.15} stopColor="#000" />
-        </linearGradient>
-        <mask id={id + 'm'}><rect width="100" height="100" fill={'url(#' + id + ')'} /></mask>
-      </defs>
-      <g mask={'url(#' + id + 'm)'}>
-        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />
-        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2="100" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}
-      </g>
-    </svg>
-  );
-}
-
-// When the brush of \`text\` that starts at \`hlAt\` has swept in (0 without any {phrase}): templates fold it into the
-// \`natural\` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.
-const brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);
-// The scene title and sub line brushes (Header with t0 = 0).
-const headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));
-
-// One line of markup text. The brush sweeps in from \`hlAt\` (seconds) over 0.9 s.
-function Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {
-  return (
-    <>
-      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (
-        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>
-          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}
-          {p.text}
-        </span>
-      ))}
-    </>
-  );
-}
-
-// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly
-// settled (t0 + 0.55 s), riding with the line.
-function Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {
-  return (
-    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>
-      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>
-    </Rise>
-  );
-}
-
-// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.
-// Its text is one colour on the ribbon, so emphasis marks are dropped.
-function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {
-  const k = s.k, n = 14 * k;
-  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };
-  return (
-    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>
-      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />
-      <div style={{ ...line, top: 4.25 * k }} />
-      <div style={{ ...line, bottom: 4.25 * k }} />
-      <span style={{ position: 'relative' }}>{plainText(text)}</span>
-    </div>
-  );
-}
-
-// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.
-function cardStyle(s, hero = false) {
-  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
-}
-
-// Count-up: split a value into fixed text around one number so it can count from 0.
-// 3592 -> {num: 3592}, "$3,592.5" -> {head: "$", num: 3592.5}. null when it has none or several numbers.
-const NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;
-function countable(v) {
-  const text = typeof v === 'number' ? String(v) : String(v ?? '');
-  const hits = text.match(NUM) || [];
-  if (hits.length !== 1) return null;
-  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');
-  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };
-}
-// Rounded first so a negative value starts at 0, not -0.
-const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
-
-// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
-const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
-const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
-
-// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
-// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
-// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
-// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
-// report() then flags it (the scene's validation uses these same lines).
-const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
-  const out = [];
-  for (const para of String(text ?? '').split('\\n')) {
-    // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
-    const pieces = [];
-    let cur = '', depth = 0;
-    const chars = [...para];
-    chars.forEach((ch, i) => {
-      if (ch === '[' || ch === '{') depth += 1;
-      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
-      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }
-      cur += ch;
-      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }
-    });
-    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
-    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
-    // A mark that fits a line is one word; a longer one stays as its pieces.
-    const words = [];
-    for (let i = 0; i < pieces.length;) {
-      let j = i;
-      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;
-      const group = pieces.slice(i, j + 1);
-      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });
-      else words.push(...group);
-      i = j + 1;
-    }
-    const lines = [];
-    let line = [];
-    for (const w of words) {
-      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);
-    }
-    if (line.length || !words.length) lines.push(line);
-    let texts = lines.map(join);
-    if (lines.length === 2) {
-      // Two lines: the split whose longer half is shortest.
-      const all = words;
-      let best = lines[0].length, bestW = Infinity;
-      for (let i = 1; i < all.length; i += 1) {
-        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));
-        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }
-      }
-      texts = [join(all.slice(0, best)), join(all.slice(best))];
-    }
-    // A mark cut by a line break is closed at the line's end and opened again on the next line.
-    let carry = '';
-    for (const t of texts) {
-      const full = carry + t;
-      let open = '';
-      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }
-      out.push(full + (open ? CLOSE[open] : ''));
-      carry = open;
-    }
-  }
-  return out;
-}
-
-// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.
-// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where
-// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,
-// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are
-// [x0, y0, x1, y1].
-function report(what, text, box, area, extra) {
-  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
-}
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
-function reportLines(what, lines, size, area, maxLines = 2) {
-  if (typeof REPORT !== 'function' || !lines.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
-  lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
-    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
-    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
-    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));
-  });
-  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });
-}
-// Under the source line (26 px, centred on y 772) when the scene has one.
-const roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);
-
-// Fallback scene when no photo or number fits: the key sentence (72/800 ink, '\\n' for a line break)
-// centred on the paper, one line after another. A line wider than x 60..1020 breaks onto the next line at the
-// same size (style spec 1), never smaller. [word] turns crimson, {phrase} gets the ochre brush once its line
-// has settled. Optional scene \`title\` (+ double gold rule) top-left, \`sub\` as a smaller grey line under the
-// sentence (it wraps the same way), \`source\` bottom-right.
-export default function TextCard({ data }) {
-  const title = String(data?.title ?? '');
-  const sub = String(data?.sub ?? '');
-  const size = Number(data?.fontSize ?? 72);
-  const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '').flatMap((l) => wrapLines(l, size, X1 - X0));
-  const subLines = sub ? wrapLines(sub, 36, X1 - X0) : [];
-  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
-  // Last entrance: the sub line (0.8 s, its brush 0.55 + 0.9 s) or the last line's brush (0.55 + 0.9 s after the line starts).
-  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, '')));
-  const k = s.k;
-  const lh = size * 1.32;
-  const top = title ? 150 : 0;
-  const block = lines.length * lh + (sub ? 36 + 44 * subLines.length : 0);
-  const y0 = top + (794 - top - block) / 2;
-  const subY = (j) => y0 + lines.length * lh + 36 + 44 * j + 22;
-  // Under the title rule (or from the window top) to above the source line.
-  const area = [X0, title ? 120 : 10, X1, roomBottom(data)];
-  reportLines('text', lines.map((l, i) => ({ text: l, x: 540, y: y0 + lh * (i + 0.5), anchor: 'c' })), size, area);
-  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: subY(j), anchor: 'c' })), 36, area);
-  return (
-    <Win s={s} data={data}>
-      <Header s={s} title={title} subtitle="" />
-      {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
-      {subLines.map((l, j) => (
-        <Rise key={'s' + j} s={s} t0={at(lines.length)} dy={10} x={540} y={subY(j)}>
-          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={at(lines.length) + 0.55} /></div>
-        </Rise>
-      ))}
-      <Source s={s} text={String(data?.source ?? '')} />
-    </Win>
-  );
-}
-`, editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" },
+  "stat_cards": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses\n// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and\n// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,\n// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at\n// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.\n// `ls` is the letter spacing in px, which Chrome adds after every character.\nconst ADV = {\n  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],\n  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],\n};\n// Proportional digits 0..9 and the comma, for text not set in tabular-nums.\nconst ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };\n// At weight 800 (the 700 widths are at most 3% less).\nconst ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };\nconst advance = (ch, weight, tnum) => {\n  const c = ch.codePointAt(0);\n  if (c >= 0x20 && c <= 0x7e) {\n    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);\n    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;\n  }\n  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;\n  return (ADV_MORE[ch] ?? 1000) / 1000;\n};\nconst textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW, width = (t) => ems(t) * size) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => width(plainText(join(ws)));\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.\n// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Number cards (style spec 6-3): 2-4 cards side by side in x 60..1020 (gap 36; three cards are 296\n// wide), each with a green header band (84 tall, white 44/800 name) over a logo-gold 3 px line.\n// Cards rise 0.42 s apart, their first label 0.3 s later; once the last card is in, each card's key\n// number (72 crimson, unit 36) pops 0.22 s apart, then the second row (label 30/600 grey, value 38/800\n// ink, under a quiet divider) rises 0.18 s apart. Numbers pop, no count-up (spec 5-3).\n// `cards: [{ header, rows: [{ label, value: number | text, unit? }] }]`, at most two rows per card.\n// Text that does not fit its card keeps its size and breaks onto more lines (style spec 1): names and labels at\n// a space, a number after \\uC5B5/\\uB9CC (1\\uC5B5 / 5000\\uB9CC), the unit onto a line of its own. Every card grows by the most\n// lines any card needs in that row, so the rows stay level across the cards. Four one-row cards whose key\n// number cannot fit a quarter of the width even broken up go two by two instead (cards 462 wide, at most 300 tall).\nconst fmt = (v) => { const c = countable(v); return c && typeof v === 'number' ? counted(c, 1) : String(v ?? ''); };\nconst BAND = 84, BL = 52, LL = 40, VL = 76, UL = 44, L2 = 38, V2 = 46;\n\nexport default function StatCards({ data }) {\n  const accent = String(data?.accentColor ?? C.acc);\n  const band = String(data?.headerColor ?? C.green);\n  const cards = (Array.isArray(data?.cards) ? data.cards : []).slice(0, 4);\n  const n = Math.max(1, cards.length);\n  const subtitle = String(data?.subtitle ?? '');\n  const rowsOf = (c) => (Array.isArray(c?.rows) ? c.rows.slice(0, 2) : []);\n  const two = cards.some((c) => rowsOf(c).length > 1);\n  const at = (i) => 0.45 + 0.42 * i;\n  const numAt = at(n - 1) + 0.9;\n  const row2At = numAt + 0.8;\n  // Last entrance: the last second-row value (0.12 s after its label, 0.8 s rise), the last number pop, or a label\n  // brush (0.85 s after its card / 0.55 s after its second-row label).\n  const brushes = cards.map((c, i) => { const [r0, r1] = rowsOf(c); return Math.max(brushEnd(r0?.label, at(i) + 0.85), brushEnd(r1?.label, row2At + 0.18 * i + 0.55)); });\n  const s = useScene(data, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data?.title ?? ''), subtitle)));\n  const k = s.k;\n  const gap = 36;\n  // Key numbers and units at their drawn widths (tabular digits, letter spacing); the second-row value is not tabular.\n  const numW = (t) => textW(t, 72, 800, -1.5), unitW = (u) => textW(u, 36, 700), row2W = (t) => textW(t, 38, 800, -0.5, false);\n  const widest = (w) => Math.max(0, ...cards.map((c) => { const r0 = rowsOf(c)[0]; return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28, numW).map(numW)) : 0; }));\n  const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;\n  const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;\n  // Each card's text as lines, then each row's height from the card that needs the most lines.\n  const laid = cards.map((c) => {\n    const [r0, r1] = rowsOf(c);\n    const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28, numW) : [];\n    const u0 = String(r0?.unit ?? '');\n    // The unit (2 px after the number) stays beside the last number line when the two fit the card together.\n    const unitOwn = !!u0 && v0.length > 0 && numW(v0[v0.length - 1]) + 2 + unitW(u0) > W - 28;\n    return {\n      header: wrapLines(plainText(String(c?.header ?? '')), 44, W - 24), r0, r1, v0, u0, unitOwn,\n      label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],\n      label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],\n      v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ''), 38, W - 24, row2W) : [],\n    };\n  });\n  const most = (f) => Math.max(1, ...laid.map(f));\n  const d1 = (most((c) => c.header.length) - 1) * BL;\n  const d2 = d1 + (most((c) => c.label0.length) - 1) * LL;\n  const d3 = d2 + (most((c) => c.v0.length) - 1) * VL + (laid.some((c) => c.unitOwn) ? UL : 0);\n  const d4 = d3 + (most((c) => c.label1.length) - 1) * L2;\n  const d5 = d4 + (most((c) => c.v1.length) - 1) * V2;\n  // Two-row cards are 450 tall (sian); one-row cards end under the key number, centred on the same middle.\n  // Two by two, the two rows of cards share the room from under the header to y 750 (20 px apart), but a card\n  // is never shorter than its text (name, label, number and unit, 280 + d3): cards that then run past y 750 are\n  // left for the layout check to flag rather than drawn with the number outside the card.\n  const vgap = 20, top = subtitle ? 176 : 150;\n  const Hc = grid ? Math.max(Math.min(300 + d3, (750 - top - vgap) / 2), 280 + d3) : two ? 450 + d5 : 300 + d3;\n  const top0 = grid ? top : Math.min((subtitle ? 206 : 186) + (450 - (two ? 450 : 300)) / 2, 770 - Hc);\n  const cardAt = (i) => ({ x: X0 + (i % cols) * (W + gap), y0: top0 + Math.floor(i / cols) * (Hc + vgap) });\n  // The cards whose text takes more lines than one: every card grows with them (the layout check names them).\n  const cause = laid.filter((c) => c.header.length > 1 || c.label0.length > 1 || c.v0.length > 1 || c.unitOwn || c.label1.length > 1 || c.v1.length > 1).map((c) => c.header.join(' '));\n  laid.forEach((c, i) => {\n    const { x, y0 } = cardAt(i), cx = x + W / 2, inCard = (pad) => [x + pad, y0, x + W - pad, y0 + Hc];\n    const lines = (list, y, step) => list.map((l, j) => ({ text: l, x: cx, y: y + step * j, anchor: 'c' }));\n    report('card', String(c.header.join(' ')), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data)], { cause });\n    reportLines('card name', lines(c.header, y0 - 2 + (BAND + d1) / 2 - (BL * (c.header.length - 1)) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);\n    reportLines('card label', lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));\n    // The number with its unit when the unit is beside the last line, as drawn.\n    const beside = (j) => !!c.u0 && !c.unitOwn && j === c.v0.length - 1;\n    reportLines('card number', lines(c.v0, y0 + 214 + d2, VL).map((l, j) => ({ ...l, text: l.text + (beside(j) ? c.u0 : ''), w: numW(l.text) + (beside(j) ? 2 + unitW(c.u0) : 0) })), 72, inCard(14));\n    reportLines('card unit', c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: 'c', w: unitW(c.u0) }] : [], 36, inCard(14), 1);\n    reportLines('second label', lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));\n    reportLines('second value', lines(c.v1, y0 + 385 + d4, V2).map((l) => ({ ...l, w: row2W(l.text) })), 38, inCard(12));\n  });\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={String(data?.title ?? '')} subtitle={subtitle} />\n      {laid.map((c, i) => {\n        const { x, y0 } = cardAt(i), cx = x + W / 2, t0 = at(i);\n        const { r0, r1, v0, u0 } = c;\n        return (\n          <React.Fragment key={i}>\n            <Rise s={s} t0={t0} dur={0.9} dy={22} x={x} y={y0} anchor=\"lt\">\n              <div style={{ ...cardStyle(s), position: 'relative', width: W * k, height: Hc * k }}>\n                {/* Inner coordinates are 2 px (the border) above and left of the sian card's. */}\n                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + 'px ' + 12 * k + 'px 0 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + 'px', whiteSpace: 'nowrap' }}>\n                  {c.header.map((l, j) => <div key={j}>{l}</div>)}\n                </div>\n                <div style={{ position: 'absolute', left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL }} />\n                {r1 ? <div style={{ position: 'absolute', left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line }} /> : null}\n              </div>\n            </Rise>\n            {c.label0.map((l, j) => (\n              <Rise key={'l' + j} s={s} t0={t0 + 0.3} dy={10} x={cx} y={y0 + 140 + d1 + LL * j}>\n                <div style={{ fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent }}><Marked s={s} text={l} hlAt={t0 + 0.85} /></div>\n              </Rise>\n            ))}\n            {v0.map((l, r) => (\n              <Pop key={'v' + r} s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214 + d2 + VL * r}>\n                <div style={{ display: 'flex', alignItems: 'baseline', color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>\n                  <span style={{ fontSize: 72 * k, letterSpacing: -1.5 * k }}>{l}</span>\n                  {u0 && !c.unitOwn && r === v0.length - 1 ? <span style={{ fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k }}>{u0}</span> : null}\n                </div>\n              </Pop>\n            ))}\n            {c.unitOwn ? (\n              <Pop s={s} t0={numAt + 0.22 * i} x={cx} y={y0 + 214 + d2 + VL * (v0.length - 1) + 58}>\n                <span style={{ fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 }}>{u0}</span>\n              </Pop>\n            ) : null}\n            {c.label1.map((l, j) => (\n              <Rise key={'m' + j} s={s} t0={row2At + 0.18 * i} dy={10} x={cx} y={y0 + 330 + d3 + L2 * j}>\n                <div style={{ fontSize: 30 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={row2At + 0.18 * i + 0.55} /></div>\n              </Rise>\n            ))}\n            {c.v1.map((l, j) => (\n              <Rise key={'w' + j} s={s} t0={row2At + 0.18 * i + 0.12} dy={10} x={cx} y={y0 + 385 + d4 + V2 * j}>\n                <div style={{ fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k }}>{l}</div>\n              </Rise>\n            ))}\n          </React.Fragment>\n        );\n      })}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["stat_cards"] ?? [], timeIndependent: !!TIME_INDEPENDENT["stat_cards"], label: LABELS["stat_cards"] ?? "stat_cards" },
+  "text_card": { tsxCode: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';\n\n// Heritage look shared by the scene templates (customer style spec of 2026-10-21, values from its\n// omin_style.py). build.mjs pastes this file in place of the `// @heritage` line of each template, so\n// every template stays one self-contained tsxCode string. Needs React, useCurrentFrame, useVideoConfig,\n// delayRender, continueRender and cancelRender imported by the template.\n//\n// Coordinates are px of the 1080-wide frame inside the graphic window (frame y 481..1290, 809 tall);\n// frame y = window y + 481. Keep content above window y 794 (the caption sits at frame y ~1310..1380).\nconst FALLBACK = \"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\";\nconst C = {\n  ivory: '#F6F1E4', ink: '#1E2422', ink2: '#5A605C', gray: '#8A8478', bar: '#C9C3B5', line: '#DED6C4',\n  card: '#EEE6D4', acc: '#A9222B', accD: '#8C1820', accL: '#F3DEDA', hl: 'rgba(235,200,114,0.85)',\n  green: '#23342E', gold: '#B08D57', goldL: '#C4A062', good: '#2E6B4A', white: '#FFFFFF', area: '#E9E0CC',\n};\nconst X0 = 60, X1 = 1020;\n\n// Every move starts and ends at rest (smootherstep). settle passes the target by `over` at 72 % of the\n// move and comes back to rest on it; only bars, numbers, ribbons and icons use it.\nconst clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));\nconst prog = (t, t0, t1) => clamp((t - t0) / (t1 - t0));\nconst smooth = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };\nconst settle = (x, over = 0.03) => { x = clamp(x); return x < 0.72 ? (1 + over) * smooth(x / 0.72) : 1 + over * (1 - smooth((x - 0.72) / 0.28)); };\nconst lerp = (a, b, x) => a + (b - a) * x;\n\n// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn\n// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.\nfunction useEmbeddedFont(data) {\n  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';\n  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));\n  React.useEffect(() => {\n    if (hold === null) return;\n    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];\n    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);\n  }, [hold]);\n  return css ? <style>{css}</style> : null;\n}\n\n// Scene clock and scale: t in seconds, k = px per frame px, window placement from params.\n// `natural` is when the template's last entrance ends at normal speed. The finished frame must hold\n// for the last HOLD seconds of the clip (spec 5-3), so a clip shorter than natural + HOLD runs the\n// whole timeline faster instead of cutting entrances off.\nconst HOLD = 1.5;\nfunction useScene(data, natural = 0) {\n  const fontFace = useEmbeddedFont(data);\n  const frame = useCurrentFrame();\n  const { width, fps, durationInFrames } = useVideoConfig();\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const end = durationInFrames / fps;\n  const room = Math.max(end * 0.5, end - HOLD);\n  const speed = natural > room ? natural / room : 1;\n  return {\n    fontFace, fps, frame, t: (frame / fps) * speed, speed, end, k: width / 1080,\n    fontFamily: family === '' ? FALLBACK : '\"' + family + '\", ' + FALLBACK,\n    top: Number(data?.windowTop ?? 481), height: Number(data?.windowHeight ?? 809),\n  };\n}\n\n// The graphic window: ivory paper with a slightly lighter middle. `background: \"transparent\"` or a\n// zero-alpha hex such as \"#F6F1E400\" (the form a colour control accepts) leaves it clear for a damask\n// plate laid underneath.\nfunction Win({ s, data, children }) {\n  const bg = String(data?.background ?? C.ivory);\n  const paper = bg === 'transparent' || bg === 'none' || /^#[0-9a-f]{6}00$/i.test(bg) ? 'transparent'\n    : 'radial-gradient(ellipse 430px 360px at 50% 49%, rgba(255,255,255,0.22), rgba(255,255,255,0) 100%), ' + bg;\n  return (\n    <div style={{ position: 'absolute', left: 0, top: s.top * s.k, width: 1080 * s.k, height: s.height * s.k, background: paper, overflow: 'hidden', fontFamily: s.fontFamily, color: C.ink, pointerEvents: 'none' }}>\n      {s.fontFace}\n      {children}\n    </div>\n  );\n}\n\n// Positioned box in window px. anchor: c (centre), l (left-middle), r (right-middle), lt (left-top),\n// b (centre-bottom). The box takes its content's size.\nconst ANCHOR = { c: 'translate(-50%,-50%)', l: 'translate(0,-50%)', r: 'translate(-100%,-50%)', lt: 'none', b: 'translate(-50%,-100%)' };\nfunction At({ s, x, y, anchor = 'c', style, children }) {\n  return <div style={{ position: 'absolute', left: x * s.k, top: y * s.k, transform: ANCHOR[anchor], whiteSpace: 'nowrap', ...style }}>{children}</div>;\n}\n\n// rise: glides up dy px from rest to rest, fading in over the first 75 % (0.8 s, 20 px by default).\nfunction rise(s, t0, dur = 0.8, dy = 20) {\n  const p = prog(s.t, t0, t0 + dur);\n  return { opacity: smooth(p / 0.75), transform: 'translateY(' + (1 - smooth(p)) * dy * s.k + 'px)' };\n}\nfunction Rise({ s, t0, dur, dy, x, y, anchor = 'c', style, children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor} style={style}>\n      <div style={rise(s, t0, dur, dy)}>{children}</div>\n    </At>\n  );\n}\n// pop: numbers and ribbons grow from 90 % to 3 % past full size and settle, 3 % taller while growing.\nfunction pop(s, t0, dur = 0.8) {\n  const p = prog(s.t, t0, t0 + dur);\n  const sc = lerp(0.9, 1, settle(p, 0.3));\n  const st = 0.03 * Math.sin(Math.PI * Math.min(1, p / 0.72));\n  return { opacity: smooth(p / 0.5), transform: 'scale(' + sc * (1 - st / 2) + ',' + sc * (1 + st) + ')' };\n}\nfunction Pop({ s, t0, dur, x, y, anchor = 'c', children }) {\n  return (\n    <At s={s} x={x} y={y} anchor={anchor}>\n      <div style={pop(s, t0, dur)}>{children}</div>\n    </At>\n  );\n}\n\n// Double gold rule (2.2 px over 1.2 px, 6 px apart) with a small diamond in the middle, drawn from\n// the centre outwards over `dur`.\nfunction GoldRule({ s, x0 = X0, x1 = X1, y, t0, dur = 0.9, ornament = true }) {\n  const p = smooth(prog(s.t, t0, t0 + dur));\n  if (p <= 0) return null;\n  const w = x1 - x0, cx = w / 2, gap = ornament ? 13 : 0, half = (w / 2) * p;\n  const seg = (yy, lw) => (\n    <g key={yy} stroke={C.gold} strokeWidth={lw}>\n      <line x1={cx - half} y1={yy} x2={cx - gap} y2={yy} />\n      <line x1={cx + gap} y1={yy} x2={cx + half} y2={yy} />\n    </g>\n  );\n  return (\n    <svg width={w * s.k} height={18 * s.k} viewBox={'0 0 ' + w + ' 18'} style={{ position: 'absolute', left: x0 * s.k, top: (y - 9) * s.k, overflow: 'visible' }}>\n      {seg(6, 2.2)}\n      {seg(12, 1.2)}\n      {ornament ? <polygon points={cx + ',2.5 ' + (cx + 6.5) + ',9 ' + cx + ',15.5 ' + (cx - 6.5) + ',9'} fill={C.gold} opacity={smooth(p * 3)} /> : null}\n    </svg>\n  );\n}\n\n// Scene title (50/800) top-left, double gold rule under it, optional sub line (30/500) under the rule;\n// the sub line takes [ ] / { } marks like any sentence.\n// Order: title 0 s, rule 0.2 s, sub line 0.4 s.\nfunction Header({ s, title, subtitle, t0 = 0 }) {\n  return (\n    <>\n      {title ? <Rise s={s} t0={t0} dy={16} x={X0} y={56} anchor=\"l\"><div style={{ fontSize: 50 * s.k, fontWeight: 800, letterSpacing: -1 * s.k }}><Marked s={s} text={title} hlAt={t0 + 0.55} /></div></Rise> : null}\n      {title ? <GoldRule s={s} y={104} t0={t0 + 0.2} /> : null}\n      {subtitle ? <Rise s={s} t0={t0 + 0.4} dy={10} x={X0} y={140} anchor=\"l\"><div style={{ fontSize: 30 * s.k, fontWeight: 500, color: C.gray }}><Marked s={s} text={subtitle} hlAt={t0 + 0.95} /></div></Rise> : null}\n    </>\n  );\n}\n\n// Source line, always bottom-right (26/500). Not styled text: emphasis marks are dropped, not drawn.\nfunction Source({ s, text, t0 = 0.3 }) {\n  if (!text) return null;\n  return <Rise s={s} t0={t0} dy={8} x={X1} y={772} anchor=\"r\"><div style={{ fontSize: 26 * s.k, fontWeight: 500, color: C.gray }}>{plainText(text)}</div></Rise>;\n}\n\n// Emphasis markup: [word] = crimson, {phrase} = crimson on an ochre brush stroke.\nfunction parseMarks(text) {\n  const out = [];\n  for (const m of String(text ?? '').matchAll(/\\[([^\\]]*)\\]|\\{([^}]*)\\}|([^[{]+)/g)) {\n    if (m[1] !== undefined) out.push({ text: m[1], mark: 'acc' });\n    else if (m[2] !== undefined) out.push({ text: m[2], mark: 'hl' });\n    else out.push({ text: m[3], mark: '' });\n  }\n  return out.filter((p) => p.text);\n}\nconst plainText = (text) => parseMarks(text).map((p) => p.text).join('');\n\n// Ochre highlighter stroke 1.08 x the text height, ragged edges and dry streaks toward its end,\n// swept in left to right by p (0..1).\nfunction Brush({ p, seed = 0 }) {\n  const id = 'nmb' + seed + Math.round(p * 1000);\n  const r = (i) => { const v = Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453; return v - Math.floor(v); };\n  const top = [], bot = [];\n  for (let i = 0; i <= 20; i += 1) { top.push(i * 5 + ',' + (6 + r(i) * 4 + (i === 0 ? 5 : 0))); bot.unshift(i * 5 + ',' + (94 - r(i + 40) * 4)); }\n  const streaks = [0, 1, 2, 3, 4].map((i) => ({ y: 22 + r(i + 80) * 56, x: 62 + r(i + 90) * 28, w: 1.5 + r(i + 99) * 2 }));\n  return (\n    <svg viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" style={{ position: 'absolute', left: '-0.12em', right: '-0.12em', top: '0.02em', height: '1.08em', width: 'calc(100% + 0.24em)', zIndex: -1 }}>\n      <defs>\n        <linearGradient id={id}>\n          <stop offset={Math.max(0, p * 1.15 - 0.15)} stopColor=\"#fff\" />\n          <stop offset={p * 1.15} stopColor=\"#000\" />\n        </linearGradient>\n        <mask id={id + 'm'}><rect width=\"100\" height=\"100\" fill={'url(#' + id + ')'} /></mask>\n      </defs>\n      <g mask={'url(#' + id + 'm)'}>\n        <polygon points={top.concat(bot).join(' ')} fill={C.hl} />\n        {streaks.map((q, i) => <line key={i} x1={q.x} y1={q.y} x2=\"100\" y2={q.y + 1} stroke={C.ivory} strokeWidth={q.w} />)}\n      </g>\n    </svg>\n  );\n}\n\n// When the brush of `text` that starts at `hlAt` has swept in (0 without any {phrase}): templates fold it into the\n// `natural` they pass to useScene, so the preview seeks past it and the finished frame holds for HOLD.\nconst brushEnd = (text, hlAt) => (/\\{[^}]*\\}/.test(String(text ?? '')) ? hlAt + 0.9 : 0);\n// The scene title and sub line brushes (Header with t0 = 0).\nconst headerEnd = (title, subtitle) => Math.max(brushEnd(title, 0.55), brushEnd(subtitle, 0.95));\n\n// One line of markup text. The brush sweeps in from `hlAt` (seconds) over 0.9 s.\nfunction Marked({ s, text, color = C.ink, accent = C.acc, hlAt = 0 }) {\n  return (\n    <>\n      {parseMarks(text).map((p, i) => p.mark === '' ? <span key={i}>{p.text}</span> : (\n        <span key={i} style={{ color: accent, position: 'relative', zIndex: 0, isolation: 'isolate' }}>\n          {p.mark === 'hl' ? <Brush p={smooth(prog(s.t, hlAt, hlAt + 0.9))} seed={i} /> : null}\n          {p.text}\n        </span>\n      ))}\n    </>\n  );\n}\n\n// say(): a markup line that rises in at t0; its {phrase} brush follows once the line has nearly\n// settled (t0 + 0.55 s), riding with the line.\nfunction Say({ s, text, x, y, t0, size, weight = 800, color = C.ink, anchor = 'l', dur = 0.8, dy = 20 }) {\n  return (\n    <Rise s={s} t0={t0} dur={dur} dy={dy} x={x} y={y} anchor={anchor}>\n      <div style={{ fontSize: size * s.k, fontWeight: weight, color, letterSpacing: -1 * s.k }}><Marked s={s} text={text} hlAt={t0 + 0.55} /></div>\n    </Rise>\n  );\n}\n\n// Ribbon label with swallow-tail ends (notch 14, padding 34 x 6) and logo-gold lines 5 px inside.\n// Its text is one colour on the ribbon, so emphasis marks are dropped.\nfunction Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) {\n  const k = s.k, n = 14 * k;\n  const line = { position: 'absolute', left: n + 6 * k, right: n + 6 * k, height: 1.5 * k, background: C.goldL };\n  return (\n    <div style={{ position: 'relative', padding: 6 * k + 'px ' + 34 * k + 'px', fontSize: size * k, fontWeight: weight, color: fg, lineHeight: 1.25 }}>\n      <div style={{ position: 'absolute', inset: 0, background: bg, clipPath: 'polygon(0 0, 100% 0, calc(100% - ' + n + 'px) 50%, 100% 100%, 0 100%, ' + n + 'px 50%)' }} />\n      <div style={{ ...line, top: 4.25 * k }} />\n      <div style={{ ...line, bottom: 4.25 * k }} />\n      <span style={{ position: 'relative' }}>{plainText(text)}</span>\n    </div>\n  );\n}\n\n// Card: ivory-beige fill, gold border, radius 12, no shadow. Hero cards take a crimson 3 px border.\nfunction cardStyle(s, hero = false) {\n  return { boxSizing: 'border-box', background: C.card, border: (hero ? 3 : 2) * s.k + 'px solid ' + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };\n}\n\n// Count-up: split a value into fixed text around one number so it can count from 0.\n// 3592 -> {num: 3592}, \"$3,592.5\" -> {head: \"$\", num: 3592.5}. null when it has none or several numbers.\nconst NUM = /-?\\d[\\d,]*(?:\\.\\d+)?/g;\nfunction countable(v) {\n  const text = typeof v === 'number' ? String(v) : String(v ?? '');\n  const hits = text.match(NUM) || [];\n  if (hits.length !== 1) return null;\n  const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf('.');\n  return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, '')), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(',') || Math.abs(Number(raw.replace(/,/g, ''))) >= 10000 };\n}\n// Rounded first so a negative value starts at 0, not -0.\nconst counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString('en-US', { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;\n\n// Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.\nconst ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);\nconst fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));\n// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses\n// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and\n// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,\n// digits tabular (every value is set in tabular-nums; `tnum` false for one that is not), measured in Chrome 155 at\n// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.\n// `ls` is the letter spacing in px, which Chrome adds after every character.\nconst ADV = {\n  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],\n  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],\n};\n// Proportional digits 0..9 and the comma, for text not set in tabular-nums.\nconst ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };\n// At weight 800 (the 700 widths are at most 3% less).\nconst ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };\nconst advance = (ch, weight, tnum) => {\n  const c = ch.codePointAt(0);\n  if (c >= 0x20 && c <= 0x7e) {\n    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);\n    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;\n  }\n  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;\n  return (ADV_MORE[ch] ?? 1000) / 1000;\n};\nconst textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);\n\n// Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup\n// text into lines at most maxW px wide at `size` (by ems, or `width(text)` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,\n// after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line\n// when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).\n// Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;\n// report() then flags it (the scene's validation uses these same lines).\nconst CLOSE = { '[': ']', '{': '}' };\nfunction wrapLines(text, size, maxW, width = (t) => ems(t) * size) {\n  const out = [];\n  for (const para of String(text ?? '').split('\\n')) {\n    // Pieces between spaces; `inMark` joins a piece to the next one inside the same mark.\n    const pieces = [];\n    let cur = '', depth = 0;\n    const chars = [...para];\n    chars.forEach((ch, i) => {\n      if (ch === '[' || ch === '{') depth += 1;\n      else if (ch === ']' || ch === '}') depth = Math.max(0, depth - 1);\n      if (ch === ' ') { if (cur) pieces.push({ w: cur, sp: ' ', inMark: depth > 0 }); cur = ''; return; }\n      cur += ch;\n      if (depth === 0 && (ch === '\\uC5B5' || ch === '\\uB9CC') && /\\d/.test(chars[i - 1] ?? '') && /\\d/.test(chars[i + 1] ?? '')) { pieces.push({ w: cur, sp: '', inMark: false }); cur = ''; }\n    });\n    if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });\n    const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');\n    const wide = (ws) => width(plainText(join(ws)));\n    // A mark that fits a line is one word; a longer one stays as its pieces.\n    const words = [];\n    for (let i = 0; i < pieces.length;) {\n      let j = i;\n      while (j < pieces.length - 1 && pieces[j].inMark) j += 1;\n      const group = pieces.slice(i, j + 1);\n      if (group.length > 1 && wide(group) <= maxW) words.push({ w: join(group), sp: group[group.length - 1].sp });\n      else words.push(...group);\n      i = j + 1;\n    }\n    const lines = [];\n    let line = [];\n    for (const w of words) {\n      if (line.length && wide([...line, w]) > maxW) { lines.push(line); line = [w]; } else line.push(w);\n    }\n    if (line.length || !words.length) lines.push(line);\n    let texts = lines.map(join);\n    if (lines.length === 2) {\n      // Two lines: the split whose longer half is shortest.\n      const all = words;\n      let best = lines[0].length, bestW = Infinity;\n      for (let i = 1; i < all.length; i += 1) {\n        const m = Math.max(wide(all.slice(0, i)), wide(all.slice(i)));\n        if (m < bestW && wide(all.slice(0, i)) <= maxW && wide(all.slice(i)) <= maxW) { bestW = m; best = i; }\n      }\n      texts = [join(all.slice(0, best)), join(all.slice(best))];\n    }\n    // A mark cut by a line break is closed at the line's end and opened again on the next line.\n    let carry = '';\n    for (const t of texts) {\n      const full = carry + t;\n      let open = '';\n      for (const ch of full) { if (ch === '[' || ch === '{') open = ch; else if (ch === ']' || ch === '}') open = ''; }\n      out.push(full + (open ? CLOSE[open] : ''));\n      carry = open;\n    }\n  }\n  return out;\n}\n\n// Layout check (style spec 1): a template reports each block of text where it ends up and the room it may use.\n// Rendering ignores it. src/prompts/fit.ts runs the template source at its last frame (entrance.generated.ts, where\n// REPORT is set) and turns the reports into errors (outside its room: cut off, over the source line, out of its card,\n// lines overlapping) and warnings (more lines than maxLines). Coordinates are window px; area and box are\n// [x0, y0, x1, y1].\nfunction report(what, text, box, area, extra) {\n  if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });\n}\n// Lines of `size` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.\n// `w` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.\nfunction reportLines(what, lines, size, area, maxLines = 2) {\n  if (typeof REPORT !== 'function' || !lines.length) return;\n  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;\n  lines.forEach((l, i) => {\n    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;\n    x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);\n    y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);\n    if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));\n  });\n  report(what, lines.map((l) => l.text).join(' '), [x0, y0, x1, y1], area, { size, lines: lines.length, maxLines, overlap: step < size });\n}\n// Under the source line (26 px, centred on y 772) when the scene has one.\nconst roomBottom = (data) => (String(data?.source ?? '').trim() ? 750 : 800);\n\n// Fallback scene when no photo or number fits: the key sentence (72/800 ink, '\\n' for a line break)\n// centred on the paper, one line after another. A line wider than x 60..1020 breaks onto the next line at the\n// same size (style spec 1), never smaller. [word] turns crimson, {phrase} gets the ochre brush once its line\n// has settled. Optional scene `title` (+ double gold rule) top-left, `sub` as a smaller grey line under the\n// sentence (it wraps the same way), `source` bottom-right.\nexport default function TextCard({ data }) {\n  const title = String(data?.title ?? '');\n  const sub = String(data?.sub ?? '');\n  const size = Number(data?.fontSize ?? 72);\n  const lines = String(data?.text ?? '').split('\\n').filter((l) => l.trim() !== '').flatMap((l) => wrapLines(l, size, X1 - X0));\n  const subLines = sub ? wrapLines(sub, 36, X1 - X0) : [];\n  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;\n  // Last entrance: the sub line (0.8 s, its brush 0.55 + 0.9 s) or the last line's brush (0.55 + 0.9 s after the line starts).\n  const s = useScene(data, Math.max(sub ? at(lines.length) + 0.8 : 0, brushEnd(sub, at(lines.length) + 0.55), at(Math.max(0, lines.length - 1)) + 1.45, headerEnd(title, '')));\n  const k = s.k;\n  const lh = size * 1.32;\n  const top = title ? 150 : 0;\n  const block = lines.length * lh + (sub ? 36 + 44 * subLines.length : 0);\n  const y0 = top + (794 - top - block) / 2;\n  const subY = (j) => y0 + lines.length * lh + 36 + 44 * j + 22;\n  // Under the title rule (or from the window top) to above the source line.\n  const area = [X0, title ? 120 : 10, X1, roomBottom(data)];\n  reportLines('text', lines.map((l, i) => ({ text: l, x: 540, y: y0 + lh * (i + 0.5), anchor: 'c' })), size, area);\n  reportLines('sub line', subLines.map((l, j) => ({ text: l, x: 540, y: subY(j), anchor: 'c' })), 36, area);\n  return (\n    <Win s={s} data={data}>\n      <Header s={s} title={title} subtitle=\"\" />\n      {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor=\"c\" />)}\n      {subLines.map((l, j) => (\n        <Rise key={'s' + j} s={s} t0={at(lines.length)} dy={10} x={540} y={subY(j)}>\n          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}><Marked s={s} text={l} hlAt={at(lines.length) + 0.55} /></div>\n        </Rise>\n      ))}\n      <Source s={s} text={String(data?.source ?? '')} />\n    </Win>\n  );\n}\n", editableParameters: PARAM_SCHEMAS["text_card"] ?? [], timeIndependent: !!TIME_INDEPENDENT["text_card"], label: LABELS["text_card"] ?? "text_card" },
   "verdict_card": { tsxCode: `import React from 'react';
 import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
@@ -6913,15 +5007,39 @@ const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0
 // Rough text width in em for fitting type into a box: Latin and digits ~0.58, Hangul ~0.95.
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === ' ' ? 0.3 : /[\\x21-\\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+// Measured width in px of a value or unit as drawn, for the layout check of numbers and their units: ems guesses
+// tabular digits (0.67 em) and Latin units (MW 1.9 em) too narrow, so a number with its unit could pass the check and
+// still run out of its card. Pretendard Variable advances in thousandths of an em for space..~ at weight 700 and 800,
+// digits tabular (every value is set in tabular-nums; \`tnum\` false for one that is not), measured in Chrome 155 at
+// 1000 px from fonts/PretendardVariable.ttf. Hangul is 0.864 em; another character not listed takes a full em.
+// \`ls\` is the letter spacing in px, which Chrome adds after every character.
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662],
+};
+// Proportional digits 0..9 and the comma, for text not set in tabular-nums.
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+// At weight 800 (the 700 widths are at most 3% less).
+const ADV_MORE = { '\\u00B7': 292, '\\u00B0': 445, '\\u2103': 1159, '\\u00D7': 662, '\\u2013': 482, '\\u2014': 969, '\\u2026': 875, '\\u20A9': 917, '\\u20AC': 669, '\\u00A3': 660, '\\u2030': 1360, '\\u2191': 924, '\\u2193': 924, '\\u2192': 924, '\\u25B2': 1025, '\\u25BC': 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 0x20 && c <= 0x7e) {
+    const prop = tnum ? -1 : '0123456789,'.indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 0x20]) / 1000;
+  }
+  if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x3130 && c <= 0x318f) || (c >= 0x1100 && c <= 0x11ff)) return 0.864;
+  return (ADV_MORE[ch] ?? 1000) / 1000;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 
 // Style spec 1: text that does not fit is broken onto more lines, never set smaller. wrapLines breaks markup
-// text into lines at most maxW px wide at \`size\` (by ems): '\\n' always breaks; otherwise at a space, or, in a number,
+// text into lines at most maxW px wide at \`size\` (by ems, or \`width(text)\` in px for a value measured with textW): '\\n' always breaks; otherwise at a space, or, in a number,
 // after the Korean unit \\uC5B5/\\uB9CC when digits follow (1\\uC5B55000\\uB9CC -> 1\\uC5B5 / 5000\\uB9CC). A [ ] / { } mark stays on one line
 // when it fits one; a longer mark breaks at its spaces and every line keeps the mark ({a b c} -> {a b} / {c}).
 // Two lines are balanced around the middle. A word wider than maxW keeps a line of its own at full size;
 // report() then flags it (the scene's validation uses these same lines).
 const CLOSE = { '[': ']', '{': '}' };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? '').split('\\n')) {
     // Pieces between spaces; \`inMark\` joins a piece to the next one inside the same mark.
@@ -6937,7 +5055,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: ' ', inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : '')).join('');
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     // A mark that fits a line is one word; a longer one stays as its pieces.
     const words = [];
     for (let i = 0; i < pieces.length;) {
@@ -6986,12 +5104,13 @@ function wrapLines(text, size, maxW) {
 function report(what, text, box, area, extra) {
   if (typeof REPORT === 'function') REPORT({ what, text: plainText(text), box, area, ...extra });
 }
-// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l' }] with y the line's middle; a glyph takes 1.2 em.
+// Lines of \`size\` px text: [{ text, x, y, anchor: 'c' | 'l', w? }] with y the line's middle; a glyph takes 1.2 em.
+// \`w\` is the line's drawn width (textW, with a unit beside it) when it is not the ems estimate.
 function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== 'function' || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === 'l' ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left); x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size); y1 = Math.max(y1, l.y + 0.6 * size);
     if (i) step = Math.min(step, Math.abs(l.y - lines[i - 1].y));

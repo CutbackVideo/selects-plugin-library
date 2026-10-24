@@ -74,14 +74,16 @@ export default function DonutRatio({ data }) {
   const tnum = { fontVariantNumeric: 'tabular-nums', lineHeight: 1 };
   // The hole: value, unit (beside it or under it) and label lines, centred on the donut's middle.
   const heroText = fmt(hero.value);
-  const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+  // Value and unit at their drawn widths (tabular digits, no margin between them).
+  const heroW = textW(heroText, 76, 800), heroUnitW = unit ? textW(unit, 42, 700) : 0;
+  const unitOwn = !!unit && heroW + heroUnitW > HOLE;
   const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
   const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
   const vy = DCY - holeH / 2 + VH / 2;
   const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
   const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
-  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c' }], 76, holeArea, 1);
-  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c' }] : [], 42, holeArea, 1);
+  reportLines('value', [{ text: heroText + (unit && !unitOwn ? unit : ''), x: DCX, y: vy, anchor: 'c', w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1);
+  reportLines('unit', unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: 'c', w: heroUnitW }] : [], 42, holeArea, 1);
   reportLines('label', heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: 'c' })), 28, holeArea);
   // Legend rows: the hero row first and larger, then the others in narration order; a name takes the room left of
   // its value.
@@ -91,7 +93,7 @@ export default function DonutRatio({ data }) {
     const x = all[i];
     if (!x) return;
     const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
-    const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+    const valueW = textW(fmt(x.value), big ? 40 : 32, 800) + textW(unit, big ? 28 : 22, 700);
     // The name beside its value; a name that would take more than two lines there gets the full width and its value
     // goes on the line under it.
     let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;

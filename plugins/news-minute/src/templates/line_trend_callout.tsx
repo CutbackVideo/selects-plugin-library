@@ -106,8 +106,10 @@ export default function LineTrendCallout({ data }) {
   // slows to a stop with the sine sweep.
   const rawEnd = data?.endLabel;
   const endValue = rawEnd == null || rawEnd === '' ? (n ? vals[n - 1] : '') : rawEnd;
-  const endText = typeof endValue === 'number' ? valueText(endValue) : String(endValue);
-  const count = countable(endText);
+  const rawText = typeof endValue === 'number' ? valueText(endValue) : String(endValue);
+  const count = countable(rawText);
+  // The text the count-up lands on ("1000000" -> 1,000,000) sizes the label and the layout check.
+  const endText = count ? counted(count, 1) : rawText;
   const f = n > 1 ? clamp(u - (n - 2)) : done ? 1 : 0;
   const from = count && n > 1 && Math.abs(count.num - vals[n - 1]) < 1e-9 ? vals[n - 2] : 0;
   const shown = count ? counted({ ...count, num: lerp(from, count.num, f) }, 1) : endText;
@@ -125,7 +127,7 @@ export default function LineTrendCallout({ data }) {
   );
   const endY = n ? P[n - 1][1] - 68 : 0;
   // The end value runs left from the window's right edge; a text label wider than the window is cut off.
-  const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+  const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
   if (n && endText !== '') report('end value', endText + (showUnit ? unit : ''), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
   // A text end label without one number pops in as the last segment starts, at rest before the hold.
   const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);

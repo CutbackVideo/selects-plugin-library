@@ -58,12 +58,14 @@ export default function BarCompareH({ data }) {
   const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
   const BASE = BASE0 - nameExtra - subExtra;
   const max = Math.max(1e-9, ...vals);
+  // Values and units at their drawn widths (tabular digits, the value's letter spacing, the unit's 3 px margin).
+  const numW = (text, size) => textW(text, size, 800, -1), unitW = (uSize) => (unit ? textW(unit, uSize, 700) : 0);
   // A value with its unit wider than maxW puts the unit under it.
-  const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;
+  const unitOwn = (text, size, uSize, maxW) => !!unit && numW(text, size) + 3 + unitW(uSize) > maxW;
   const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));
   // The hero value counts up inside its bar (86, its unit under it when they do not fit side by side) when the number
   // fits the bar's width; else it pops above the bar (72).
-  const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;
+  const fitsInside = hero >= 0 && numW(finals[hero], 86) <= ws[hero] - 24;
   const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);
   const above = (i) => (i === hero ? (fitsInside ? null : { size: 72, uSize: 40, lift: 52 }) : { size: 58, uSize: 34, lift: 48 });
   // The tallest bar is 400 when it holds its value inside; a value above it needs room under the header (and a line
@@ -96,7 +98,7 @@ export default function BarCompareH({ data }) {
     const v = valueAt[i];
     const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H[i]];
     // The value and its unit at their own sizes, side by side or the unit under the value.
-    const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;
+    const vw = numW(finals[i], v.size), uw = unitW(v.uSize);
     const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
     report('bar value', finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, (v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size)], vArea, { size: v.size, lines: 1, maxLines: 1 });
   });

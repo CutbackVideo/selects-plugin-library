@@ -158,8 +158,24 @@ function countable(v) {
 const counted = (c, p) => c.head + (Number((c.num * p).toFixed(c.decimals)) || 0).toLocaleString("en-US", { minimumFractionDigits: c.decimals, maximumFractionDigits: c.decimals, useGrouping: c.group }) + c.tail;
 const ems = (text) => [...String(text)].reduce((n, ch) => n + (ch === " " ? 0.3 : /[\x21-\x7e]/.test(ch) ? 0.58 : 0.95), 0);
 const fitSize = (text, size, maxW) => Math.min(size, maxW / Math.max(0.01, ems(text)));
+const ADV = {
+  700: [231, 307, 376, 625, 630, 959, 648, 197, 390, 390, 539, 653, 282, 449, 282, 372, 655, 655, 655, 655, 655, 655, 655, 655, 655, 655, 282, 282, 653, 653, 653, 538, 875, 718, 636, 724, 701, 588, 563, 733, 719, 266, 548, 663, 546, 883, 709, 753, 623, 753, 632, 630, 643, 704, 718, 999, 686, 696, 641, 390, 372, 390, 467, 456, 477, 557, 611, 563, 611, 574, 367, 608, 600, 257, 257, 558, 257, 879, 598, 590, 608, 608, 390, 539, 370, 597, 563, 819, 551, 563, 549, 390, 355, 390, 653],
+  800: [225, 324, 375, 633, 638, 992, 661, 196, 406, 406, 562, 662, 292, 454, 292, 384, 668, 668, 668, 668, 668, 668, 668, 668, 668, 668, 292, 292, 662, 662, 662, 558, 873, 742, 642, 734, 706, 595, 565, 741, 724, 273, 559, 676, 550, 893, 707, 762, 629, 763, 639, 638, 653, 703, 742, 1027, 710, 716, 656, 406, 384, 406, 476, 466, 480, 564, 618, 575, 618, 582, 377, 618, 613, 270, 270, 572, 270, 895, 611, 598, 617, 617, 403, 554, 380, 612, 574, 833, 563, 574, 561, 406, 372, 406, 662]
+};
+const ADV_PROP = { 700: [660, 469, 611, 639, 657, 627, 643, 576, 643, 643, 287], 800: [682, 479, 619, 646, 668, 637, 653, 584, 655, 653, 297] };
+const ADV_MORE = { "\xB7": 292, "\xB0": 445, "\u2103": 1159, "\xD7": 662, "\u2013": 482, "\u2014": 969, "\u2026": 875, "\u20A9": 917, "\u20AC": 669, "\xA3": 660, "\u2030": 1360, "\u2191": 924, "\u2193": 924, "\u2192": 924, "\u25B2": 1025, "\u25BC": 1025 };
+const advance = (ch, weight, tnum) => {
+  const c = ch.codePointAt(0);
+  if (c >= 32 && c <= 126) {
+    const prop = tnum ? -1 : "0123456789,".indexOf(ch);
+    return (prop >= 0 ? ADV_PROP[weight][prop] : ADV[weight][c - 32]) / 1e3;
+  }
+  if (c >= 44032 && c <= 55203 || c >= 12592 && c <= 12687 || c >= 4352 && c <= 4607) return 0.864;
+  return (ADV_MORE[ch] ?? 1e3) / 1e3;
+};
+const textW = (text, size, weight = 800, ls = 0, tnum = true) => [...String(text)].reduce((n, ch) => n + advance(ch, weight === 700 ? 700 : 800, tnum) * size + ls, 0);
 const CLOSE = { "[": "]", "{": "}" };
-function wrapLines(text, size, maxW) {
+function wrapLines(text, size, maxW, width = (t) => ems(t) * size) {
   const out = [];
   for (const para of String(text ?? "").split("\n")) {
     const pieces = [];
@@ -181,7 +197,7 @@ function wrapLines(text, size, maxW) {
     });
     if (cur) pieces.push({ w: cur, sp: " ", inMark: false });
     const join = (ws) => ws.map((x, i) => x.w + (i < ws.length - 1 ? x.sp : "")).join("");
-    const wide = (ws) => ems(plainText(join(ws))) * size;
+    const wide = (ws) => width(plainText(join(ws)));
     const words = [];
     for (let i = 0; i < pieces.length; ) {
       let j = i;
@@ -234,7 +250,7 @@ function reportLines(what, lines, size, area, maxLines = 2) {
   if (typeof REPORT !== "function" || !lines.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, step = Infinity;
   lines.forEach((l, i) => {
-    const w = ems(plainText(l.text)) * size, left = l.anchor === "l" ? l.x : l.x - w / 2;
+    const w = l.w ?? ems(plainText(l.text)) * size, left = l.anchor === "l" ? l.x : l.x - w / 2;
     x0 = Math.min(x0, left);
     x1 = Math.max(x1, left + w);
     y0 = Math.min(y0, l.y - 0.6 * size);
@@ -288,9 +304,10 @@ const SCENE = {
       const subExtra = (Math.max(1, ...subs.map((l) => l.length)) - 1) * SL;
       const BASE = BASE0 - nameExtra - subExtra;
       const max = Math.max(1e-9, ...vals);
-      const unitOwn = (text, size, uSize, maxW) => !!unit && ems(text) * size + ems(unit) * uSize + 4 > maxW;
+      const numW = (text, size) => textW(text, size, 800, -1), unitW = (uSize) => unit ? textW(unit, uSize, 700) : 0;
+      const unitOwn = (text, size, uSize, maxW) => !!unit && numW(text, size) + 3 + unitW(uSize) > maxW;
       const finals = bars.map((b) => fmt(Number(b?.value) || 0, dec));
-      const fitsInside = hero >= 0 && ems(finals[hero]) * 86 <= ws[hero] - 24;
+      const fitsInside = hero >= 0 && numW(finals[hero], 86) <= ws[hero] - 24;
       const ownInside = fitsInside && unitOwn(finals[hero], 86, 48, ws[hero] - 24);
       const above = (i) => i === hero ? fitsInside ? null : { size: 72, uSize: 40, lift: 52 } : { size: 58, uSize: 34, lift: 48 };
       const top = vals.indexOf(Math.max(...vals));
@@ -313,7 +330,7 @@ const SCENE = {
         reportLines("bar sub line", subs[i].map((l, j) => ({ text: l, x: cx[i], y: BASE + 100 + nameExtra + SL * j, anchor: "c" })), 30, area);
         const v = valueAt[i];
         const vArea = v.inside ? [cx[i] - ws[i] / 2 + 12, BASE - H2[i], cx[i] + ws[i] / 2 - 12, BASE] : [cx[i] - slots[i] / 2, roomTop, cx[i] + slots[i] / 2, BASE - H2[i]];
-        const vw = ems(finals[i]) * v.size, uw = unit ? ems(unit) * v.uSize : 0;
+        const vw = numW(finals[i], v.size), uw = unitW(v.uSize);
         const vy = v.own ? v.y - UL / 2 : v.y, half = (v.own ? Math.max(vw, uw) : vw + uw + (unit ? 3 : 0)) / 2;
         report("bar value", finals[i] + unit, [cx[i] - half, vy - 0.6 * v.size, cx[i] + half, v.own ? v.y + UL / 2 + 0.6 * v.uSize : vy + 0.6 * v.size], vArea, { size: v.size, lines: 1, maxLines: 1 });
       });
@@ -398,14 +415,15 @@ const SCENE = {
       const cp = prog(s.t, 1.3, 2.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const heroText = fmt(hero.value);
-      const unitOwn = !!unit && ems(heroText) * 76 + ems(unit) * 42 > HOLE;
+      const heroW = textW(heroText, 76, 800), heroUnitW = unit ? textW(unit, 42, 700) : 0;
+      const unitOwn = !!unit && heroW + heroUnitW > HOLE;
       const heroLabel = hero.label ? wrapLines(hero.label, 28, HOLE + 10) : [];
       const holeH = VH + (unitOwn ? UH : 0) + (heroLabel.length ? 14 + heroLabel.length * LH : 0);
       const vy = DCY - holeH / 2 + VH / 2;
       const ly = vy + VH / 2 + (unitOwn ? UH : 0) + 14 + LH / 2;
       const holeArea = [DCX - RI + 12, DCY - RI + 12, DCX + RI - 12, DCY + RI - 12];
-      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c" }], 76, holeArea, 1);
-      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c" }] : [], 42, holeArea, 1);
+      reportLines("value", [{ text: heroText + (unit && !unitOwn ? unit : ""), x: DCX, y: vy, anchor: "c", w: heroW + (unitOwn ? 0 : heroUnitW) }], 76, holeArea, 1);
+      reportLines("unit", unitOwn ? [{ text: unit, x: DCX, y: vy + VH / 2 + UH / 2, anchor: "c", w: heroUnitW }] : [], 42, holeArea, 1);
       reportLines("label", heroLabel.map((l, j) => ({ text: l, x: DCX, y: ly + LH * j, anchor: "c" })), 28, holeArea);
       const rows = [];
       let y = 300;
@@ -413,7 +431,7 @@ const SCENE = {
         const x = all[i];
         if (!x) return;
         const big = i === hi, sz = big ? 38 : 28, step = big ? 44 : 34;
-        const valueW = ems(fmt(x.value)) * (big ? 40 : 32) + ems(unit) * (big ? 28 : 22);
+        const valueW = textW(fmt(x.value), big ? 40 : 32, 800) + textW(unit, big ? 28 : 22, 700);
         let names = wrapLines(x.label, sz, Math.min(300, X1 - valueW - 16 - LEG_X)), below = false;
         if (names.length > 2) {
           names = wrapLines(x.label, sz, X1 - LEG_X);
@@ -480,12 +498,15 @@ const SCENE = {
       const subtitle = String(data2?.subtitle ?? "");
       const s = useScene(data2, Math.max(2, brushEnd(title, 0.85), brushEnd(subtitle, 1.75)));
       const k = s.k;
-      const value = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
+      const raw = typeof data2?.value === "number" ? String(data2.value) : String(data2?.value ?? "");
+      const final = countable(raw);
+      const value = final ? counted(final, 1) : raw;
       const unit = String(data2?.unit ?? "");
       const titleLines = title ? wrapLines(title, 50, W - 80) : [];
       const subLines = subtitle ? wrapLines(subtitle, 30, X1 - X0) : [];
-      const vLines = wrapLines(value, 150, IN);
-      const unitOwn = !!unit && ems(vLines[vLines.length - 1]) * 150 + ems(unit) * 80 + 8 > IN;
+      const valueW = (t) => textW(t, 150, 800, -4), unitW = unit ? textW(unit, 80, 700) : 0;
+      const vLines = wrapLines(value, 150, IN, valueW);
+      const unitOwn = !!unit && valueW(vLines[vLines.length - 1]) + 6 + unitW > IN;
       const grow = Math.max(0, titleLines.length - 1) * TL + (vLines.length - 1) * VL + (unitOwn ? UL : 0);
       const H2 = 400 + grow;
       const x0 = (1080 - W) / 2;
@@ -499,8 +520,9 @@ const SCENE = {
       const inCard = (pad) => [x0 + pad, y0, x0 + W - pad, y0 + H2];
       report("card", title + " " + value + unit, [x0, y0, x0 + W, y0 + H2], [X0, 0, X1, roomBottom(data2)]);
       reportLines("title", titleLines.map((l, j) => ({ text: l, x: 540, y: y0 + 78 + TL * j, anchor: "c" })), 50, inCard(40));
-      reportLines("value", vLines.map((l, r) => ({ text: l, x: 540, y: vy + VL * r, anchor: "c" })), 150, inCard(50));
-      reportLines("unit", unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: "c" }] : [], 80, inCard(50), 1);
+      const beside = (r) => !!unit && !unitOwn && r === vLines.length - 1;
+      reportLines("value", vLines.map((l, r) => ({ text: l + (beside(r) ? unit : ""), x: 540, y: vy + VL * r, anchor: "c", w: valueW(l) + (beside(r) ? 6 + unitW : 0) })), 150, inCard(50));
+      reportLines("unit", unitOwn ? [{ text: unit, x: 540, y: vy + VL * (vLines.length - 1) + 128, anchor: "c", w: unitW }] : [], 80, inCard(50), 1);
       reportLines("sub line", subLines.map((l, j) => ({ text: l, x: 540, y: y0 + H2 + 58 + 40 * j, anchor: "c" })), 30, [X0, 0, X1, roomBottom(data2)]);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Rise, { s, t0: 0, dur: 0.9, dy: 22, x: x0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, true), width: W * k, height: H2 * k } })), titleLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "t" + j, s, t0: 0.3, dy: 14, x: 540, y: y0 + 78 + TL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 50 * k, fontWeight: 800, letterSpacing: -1 * k } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 0.85 })))), /* @__PURE__ */ STUB(GoldRule, { s, x0: 540 - 120, x1: 540 + 120, y: y0 + 136 + Math.max(0, titleLines.length - 1) * TL, t0: 0.5 }), vLines.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: 0.8, x: 540, y: vy + VL * r }, /* @__PURE__ */ STUB("div", { style: { position: "relative", display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...num, visibility: count ? "hidden" : "visible" } }, l), count ? /* @__PURE__ */ STUB("span", { style: { ...num, position: "absolute", right: 0, bottom: 0 } }, counted(count, smooth(cp))) : null), unit && !unitOwn && r === vLines.length - 1 ? /* @__PURE__ */ STUB("span", { style: unitStyle }, unit) : null))), unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: 0.8, x: 540, y: vy + VL * (vLines.length - 1) + 128 }, /* @__PURE__ */ STUB("span", { style: { ...unitStyle, marginLeft: 0 } }, unit)) : null, subLines.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "s" + j, s, t0: 1.2, dy: 10, x: 540, y: y0 + H2 + 58 + 40 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 1.75 })))), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
@@ -580,8 +602,9 @@ const SCENE = {
       const thY = threshold ? Y(Number(threshold.y)) : 0;
       const rawEnd = data2?.endLabel;
       const endValue = rawEnd == null || rawEnd === "" ? n ? vals[n - 1] : "" : rawEnd;
-      const endText = typeof endValue === "number" ? valueText(endValue) : String(endValue);
-      const count = countable(endText);
+      const rawText = typeof endValue === "number" ? valueText(endValue) : String(endValue);
+      const count = countable(rawText);
+      const endText = count ? counted(count, 1) : rawText;
       const f = n > 1 ? clamp(u - (n - 2)) : done ? 1 : 0;
       const from = count && n > 1 && Math.abs(count.num - vals[n - 1]) < 1e-9 ? vals[n - 2] : 0;
       const shown = count ? counted({ ...count, num: lerp(from, count.num, f) }, 1) : endText;
@@ -589,7 +612,7 @@ const SCENE = {
       const numStyle = { fontSize: 84 * k, fontWeight: 800, color: C.acc, letterSpacing: -2 * k, fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const endLabel = /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline" } }, /* @__PURE__ */ STUB("span", { style: { position: "relative" } }, /* @__PURE__ */ STUB("span", { style: { ...numStyle, visibility: count ? "hidden" : "visible" } }, endText), count ? /* @__PURE__ */ STUB("span", { style: { ...numStyle, position: "absolute", right: 0, bottom: 0 } }, shown) : null), showUnit ? /* @__PURE__ */ STUB("span", { style: { fontSize: 46 * k, fontWeight: 700, color: C.acc, marginLeft: 4 * k, lineHeight: 1 } }, unit) : null);
       const endY = n ? P[n - 1][1] - 68 : 0;
-      const endW = ems(plainText(endText)) * 84 + (showUnit ? ems(unit) * 46 + 4 : 0);
+      const endW = textW(plainText(endText), 84, 800, -2) + (showUnit ? 4 + textW(unit, 46, 700) : 0);
       if (n && endText !== "") report("end value", endText + (showUnit ? unit : ""), [X1 - endW, endY - 50, X1, endY + 50], [X0, 112, X1, base], { size: 84, lines: 1, maxLines: 1 });
       const popAt = Math.min(n > 1 ? reach(n - 2) : SWEEP_FROM, sweepEnd - 0.8);
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle: String(data2?.subtitle ?? "") }), /* @__PURE__ */ STUB("svg", { width: 1080 * k, height: s.height * k, viewBox: "0 0 1080 " + s.height, style: { position: "absolute", left: 0, top: 0 } }, drawn.length > 1 ? /* @__PURE__ */ STUB("polygon", { points: poly(drawn.concat([[drawn[drawn.length - 1][0], base], [drawn[0][0], base]])), fill: C.area, opacity: 0.8 }) : null, pb > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: base + 2, x2: lerp(X0, X1, pb), y2: base + 2, stroke: C.gold, strokeWidth: 2, strokeLinecap: "round" }) : null, threshold && pth > 0 ? /* @__PURE__ */ STUB("line", { x1: X0, y1: thY, x2: lerp(X0, X1, pth), y2: thY, stroke: C.acc, strokeWidth: 3, strokeDasharray: "16 11" }) : null, grey.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(grey), fill: "none", stroke: C.ink2, strokeWidth: 8, strokeLinejoin: "round", strokeLinecap: "round" }) : null, red.length > 1 ? /* @__PURE__ */ STUB("polyline", { points: poly(red), fill: "none", stroke: C.acc, strokeWidth: 9, strokeLinejoin: "round", strokeLinecap: "round" }) : null, keys.map((i) => {
@@ -655,18 +678,23 @@ const SCENE = {
       const title = String(data2?.title ?? "");
       const label = String(data2?.label ?? "");
       const unit = String(data2?.unit ?? "");
-      const from = show(data2?.from), to = show(data2?.to);
-      const cf = countable(from), ct = countable(to);
+      const from = show(data2?.from), raw = show(data2?.to);
+      const cf = countable(from), ct = countable(raw);
       const cp = smooth(prog(s.t, toAt, toAt + 1.2));
-      const running = !ct ? to : cf && cf.head === ct.head && cf.tail === ct.tail ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, cp);
+      const same = cf && ct && cf.head === ct.head && cf.tail === ct.tail;
+      const running = !ct ? raw : same ? counted({ ...ct, num: lerp(cf.num, ct.num, cp), decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, cp);
+      const to = !ct ? raw : same ? counted({ ...ct, decimals: Math.max(cf.decimals, ct.decimals) }, 1) : counted(ct, 1);
       const top = title ? 150 : 40;
       const mid = (top + 794) / 2;
       const dir = cf && ct && cf.head === ct.head && cf.tail === ct.tail && cf.num !== ct.num ? ct.num > cf.num ? "up" : "down" : "";
       const labelLines = label ? wrapLines(label, 44, W) : [];
-      const fromLines = wrapLines(from, 96, W), toLines = wrapLines(to, 150, W);
+      const fromW = (t) => textW(t, 96, 800, -2), toW = (t) => textW(t, 150, 800, -4);
+      const fromUnitW = (ls) => textW(unit, 53, 700, ls), toUnitW = (ls) => textW(unit, 80, 700, ls);
+      const VW = X1 - X0;
+      const fromLines = wrapLines(from, 96, VW, fromW), toLines = wrapLines(to, 150, VW, toW);
       const last = (l) => l[l.length - 1];
-      const fromOwn = !!unit && ems(last(fromLines)) * 96 + ems(unit) * 53 + 4 > W;
-      const toOwn = !!unit && ems(last(toLines)) * 150 + ems(unit) * 80 + 6 + (dir ? 62 : 0) > W;
+      const fromOwn = !!unit && fromW(last(fromLines)) + 4 + fromUnitW(-2) > VW;
+      const toOwn = !!unit && toW(last(toLines)) + 6 + toUnitW(-4) + (dir ? 62 : 0) > VW;
       const labelExtra = Math.max(0, labelLines.length - 1) * LBL;
       const fromExtra = (fromLines.length - 1) * FL + (fromOwn ? FU : 0);
       const toExtra = (toLines.length - 1) * TL + (toOwn ? TU : 0);
@@ -685,19 +713,19 @@ const SCENE = {
       const { yFrom, yArrow, yTo, yToUnit } = place(first.yFrom - Math.max(0, Math.min(first.bottom - (roomBottom(data2) - 6), first.top - (top + 6))));
       const counts = toLines.length === 1 && !toOwn;
       const ap = smooth(prog(s.t, arrowAt, arrowAt + 0.6));
-      const area = [X0 + 30, top, X1 - 30, roomBottom(data2)];
+      const area = [X0 + 30, top, X1 - 30, roomBottom(data2)], valueArea = [X0, top, X1, roomBottom(data2)];
       const col = (list, y, step) => list.map((l, j) => ({ text: l, x: 540, y: y + step * j, anchor: "c" }));
       reportLines("label", col(labelLines, yFrom - 110 - labelExtra, LBL), 44, area);
-      const valueReport = (what, list, y, step, size, uSize, own) => {
+      const valueReport = (what, list, y, step, size, lineW, beside, own) => {
         if (!list.length) return;
-        const w = list.map((l, j) => ems(l) * size + (unit && !own && j === list.length - 1 ? ems(unit) * uSize + 6 : 0));
+        const w = list.map((l, j) => lineW(l) + (j === list.length - 1 ? beside : 0));
         const x0 = Math.min(...w.map((x) => 540 - x / 2)), x1 = Math.max(...w.map((x) => 540 + x / 2));
-        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], area, { size, lines: list.length, maxLines: 2 });
+        report(what, list.join(" ") + (own ? "" : unit), [x0, y - 0.6 * size, x1, y + step * (list.length - 1) + 0.6 * size], valueArea, { size, lines: list.length, maxLines: 2 });
       };
-      valueReport("old value", fromLines, yFrom, FL, 96, 53, fromOwn);
-      reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0) : [], 53, area, 1);
-      valueReport("new value", toLines, yTo, TL, 150, 80, toOwn);
-      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0) : [], 80, area, 1);
+      valueReport("old value", fromLines, yFrom, FL, 96, fromW, unit && !fromOwn ? 4 + fromUnitW(-2) : 0, fromOwn);
+      reportLines("old value unit", fromOwn ? col([unit], yFrom + (fromLines.length - 1) * FL + FU, 0).map((l) => ({ ...l, w: fromUnitW(0) })) : [], 53, valueArea, 1);
+      valueReport("new value", toLines, yTo, TL, 150, toW, (unit && !toOwn ? 6 + toUnitW(-4) : 0) + (dir && !toOwn ? 62 : 0), toOwn);
+      reportLines("new value unit", toOwn ? col([unit], yToUnit, 0).map((l) => ({ ...l, w: toUnitW(0) + (dir ? 62 : 0) })) : [], 80, valueArea, 1);
       const tri = prog(s.t, toAt + 1, toAt + 1.6);
       const tnum = { fontVariantNumeric: "tabular-nums", lineHeight: 1 };
       const triangle = dir ? /* @__PURE__ */ STUB("svg", { width: 44 * k, height: 40 * k, viewBox: "0 0 44 40", style: { marginLeft: 18 * k, alignSelf: "center", opacity: smooth(tri / 0.6), transform: "translateY(" + (1 - smooth(tri)) * (dir === "up" ? 8 : -8) * k + "px)" } }, /* @__PURE__ */ STUB("polygon", { points: dir === "up" ? "22,2 42,38 2,38" : "2,2 42,2 22,38", fill: C.acc })) : null;
@@ -773,17 +801,18 @@ const SCENE = {
       const s = useScene(data2, Math.max(two ? row2At + 0.18 * (n - 1) + 0.12 + 0.8 : numAt + 0.22 * (n - 1) + 0.8, ...brushes, headerEnd(String(data2?.title ?? ""), subtitle)));
       const k = s.k;
       const gap = 36;
+      const numW = (t) => textW(t, 72, 800, -1.5), unitW = (u) => textW(u, 36, 700), row2W = (t) => textW(t, 38, 800, -0.5, false);
       const widest = (w) => Math.max(0, ...cards.map((c) => {
         const r0 = rowsOf(c)[0];
-        return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28).map((l) => ems(l) * 72)) : 0;
+        return r0 ? Math.max(...wrapLines(fmt(r0.value), 72, w - 28, numW).map(numW)) : 0;
       }));
       const grid = n === 4 && !two && widest((X1 - X0 - gap * 3) / 4) > (X1 - X0 - gap * 3) / 4 - 28;
       const cols = grid ? 2 : n, W = (X1 - X0 - gap * (cols - 1)) / cols;
       const laid = cards.map((c) => {
         const [r0, r1] = rowsOf(c);
-        const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28) : [];
+        const v0 = r0 ? wrapLines(fmt(r0.value), 72, W - 28, numW) : [];
         const u0 = String(r0?.unit ?? "");
-        const unitOwn = !!u0 && v0.length > 0 && ems(v0[v0.length - 1]) * 72 + ems(u0) * 36 + 4 > W - 28;
+        const unitOwn = !!u0 && v0.length > 0 && numW(v0[v0.length - 1]) + 2 + unitW(u0) > W - 28;
         return {
           header: wrapLines(plainText(String(c?.header ?? "")), 44, W - 24),
           r0,
@@ -793,7 +822,7 @@ const SCENE = {
           unitOwn,
           label0: r0?.label ? wrapLines(String(r0.label), 32, W - 24) : [],
           label1: r1?.label ? wrapLines(String(r1.label), 30, W - 24) : [],
-          v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24) : []
+          v1: r1 ? wrapLines(fmt(r1.value) + String(r1.unit ?? ""), 38, W - 24, row2W) : []
         };
       });
       const most = (f) => Math.max(1, ...laid.map(f));
@@ -813,10 +842,11 @@ const SCENE = {
         report("card", String(c.header.join(" ")), [x, y0, x + W, y0 + Hc], [X0, top - 10, X1, roomBottom(data2)], { cause });
         reportLines("card name", lines(c.header, y0 - 2 + (BAND + d1) / 2 - BL * (c.header.length - 1) / 2, BL), 44, [x + 12, y0, x + W - 12, y0 + BAND + d1]);
         reportLines("card label", lines(c.label0, y0 + 140 + d1, LL), 32, inCard(12));
-        reportLines("card number", lines(c.v0, y0 + 214 + d2, VL), 72, inCard(14));
-        reportLines("card unit", c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: "c" }] : [], 36, inCard(14), 1);
+        const beside = (j) => !!c.u0 && !c.unitOwn && j === c.v0.length - 1;
+        reportLines("card number", lines(c.v0, y0 + 214 + d2, VL).map((l, j) => ({ ...l, text: l.text + (beside(j) ? c.u0 : ""), w: numW(l.text) + (beside(j) ? 2 + unitW(c.u0) : 0) })), 72, inCard(14));
+        reportLines("card unit", c.unitOwn ? [{ text: c.u0, x: cx, y: y0 + 214 + d2 + VL * (c.v0.length - 1) + 58, anchor: "c", w: unitW(c.u0) }] : [], 36, inCard(14), 1);
         reportLines("second label", lines(c.label1, y0 + 330 + d3, L2), 30, inCard(12));
-        reportLines("second value", lines(c.v1, y0 + 385 + d4, V2), 38, inCard(12));
+        reportLines("second value", lines(c.v1, y0 + 385 + d4, V2).map((l) => ({ ...l, w: row2W(l.text) })), 38, inCard(12));
       });
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), laid.map((c, i) => {
         const { x, y0 } = cardAt(i), cx = x + W / 2, t0 = at(i);

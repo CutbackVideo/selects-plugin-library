@@ -189,6 +189,55 @@ test('the layout check reads the lines the template draws: overflow is an error,
   assert.ok(plan(cases['text-nine'].data).errors.some((e) => /^scene 1: text ".*" does not fit/.test(e)));
 });
 
+test('the layout check measures a value and its unit as drawn: the final count-up text in Pretendard widths', async () => {
+  const { fitProblems } = await import('../src/prompts/fit.ts');
+  const { layoutReports } = await import('../src/templates/entrance.generated.ts');
+  const { readFileSync } = await import('node:fs');
+  // f106b06 review inputs (RESEARCH/T1M_UI_REVIEW_F106B06_2026_10_24/BLOCKING_CASES.json, CASES.json): both blocking
+  // inputs ran out of their card in Chrome with no error.
+  const cases = Object.fromEntries(JSON.parse(readFileSync(new URL('./fixtures/layout-cases-f106b06.json', import.meta.url), 'utf8')).map((c) => [c.id, c]));
+  const reps = (type, data) => layoutReports(type, data);
+  const one = (list, what) => list.filter((r) => r.what === what);
+  const width = (r) => r.box[2] - r.box[0];
+  const WON = '\uC6D0';
+  // 1000000 counts up to 1,000,000 (752.8 px at 150 px in Chrome): with its unit it is wider than the card's room
+  // (760 px), so the unit takes a line of its own and the value stays inside the card.
+  const million = cases['highlight-million-won'];
+  assert.deepEqual(fitProblems(million.type, million.data), { errors: [], warnings: [] });
+  const [value] = one(reps(million.type, million.data), 'value');
+  assert.equal(value.text, '1,000,000');
+  assert.ok(Math.abs(width(value) - 752.83) < 0.5, String(width(value)));
+  assert.ok(value.box[0] >= 160 && value.box[2] <= 920, value.box.join());
+  assert.equal(one(reps(million.type, million.data), 'unit').length, 1);
+  // 9,999,999 is as wide in tabular digits; 10,000,000 does not fit even on a line of its own.
+  for (const v of [9999999, '9999999']) assert.deepEqual(fitProblems('highlight_card', { ...million.data, value: v }).errors, [], String(v));
+  assert.match(fitProblems('highlight_card', { ...million.data, value: 10000000 }).errors[0], /^value "10,000,000" does not fit: wider than its room/);
+  // A value that fits with its unit keeps it beside, measured together.
+  const beside = reps('highlight_card', { ...million.data, value: 3592 });
+  assert.deepEqual(one(beside, 'unit'), []);
+  assert.equal(one(beside, 'value')[0].text, '3592' + WON);
+  // Number cards: "10000" MW was 302.72 px drawn in a 296 px card (MW alone 67.75 px); the unit now goes under the
+  // number, and a number wider than the card even alone is an error.
+  const mw = cases['stat-string-mw'];
+  assert.deepEqual(fitProblems(mw.type, mw.data), { errors: [], warnings: [] });
+  const mwReps = reps(mw.type, mw.data);
+  assert.equal(one(mwReps, 'card unit').length, 3);
+  for (const r of one(mwReps, 'card number')) assert.ok(Math.abs(width(r) - 232.97) < 0.5, String(width(r)));
+  assert.ok(Math.abs(width(one(mwReps, 'card unit')[0]) - 67.75) < 0.5);
+  const wide = { ...mw.data, cards: mw.data.cards.map((c) => ({ ...c, rows: [{ ...c.rows[0], value: '100000' }] })) };
+  assert.match(fitProblems('stat_cards', wide).errors[0], /^card number "100000" does not fit: wider than its room/);
+  // The same final text in the other count-ups: a string value with no commas counts up to one with them.
+  assert.equal(one(reps('number_callout', { title: 't', from: '3592', to: '1000000', unit: '' }), 'new value')[0].text, '1,000,000');
+  assert.equal(one(reps('line_trend_callout', { title: 't', points: [{ x: 'a', y: 1 }, { x: 'b', y: 2 }], endLabel: '1000000' }), 'end value')[0].text, '1,000,000');
+  // number_callout values measure against the graphic area x 60..1020: 199\uC5B55000\uB9CC stays on one line (924.6 px)
+  // with the unit under it, as reviewed.
+  const two = cases['number-two-lines'];
+  assert.deepEqual(fitProblems(two.type, two.data), { errors: [], warnings: [] });
+  const twoReps = reps(two.type, two.data);
+  assert.equal(one(twoReps, 'new value')[0].lines, 1);
+  assert.equal(one(twoReps, 'new value unit').length, 1);
+});
+
 test('heritage scene types validate and allow one hero only', () => {
   const sents = [{id: 's1', text: '46 of 105, 43.8 percent.', startSec: 0, endSec: 6}];
   const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});
