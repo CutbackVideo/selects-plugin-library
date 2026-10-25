@@ -14,6 +14,7 @@ import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./pr
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
 import { issueText } from "./issues.ts";
+import { AI_PROVIDERS, isAiProvider, readAiProviders, scriptProvider, type AiProviders } from "./pipeline/providers.ts";
 
 type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: string } };
 
@@ -88,6 +89,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [status, setStatus] = useState("");
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [providers, setProviders] = useState<AiProviders | null>(null);
+  const [providerError, setProviderError] = useState("");
+  const [providerLoading, setProviderLoading] = useState(true);
+  const providerRead = useRef(0);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [tts, setTts] = useState<TtsRecord | null>(null);
@@ -112,6 +117,24 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
   const update = async (next: F.Session) => { latest.current = next; setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
 
+  const refreshProviders = async () => {
+    const id = ++providerRead.current;
+    setProviderLoading(true); setProviderError("");
+    try {
+      const next = await readAiProviders(sdk);
+      if (id === providerRead.current) setProviders(next);
+    } catch (e: any) {
+      if (id === providerRead.current) {
+        setProviders(null);
+        setProviderError(e?.message === "providerUpdateRequired" ? "providerUpdateRequired" : "providerReadFailed");
+      }
+    } finally { if (id === providerRead.current) setProviderLoading(false); }
+  };
+  useEffect(() => {
+    void refreshProviders();
+    return () => { providerRead.current++; };
+  }, [sdk]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -129,7 +152,11 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const guard = async (fn: () => Promise<void>) => {
     if (busy) return;
     setBusy(true); setError("");
-    try { await fn(); } catch (e: any) { setError(T("error", { error: String(e?.message || e) })); }
+    try { await fn(); } catch (e: any) {
+      const message = String(e?.message || e);
+      if (message === "providerNotConnected" || message === "providerUnavailable" || message === "providerReadFailed") await refreshProviders();
+      setError(T("error", { error: MESSAGES[message] ? T(message) : message }));
+    }
     finally { setBusy(false); setStatus(""); }
   };
 
@@ -201,18 +228,35 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   if (!s) return <div style={{ padding: 12 }}>{error || "\u2026"}</div>;
   const preset = PRESETS[s.presetId] ?? PRESETS.chosun;
+  const provider = scriptProvider(providers, s.scriptProvider);
+  const providerReady = !providerLoading && !!provider && providers?.[provider] === "connected";
+  const providerUnavailable = !!providers && AI_PROVIDERS.every((id) => providers[id] === "unavailable");
+  const aiUsage = provider ? T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) }) : T(providerUnavailable ? "providerUnavailable" : "providerChoose");
+  // Pin even the initial default once work starts; a disconnect must not pick another payer on refresh/reopen.
+  const startAi = async () => {
+    if (!providerReady || !provider) throw new Error(providerUnavailable ? "providerUnavailable" : "providerChoose");
+    const next = { ...s, scriptProvider: provider };
+    await update(next);
+    return next;
+  };
+  const aiSdk: PanelSdk = { ...sdk, askAI: sdk.askAI && (async (input) => {
+    try { return await sdk.askAI!(input); }
+    catch (e) { await refreshProviders(); throw e; }
+  }) };
 
   const writeScript = () => guard(async () => {
+    if (!providerReady || !provider) throw new Error("providerChoose");
     const e = env.current!;
     let article;
     if (url.trim()) { log("fetching"); article = await F.fetchArticle(sdk, e, url.trim()); }
     else article = articleFromText(text);
     if ([...article.body].length < 200) throw new Error(T("tooShort"));
+    const selected = await startAi();
     const rec = F.newRunRecord(preset.id, url.trim());
     rec.notes.push("article: " + article.method + ", " + [...article.body].length + " chars, " + article.photos.length + " photos");
     let r;
-    try { r = await F.writeScript(sdk, article, preset, log, rec); } finally { await finish(rec); }
-    await update({ ...s, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
+    try { r = await F.writeScript(aiSdk, article, preset, log, rec, selected.scriptProvider); } finally { await finish(rec); }
+    await update({ ...selected, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
   });
 
   const setLine = (i: number, v: string) => {
@@ -239,12 +283,13 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const makePlan = () => guard(async () => {
     const next = F.ttsNext(tts, s.approved!);
     if (next.kind !== "ready") return;
+    const selected = await startAi();
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     let plan;
-    try { plan = await F.planScenes(sdk, env.current!, s, preset, next, log, rec, thumbOf); }
+    try { plan = await F.planScenes(aiSdk, env.current!, selected, preset, next, log, rec, selected.scriptProvider, thumbOf); }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
-    const next2 = { ...s, plan };
+    const next2 = { ...selected, plan };
     await update(next2);
     setFeedback(""); setJsonErr({}); setOpenRow(null); setPicked(null);
     if (plan.timing === "ratio") setError(T("timingRatio"));
@@ -273,13 +318,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const revise = () => guard(async () => {
     const note = feedback.trim();
     if (!note || !s.plan) return;
+    const selected = await startAi();
     log("revising");
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     let r;
-    try { r = await F.revisePlan(sdk, env.current!, s, preset, note, log, rec); }
+    try { r = await F.revisePlan(aiSdk, env.current!, selected, preset, note, log, rec, selected.scriptProvider); }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
-    const next2 = { ...s, plan: r.plan };
+    const next2 = { ...selected, plan: r.plan };
     await update(next2);
     setJsonErr({});
     if (r.kept) setError(T("reviseKept"));
@@ -341,7 +387,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   };
 
   // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); });
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
 
   const pick = (i: number) => {
     setPicked(i);
@@ -501,8 +547,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
             <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>{T("feedback")}
               <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
             </label>
-            <span style={muted}>{T("buildCredits")}</span>
-            <button {...SECONDARY} disabled={busy || !feedback.trim()} onClick={revise}>{T("revise")}</button>
+            <span style={muted}>{aiUsage}</span>
+            <button {...SECONDARY} disabled={busy || !providerReady || !feedback.trim()} onClick={revise}>{T("revise")}</button>
           </div>
         </details>
         {/* One button under the list (sian): after a change it updates the preview; once the reviewer has that
@@ -529,12 +575,30 @@ function NewsMinutePanel({ sdk, context }: Props) {
         </select>
       </label>
 
+      <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
+        <label style={field}>{T("scriptProvider")}
+          <select style={input} value={provider ?? ""} disabled={busy || providerLoading || !providers} onChange={(e) => {
+            const value = e.target.value;
+            if (isAiProvider(value)) void guard(() => update({ ...s, scriptProvider: value }));
+          }}>
+            {!provider ? <option value="" disabled>{T(providerLoading ? "providerLoading" : "providerSelect")}</option> : null}
+            {AI_PROVIDERS.map((id) => <option key={id} value={id} disabled={providers?.[id] !== "connected"}>
+              {T("provider_" + id) + (providers?.[id] ? " \u00b7 " + T("providerStatus_" + providers[id]) : "")}
+            </option>)}
+          </select>
+        </label>
+        <span style={muted}>{T("providerHint")}</span>
+        <button {...SECONDARY} disabled={busy || providerLoading} onClick={() => void refreshProviders()}>{T("providerRefresh")}</button>
+        {providerError ? <span role="alert" style={warn}>{T(providerError)}</span> : null}
+        {providers && !providerLoading && (!provider || providers[provider] !== "connected") ? <span role="alert" style={warn}>{T(providerUnavailable ? "providerUnavailable" : provider ? "providerNotConnected" : "providerChoose")}</span> : null}
+        {provider ? <span style={muted}>{T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) })}</span> : null}
+      </div>
+
       {!sc ? (
         <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
           <input style={input} placeholder={T("url")} value={url} disabled={busy} onChange={(e) => setUrl(e.target.value)} />
           <textarea style={{ ...input, minHeight: 90 }} placeholder={T("orText")} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
-          <span style={muted}>{T("aiCredits")}</span>
-          <button disabled={busy || (!url.trim() && text.trim().length < 80)} onClick={writeScript}>{T("write")}</button>
+          <button disabled={busy || !providerReady || (!url.trim() && text.trim().length < 80)} onClick={writeScript}>{T("write")}</button>
         </div>
       ) : (
         // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
@@ -596,8 +660,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
             <>
               {plan ? null : <>
                 <span>{"\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) })}</span>
-                <span style={muted}>{T("buildCredits")}</span>
-                <button disabled={busy} onClick={makePlan}>{T("makePlan")}</button>
+                <span style={muted}>{aiUsage}</span>
+                <button disabled={busy || !providerReady} onClick={makePlan}>{T("makePlan")}</button>
               </>}
             </>
           )}

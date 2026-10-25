@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "news-minute",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
+  "minSelectsVersion": "2.0.797",
   "name": "News in One Minute",
   "summary": "Turns a news article into a one-minute vertical news short: a script checked against the article, editor review, narration, article photos and data cards, captions, in an editable Draft.",
   "status": "experimental",
@@ -25,7 +26,7 @@
       "macOS",
       "Windows x64"
     ],
-    "selects": "Selects 2.0.763 or later with narration for plug-in panels (selects.narration) and plug-in storage. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Verified on macOS (Selects Staging 2.0.763). Not yet verified on Windows."
+    "selects": "Requires a Selects release containing sdk.aiProviders and askAI.provider support, narration for plug-in panels (selects.narration), and plug-in storage. All LLM stages require explicit provider support; older hosts show an update message. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Provider routing is verified with simulated hosts; live Staging subscription verification is pending. Not yet verified on Windows."
   },
   "localized": {
     "en": {

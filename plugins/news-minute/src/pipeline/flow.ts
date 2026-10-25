@@ -2,6 +2,7 @@
 // preview Draft -> [human review] -> the same Draft renamed as the video.
 
 import * as P from "../prompts/index.ts";
+import { selectedAi, type AiProvider } from "./providers.ts";
 import type { Article as PromptArticle, PlanAsset, PlanScene, TimedSentence } from "../prompts/types.ts";
 import { DEFAULT_VOICE, type Preset } from "../preset.ts";
 import { decodeHtml, extractArticle, type Article } from "./article.ts";
@@ -22,6 +23,8 @@ export type Env = { platform: string; sep: string; dir: string; tmp: string; ski
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
+  // Explicit or last-used provider for all LLM stages. Keep the storage key for existing sessions.
+  scriptProvider?: AiProvider;
   presetId: string;
   voiceId: string;
   article: Article | null;
@@ -142,7 +145,9 @@ export async function saveRunRecord(sdk: PanelSdk, env: Env, rec: RunRecord): Pr
   try { await writeText(sdk, path, JSON.stringify(rec, null, 1)); return path; } catch { return null; }
 }
 
-export async function writeScript(sdk: PanelSdk, article: Article, preset: Preset, log: Log, rec: RunRecord): Promise<{ script: Script; errors: string[] }> {
+export async function writeScript(sdk: PanelSdk, article: Article, preset: Preset, log: Log, rec: RunRecord, provider: AiProvider): Promise<{ script: Script; errors: string[] }> {
+  sdk = await selectedAi(sdk, provider);
+  rec.notes.push("script and fidelity provider: " + provider);
   const pa = promptArticle(article);
   log("writing");
   const first = await askValid<any>(sdk, "script", P.scriptPrompt(pa, { language: preset.scriptLanguage }), (j) => P.validateScript(j, pa), log, rec);
@@ -356,7 +361,9 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
 
 // Timing, photos and the first scene plan. Nothing is added to the Project here; the panel builds the preview
 // Draft from the plan next.
-export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
+export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord, provider: AiProvider, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
+  sdk = await selectedAi(sdk, provider);
+  rec.notes.push("scene planning provider: " + provider);
   const script = s.script!, article = s.article!, projectId = s.projectId!;
   const total = narration.durationSeconds;
   if (!(total > 0)) throw new Error("narration length unknown");
@@ -391,7 +398,9 @@ export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Pr
 
 // Rebuild the plan from the user's feedback. previous is the plan as the user sees it (their edits included);
 // a revision that fails its check keeps that plan.
-export async function revisePlan(sdk: PanelSdk, env: Env, s: Session, preset: Preset, feedback: string, log: Log, rec: RunRecord): Promise<{ plan: ScenePlan; kept: boolean }> {
+export async function revisePlan(sdk: PanelSdk, env: Env, s: Session, preset: Preset, feedback: string, log: Log, rec: RunRecord, provider: AiProvider): Promise<{ plan: ScenePlan; kept: boolean }> {
+  sdk = await selectedAi(sdk, provider);
+  rec.notes.push("scene revision provider: " + provider);
   const cur = s.plan!;
   const photos = await prepPhotos(sdk, env, s.article!, log);
   const t0 = Date.now();
