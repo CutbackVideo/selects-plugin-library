@@ -227,7 +227,7 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},id+': no migration needed');
   }
   // Scene templates are new designs, not migrations of the legacy presets.
-  expectedFiles.push('hankook-ilbo/huick-alpha.json','chosun-ilbo/parenting.json','chosun-ilbo/jeongjwippul.json','chosun-ilbo/politics-landscape.json');
+  expectedFiles.push('hankook-ilbo/one-minute-newspaper.json','hankook-ilbo/huick-alpha.json','chosun-ilbo/parenting.json','chosun-ilbo/jeongjwippul.json','chosun-ilbo/politics-landscape.json');
   const parenting=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates','parenting.json'),'utf8'));
   assert.deepEqual(api.validateTemplate(structuredClone(parenting)),{...parenting,captions:{...parenting.captions,cleanSpeechText:parenting.captions.cleanSpeechText??true}},'Parenting: source values survive validation');
   const scene=JSON.parse(fs.readFileSync(path.join(root,'hankook-ilbo','templates','huick-alpha.json'),'utf8'));

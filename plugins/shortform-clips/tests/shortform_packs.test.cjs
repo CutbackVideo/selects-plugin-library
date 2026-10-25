@@ -44,6 +44,15 @@ test('legacy pack reader and source installation compatibility', {skip:!modulesR
       assert.throws(()=>api.validateTemplate(changed,true),/Invalid component/);
     }
   });
+  await t.test('page styling round-trips without admitting episode coordinates or invalid values',async()=>{
+    const pack=await api.readTemplatePack(fileService,path.join(__dirname,'../template-packs/hankook-ilbo/pack.json'));
+    const template=pack.templates.find(t=>t.id.endsWith('one-minute-newspaper'));
+    assert.deepEqual(api.cleanTemplate(template).editorial.components.page,{dimOpacity:.21,paperColor:'#F4F3EE',moveSeconds:.8});
+    for(const [key,value] of [['highlightX',.1],['dimOpacity',-1],['dimOpacity',2],['moveSeconds',6],['paperColor','white']]){
+      const changed=structuredClone(template);changed.editorial.components.page[key]=value;
+      assert.throws(()=>api.validateTemplate(changed,true),/Invalid page/);
+    }
+  });
   await t.test('picker appends an action without selecting it as a template',()=>{
     let picked=null,opened=0,options;
     const view=api.TemplatePicker({ui:{Select:()=>null},label:'Template',value:'existing',

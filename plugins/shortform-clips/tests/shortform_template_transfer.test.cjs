@@ -21,6 +21,20 @@ test('portable template files',{skip:!modules},async t=>{
   envelope.templateApi=1;
   assert.deepEqual(api.decodeSharedTemplate(new TextEncoder().encode(JSON.stringify(envelope))),api.decodeSharedTemplate(bytes));
  });
+ await t.test('PDF input survives sharing and lazy library reads without changing video defaults',async()=>{
+  const pdf=structuredClone(original);pdf.input={kind:'pdf'};pdf.editorial={mode:'scenes',execution:'layers',instructions:'Read the selected newspaper.'};
+  const bytes=api.encodeSharedTemplate(pdf),envelope=JSON.parse(new TextDecoder().decode(bytes));
+  assert.equal(envelope.templateApi,7);
+  const imported=api.decodeSharedTemplate(bytes);assert.deepEqual(imported.input,{kind:'pdf'});
+  const r=repo();await r.repository.importTemplates([imported],{kind:'file'});
+  const entry=(await r.repository.listTemplates()).templates[0];
+  assert.deepEqual(entry.input,{kind:'pdf'});
+  assert.deepEqual((await r.repository.resolveTemplate(entry)).input,{kind:'pdf'});
+  assert.equal(api.decodeSharedTemplate(api.encodeSharedTemplate(original)).input,undefined);
+  for(const input of [null,{},'pdf',{kind:'url'},{kind:'pdf',path:'/private/document.pdf'}]){
+   assert.throws(()=>api.encodeSharedTemplate({...pdf,input}),/Unsupported template input/);
+  }
+ });
  await t.test('round trip keeps actual edits, settings and embedded images with stable identity but no private metadata',()=>{
   const bytes=api.encodeSharedTemplate(original),text=new TextDecoder().decode(bytes),decoded=api.decodeSharedTemplate(bytes);
   for(const secret of ['private-pack','private-project','private-source','/private/video.mp4'])assert.ok(!text.includes(secret));

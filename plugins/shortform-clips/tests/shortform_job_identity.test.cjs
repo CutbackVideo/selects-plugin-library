@@ -18,7 +18,7 @@ test('independent panels use collision-resistant run identities', {skip: !module
     constructor(...args) { super(...(args.length ? args : [stamp])); }
     static now() { return stamp; }
   }
-  const panel = (projectId, crypto = webcrypto) => vm.createContext({Date: FixedDate, crypto, projectId, resume: undefined, mode:'project', contentMode:'speech', url:'', pick:'source', program:'template', countMode:'manual', count:1, note:'brief', platform:'shorts', fixedLayout:'grid-4', framing:true, subjectInstructions:'Keep all four people visible'});
+  const panel = (projectId, crypto = webcrypto) => vm.createContext({Date: FixedDate, crypto, projectId, resume: undefined, isPdfInput:false, mode:'project', contentMode:'speech', url:'', pick:'source', program:'template', countMode:'manual', count:1, note:'brief', platform:'shorts', fixedLayout:'grid-4', framing:true, subjectInstructions:'Keep all four people visible'});
   const create = context => vm.runInContext('(' + initializer + ')', context);
   const module = {exports:{}};
   const code = dep('esbuild').transformSync(source + '\nexport {makeStore,thumbnailPath};', {loader:'tsx',format:'cjs'}).code;

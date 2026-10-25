@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "hankook-ilbo",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "name": "Hankook Ilbo",
   "names": {
     "en": "Hankook Ilbo",
@@ -9,18 +9,21 @@
   },
   "requiresApp": {
     "id": "shortform-clips",
-    "templateApi": 5
+    "templateApi": 7
   },
   "templates": [
     "templates/knowledge-exchange.json",
     "templates/issue-broadcast.json",
-    "templates/huick-alpha.json"
+    "templates/huick-alpha.json",
+    "templates/one-minute-newspaper.json"
   ],
   "assets": [
     "assets/knowledge-background.webp",
     "assets/knowledge-logo.webp",
     "assets/issue-logo.webp",
     "assets/huick-alpha-logo.png",
-    "assets/huick-alpha-visual-guide.jpg"
+    "assets/huick-alpha-visual-guide.jpg",
+    "assets/newspaper-logo.png",
+    "assets/newspaper-visual-guide.jpg"
   ]
 }

@@ -21,6 +21,17 @@ saving, preventing a project/tab change from silently applying to another Draft.
 
 ## Scene templates
 
+Template API 7 also supports `input: {kind: "pdf"}` on scene/layers templates.
+These show a local PDF picker and a TTS voice selector instead of
+YouTube and timeline inputs. The app copies the PDF, retains its selection per
+project, and prepares page images plus normalized text positions with macOS
+PDFKit. Existing templates without `input` retain their video inputs. This does
+not add PDF files to the Project file model. The PDF supplies the script; Selects
+narration generates speech and character timings without another transcription.
+Narration uses Selects credits. Its saved workflow ID is reused on Resume; an
+unknown submission outcome is never automatically resubmitted. See the
+[newspaper template](template-packs/hankook-ilbo/README.md#one-minute-newspaper).
+
 Template API 5 adds an editable scene workflow, used by Huick Alpha in the
 [Hankook Ilbo pack](template-packs/hankook-ilbo). Existing API 1/2 layout templates
 retain their settings-based generation. Scene templates set `editorial.mode` to

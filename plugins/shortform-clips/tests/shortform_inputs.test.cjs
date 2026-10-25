@@ -11,26 +11,28 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
   const esbuild = dep('esbuild');
   const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
   const mod = {exports:{}};
-  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {sdkFiles,hostFiles,makeStore,SCRIPT_INPUTS,SCRIPT_SOURCE_READER,SCRIPT_TRANSCRIPT,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {PdfInputFields,sdkFiles,hostFiles,makeStore,SCRIPT_INPUTS,SCRIPT_SOURCE_READER,SCRIPT_TRANSCRIPT,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
   const api = mod.exports;
   const run = (code, selects) => new Function('selects',esbuild.transformSync('return (async()=>{'+code+'})();',{loader:'ts'}).code)(selects);
   const body = (code, P) => code.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
   await t.test('whole-project choice removes the single-source picker without changing existing inputs',()=>{
     const React=dep('react'),render=dep('react-dom/server').renderToStaticMarkup;
     const form=source.slice(source.indexOf('  const form = (',source.indexOf('function ShortformClipsPanel(')),source.indexOf('\n  const elapsed =',source.indexOf('  const form = (')));
-    const code=esbuild.transformSync(`function view(mode){
+    const code=esbuild.transformSync(`function view(mode,isPdfInput=false){
       const S=new Proxy({},{get:(_,key)=>String(key)}),lang='en',templatesLoading=false,resourcesLoading=false;
       const templates=[],programOptions=[],videoOptions=[],countOptions=[],SELECTABLE_SPLIT_LAYOUTS=[];
+      const pdfInput={name:'Paper.pdf'},pdfLoading=false,resources=[],choosePdf=()=>{},pdfVoiceId=null,setPdfVoiceId=()=>{},pdfVoices=[],loadPdfVoices=()=>{},pdfVoicesLoading=false;
       const COMPOSITION_LABELS={en:{}},url='',pick=null,program='auto',countMode='auto',count=1,fixedLayout='auto',framing=true,subjectInstructions='',note='',sourceAction=null;
       const setMode=()=>{},setUrl=()=>{},setPick=()=>{},setProgram=()=>{},setCountMode=()=>{},setCount=()=>{},setFixedLayout=()=>{},setFraming=()=>{},setSubjectInstructions=()=>{},setNote=()=>{};
       ${form}
       return form;
     }`,{loader:'tsx',format:'cjs'}).code;
-    const ui={Stack:({children})=>React.createElement('div',null,children),Segmented:({options})=>React.createElement('div',null,options.map(o=>React.createElement('span',{key:o.value},o.value))),Select:({label})=>React.createElement('div',null,label),TextField:({placeholder})=>React.createElement('div',null,placeholder),Message:({children})=>React.createElement('p',null,children),Toggle:({label})=>React.createElement('div',null,label)};
-    const view=new Function('React','ui',code+';return view;')(React,ui);
+    const ui={Button:({children})=>React.createElement('button',null,children),Row:({children})=>React.createElement('div',null,children),Stack:({children})=>React.createElement('div',null,children),Segmented:({options})=>React.createElement('div',null,options.map(o=>React.createElement('span',{key:o.value},o.value))),Select:({label})=>React.createElement('div',null,label),TextField:({placeholder})=>React.createElement('div',null,placeholder),Message:({children})=>React.createElement('p',null,children),Toggle:({label})=>React.createElement('div',null,label)};
+    const view=new Function('React','ui','PdfInputFields',code+';return view;')(React,ui,api.PdfInputFields);
     const all=render(view('project-all')),single=render(view('project')),youtube=render(view('youtube'));
     assert.match(all,/project-all/);assert.match(all,/wholeProjectHint/);assert.doesNotMatch(all,/>pick</);assert.doesNotMatch(all,/urlPh/);
     assert.match(single,/>pick</);assert.match(youtube,/urlPh/);
+    const pdf=render(view('youtube',true));assert.match(pdf,/Paper.pdf/);assert.match(pdf,/TTS voice/);assert.doesNotMatch(pdf,/urlPh|project-all|Screen layout/);
   });
   await t.test('SDK batches legal chunks without losing binary bytes or hiding truncation',async()=>{
     let calls=0;const lengths=[];

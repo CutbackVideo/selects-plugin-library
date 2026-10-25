@@ -256,7 +256,7 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
   const callerStart=source.indexOf('  async function runLayerScenes('),callerEnd=source.indexOf('  async function run(resume?: any,',callerStart);
   const budgetStart=source.indexOf('function createSceneBudget('),budgetEnd=source.indexOf('function sceneLayerPrompt(',budgetStart);
   assert(callerStart>0&&callerEnd>callerStart&&budgetStart>0&&budgetEnd>budgetStart);
-  const callerCode=esbuild.transformSync(source.slice(budgetStart,budgetEnd)+source.slice(callerStart,callerEnd),{loader:'ts',target:'es2022'}).code+'\nrunLayerScenes';
+  const callerCode=esbuild.transformSync(source.slice(source.indexOf('function sceneInputOptions('),source.indexOf('function PdfInputFields('))+source.slice(budgetStart,budgetEnd)+source.slice(callerStart,callerEnd),{loader:'ts',target:'es2022'}).code+'\nrunLayerScenes';
   await t.test('host persists and cancels a media job returned after the shared deadline',async()=>{
     const f=callerFixture(callerCode,1,true);f.context.prepareSceneEvidence=async(p,d,io)=>io.start('start','Evidence',value=>io.register(value.jobId));f.setReply(async()=>{f.setTime(600001);return{result:{jobId:'late-deadline'}};});
     await assert.rejects(f.run(),/budget exhausted/);assert(f.canceled.includes('late-deadline'));
@@ -330,6 +330,25 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     const tpl={logo:{mode:'none'},editorial:{instructions:'FIXED TEMPLATE POLICY'},prompt:{lengthGuide:'One complete episode'},headline:{font:'Fixed font',size1:60,size2:50},captions:{bottom:1610}};
     return{...f,events,aiCalls,result,original,tpl,localFiles,run:()=>f.run(tpl)};
   }
+  await t.test('selected PDF pages and coordinates reach both AI stages and stay attached on resume',async()=>{
+    const f=readyCaller(),page={page:1,path:'/pdf/page-1.png',width:3072,height:4096,lines:[{text:'Original title',rect:{x:.1,y:.2,width:.5,height:.1}}]};
+    f.context.store.join=(...parts)=>parts.join('/');f.context.preparePdfNarration=async(job,_doc,_dir,io)=>{await io.save({sharedUsageCalls:[{stage:'pdf-script',usage:{inputTokens:1}}]});return job;};f.context.encodeCoverReference=async()=> 'data:image/jpeg;base64,AA==';
+    f.job.pdfNarration={sections:[{page:1,narration:'Original speech'}]};f.job.pdfInput={id:'pdf-id',name:'Newspaper.pdf',path:'/pdf/source.pdf'};f.job.resourceId='a';
+    let scope;
+    f.context.preparePdfInput=async(_store,input)=>{assert.equal(input,f.job.pdfInput);return {version:1,name:input.name,pages:[page]};};
+    f.context.shell=()=>{throw Error('Prepared PDF needs no shell');};f.context.pdfPageImportScript=()=> 'import-pdf';
+    f.context.scenePreflightScript=options=>{scope=options;return '';};
+    const base=f.context.script;f.context.script=async(code,summary,...args)=>{
+      if(summary==='Locate scene workspace')return {homedir:'/test',platform:'darwin'};
+      if(summary==='Import newspaper pages')return [{page:1,resourceId:'page'}];
+      const result=await base(code,summary,...args);
+      if(summary==='Read original evidence and prepared media')result.sources.push({resourceId:'page',type:'Image',name:'page-1.png',path:page.path,width:page.width,height:page.height});
+      return result;
+    };
+    await f.run();assert.equal(f.patches.filter(p=>p.sharedUsageCalls).at(-1).sharedUsageCalls[0].stage,'pdf-script');assert.deepEqual(Array.from(scope.sourceResourceIds),['a','page']);assert.equal(scope.wholeProject,true);
+    for(const call of f.aiCalls){const input=JSON.parse(call.prompt.slice(call.prompt.lastIndexOf('\n')+1));assert.deepEqual(input.pdfDocument.pages[0],{...page,resourceName:'page-1.png'});}
+    assert.match(f.aiCalls[0].prompt,/PDF narration is GENERATED/);assert.match(f.aiCalls[0].prompt,/PDF page images in assetReview/);assert.ok(f.patches.some(p=>p.pdfPages?.[0].resourceId==='page'));
+  });
   await t.test('two AI stages share visual evidence, implement the confirmed plan and export without a third review call',async()=>{
     const f=readyCaller();Object.assign(f.job,{note:'Episode concept',subjectInstructions:'Keep the two characters together',fixedLayout:'auto'});await f.run();assert.equal(f.aiCalls.length,2);assert.deepEqual(f.aiCalls[0].images,f.aiCalls[1].images);
     const context=prompt=>JSON.parse(prompt.slice(prompt.lastIndexOf('\n')+1)),planInput=context(f.aiCalls[0].prompt),buildInput=context(f.aiCalls[1].prompt);
