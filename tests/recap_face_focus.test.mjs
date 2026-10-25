@@ -61,9 +61,13 @@ test('Recap whole consumer preserves explicit manual framing and skips unsupport
  const manual=faceClient();for(const row of manual.args.slots){row.focusX=.5;row.focusY=.5;}const result=await manual.run();assert.equal(manual.submitted.length,0);assert.equal(result.focusBySlot[1].position.x,0);
  const absent=faceClient();delete absent.args.byId.r0.frameRate;assert.equal((await absent.run()).diagnostics[0].reason,'source-clock-or-storage');assert.equal(absent.submitted.length,0);
 });
-test('Recap whole consumer does not apply wrong-window or undetected coordinates',async()=>{
- for(const options of [{wrongWindow:true},{noFaces:true}]){const result=await faceClient(options).run();assert.deepEqual(plain(result.focusBySlot),{});assert.ok(result.diagnostics.some(row=>row.status==='unavailable'));}
+test('Recap whole consumer never invents wrong-window or missing face positions',async()=>{
+ const wrong=await faceClient({wrongWindow:true}).run();assert.deepEqual(plain(wrong.focusBySlot),{});assert.ok(wrong.diagnostics.some(row=>row.status==='unavailable'));
+ const absent=await faceClient({noFaces:true}).run();
+ for(const transform of Object.values(absent.focusBySlot))assert.deepEqual(plain(transform),{scale:{x:1,y:1},position:{x:0,y:0}});
+ assert.ok(absent.diagnostics.every(row=>row.reason==='no-faces'));
 });
+
 test('Recap whole consumer stops before authoring if source bytes or the owning scope change',async()=>{
  await assert.rejects(faceClient({mutate:true}).run(),/footage changed during/);await assert.rejects(faceClient({detach:true}).run(),/recap ended/);
 });

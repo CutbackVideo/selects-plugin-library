@@ -930,7 +930,7 @@ async function prepareRecapFaceFocus(sdk,{projectId,slots,byId,manifest,limit,is
   const check=()=>{if(!isCurrent())throw Error('The recap ended during face analysis.');};check();
   const fps=byId[slots[0]?.resourceId]?.frameRate;
   const windows=recapFaceWindows(slots,byId,manifest.placements,manifest.introEnd,limit,fps);
-  const diagnostics=[],focusBySlot={},manualFocusBySlot={};
+  const diagnostics=[],focusBySlot={},manualFocusBySlot={},containBySlot={};
   // Manual cover coordinates need original-source evidence, never an AI capability or journal.
   const usedSlots=new Set([1,...manifest.placements.slice(1,limit).map(row=>row.slot)]);
   const manualIds=slots.flatMap((slot,index)=>usedSlots.has(index+1)&&Number.isFinite(slot.focusX)&&Number.isFinite(slot.focusY)&&byId[slot.resourceId]?.frameSize?[slot.resourceId]:[]);
@@ -981,8 +981,12 @@ async function prepareRecapFaceFocus(sdk,{projectId,slots,byId,manifest,limit,is
     diagnostics.push({slot:index+1,...focus,coverage:manual?'manual-source':'sampled-source-windows'});
     if(focus.status==='manual'||focus.status==='focused'&&focus.changed)focusBySlot[index+1]=recapFocusTransform(source.frameSize,focus);
     if(focus.status==='manual')manualFocusBySlot[index+1]=focusBySlot[index+1];
+    else if(focus.status==='cannot-fit'||focus.status==='unavailable'&&focus.reason==='no-faces'){
+      // Native insertion fits the complete source. Unlike sampled face positions, this geometry is frame-rate independent.
+      containBySlot[index+1]={scale:{x:1,y:1},position:{x:0,y:0}};focusBySlot[index+1]=containBySlot[index+1];
+    }
   }
-  check();return {fps,focusBySlot,manualFocusBySlot,diagnostics,sourceGuard:Object.fromEntries([...fingerprints].map(([id,value])=>[id,{path:byId[id].path,sourceResourceId:aliases.get(id),...value}]))};
+  check();return {fps,focusBySlot,manualFocusBySlot,containBySlot,diagnostics,sourceGuard:Object.fromEntries([...fingerprints].map(([id,value])=>[id,{path:byId[id].path,sourceResourceId:aliases.get(id),...value}]))};
 }
 
 // Re-check short aliases against persistent identity and the Project's current source path.
@@ -1024,7 +1028,7 @@ function createScript(cfg) {
     "if(end<target)throw Error('Intro shorter than target');",
     "if(end>target)await d.remove(await d.rangeAtFrames(target,end),{tracks:'main'});",
     "const cur=(await d.clips({trackScope:'main'}))[0];",
-    "const sz=cfg.intro.frameSize;if(cur&&sz?.width&&sz?.height){const fit=Math.min(1080/sz.width,1920/sz.height),cover=Math.max(1080/sz.width,1920/sz.height)/fit,face=cfg.faceTransform&&(cfg.manualFocus||fps===cfg.expectedFps)?cfg.faceTransform:null;if(cover>1.001||face)await d.setClipTransform({clip:cur,...(face||{scale:{x:cover,y:cover}})});}",
+    "const sz=cfg.intro.frameSize;if(cur&&sz?.width&&sz?.height){const fit=Math.min(1080/sz.width,1920/sz.height),cover=Math.max(1080/sz.width,1920/sz.height)/fit,face=cfg.faceTransform&&(cfg.manualFocus||cfg.fullSourceFit||fps===cfg.expectedFps)?cfg.faceTransform:null;if(cover>1.001||face)await d.setClipTransform({clip:cur,...(face||{scale:{x:cover,y:cover}})});}",
     "const commit=await d.commitAll('2026 Recap: create intro');",
     "return {draftId:commit.createdDraftId,fps,mainCount:1};"
   ].join("\n");
@@ -1124,10 +1128,10 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
   await verifyRecapFocusBindings(sdk,projectId,faceFocus.sourceGuard,byId,isCurrent);
   let r = await sdk.runScript({
     summary:"Create recap intro",allowCommit:true,timeoutSeconds:120,
-    script:createScript({projectId,name,intro,introEnd:manifest.introEnd,faceTransform:faceFocus.focusBySlot[1],expectedFps:faceFocus.fps,manualFocus:Boolean(faceFocus.manualFocusBySlot[1]),sourceGuard:faceFocus.sourceGuard})
+    script:createScript({projectId,name,intro,introEnd:manifest.introEnd,faceTransform:faceFocus.focusBySlot[1],expectedFps:faceFocus.fps,manualFocus:Boolean(faceFocus.manualFocusBySlot[1]),fullSourceFit:Boolean(faceFocus.containBySlot[1]),sourceGuard:faceFocus.sourceGuard})
   });
   const created=scriptResult(r),draftId=created.draftId;
-  if(created.fps!==faceFocus.fps)faceFocus.focusBySlot=faceFocus.manualFocusBySlot;
+  if(created.fps!==faceFocus.fps)faceFocus.focusBySlot={...faceFocus.containBySlot,...faceFocus.manualFocusBySlot};
   if (!draftId) throw new Error("Created Draft ID missing");
   for (let end=25;end<limit+24;end+=24) {
     const to = Math.min(end,limit);
