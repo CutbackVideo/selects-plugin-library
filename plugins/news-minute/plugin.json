@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "news-minute",
+  "version": "0.1.0-alpha.2",
+  "minSelectsVersion": "2.0.797",
+  "name": "News in One Minute",
+  "summary": "Turns a news article into a one-minute vertical news short: a script checked against the article, editor review, narration, article photos and data cards, captions, in an editable Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx",
+    "fonts/PretendardVariable.ttf.gz.b64",
+    "fonts/harfbuzz-subset.wasm.gz.b64",
+    "fonts/OFL-pretendard.txt",
+    "fonts/LICENSE-harfbuzzjs.txt",
+    "fonts/COPYING-harfbuzz.txt",
+    "template-packs/chosun/assets/t1m_bands.png",
+    "template-packs/chosun/assets/t1m_background.png",
+    "THIRD_PARTY.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Windows x64"
+    ],
+    "selects": "Requires a Selects release containing sdk.aiProviders and askAI.provider support, narration for plug-in panels (selects.narration), and plug-in storage. All LLM stages require explicit provider support; older hosts show an update message. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Provider routing is verified with simulated hosts; live Staging subscription verification is pending. Not yet verified on Windows."
+  },
+  "localized": {
+    "en": {
+      "name": "News in One Minute",
+      "summary": "Turns a news article into a one-minute vertical news short: a script checked against the article, editor review, narration, article photos and data cards, captions, in an editable Draft."
+    },
+    "ko": {
+      "name": "1\ubd84 \ub274\uc2a4 \uc1fc\uce20",
+      "summary": "\uae30\uc0ac \ud55c \ud3b8\uc73c\ub85c 1\ubd84 \uc138\ub85c \ub274\uc2a4 \uc1fc\uce20\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc6d0\ubb38\uacfc \ub300\uc870\ud55c \ub300\ubcf8, \ud3b8\uc9d1\uc790 \uac80\ud1a0, \ub098\ub808\uc774\uc158, \uae30\uc0ac \uc0ac\uc9c4\uacfc \ub370\uc774\ud130 \uce74\ub4dc, \uc790\ub9c9\uc774 \ud3b8\uc9d1 \uac00\ub2a5\ud55c Draft\ub85c \ub4e4\uc5b4\uac11\ub2c8\ub2e4."
+    },
+    "ja": {
+      "name": "1\u5206\u30cb\u30e5\u30fc\u30b9\u30b7\u30e7\u30fc\u30c8",
+      "summary": "\u30cb\u30e5\u30fc\u30b9\u8a18\u4e8b\u304b\u30891\u5206\u306e\u7e26\u578b\u30cb\u30e5\u30fc\u30b9\u52d5\u753b\u3092\u4f5c\u308a\u307e\u3059\u3002\u8a18\u4e8b\u3068\u7167\u5408\u3057\u305f\u53f0\u672c\u3001\u7de8\u96c6\u8005\u306e\u78ba\u8a8d\u3001\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3\u3001\u8a18\u4e8b\u5199\u771f\u3068\u30c7\u30fc\u30bf\u30ab\u30fc\u30c9\u3001\u5b57\u5e55\u3092\u7de8\u96c6\u3067\u304d\u308bDraft\u306b\u307e\u3068\u3081\u307e\u3059\u3002"
+    },
+    "zh": {
+      "name": "\u4e00\u5206\u949f\u65b0\u95fb\u77ed\u89c6\u9891",
+      "summary": "\u628a\u4e00\u7bc7\u65b0\u95fb\u62a5\u9053\u505a\u6210\u4e00\u5206\u949f\u7ad6\u5c4f\u65b0\u95fb\u77ed\u89c6\u9891\uff1a\u4e0e\u539f\u6587\u6838\u5bf9\u7684\u811a\u672c\u3001\u7f16\u8f91\u5ba1\u6838\u3001\u65c1\u767d\u3001\u65b0\u95fb\u56fe\u7247\u548c\u6570\u636e\u5361\u7247\u3001\u5b57\u5e55\uff0c\u751f\u6210\u53ef\u7f16\u8f91\u7684 Draft\u3002"
+    },
+    "de": {
+      "name": "Nachrichten in einer Minute",
+      "summary": "Macht aus einem Nachrichtenartikel ein einmin\u00fctiges Hochformat-Video: mit dem Artikel abgeglichenes Skript, redaktionelle Pr\u00fcfung, Sprecher, Artikelfotos und Datenkarten, Untertitel in einem bearbeitbaren Draft."
+    },
+    "es": {
+      "name": "Noticias en un minuto",
+      "summary": "Convierte un art\u00edculo en un v\u00eddeo vertical de noticias de un minuto: guion contrastado con el art\u00edculo, revisi\u00f3n editorial, narraci\u00f3n, fotos y tarjetas de datos, subt\u00edtulos, en un Draft editable."
+    },
+    "fr": {
+      "name": "L'info en une minute",
+      "summary": "Transforme un article en vid\u00e9o verticale d'une minute : script v\u00e9rifi\u00e9 contre l'article, relecture, narration, photos et cartes de donn\u00e9es, sous-titres, dans un Draft modifiable."
+    },
+    "it": {
+      "name": "Notizie in un minuto",
+      "summary": "Trasforma un articolo in un video verticale di un minuto: testo verificato sull'articolo, revisione, voce narrante, foto e schede dati, sottotitoli, in un Draft modificabile."
+    },
+    "pt": {
+      "name": "Not\u00edcias em um minuto",
+      "summary": "Transforma um artigo num v\u00eddeo vertical de not\u00edcias de um minuto: roteiro conferido com o artigo, revis\u00e3o, narra\u00e7\u00e3o, fotos e cart\u00f5es de dados, legendas, num Draft edit\u00e1vel."
+    },
+    "tr": {
+      "name": "Bir dakikada haber",
+      "summary": "Bir haber makalesinden bir dakikal\u0131k dikey haber videosu yapar: makaleyle kar\u015f\u0131la\u015ft\u0131r\u0131lm\u0131\u015f metin, edit\u00f6r onay\u0131, seslendirme, makale foto\u011fraflar\u0131 ve veri kartlar\u0131, altyaz\u0131lar, d\u00fczenlenebilir bir Draft i\u00e7inde."
+    }
+  }
+}

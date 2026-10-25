@@ -77,6 +77,14 @@ async function probeVideo(config, request, signal) {
     const origin = (await readFrames('%+#64'))[0];
     const secondsPerTick = timeBase.numerator / timeBase.denominator;
     const originSeconds = origin * secondsPerTick;
+    // Speakers decode their own 25 fps windows from the origin and never index
+    // source frames, so the range's frame timestamps are not read.
+    if (request.task === 'speakers.detect') return {
+      width, height, rotation, sourceSampleAspectRatio, pixelAspectRatioPolicy,
+      timestampOriginSeconds: originSeconds, timestampOriginPts: origin,
+      formatStartTime: Number(data.format?.start_time ?? 0),
+      averageFrameRate: stream.avg_frame_rate, timeBase: stream.time_base, timelineCached: false,
+    };
     const { startSeconds, endSeconds } = request.input.sourceRange;
     const rangeStartPts = ceilingTimeTicks(startSeconds, timeBase);
     const rangeEndPts = ceilingTimeTicks(endSeconds, timeBase);

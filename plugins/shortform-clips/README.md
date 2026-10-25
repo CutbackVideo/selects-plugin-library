@@ -119,6 +119,29 @@ The development evaluation harness is not shipped or run as another AI stage.
    Later clips appear as they are saved; subsequent updates do not override your
    tab or history selection. Export through **Handoff > Export**.
 
+### Review before framing
+
+**Include framing** in Make clips is off by default, which skips framing and
+its speaker and face analysis so clips are ready sooner. Turn it on to frame
+every clip during the run. Each clip then shows
+its whole source frame centred in the template's video window, over a blurred,
+enlarged copy of the same frame. Cards show **Wide · not framed yet**. The setting
+is saved with the run; landscape and scene templates ignore it.
+
+In **My clips**, tick the clips to keep and choose **Frame selected clips**. Only
+those clips run speaker/face analysis and framing, which replaces their wide shot
+in place and refreshes their previews. Other clips stay wide. **Reframe all clips**
+frames every clip of the run. A failed framing keeps its retry as framing.
+A clip is saved as waiting for its wide shot until the wide shot is placed, so an
+interrupted or failed placement resumes or retries just the wide shot, without
+analysis. Resuming a run always starts from its saved record.
+
+**Delete selected** asks for confirmation, removes the clips from My clips and
+moves their Drafts to the project folder **Deleted shorts** (named in the
+panel's language); delete
+them there. The panel SDK has no Draft deletion. The run keeps each deleted clip
+at its index, so resuming or reframing never rebuilds or refiles it.
+
 The Project picker includes videos, synced timelines, and Drafts, including inputs
 shorter than two minutes. Refresh the list after creating a timeline. Synced inputs
 use their merged transcript; Draft inputs use their playback transcript, excluding
@@ -214,6 +237,20 @@ their composition finishes, before the preview is saved. Failed clips expose det
 shows only the batch count. Older results capture the current Draft on their first visit. Subsequent edits
 or opening a Draft do not refresh the saved image. Capture does not change the
 open Draft. A failed preview leaves the editable clip and its history intact.
+
+Caption settings include **Clean fillers, stutters and repetitions**, enabled when
+no explicit preference has been saved. Existing disabled preferences stay disabled.
+The passage-selection AI proposes text-only omissions; the app matches each to one
+original word occurrence, preserving surviving word times before line wrapping and
+fixed-size caption layout. Ambiguous or invalid omissions are ignored. An empty or
+malformed cleanup list preserves the original caption words; it does not fail valid
+clip selection. The existing video filler/silence editing switches remain independent.
+Negation, numeric tokens and conditional expressions have conservative deletion
+vetoes. Model judgment still needs review for context and meaningful emphasis.
+An attached fragment such as a stutter inside one transcript token stays intact:
+cleanup cannot rewrite that token. To adjust a result manually, open its Draft,
+select the caption graphic and edit its text. Toggle cleanup off in Templates
+before generating clips when every transcribed word should be retained.
 
 The Templates tab edits design, captions, editing options, program detection and
 AI instructions. Controls depend on the template renderer. TikTok/Shorts layout
@@ -344,7 +381,10 @@ contiguous source placements with unchanged subjects/camera/layout.
 After Draft creation, all pending shorts run reframing concurrently, each against
 its own Draft. There is no two-worker limit. Failures remain per clip; retry
 reuses the failed Draft. Job writes use immutable snapshots in a serialized queue
-so concurrent completions cannot overwrite each other. Progress counts completed
+so concurrent completions cannot overwrite each other. While a write is in flight,
+later saves share one queued write that carries the newest snapshot. Framing stage
+changes update the cards at once and reach disk at most every five seconds; each
+clip's result is saved as soon as it finishes. Progress counts completed
 reframing rather than merely created Drafts.
 
 Result cards show SDK-reported reframing input/output/cache token counters,
@@ -371,6 +411,18 @@ path; tools invoked inside an autonomous single-camera agent are owned by the
 agent runtime, not by this scheduler. Each clip records its actual phase and
 phase-start time. Queued run work checks its original cancellation token before
 starting, even after another run begins.
+
+Every host file operation is a script call with a large fixed cost, so the source
+survey keeps them few. A batch of original-source frames is one script that starts
+FFmpeg and returns the capture's `local://` URL: up to 24 frames within 12 seconds
+of source, decoded by one FFmpeg run. Job status is read with
+`getLocalMediaJobStatus`, and the capture is drawn straight from its local URL.
+When a host refuses either, the panel polls with scripts or reads the capture's
+bytes for the rest of the session. Captures stay on disk until the survey ends and
+are removed together, along with any capture older than a day. Frames chosen
+without looking at pixels (face-track references and speaker turns) are taken with
+the coarse pass, and every changed coarse interval is refined in one capture. A
+retried clip with the same segments, speakers and face catalog reuses its survey.
 
 Each job also records `stageLog`: wall-clock marks for start or resume, source
 ready (imported), source analyzed (transcript job finished), transcript read,
@@ -400,6 +452,38 @@ validation. Rendered visual comparisons are development checks. Source-capture c
 Token counters remain actual SDK-reported usage. The SDK does not currently
 return an attributable charged-credit receipt; do not label a token-to-cost
 estimate or a change in account balance as this clip's actual credit charge.
+
+## Background music
+
+A template can name one audio file under **Content → Background music**, or in pack
+JSON:
+
+```json
+"music": { "path": "/mnt/audio/Music/bed.mp3" }
+```
+
+`path` is an absolute path on the computer running the app, or starts with `~/`.
+Templates without `music` generate exactly as before.
+
+- After framing, every Draft gets the file as an audio clip from 0 to the end of
+  the main timeline. A longer file is trimmed; a shorter one repeats. The last
+  piece fades out for 2 s.
+- The level is a fixed `-18 dB` (`MUSIC_LEVEL_DB`), the same level as the panel's
+  other audio under dialogue. Measured on Staging with a -14 LUFS bed, `-5 dB`
+  left the music only about 2 LU under speech (-19.7 vs -17.6 LUFS). Dialogue is
+  not ducked, so listen to a result and adjust the constant if needed.
+- The file is imported into the project once per run. A resume, a retry or
+  **redo framing** finds the project resource by path, and a Draft that already
+  holds the same music layout is left unchanged, so a Draft never has two music
+  layers. Each Draft records the music resource it holds (`musicResourceId` in the
+  job), so after the path changes a rerun replaces the old music instead of adding
+  a second layer.
+- If the file is missing, cannot be imported or is shorter than 2 s, the clips
+  are still created without music and a warning is shown (and saved in the job as
+  `musicWarning`).
+- Limits: installing a pack does not bring the file. The path must exist on each
+  computer, and the pack must not ship licensed audio. Scene templates
+  (`editorial`) are not included: adding music there has not been checked yet.
 
 ## Generated thumbnails
 
@@ -529,3 +613,30 @@ The Chosun Ilbo pack under `template-packs/chosun-ilbo/` restores six legacy des
 See `tests/regression/README.md` for repeatable real-footage cases and local HTML runs.
 
 Reapplying remembers template-owned tracks per project and Draft. If their clips were deleted, empty owned tracks are removed before graphics are added again; occupied tracks and unrelated empty tracks are preserved. Tracks left empty before this ownership record existed cannot be identified automatically.
+
+## Diagnose template startup
+
+The app shows the template list after reading names and detection rules, without
+reading template images. Images are loaded and verified when needed for the
+selected editor, manual application, clip generation or result-cover settings.
+An image error leaves the picker usable and offers a retry. Saving, exporting
+and generation require a complete, validated template.
+
+Startup emits `[shortform:template-list]` with state and snapshot timings and
+counts; selected-image loads emit `[shortform:template-selected]`. The full-library
+compatibility loader emits `[shortform:template-load]` with additional image and
+hydration timings. Diagnostics report total elapsed time and success or failure;
+list/full loads also indicate whether legacy migration was needed. Legacy libraries
+still read their old embedded images during migration until a library index exists.
+On the SDK file route, it includes file-script count, bytes read and summed script
+time. Summed concurrent script time can exceed total elapsed time; counter deltas
+can include overlapping file work on the same adapter. Unsupported counters are
+`null`. Template contents, IDs and user paths are excluded.
+
+For a slow Windows opening, record these diagnostics for the first opening and a
+close/reopen using the same app version and installed template library. Compare
+`totalMs` and stage times, then `scriptCalls` and `readBytes`. Host call counts in
+Node-based SDK simulations are regression evidence, not measured Windows latency.
+The initial list contains no image data or editable design fields. Every selected
+template is verified before it reaches editing, export or generation. Switching
+selection ignores late results from the previous request.

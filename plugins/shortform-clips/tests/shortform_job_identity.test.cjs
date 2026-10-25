@@ -18,7 +18,7 @@ test('independent panels use collision-resistant run identities', {skip: !module
     constructor(...args) { super(...(args.length ? args : [stamp])); }
     static now() { return stamp; }
   }
-  const panel = (projectId, crypto = webcrypto) => vm.createContext({Date: FixedDate, crypto, projectId, resume: undefined, mode:'project', contentMode:'speech', url:'', pick:'source', program:'template', countMode:'manual', count:1, note:'brief', platform:'shorts', fixedLayout:'grid-4', subjectInstructions:'Keep all four people visible'});
+  const panel = (projectId, crypto = webcrypto) => vm.createContext({Date: FixedDate, crypto, projectId, resume: undefined, mode:'project', contentMode:'speech', url:'', pick:'source', program:'template', countMode:'manual', count:1, note:'brief', platform:'shorts', fixedLayout:'grid-4', framing:true, subjectInstructions:'Keep all four people visible'});
   const create = context => vm.runInContext('(' + initializer + ')', context);
   const module = {exports:{}};
   const code = dep('esbuild').transformSync(source + '\nexport {makeStore,thumbnailPath};', {loader:'tsx',format:'cjs'}).code;
@@ -34,7 +34,11 @@ test('independent panels use collision-resistant run identities', {skip: !module
       assert.match(j.id,/^[a-f0-9]{32}$/);
       assert.equal(j.fixedLayout,'grid-4');
       assert.equal(j.subjectInstructions,'Keep all four people visible');
+      assert.equal(Object.hasOwn(j,'skipFraming'),false);
     }
+    // Turning framing off is recorded on the job; the default keeps existing jobs unchanged.
+    const skipped=panel('c');skipped.framing=false;
+    assert.equal(create(skipped).skipFraming,true);
   });
 
   await t.test('same-clock projects retain separate shared job files, workspaces and thumbnails', async () => {

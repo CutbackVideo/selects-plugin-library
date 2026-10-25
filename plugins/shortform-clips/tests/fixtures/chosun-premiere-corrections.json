@@ -108,8 +108,62 @@
         "font": "SDGdMyeongjo",
         "size1": 100,
         "size2": 100,
+        "color1": "#151515",
+        "color2": "#FFFFFF",
+        "box2On": true,
+        "box2": "#FF5354",
+        "italic": false,
+        "shadow": false,
         "fontWeight": 400,
-        "strokeOn": false
+        "lineHeight": 1.16,
+        "letterSpacing": -2,
+        "fitWidth": 1010,
+        "fitPadding": 2,
+        "fitCjk": 0.93,
+        "fitSpace": 0.27,
+        "fitLatin": 0.6,
+        "fitOther": 0.4,
+        "fitWideLatin": 0.6,
+        "strokeOn": false,
+        "strokeWidth": 3,
+        "strokeColor": "currentColor",
+        "gap": 14,
+        "letterSpacing1": -5.1,
+        "letterSpacing2": 0,
+        "rowGap": 136,
+        "offsetX1": -4.500269293785095,
+        "offsetX2": -4.500269293785095,
+        "baseline1": 334,
+        "baseline2": 470,
+        "boxPadding": 10,
+        "baselineCenter": 372
+      },
+      "layout": {
+        "windowTop": 557,
+        "windowBottom": 1172,
+        "sourceTop": -6.666666666666629,
+        "sourceBottom": 1086.6666666666665,
+        "offsetX": 0,
+        "headlineCenter": 372,
+        "logoCenter": 1358,
+        "reframe": false,
+        "reframePreset": "speaker",
+        "reframeFocus": "speaker",
+        "splitPolicy": "never",
+        "widePolicy": "never",
+        "reframePacing": "balanced",
+        "cropMotion": "fixed",
+        "cameraMode": "auto"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "background": {
+        "imageSha256": "419b490615fcab638af2c5665d9fb360bd0c9f7c9e09966de2a0a06702ba4cd3"
+      },
+      "logo": {
+        "imageSha256": null
       }
     },
     "villain": {
@@ -117,14 +171,117 @@
         "font": "ROKAF-Slab-Serif-Bold",
         "size1": 100,
         "size2": 100,
+        "color1": "#FFFFFF",
+        "color2": "#151515",
+        "box2On": true,
+        "box2": "#E2BA5A",
+        "italic": false,
+        "shadow": true,
         "fontWeight": 400,
-        "strokeOn": false
+        "lineHeight": 1.16,
+        "letterSpacing": -2,
+        "fitWidth": 1010,
+        "fitPadding": 2,
+        "fitCjk": 0.93,
+        "fitSpace": 0.27,
+        "fitLatin": 0.6,
+        "fitOther": 0.4,
+        "fitWideLatin": 0.6,
+        "strokeOn": false,
+        "strokeWidth": 3,
+        "strokeColor": "currentColor",
+        "gap": 14,
+        "letterSpacing1": -11.1,
+        "letterSpacing2": -9.2,
+        "rowGap": 136,
+        "offsetX1": -0.600000784615987,
+        "offsetX2": -1.200037338003759
+      },
+      "layout": {
+        "windowTop": 558,
+        "windowBottom": 1161,
+        "sourceTop": 0.0,
+        "sourceBottom": 1080.0,
+        "offsetX": 0,
+        "headlineCenter": 372,
+        "logoCenter": 1494,
+        "reframe": false,
+        "reframePreset": "speaker",
+        "reframeFocus": "speaker",
+        "splitPolicy": "never",
+        "widePolicy": "never",
+        "reframePacing": "balanced",
+        "cropMotion": "fixed",
+        "cameraMode": "auto"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "background": {
+        "imageSha256": "ada4aef6cdff4d7886391adb7c7f6fd1fd81955390d2670bb68aab5cf1f6c53e"
+      },
+      "logo": {
+        "imageSha256": null
       }
     },
     "money": {
       "headline": {
-        "font": "ROKAF Sans Bold",
-        "fontWeight": 400
+        "font": "ROKAF-Sans-Bold",
+        "size1": 89.83160400390625,
+        "size2": 89.83160400390625,
+        "color1": "#FFFFFF",
+        "color2": "#26D8A4",
+        "box2On": false,
+        "box2": "#D7263D",
+        "italic": false,
+        "shadow": true,
+        "fontWeight": 400,
+        "lineHeight": 1.16,
+        "letterSpacing": -2,
+        "fitWidth": 1010,
+        "fitPadding": 2,
+        "fitCjk": 0.93,
+        "fitSpace": 0.27,
+        "fitLatin": 0.6,
+        "fitOther": 0.4,
+        "fitWideLatin": 0.6,
+        "strokeOn": true,
+        "strokeWidth": 2,
+        "strokeColor": "#04503A",
+        "gap": 2,
+        "letterSpacing1": -3.59326416015625,
+        "letterSpacing2": -2.2457901000976563,
+        "rowGap": 107.7979248046875,
+        "offsetX1": -2.98681658576242,
+        "offsetX2": -2.98681658576242
+      },
+      "layout": {
+        "windowTop": 558,
+        "windowBottom": 1161,
+        "sourceTop": 0.0,
+        "sourceBottom": 1080.0,
+        "offsetX": 0,
+        "headlineCenter": 389.94949264526366,
+        "logoCenter": 1316,
+        "reframe": false,
+        "reframePreset": "speaker",
+        "reframeFocus": "speaker",
+        "splitPolicy": "never",
+        "widePolicy": "never",
+        "reframePacing": "balanced",
+        "cropMotion": "fixed",
+        "cameraMode": "auto"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "background": {
+        "imageSha256": "91ad398c910bd005bcfe7308ab45602467040492f7280acfb49d5a9414390023"
+      },
+      "logo": {
+        "imageSha256": null
       }
     }
   }

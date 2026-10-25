@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "shortform-clips",
-  "version": "0.6.3",
+  "version": "0.6.9",
   "templatePackInstall": 1,
   "name": "Shortform Clips",
   "summary": "Create editable vertical clips using separately installed template packs.",

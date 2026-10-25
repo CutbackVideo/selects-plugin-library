@@ -52,6 +52,8 @@ jobs:
         run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_text.test.mjs
       - name: Test shared RGB color-filter rendering
         run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/render_color_filter.test.mjs
+      - name: Test News in One Minute
+        run: node --experimental-strip-types --test plugins/news-minute/tests/*.test.mjs
       - name: Test Music
         run: |
           node --test tests/music.test.mjs tests/music-preview.test.mjs tests/audio_beat_engine.test.mjs tests/project_audio.test.mjs tests/archive_audio_adoption.test.mjs

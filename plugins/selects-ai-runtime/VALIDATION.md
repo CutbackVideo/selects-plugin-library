@@ -186,3 +186,29 @@ functional smoke, not a Windows minute-long speed benchmark.
 The host repository records the broader implementation and measurement scope in
 [shared-ai-runtime.md](https://github.com/CutbackVideo/cutback-client/blob/develop/docs/shared-ai-runtime.md)
 and [ai-webgpu-runtime-poc.md](https://github.com/CutbackVideo/cutback-client/blob/develop/docs/ai-webgpu-runtime-poc.md).
+
+### Adaptive speaker detection (2026-10-23, macOS arm64 CPU)
+
+A controlled local comparison covered 11 source intervals (342 seconds total):
+8 program excerpts, a full-shot/single/four-panel transition, an existing
+four-panel broadcast, and a 60-second side-by-side excerpt. Total runtime was
+254.68 s with every-frame detection, 125.33 s with fixed stride 8, and 142.79 s
+with adaptive detection (44% less than every-frame; not an end-to-end AI latency
+claim). Adaptive detection used 21 dense and 94 sparse windows; thumbnail checks
+cost 1.33 s in total. This is a single-machine measurement, not a portable SLA.
+
+Unmatched baseline face observations fell from 814 with fixed stride to 82 with
+adaptive detection. These are detector differences, not ground-truth missing
+people. Remaining differences included partial edge faces, occluded/bent faces,
+and a cartoon false positive; the change heuristic cannot recover every local
+face ambiguity.
+
+Real Selects AI composition and FHD exports were also compared using saved
+baseline/adaptive observations for two 30-second excerpts. All 68 affected
+Jeongjwippul timestamps and all 5 affected four-panel timestamps retained the
+people in the exported adaptive result. Neither variant used preserve-framing
+fallback. Both Jeongjwippul variants still had uneven panel scale/vertical
+placement; this is not a blanket visual-quality pass. Each AI variant ran once,
+so differences in plan segmentation cannot be attributed solely to detection.
+Videos, images, full observations and editable draft links remain in the local
+test report, not in this repository.

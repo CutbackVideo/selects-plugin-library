@@ -1,0 +1,191 @@
+[
+ {
+  "id": "text-long",
+  "type": "text_card",
+  "label": "\uae34 \ubcf8\ubb38 \ud55c \uc904 \u00b7 \uc790\ub3d9 \ucd95\uc18c/\ub118\uce68",
+  "data": {
+   "title": "\uc5c7\uac08\ub9b0 \ud750\ub984",
+   "text": "\ubc18\ub3c4\uccb4\uc8fc 14% \uc774\uc0c1 \ud558\ub77d \ubc84\ud06c\uc154 7% \uc774\uc0c1 \uc0c1\uc2b9",
+   "source": "\uc790\ub8cc=\uae30\uc0ac \uc6d0\ubb38"
+  },
+  "frame": 299
+ },
+ {
+  "id": "quote-long",
+  "type": "quote_card",
+  "label": "\uae34 \uc778\uc6a9 \ud55c \uc904 \u00b7 66px \uc720\uc9c0 \uc5ec\ubd80",
+  "data": {
+   "name": "\uc720\uc120\uc885",
+   "affiliation": "\uac74\uad6d\ub300 \uad50\uc218",
+   "lines": [
+    "\uc2e4\uac70\uc8fc \uaddc\uc81c\ub85c \uc778\ud55c \uae09\uaca9\ud55c \uc804\uc138\uc758 \uc6d4\uc138\ud654\uac00",
+    "{\uccad\ub144\uce35 \uc8fc\uac70 \uc0ac\ub2e4\ub9ac\ub97c}",
+    "\ubd95\uad34\uc2dc\ud0a4\uace0 \uc788\ub2e4"
+   ],
+   "source": "\uc790\ub8cc=\uae30\uc0ac \uc6d0\ubb38",
+   "accentLines": []
+  },
+  "frame": 299
+ },
+ {
+  "id": "stat-four",
+  "type": "stat_cards",
+  "label": "\ud5c8\uc6a9\ub41c 4\uac1c \uce74\ub4dc \u00b7 \uae34 \uc218\uce58",
+  "data": {
+   "title": "\ubcf4\uc99d\uae08 \ube44\uad50",
+   "cards": [
+    {
+     "header": "\ub178\uc6d0\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uac15\ubd81\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uad00\uc545\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\ub3c4\ubd09\uad6c",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    }
+   ],
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  },
+  "frame": 299
+ },
+ {
+  "id": "highlight-long",
+  "type": "highlight_card",
+  "label": "\uae34 \uc22b\uc790 \u00b7 \uae30\uc900 \uc218\uc815",
+  "data": {
+   "title": "\ubcf4\uc99d\uae08",
+   "value": "1\uc5b55000\ub9cc",
+   "unit": "\uc6d0",
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ },
+ {
+  "id": "text-marked",
+  "type": "text_card",
+  "label": "\uae34 \uac15\uc870 \uad6c\uc808 \u00b7 \uacbd\uace0 \ub204\ub77d",
+  "data": {
+   "title": "\uc5c7\uac08\ub9b0 \ud750\ub984",
+   "text": "{\ubc18\ub3c4\uccb4\uc8fc 14% \uc774\uc0c1 \ud558\ub77d \ubc84\ud06c\uc154 7% \uc774\uc0c1 \uc0c1\uc2b9}",
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ },
+ {
+  "id": "quote-wrapped-eight",
+  "type": "quote_card",
+  "label": "\ud5c8\uc6a9\ub41c \uc778\uc6a9 4\uc904 \u2192 \ub80c\ub354 8\uc904",
+  "data": {
+   "name": "\uc720\uc120\uc885",
+   "affiliation": "\uac74\uad6d\ub300 \uad50\uc218",
+   "lines": [
+    "\uc2e4\uac70\uc8fc \uaddc\uc81c\ub85c \uc778\ud55c \uae09\uaca9\ud55c \uc804\uc138\uc758 \uc6d4\uc138\ud654\uac00",
+    "\uccad\ub144\uce35 \uc8fc\uac70 \uc0ac\ub2e4\ub9ac\ub97c \ubd95\uad34\uc2dc\ud0a4\uace0 \uc788\ub2e4\uace0 \uc124\uba85\ud588\ub2e4",
+    "\uc7a5\uae30\uc801\uc73c\ub85c \uc2dc\uc7a5\uc5d0 \ubbf8\uce58\ub294 \uc601\ud5a5\uc744 \uc0b4\ud3b4\ubd10\uc57c \ud55c\ub2e4",
+    "\uc8fc\uac70\ube44 \ubd80\ub2f4 \uc99d\uac00\uac00 \uac00\uacc4 \uc18c\ube44\uc5d0\ub3c4 \uc601\ud5a5\uc744 \uc900\ub2e4"
+   ],
+   "accentLines": [],
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ },
+ {
+  "id": "text-three",
+  "type": "text_card",
+  "label": "3\uc904 \u00b7 \ud06c\uae30 \uc720\uc9c0\uc640 \uacbd\uace0",
+  "data": {
+   "title": "\uae34 \ubb38\uad6c \uac80\uc99d",
+   "text": "\uac00\ub098\ub2e4\ub77c\ub9c8 \uac00\ub098\ub2e4\ub77c\ub9c8 \uac00\ub098\ub2e4\ub77c\ub9c8 \uac00\ub098\ub2e4\ub77c\ub9c8 \uac00\ub098\ub2e4\ub77c\ub9c8 \uac00\ub098\ub2e4\ub77c\ub9c8",
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ },
+ {
+  "id": "text-nine",
+  "type": "text_card",
+  "label": "\uba85\uc2dc\ud55c 9\uc904 \u00b7 \ub192\uc774 \uacbd\uace0 \ub204\ub77d",
+  "data": {
+   "title": "\uae34 \ubb38\uad6c \uac80\uc99d",
+   "text": "\uccab \ubc88\uc9f8 \ubb38\uc7a5\n\ub450 \ubc88\uc9f8 \ubb38\uc7a5\n\uc138 \ubc88\uc9f8 \ubb38\uc7a5\n\ub124 \ubc88\uc9f8 \ubb38\uc7a5\n\ub2e4\uc12f \ubc88\uc9f8 \ubb38\uc7a5\n\uc5ec\uc12f \ubc88\uc9f8 \ubb38\uc7a5\n\uc77c\uacf1 \ubc88\uc9f8 \ubb38\uc7a5\n\uc5ec\ub35f \ubc88\uc9f8 \ubb38\uc7a5\n\uc544\ud649 \ubc88\uc9f8 \ubb38\uc7a5",
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ },
+ {
+  "id": "stat-grid-long-header",
+  "type": "stat_cards",
+  "label": "2\u00d72 + \ub450 \uc904 \uba38\ub9ac\uae00 \u00b7 \uce74\ub4dc \ud558\ub2e8",
+  "data": {
+   "title": "\ubcf4\uc99d\uae08 \ube44\uad50",
+   "cards": [
+    {
+     "header": "\uc11c\uc6b8 \ub3d9\ubd81\ubd80 \uc2e0\ucd95 \uc544\ud30c\ud2b8",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uc11c\uc6b8 \ub3d9\ub0a8\ubd80 \uc2e0\ucd95 \uc544\ud30c\ud2b8",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uc11c\uc6b8 \uc11c\ubd81\ubd80 \uc2e0\ucd95 \uc544\ud30c\ud2b8",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    },
+    {
+     "header": "\uc11c\uc6b8 \uc11c\ub0a8\ubd80 \uc2e0\ucd95 \uc544\ud30c\ud2b8",
+     "rows": [
+      {
+       "label": "\ubcf4\uc99d\uae08",
+       "value": "1\uc5b55000\ub9cc",
+       "unit": "\uc6d0"
+      }
+     ]
+    }
+   ],
+   "source": "\ub808\uc774\uc544\uc6c3 \uac80\uc99d\uc6a9 \ud569\uc131 \uc785\ub825"
+  }
+ }
+]

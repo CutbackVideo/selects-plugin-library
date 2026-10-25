@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('templates use independent settings without renderer families',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(source+'\nexport {independentTemplateDesigns,normalizeTemplateSettings,validateTemplate,cleanTemplate,portableTemplate,templateEditorProfile,radioFrameParams,radioCaptionParams,forPlatform,merge,splitDate,withEpisodeDate,STRINGS,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {cropTransform,independentTemplateDesigns,normalizeTemplateSettings,validateTemplate,cleanTemplate,portableTemplate,templateEditorProfile,radioFrameParams,radioCaptionParams,forPlatform,merge,splitDate,withEpisodeDate,STRINGS,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const api=mod.exports;
  const raw=id=>JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/sbs-radio/templates/'+id+'.json'),'utf8'));
  const migrated=id=>api.validateTemplate(raw(id));
@@ -129,11 +129,19 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.match(mixed,/ChosunBg/);
     assert.match(mixed,/>與<\/span>/);
    }
-   if(id==='history'||id==='villain'){
+   if(id==='history'){
+    assert.equal(frame.headlineBaseline1,334);assert.equal(frame.headlineBaseline2,470);assert.equal(frame.headlineBoxPadding,10);
+    const moved=structuredClone(template);moved.layout.headlineCenter+=20;
+    const shifted=api.radioFrameParams(moved,'First','Second');assert.equal(shifted.headlineBaseline1,354);assert.equal(shifted.headlineBaseline2,490);
+    assert.match(html,/data-headline-baseline="334"/);assert.match(html,/data-headline-baseline="470"/);
+   }
+   if(id==='villain'){
     assert.equal(frame.headlineStrokeOn,false);
-    assert.ok(html.includes('gap:14px'));
+    assert.equal(frame.headlineRowGap,136);
+    const renderedGap=Number(html.match(/(?:;|")gap:([\d.]+)px/)[1]);
+    assert.ok(Math.abs(renderedGap-20)<1e-9);
     assert.ok(html.includes('padding:4px 18px 8px'));
-    assert.equal(frame.headlineSize1*frame.headlineLineHeight+6+14,136);
+    assert.ok(Math.abs(frame.headlineSize1*frame.headlineLineHeight+renderedGap-136)<1e-9);
    }
    if(correction.captions){
     const params=api.radioCaptionParams(template);
@@ -141,6 +149,19 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.equal(params.fontSize,correction.captions.fontSize);
     assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'Caption'}).includes(correction.captions.font));
    }
+  }
+ });
+ await t.test('visual-team fixed placement contains the complete 16:9 frame',()=>{
+  for(const id of ['history','money','villain']){
+   const template=api.validateTemplate(JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates',id+'.json'),'utf8')));
+   const L=template.layout, tr=api.cropTransform(L);
+   assert.equal(L.reframe,false);assert.equal(L.splitPolicy,'never');
+   const width=1080*tr.scale,height=width*9/16;
+   const centerY=960-tr.posY/100*1920;
+   assert.ok(width<=1080.1,id+': neither side is cropped');
+   assert.ok(centerY-height/2>=L.windowTop-.1,id+': top is visible');
+   assert.ok(centerY+height/2<=L.windowBottom+.1,id+': bottom is visible');
+   assert.equal(tr.posX,0);
   }
  });
  await t.test('Panilgi preserves independent tracking and paragraph geometry',()=>{
@@ -175,9 +196,12 @@ test('templates use independent settings without renderer families',{skip:!modul
      expected.version+=3;
      Object.assign(expected.layout,{reframe:true,reframePreset:'speaker',reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:design.id==='issue-broadcast'?2.7:6.2,faceY:40});
     }
+    // Existing explicit opt-outs survive; missing values now default on at runtime.
+    expected.captions.cleanSpeechText=current.captions.cleanSpeechText ?? true;
+    if(current.captions.cleanSpeechText===undefined)delete expected.captions.cleanSpeechText;
     assert.deepEqual(current,expected,key+': preserve the design and apply explicit framing preferences');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
-    assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
+    assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},key+': no migration needed');
     const platform='tiktok';
     if(platform==='tiktok'){assert.equal(file,key.split('/')[1]);assert.deepEqual(current.names,legacy.names);assert.equal(current.id,legacy.id);}
     const a=api.forPlatform(before,platform),b=current;
@@ -200,12 +224,12 @@ test('templates use independent settings without renderer families',{skip:!modul
    expectedFiles.push('chosun-ilbo/'+id+'.json');
    const current=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates',id+'.json'),'utf8'));
    assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
-   assert.deepEqual(api.validateTemplate(structuredClone(current)),current,id+': no migration needed');
+   assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},id+': no migration needed');
   }
   // Scene templates are new designs, not migrations of the legacy presets.
   expectedFiles.push('hankook-ilbo/huick-alpha.json','chosun-ilbo/parenting.json','chosun-ilbo/jeongjwippul.json','chosun-ilbo/politics-landscape.json');
   const parenting=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates','parenting.json'),'utf8'));
-  assert.deepEqual(api.validateTemplate(structuredClone(parenting)),parenting,'Parenting: source values survive validation');
+  assert.deepEqual(api.validateTemplate(structuredClone(parenting)),{...parenting,captions:{...parenting.captions,cleanSpeechText:parenting.captions.cleanSpeechText??true}},'Parenting: source values survive validation');
   const scene=JSON.parse(fs.readFileSync(path.join(root,'hankook-ilbo','templates','huick-alpha.json'),'utf8'));
   assert.equal(scene.id,'huick-alpha');assert.equal(scene.editorial.mode,'scenes');
   assert.equal(scene.variants,undefined);assert.equal(scene.platformLayouts,undefined);

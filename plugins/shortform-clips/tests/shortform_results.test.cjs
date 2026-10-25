@@ -37,8 +37,8 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
     assert.match(resultJobLabel({built:[{draftId:'x',headline1:'Clip title'}]},'en',RESULT_STRINGS.en),/Clip title.*Unknown date/);
   });
   await t.test('empty source validation leaves previous results and pending restoration intact',async()=>{
-    const start=source.indexOf('  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {');
-    const prefix=source.slice(start+'  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {'.length,source.indexOf('    setBusy(true);',start));
+    const start=source.indexOf('  async function run(resume?: any, onlyDraftId?: string | string[], forceReframe = false) {');
+    const prefix=source.slice(start+'  async function run(resume?: any, onlyDraftId?: string | string[], forceReframe = false) {'.length,source.indexOf('    setBusy(true);',start));
     const check=new Function('env',`return async function(resume){const {templateDirty,templateSaving,setTab,overlayLock,busy,packLock,setError,setWarn,setDrafts,setInfo,projectId,templates,mode,url,pick,S,K,resultsRevision}=env;${prefix};return 'valid';}`);
     const saved=[{draftId:'keep'}];let visible=saved,error='',clears=0;
     const env={overlayLock:{current:false},busy:false,packLock:{current:false},setError:x=>error=x,setWarn:()=>{},setDrafts:x=>{visible=x;clears++;},setInfo:()=>{},projectId:'project',templates:[{}],mode:'youtube',url:'',pick:null,S:{needUrl:'Need URL',needPick:'Need video',noProject:'Need project'},K:{empty:'Need templates'},resultsRevision:{current:2}};
