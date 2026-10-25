@@ -1,7 +1,7 @@
 # Hankook Ilbo template pack
 
-Three templates for the shared Shortform Clips app: two layouts adapted from
-TikTok references and Huick Alpha's scene-based news format. No customer app fork
+Four templates for the shared Shortform Clips app: two layouts adapted from
+TikTok references and two scene-based news formats. No customer app fork
 or sample episode media is included.
 
 | Template | Layout |
@@ -9,6 +9,7 @@ or sample episode media is included.
 | Knowledge Exchange | Original green background and logo, white/red two-line headline, black speech caption box; video window y=622..1378 |
 | Issue Broadcast | Portrait video with face-following enabled, fluorescent yellow headline and second-line box, original logo over the video; full-height video window y=0..1920 |
 | Huick Alpha | Dialogue-led news scenes with composited characters, contextual backgrounds, timed source images and article excerpts; white dialogue captions on gray boxes |
+| One-minute newspaper | Newspaper page pans and zooms, original headline highlights over a dimmed page, white narration captions on gray boxes and a bottom-center logo |
 
 Knowledge Exchange and Issue Broadcast enable AI framing with the Speaker focus preset. Split and wide shots are disabled. Huick Alpha keeps its separate scene-based workflow.
 
@@ -23,7 +24,7 @@ The pack lives at `plugins/shortform-clips/template-packs/hankook-ilbo/`.
 Use a published branch or commit containing that path; a GitHub `pack.json`
 page or raw file URL also works. Installing the app does not install this pack.
 
-Use Shortform Clips 0.5.1 or later with Template API 5 support. Each template has
+Use Shortform Clips 0.7.0 or later with Template API 7 support. Each template has
 one design; there is no separate platform selection. Existing Knowledge Exchange
 and Issue Broadcast designs are retained. Re-add the published pack link to import
 the update; the app asks how to handle any conflicting local edits.
@@ -61,6 +62,62 @@ app tools; the host applies dialogue captions from the plan and template setting
 Foreground preparation uses the shared AI Runtime when the selected concept needs
 it. See the [scene workflow](../../README.md#scene-templates) for host requirements,
 checkpoints, timing and review limitations.
+
+## One-minute newspaper
+
+This template adds a newspaper design and production instructions to the existing
+scene/layers workflow. Use Shortform Clips 0.7.0 or later (Template API 7).
+In Create clips, select this template, choose a local PDF, load and select a TTS voice, and enter the article order or focus
+in Extra instructions. The PDF does not need to be imported into the Project.
+
+The app keeps an exact local copy of the PDF and the current selection per
+project. Clear selection detaches it from the form without deleting files used by
+saved jobs. Generation uses macOS PDFKit to prepare page images (4096px longest
+edge) and original text positions, then imports those images into the current
+project. Only the chosen PDF pages and narration enter this source scope.
+Resume reuses the saved PDF and prepared pages. PDFs must be unlocked, at most
+128 MiB and contain 1-64 pages. Scanned pages remain images with no extracted
+text; the writing AI reads the page image. Selects narration synthesizes the
+PDF-grounded script and supplies character timings; no recording or STT is
+required. The planner groups caption phrases; their timing comes from TTS words.
+Missing, rewritten or out-of-order narration is rejected. TTS uses Selects credits. Resume reuses the saved paid workflow and
+audio. An unknown submission outcome stops instead of charging again.
+PDF preparation is macOS-only.
+
+Extra instructions can name the articles, their order, and which headline, photo
+or chart to focus on. The production AI locates those regions in the supplied
+page images; users do not need pixel coordinates. The template requests stable
+reading shots, linked page/highlight movement and screen-fixed captions and logo.
+Bright emphasis defaults to each article headline, enclosing every line with a
+small outer margin. Body text, photos and charts use camera framing; separate
+bright emphasis on those regions is applied when requested in Extra instructions.
+The shared `media.page()` component applies those normalized page coordinates to
+both the original image and a transparent hole in the dim overlay. It never paints
+over highlighted text. Template `editorial.components.page` controls dim strength,
+paper color and move duration. Captions and logo remain separate screen layers.
+The host adds the template's two-line series opening for the first second, then
+rotates and shrinks its black title strips away. The production AI keeps the page
+visible underneath and does not rebuild the opening. This approximates the
+reference transition rather than reproducing its paper-crumpling effect.
+AI region selection still needs a real source-to-Draft visual review.
+
+The visual guide compares six episodes from the same series:
+[March 19](https://www.youtube.com/shorts/a-s-_rL6a8k),
+[March 20](https://www.youtube.com/shorts/jJ4QQPfSqOg),
+[March 23](https://www.youtube.com/shorts/7w1PBit-42Y),
+[March 24](https://www.youtube.com/shorts/HzfeUqBsGgk),
+[March 27](https://www.youtube.com/shorts/s9G6JqSoJmA), and
+[March 30](https://www.youtube.com/shorts/YYWxynWWIH0).
+It is style evidence, not source material for a new episode. Detailed transitions
+were inspected in the March 19 video; the other episodes were compared through
+storyboard sequences, with additional browser frames from March 30.
+
+The small vertical logo is extracted from the March 19 reference and has limited
+resolution. Replace it with an official transparent master when available.
+Pretendard and Noto Serif KR are editable approximations, not verified reference
+font identifications, and are not bundled. Dim strength and transition durations
+are observed approximations. Other templates and the shared production code are
+unchanged in their video-input behavior.
 
 ## Reference and adaptations
 

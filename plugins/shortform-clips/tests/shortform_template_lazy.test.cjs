@@ -79,7 +79,7 @@ test('template lists do not hydrate images; use boundaries require complete temp
   const f=setup([...seed.rows]),entries=(await f.repo.listTemplates()).templates,ids=[];
   const repository={resolveTemplate:async item=>{ids.push(item.id);return f.repo.resolveTemplate(item);}};
   const a=source.indexOf('      const list = (await loadTemplates()) || templates;');
-  const b=source.indexOf('      if(job.mode===',a);
+  const b=source.indexOf("      if(templateInputKind(direct)",a);
   const direct=new Function('repository','loadTemplates','templates','job','guard',dep('esbuild').transformSync(`return (async()=>{${source.slice(a,b)}return {list,direct};})();`,{loader:'ts'}).code);
   let result=await direct(repository,async()=>entries,entries,{program:'lazy-7'},p=>p);
   assert.equal(result.direct.logo.image,templates[7].logo.image);assert.deepEqual(ids,['lazy-7']);

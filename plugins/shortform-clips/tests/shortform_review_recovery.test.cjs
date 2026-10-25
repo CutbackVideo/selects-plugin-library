@@ -84,7 +84,7 @@ test('runs reviewed before framing recover from interruptions',{skip:!modules&&'
   const runStart=src.indexOf('  async function run(resume?:'),brace=src.indexOf('{',runStart),prefixEnd=src.indexOf('    resultsRevision.current++;',brace);
   const prefix=esbuild.transformSync(src.slice(brace+1,prefixEnd),{loader:'ts'}).code;
   let message='';
-  const env={overlayLock:{current:false},busy:false,packLock:{current:false},templateDirty:false,templateSaving:false,setTab:()=>{},setError:s=>{message=s;},projectId:'p',templates:[{}],mode:'project',url:'',pick:'source',S:{},K:{}};
+  const env={pdfLock:{current:false},isPdfInput:false,pdfInput:null,lang:'en',overlayLock:{current:false},busy:false,packLock:{current:false},templateDirty:false,templateSaving:false,setTab:()=>{},setError:s=>{message=s;},projectId:'p',templates:[{}],mode:'project',url:'',pick:'source',S:{},K:{}};
   const check=new Function(...Object.keys(env),'resume','return (async()=>{'+prefix+';return "continued";})();');
   assert.equal(await check(...Object.values(env),{built:[{draftId:'removed',deleted:true,framingEditPending:{pendingIndex:0}},{draftId:'kept'}]}),'continued');
   assert.equal(message,'');

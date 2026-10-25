@@ -135,6 +135,21 @@ The shared app validates all templates and images before activation. Its rendere
 features bound what a JSON file can express. New graphics behavior belongs in the
 shared app and a future compatible template API.
 
+## Template API 7 PDF input
+
+A scene/layers template can declare `"input": {"kind": "pdf"}` to replace the
+video source controls with a local PDF picker and a TTS voice
+selector. Packs containing this declaration must require `templateApi: 7`.
+Omitting `input`, or setting `kind` to `video`, preserves existing inputs.
+Input kind survives library summaries, template copies and shared JSON files.
+
+PDF preparation uses macOS PDFKit, retains an exact local source copy and provides
+rendered pages plus normalized text-layer positions to both scene AI stages.
+The PDF supplies the narration script. Selects narration generates speech and
+character alignment (credits apply); no recorded input is required. A local
+page-and-audio carrier adapts it to the existing scene timeline without STT.
+This does not register PDF as a new Project resource type. See the Hankook Ilbo pack for the input limits and instructions.
+
 ## Template API 5 scene settings
 
 Packs containing scene templates require Template API 5, even when they also
