@@ -66,9 +66,9 @@ var MESSAGES = {
   noStorage: ["Update Selects to use app storage.", "\uC571 \uC800\uC7A5\uC18C\uB97C \uC4F0\uB824\uBA74 Selects\uB97C \uC5C5\uB370\uC774\uD2B8\uD574 \uC8FC\uC138\uC694."],
   tooLongAudio: ["The narration is longer than {max} s. Shorten the script.", "\uB098\uB808\uC774\uC158\uC774 {max}\uCD08\uB97C \uB118\uC5B4\uC694. \uB300\uBCF8\uC744 \uC904\uC5EC \uC8FC\uC138\uC694."],
   stepDone: ["{step}: {sec} s, {repairs} repairs, {parse} unreadable replies", "{step}: {sec}\uCD08, \uACE0\uCE68 {repairs}\uD68C, \uC77D\uC9C0 \uBABB\uD55C \uC751\uB2F5 {parse}\uD68C"],
-  scriptProvider: ["AI for script and source check", "\uB300\uBCF8 \uC4F0\uAE30\xB7\uC6D0\uBB38 \uB300\uC870 AI"],
-  provider_chatgpt: ["ChatGPT (BYOS)", "ChatGPT (BYOS)"],
-  provider_claude: ["Claude (BYOS)", "Claude (BYOS)"],
+  scriptProvider: ["AI for this app", "\uC774 \uC571\uC5D0\uC11C \uC0AC\uC6A9\uD560 AI"],
+  provider_chatgpt: ["ChatGPT subscription", "ChatGPT \uAD6C\uB3C5"],
+  provider_claude: ["Claude subscription", "Claude \uAD6C\uB3C5"],
   provider_selects: ["Selects credits", "Selects \uD06C\uB808\uB527"],
   providerSelect: ["Choose AI", "AI \uC120\uD0DD"],
   providerLoading: ["Checking connections\u2026", "\uC5F0\uACB0 \uC0C1\uD0DC \uD655\uC778 \uC911\u2026"],
@@ -77,14 +77,14 @@ var MESSAGES = {
   providerStatus_disconnected: ["Not connected", "\uC5F0\uACB0 \uC548 \uB428"],
   providerStatus_unavailable: ["Unavailable", "\uC0AC\uC6A9 \uBD88\uAC00"],
   providerStatus_error: ["Could not check connection", "\uC5F0\uACB0 \uD655\uC778 \uC2E4\uD328"],
-  providerHint: ["Connected subscriptions are selected first. Connect in Settings \u2192 Connectors, then refresh. Your choice applies to writing and checking the script, including retries.", "\uC5F0\uACB0\uB41C \uAD6C\uB3C5\uC744 \uC6B0\uC120 \uC120\uD0DD\uD574\uC694. \uC124\uC815 \u2192 \uC5F0\uACB0\uC5D0\uC11C \uC5F0\uB3D9\uD55C \uB4A4 \uC0C8\uB85C\uACE0\uCE68\uD574 \uC8FC\uC138\uC694. \uC120\uD0DD\uD55C AI\uB85C \uB300\uBCF8 \uC4F0\uAE30\xB7\uC6D0\uBB38 \uB300\uC870\uC640 \uC7AC\uC2DC\uB3C4\uAE4C\uC9C0 \uC9C4\uD589\uD574\uC694."],
+  providerHint: ["Connected subscriptions are selected first. Connect in Settings \u2192 Connectors, then refresh. Your choice applies to all AI writing, checking and scene planning, including feedback, repairs and retries.", "\uC5F0\uACB0\uB41C \uAD6C\uB3C5\uC744 \uC6B0\uC120 \uC120\uD0DD\uD574\uC694. \uC124\uC815 \u2192 \uC5F0\uACB0\uC5D0\uC11C \uC5F0\uB3D9\uD55C \uB4A4 \uC0C8\uB85C\uACE0\uCE68\uD574 \uC8FC\uC138\uC694. \uC120\uD0DD\uD55C AI\uB85C \uB300\uBCF8 \uC4F0\uAE30\xB7\uC6D0\uBB38 \uB300\uC870\xB7\uD654\uBA74 \uAD6C\uC131\xB7\uC758\uACAC \uBC18\uC601\uACFC \uBCF4\uC815\xB7\uC7AC\uC2DC\uB3C4\uAE4C\uC9C0 \uC9C4\uD589\uD574\uC694."],
   providerRefresh: ["Refresh connections", "\uC5F0\uACB0 \uC0C1\uD0DC \uC0C8\uB85C\uACE0\uCE68"],
   providerReadFailed: ["Could not check AI connections. Refresh and try again. No AI request was sent.", "AI \uC5F0\uACB0\uC744 \uD655\uC778\uD558\uC9C0 \uBABB\uD588\uC5B4\uC694. \uC0C8\uB85C\uACE0\uCE68 \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694. AI \uC694\uCCAD\uC740 \uBCF4\uB0B4\uC9C0 \uC54A\uC558\uC5B4\uC694."],
+  providerUnavailable: ["Sign in to Selects and open this app in editing mode, then refresh AI connections.", "Selects\uC5D0 \uB85C\uADF8\uC778\uD558\uACE0 \uD3B8\uC9D1 \uBAA8\uB4DC\uC5D0\uC11C \uC774 \uC571\uC744 \uC5F0 \uB4A4 AI \uC5F0\uACB0 \uC0C1\uD0DC\uB97C \uC0C8\uB85C\uACE0\uCE68\uD574 \uC8FC\uC138\uC694."],
   providerUpdateRequired: ["Update Selects to choose an AI provider for this app.", "\uC774 \uC571\uC5D0\uC11C \uC0AC\uC6A9\uD560 AI\uB97C \uC120\uD0DD\uD558\uB824\uBA74 Selects\uB97C \uC5C5\uB370\uC774\uD2B8\uD574 \uC8FC\uC138\uC694."],
   providerNotConnected: ["The selected AI is unavailable. Reconnect in Settings \u2192 Connectors and refresh, or choose another provider. Selects credits are never used automatically.", "\uC120\uD0DD\uD55C AI\uB97C \uC0AC\uC6A9\uD560 \uC218 \uC5C6\uC5B4\uC694. \uC124\uC815 \u2192 \uC5F0\uACB0\uC5D0\uC11C \uB2E4\uC2DC \uC5F0\uACB0\uD55C \uB4A4 \uC0C8\uB85C\uACE0\uCE68\uD558\uAC70\uB098 \uB2E4\uB978 AI\uB97C \uC120\uD0DD\uD574 \uC8FC\uC138\uC694. Selects \uD06C\uB808\uB527\uC73C\uB85C \uC790\uB3D9 \uC804\uD658\uD558\uC9C0 \uC54A\uC544\uC694."],
-  aiSubscription: ["Writing and checking the script uses your {provider} subscription, including repairs and retries. Your subscription limits apply; these calls do not use Selects credits.", "\uB300\uBCF8 \uC4F0\uAE30\xB7\uC6D0\uBB38 \uB300\uC870\uC640 \uBCF4\uC815\xB7\uC7AC\uC2DC\uB3C4\uB294 \uC5F0\uACB0\uD55C {provider} \uAD6C\uB3C5\uC744 \uC0AC\uC6A9\uD574\uC694. \uD574\uB2F9 \uAD6C\uB3C5\uC758 \uC0AC\uC6A9 \uD55C\uB3C4\uAC00 \uC801\uC6A9\uB418\uBA70, \uC774 \uD638\uCD9C\uC5D0\uB294 Selects \uD06C\uB808\uB527\uC744 \uC4F0\uC9C0 \uC54A\uC544\uC694."],
-  aiCredits: ["Writing and checking the script runs AI turns billed to your Selects credits, like chat messages.", "\uB300\uBCF8 \uC4F0\uAE30\uC640 \uC6D0\uBB38 \uB300\uC870\uB294 \uCC44\uD305\uCC98\uB7FC Selects \uD06C\uB808\uB527\uC774 \uC4F0\uC774\uB294 AI \uD638\uCD9C\uC774\uC5D0\uC694."],
-  buildCredits: ["Scene planning uses the host's current AI model, independently of the script choice. Managed models use Selects credits; connected subscriptions use their own limits.", "\uD654\uBA74 \uAD6C\uC131\uC740 \uB300\uBCF8\uC5D0\uC11C \uACE0\uB978 AI\uC640 \uBCC4\uAC1C\uB85C \uC571\uC758 \uD604\uC7AC AI \uBAA8\uB378\uC744 \uC0AC\uC6A9\uD574\uC694. \uAD00\uB9AC\uD615 \uBAA8\uB378\uC740 Selects \uD06C\uB808\uB527\uC744, \uC5F0\uACB0\uB41C \uAD6C\uB3C5\uC740 \uD574\uB2F9 \uAD6C\uB3C5\uC758 \uD55C\uB3C4\uB97C \uC0AC\uC6A9\uD574\uC694."],
+  aiSubscription: ["All writing, source checking, scene planning and feedback revisions use {provider}, including repairs and retries. Subscription limits apply; these LLM calls do not use Selects credits.", "\uB300\uBCF8 \uC4F0\uAE30\xB7\uC6D0\uBB38 \uB300\uC870\xB7\uD654\uBA74 \uAD6C\uC131\xB7\uC758\uACAC \uBC18\uC601\uACFC \uBCF4\uC815\xB7\uC7AC\uC2DC\uB3C4\uB294 {provider}\uC744 \uC0AC\uC6A9\uD574\uC694. \uD574\uB2F9 \uAD6C\uB3C5\uC758 \uC0AC\uC6A9 \uD55C\uB3C4\uAC00 \uC801\uC6A9\uB418\uBA70, \uC774 LLM \uD638\uCD9C\uC5D0\uB294 Selects \uD06C\uB808\uB527\uC744 \uC4F0\uC9C0 \uC54A\uC544\uC694."],
+  aiCredits: ["All writing, source checking, scene planning and feedback revisions use Selects credits, including repairs and retries.", "\uB300\uBCF8 \uC4F0\uAE30\xB7\uC6D0\uBB38 \uB300\uC870\xB7\uD654\uBA74 \uAD6C\uC131\xB7\uC758\uACAC \uBC18\uC601\uACFC \uBCF4\uC815\xB7\uC7AC\uC2DC\uB3C4\uC5D0 Selects \uD06C\uB808\uB527\uC744 \uC0AC\uC6A9\uD574\uC694."],
   record: ["Run record: {path}", "\uC2E4\uD589 \uAE30\uB85D: {path}"],
   approveAnyway: ["The check still reports these problems. Approve anyway?", "\uAC80\uC0AC\uC5D0\uC11C \uC544\uB798 \uBB38\uC81C\uAC00 \uB0A8\uC544 \uC788\uC5B4\uC694. \uADF8\uB798\uB3C4 \uC2B9\uC778\uD560\uAE4C\uC694?"],
   editedCheck: ["Edited: check against the article", "\uC218\uC815\uB428: \uC6D0\uBB38 \uD655\uC778 \uD544\uC694"],
@@ -2517,9 +2517,10 @@ async function readAiProviders(sdk) {
     throw new Error("providerReadFailed");
   return result2;
 }
-async function scriptAi(sdk, provider) {
+async function selectedAi(sdk, provider) {
   if (!isAiProvider(provider)) throw new Error("providerChoose");
   const status = await readAiProviders(sdk);
+  if (AI_PROVIDERS.every((id) => status[id] === "unavailable")) throw new Error("providerUnavailable");
   if (status[provider] !== "connected") throw new Error("providerNotConnected");
   if (!sdk.askAI) throw new Error("noAI");
   return { ...sdk, askAI: (input2) => sdk.askAI({ ...input2, provider }) };
@@ -5168,7 +5169,7 @@ async function saveRunRecord(sdk, env, rec) {
   }
 }
 async function writeScript(sdk, article, preset, log, rec, provider) {
-  sdk = await scriptAi(sdk, provider);
+  sdk = await selectedAi(sdk, provider);
   rec.notes.push("script and fidelity provider: " + provider);
   const pa = promptArticle(article);
   log("writing");
@@ -5357,7 +5358,9 @@ async function askPlan(sdk, base, script, preset, photos, log, rec, revision) {
   }
   return { scenes, summaries, images };
 }
-async function planScenes(sdk, env, s, preset, narration, log, rec, thumb) {
+async function planScenes(sdk, env, s, preset, narration, log, rec, provider, thumb) {
+  sdk = await selectedAi(sdk, provider);
+  rec.notes.push("scene planning provider: " + provider);
   const script = s.script, article = s.article, projectId = s.projectId;
   const total = narration.durationSeconds;
   if (!(total > 0)) throw new Error("narration length unknown");
@@ -5391,7 +5394,9 @@ async function planScenes(sdk, env, s, preset, narration, log, rec, thumb) {
   recordPlan(rec, plan, r.images);
   return plan;
 }
-async function revisePlan(sdk, env, s, preset, feedback, log, rec) {
+async function revisePlan(sdk, env, s, preset, feedback, log, rec, provider) {
+  sdk = await selectedAi(sdk, provider);
+  rec.notes.push("scene revision provider: " + provider);
   const cur = s.plan;
   const photos = await prepPhotos(sdk, env, s.article, log);
   const t0 = Date.now();
@@ -5912,6 +5917,7 @@ function NewsMinutePanel({ sdk, context }) {
       await fn();
     } catch (e) {
       const message = String(e?.message || e);
+      if (message === "providerNotConnected" || message === "providerUnavailable" || message === "providerReadFailed") await refreshProviders();
       setError(T("error", { error: MESSAGES[message] ? T(message) : message }));
     } finally {
       setBusy(false);
@@ -5988,6 +5994,22 @@ function NewsMinutePanel({ sdk, context }) {
   const preset = PRESETS[s.presetId] ?? PRESETS.chosun;
   const provider = scriptProvider(providers, s.scriptProvider);
   const providerReady = !providerLoading && !!provider && providers?.[provider] === "connected";
+  const providerUnavailable = !!providers && AI_PROVIDERS.every((id) => providers[id] === "unavailable");
+  const aiUsage = provider ? T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) }) : T(providerUnavailable ? "providerUnavailable" : "providerChoose");
+  const startAi = async () => {
+    if (!providerReady || !provider) throw new Error(providerUnavailable ? "providerUnavailable" : "providerChoose");
+    const next2 = { ...s, scriptProvider: provider };
+    await update(next2);
+    return next2;
+  };
+  const aiSdk = { ...sdk, askAI: sdk.askAI && (async (input2) => {
+    try {
+      return await sdk.askAI(input2);
+    } catch (e) {
+      await refreshProviders();
+      throw e;
+    }
+  }) };
   const writeScript2 = () => guard(async () => {
     if (!providerReady || !provider) throw new Error("providerChoose");
     const e = env.current;
@@ -5997,15 +6019,16 @@ function NewsMinutePanel({ sdk, context }) {
       article = await fetchArticle(sdk, e, url.trim());
     } else article = articleFromText(text);
     if ([...article.body].length < 200) throw new Error(T("tooShort"));
+    const selected = await startAi();
     const rec = newRunRecord(preset.id, url.trim());
     rec.notes.push("article: " + article.method + ", " + [...article.body].length + " chars, " + article.photos.length + " photos");
     let r;
     try {
-      r = await writeScript(sdk, article, preset, log, rec, provider);
+      r = await writeScript(aiSdk, article, preset, log, rec, selected.scriptProvider);
     } finally {
       await finish(rec);
     }
-    await update({ ...s, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
+    await update({ ...selected, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
   });
   const setLine = (i, v) => {
     if (!s.script) return;
@@ -6028,17 +6051,18 @@ function NewsMinutePanel({ sdk, context }) {
   const makePlan = () => guard(async () => {
     const next2 = ttsNext(tts, s.approved);
     if (next2.kind !== "ready") return;
+    const selected = await startAi();
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
     let plan2;
     try {
-      plan2 = await planScenes(sdk, env.current, s, preset, next2, log, rec, thumbOf);
+      plan2 = await planScenes(aiSdk, env.current, selected, preset, next2, log, rec, selected.scriptProvider, thumbOf);
     } catch (e) {
       rec.notes.push("error: " + String(e?.message || e));
       throw e;
     } finally {
       await finish(rec);
     }
-    const next22 = { ...s, plan: plan2 };
+    const next22 = { ...selected, plan: plan2 };
     await update(next22);
     setFeedback("");
     setJsonErr({});
@@ -6074,18 +6098,19 @@ function NewsMinutePanel({ sdk, context }) {
   const revise = () => guard(async () => {
     const note2 = feedback.trim();
     if (!note2 || !s.plan) return;
+    const selected = await startAi();
     log("revising");
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
     let r;
     try {
-      r = await revisePlan(sdk, env.current, s, preset, note2, log, rec);
+      r = await revisePlan(aiSdk, env.current, selected, preset, note2, log, rec, selected.scriptProvider);
     } catch (e) {
       rec.notes.push("error: " + String(e?.message || e));
       throw e;
     } finally {
       await finish(rec);
     }
-    const next2 = { ...s, plan: r.plan };
+    const next2 = { ...selected, plan: r.plan };
     await update(next2);
     setJsonErr({});
     if (r.kept) setError(T("reviseKept"));
@@ -6316,8 +6341,8 @@ function NewsMinutePanel({ sdk, context }) {
             T("feedback"),
             /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
           ] }),
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
-          /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || !feedback.trim(), onClick: revise, children: T("revise") })
+          /* @__PURE__ */ jsx("span", { style: muted, children: aiUsage }),
+          /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || !providerReady || !feedback.trim(), onClick: revise, children: T("revise") })
         ] })
       ] }),
       video ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
@@ -6335,9 +6360,7 @@ function NewsMinutePanel({ sdk, context }) {
         " ",
         /* @__PURE__ */ jsx("select", { value: s.presetId, disabled: busy, onChange: (e) => update({ ...s, presetId: e.target.value }), children: Object.values(PRESETS).map((p) => /* @__PURE__ */ jsx("option", { value: p.id, children: p.label }, p.id)) })
       ] }),
-      !sc ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
-        /* @__PURE__ */ jsx("input", { style: input, placeholder: T("url"), value: url, disabled: busy, onChange: (e) => setUrl(e.target.value) }),
-        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
+      /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
         /* @__PURE__ */ jsxs("label", { style: field2, children: [
           T("scriptProvider"),
           /* @__PURE__ */ jsxs("select", { style: input, value: provider ?? "", disabled: busy || providerLoading || !providers, onChange: (e) => {
@@ -6351,8 +6374,12 @@ function NewsMinutePanel({ sdk, context }) {
         /* @__PURE__ */ jsx("span", { style: muted, children: T("providerHint") }),
         /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || providerLoading, onClick: () => void refreshProviders(), children: T("providerRefresh") }),
         providerError ? /* @__PURE__ */ jsx("span", { role: "alert", style: warn, children: T(providerError) }) : null,
-        providers && !providerLoading && (!provider || providers[provider] !== "connected") ? /* @__PURE__ */ jsx("span", { role: "alert", style: warn, children: T(provider ? "providerNotConnected" : "providerChoose") }) : null,
-        provider ? /* @__PURE__ */ jsx("span", { style: muted, children: T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) }) }) : null,
+        providers && !providerLoading && (!provider || providers[provider] !== "connected") ? /* @__PURE__ */ jsx("span", { role: "alert", style: warn, children: T(providerUnavailable ? "providerUnavailable" : provider ? "providerNotConnected" : "providerChoose") }) : null,
+        provider ? /* @__PURE__ */ jsx("span", { style: muted, children: T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) }) }) : null
+      ] }),
+      !sc ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
+        /* @__PURE__ */ jsx("input", { style: input, placeholder: T("url"), value: url, disabled: busy, onChange: (e) => setUrl(e.target.value) }),
+        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
         /* @__PURE__ */ jsx("button", { disabled: busy || !providerReady || !url.trim() && text.trim().length < 80, onClick: writeScript2, children: T("write") })
       ] }) : (
         // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
@@ -6413,8 +6440,8 @@ function NewsMinutePanel({ sdk, context }) {
           /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("retry") })
         ] }) : /* @__PURE__ */ jsx(Fragment, { children: plan ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
           /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) }) }),
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
-          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: makePlan, children: T("makePlan") })
+          /* @__PURE__ */ jsx("span", { style: muted, children: aiUsage }),
+          /* @__PURE__ */ jsx("button", { disabled: busy || !providerReady, onClick: makePlan, children: T("makePlan") })
         ] }) })
       ] }) : null,
       plan ? renderPlan(plan) : null,

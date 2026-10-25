@@ -25,10 +25,11 @@ export async function readAiProviders(sdk: PanelSdk): Promise<AiProviders> {
   return result;
 }
 
-/** One source for script, fidelity, JSON repairs and timeout retries. Never an unqualified ask. */
-export async function scriptAi(sdk: PanelSdk, provider: AiProvider): Promise<PanelSdk> {
+/** One source for every LLM workload, including repairs and retries. Never an unqualified ask. */
+export async function selectedAi(sdk: PanelSdk, provider: AiProvider): Promise<PanelSdk> {
   if (!isAiProvider(provider)) throw new Error("providerChoose");
   const status = await readAiProviders(sdk);
+  if (AI_PROVIDERS.every((id) => status[id] === "unavailable")) throw new Error("providerUnavailable");
   if (status[provider] !== "connected") throw new Error("providerNotConnected");
   if (!sdk.askAI) throw new Error("noAI");
   return { ...sdk, askAI: (input) => sdk.askAI!({ ...input, provider }) };

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readAiProviders, scriptProvider } from "../src/pipeline/providers.ts";
-import { newRunRecord, writeScript } from "../src/pipeline/flow.ts";
+import { emptySession, newRunRecord, planScenes, revisePlan, writeScript } from "../src/pipeline/flow.ts";
 import { PRESETS } from "../src/preset.ts";
 
 const connected = { chatgpt: "connected", claude: "connected", selects: "connected" };
@@ -66,4 +66,67 @@ test("subscription failure during writing or source checking never retries on Se
     assert.equal(calls.length, failAt + 1);
     assert.ok(calls.every((c) => c.provider === "claude"));
   }
+});
+
+const env = { platform: "darwin", sep: "/", dir: "/test", tmp: "/test", skills: "/test", projectId: "test" };
+const narration = { resourceId: "voice", durationSeconds: 48 };
+const session = () => ({ ...emptySession(), article, script: fidelity, projectId: "test" });
+const sceneReply = (revised = false) => JSON.stringify({
+  assetSummaries: [],
+  scenes: fidelity.sentences.map((s, i) => ({ sentenceIds: [s.id], type: "text_card", params: { text: revised && i === 0 ? "Revised" : "Park plan" }, hideCaption: false, disclaimer: false })),
+});
+
+for (const provider of ["chatgpt", "claude", "selects"]) {
+  test(`${provider} stays pinned through scene planning, feedback, JSON repairs and timeout retries`, async () => {
+    const calls = [];
+    const answers = [new Error("timed out"), "invalid JSON", sceneReply(), new Error("timed out"), "invalid JSON", sceneReply(true)];
+    const sdk = {
+      runScript: async () => ({ result: null }),
+      aiProviders: async () => connected,
+      askAI: async (input) => { calls.push(input); const reply = answers.shift(); if (reply instanceof Error) throw reply; return { text: reply }; },
+    };
+    const rec = newRunRecord("chosun", "");
+    const s = session();
+    s.plan = await planScenes(sdk, env, s, PRESETS.chosun, narration, () => {}, rec, provider);
+    assert.equal(s.plan.fallback, false);
+    const r = await revisePlan(sdk, env, s, PRESETS.chosun, "Revise the first card", () => {}, rec, provider);
+    assert.equal(r.kept, false);
+    assert.deepEqual(r.plan.changed, [0]);
+    assert.equal(calls.length, 6);
+    assert.ok(calls.every((call) => call.provider === provider));
+    assert.deepEqual(rec.steps.map((step) => [step.step, step.turns, step.repairs]), [["plan", 3, 1], ["plan revision", 3, 1]]);
+  });
+}
+
+test("all LLM stages stop before inference when every provider is unavailable", async () => {
+  const sdk = {
+    aiProviders: async () => ({ chatgpt: "unavailable", claude: "unavailable", selects: "unavailable" }),
+    askAI: async () => assert.fail("no inference outside editing mode or without login"),
+  };
+  const rec = newRunRecord("chosun", "");
+  const s = session();
+  await assert.rejects(writeScript(sdk, article, PRESETS.chosun, () => {}, rec, "selects"), /providerUnavailable/);
+  await assert.rejects(planScenes(sdk, env, s, PRESETS.chosun, narration, () => {}, rec, "selects"), /providerUnavailable/);
+  await assert.rejects(revisePlan(sdk, env, s, PRESETS.chosun, "Revise", () => {}, rec, "selects"), /providerUnavailable/);
+});
+
+test("failed planning and revision never switch to credits, and disconnected selections make no call", async () => {
+  const calls = [];
+  let status = connected;
+  const sdk = {
+    runScript: async () => ({ result: null }),
+    aiProviders: async () => status,
+    askAI: async (input) => { calls.push(input); throw Error("subscription expired"); },
+  };
+  const rec = newRunRecord("chosun", "");
+  const s = session();
+  s.plan = await planScenes(sdk, env, s, PRESETS.chosun, narration, () => {}, rec, "claude");
+  assert.equal(s.plan.fallback, true); // deterministic cards, not another AI
+  const r = await revisePlan(sdk, env, s, PRESETS.chosun, "Revise", () => {}, rec, "claude");
+  assert.equal(r.kept, true);
+  assert.deepEqual(calls.map((x) => x.provider), ["claude", "claude"]);
+  status = { ...connected, claude: "disconnected" };
+  await assert.rejects(planScenes(sdk, env, s, PRESETS.chosun, narration, () => {}, rec, "claude"), /providerNotConnected/);
+  await assert.rejects(revisePlan(sdk, env, s, PRESETS.chosun, "Revise", () => {}, rec, "claude"), /providerNotConnected/);
+  assert.equal(calls.length, 2);
 });

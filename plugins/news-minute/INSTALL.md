@@ -1,8 +1,15 @@
 # Install
 
-No extra setup. Requires Selects 2.0.763 or later (narration for plug-in panels). Install the plug-in from the Selects library; the panel appears under Apps.
+Install the plug-in from the Selects library; the panel appears under Apps.
+This update requires the Selects release containing `sdk.aiProviders()` and
+`sdk.askAI({ provider })` support. The manifest minimum, **2.0.797**, is the
+current release candidate; maintainers must confirm or update it against the
+actual app release before publishing this plug-in update.
 
-Writing and source checking also require the panel host's `sdk.aiProviders()`
-and `sdk.askAI({ provider })` support. If the provider chooser asks for an update,
+All LLM stages require that support. If the AI chooser asks for an update,
 update Selects first. Connect ChatGPT or Claude in Settings > Connectors and
-refresh the connection status in the panel.
+refresh the connection status in the panel. Sign in and use editing mode if all
+three providers are unavailable. ElevenLabs narration uses Selects credits.
+
+Provider routing has been checked with simulated hosts. Live Staging subscription
+verification and Windows verification are still pending.
