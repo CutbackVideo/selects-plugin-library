@@ -12,7 +12,7 @@ function moduleFixture(extra={}) {
 for(const message of ['Something went wrong with the agent','\uc5d0\uc774\uc804\ud2b8\uc5d0 \ubb38\uc81c\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.','Network transport unavailable','Authentication unavailable']) {
  test('read-only search retries once regardless of display language: '+message,async()=>{
   const f=moduleFixture(),calls=[],status=[],cause=Error(message);let call=0;
-  try {const result=await f.api.searchBrollQuery({askAI:async(prompt,timeout)=>{calls.push({prompt,timeout});f.tick(1000);if(!call++)throw cause;return JSON.stringify({candidates:[{url:'https://example.invalid/valid.mp4'}]});},status:s=>status.push(s)},'q','same query prompt',async()=>[]);assert.equal(result.length,1);assert.deepEqual(calls.map(c=>c.timeout),[240000,239000]);assert.equal(calls[0].prompt,calls[1].prompt);assert.equal(status.length,1);}finally{f.dispose();}
+  try {const result=await f.api.searchBrollQuery({askAI:async(prompt,timeout)=>{calls.push({prompt,timeout});f.tick(1000);if(!call++)throw cause;return JSON.stringify({candidates:[{url:'https://example.invalid/valid.mp4'}]});},status:s=>status.push(s)},'q','same query prompt',async()=>[]);assert.equal(result.length,1);assert.deepEqual(calls.map(c=>c.timeout),[240000,239000]);assert.equal(calls[0].prompt,calls[1].prompt);assert.equal(status.filter(s=>/^Retrying search \(attempt 2\/2\)/.test(s)).length,1);}finally{f.dispose();}
  });
 }
 test('two persistent unknown errors stop at two attempts and retain both exact causes',async()=>{
@@ -26,7 +26,7 @@ test('a matching sidecar recovered after the first failure prevents a new AI tur
 test('cancel and supersede before call, during rejection/readback, or status never dispatch a retry',async()=>{
  for(const at of ['before','reject','readback','status']){
   const f=moduleFixture(),controller=new AbortController();let calls=0;if(at==='before')controller.abort();
-  try {await assert.rejects(f.api.searchBrollQuery({signal:controller.signal,status:()=>{if(at==='status')controller.abort();},askAI:async()=>{calls++;if(at==='reject')controller.abort();throw Error('late request failed');}},'q','prompt',async()=>{if(at==='readback')controller.abort();return [];}));assert.equal(calls,at==='before'?0:1);}finally{f.dispose();}
+  try {await assert.rejects(f.api.searchBrollQuery({signal:controller.signal,status:()=>{if(at==='status')controller.abort();},askAI:async()=>{calls++;if(at==='reject')controller.abort();throw Error('late request failed');}},'q','prompt',async()=>{if(at==='readback')controller.abort();return [];}));assert.equal(calls,at==='before'||at==='status'?0:1);}finally{f.dispose();}
  }
 });
 test('abort after resolved AI or recovered sidecar cannot return stale candidates',async()=>{
@@ -67,7 +67,7 @@ test('exhausted search retains each exact error in the full report warning, with
 test('actual TemplateRun notification path reports partial saved result and dismissal cannot regenerate',async()=>{
  const effects=[],finishes=[],notices=[],saved={draftId:'only-saved-draft',jobDir:'/owned/job',warnings:['B-roll search failed for \u201cq\u201d; trying credited Commons photographs: \ud55c\uad6d\uc5b4 \uc6d0\uc778']};let pipelineCalls=0;
  const React={useRef:x=>({current:x}),useState:x=>[x,()=>{}],useEffect:f=>effects.push(f),createElement:()=>null};
- const f=moduleFixture({React,overrides:{useAppUpdateGuard:()=>{},templatePaths:async()=>({data:'/owned',plugin:'/plugin',ffmpeg:'/ffmpeg'}),panelEnv:()=>({writeText:async()=>{}}),runPipeline:async()=>{pipelineCalls++;return saved;}}});
+ const f=moduleFixture({React,overrides:{useAppUpdateGuard:()=>{},templatePaths:async()=>({data:'/owned',plugin:'/plugin',ffmpeg:'/ffmpeg'}),panelEnv:()=>({status:()=>{},writeText:async()=>{}}),runPipeline:async()=>{pipelineCalls++;return saved;}}});
  const sdk={confirm:async notice=>{notices.push(notice);return false;},finishTemplate:r=>finishes.push(r)};
  try{f.api.TemplateRun({sdk,context:{projectId:'owned-project',language:'ko',template:{runId:'one-run',inputs:{speaker:[{kind:'timeline',sequenceId:'retained-input'}]}}}});effects.at(-1)();for(let i=0;i<6;i++)await Promise.resolve();await new Promise(resolve=>setImmediate(resolve));assert.equal(pipelineCalls,1);assert.equal(notices.length,1);assert.ok(notices[0].message.includes('1'));assert.ok(notices[0].message.includes('/owned/job/report.json'));assert.deepEqual(plain(finishes),[{sequenceId:'only-saved-draft'}]);assert.equal(saved.notification.acknowledged,false);}finally{f.dispose();}
 });

@@ -9,7 +9,7 @@ export function verificationFrames(cues:any[],pulses:any[],total:number,limit=64
 }
 
 export async function verifyDraft(env: Env, projectId: string, draftId: string, manifest: any) {
-  env.status("Checking the saved Draft and rendered frames…");
+  env.status(cwProgressText(env,"Checking the saved Draft and rendered frames…","\uc800\uc7a5\ub41c Draft\uc640 \ud654\uba74 \ud655\uc778 \uc911…"));
   const saved = await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});return {meta:await d.meta(),clips:await d.clips({trackScope:'all'}),graphics:await d.motionGraphics()};`, "Read back the saved style");
   const ids = new Set(saved.clips.map((c:any)=>c.clipId));
   const missing = Object.values(manifest.items || {}).filter((i:any)=>i.status==='applied'&&!ids.has(i.clipId));
@@ -23,7 +23,8 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
   // entire short into the first phrase/keyword's two sample frames.
   const batches:number[][]=[];for(let i=0;i<points.length;i+=8)batches.push(points.slice(i,i+8));
   const images:any[]=[];
-  for(const frames of batches) {
+  for(const [batchIndex,frames] of batches.entries()) {
+    env.status(cwProgressText(env,`Rendering saved preview batch ${batchIndex+1}/${batches.length}…`,`\uc800\uc7a5\ub41c \uacb0\uacfc \ubbf8\ub9ac\ubcf4\uae30 \ub80c\ub354 \uc911 ${batchIndex+1}/${batches.length}…`));
     // The host contact sheet already carries the source-render attestation.
     // Reuse that same artifact for visual review instead of rendering it twice.
     const captured=env.capture?await env.capture(draftId,frames):[];
@@ -33,6 +34,7 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
     if(!attested) {
       // Older/custom environments may omit metadata. Keep the existing source
       // check in that case; absent evidence is never treated as a success.
+      env.status(cwProgressText(env,`Checking saved preview sources ${batchIndex+1}/${batches.length}…`,`\uc800\uc7a5\ub41c \uacb0\uacfc \uc6d0\ubcf8 \ud45c\uc2dc \ud655\uc778 \uc911 ${batchIndex+1}/${batches.length}…`));
       const capture=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const c=await d.captureFrames({frames:${JSON.stringify(frames)}});return {frames:c.frames,width:c.width,height:c.height};`,"Render representative saved frames");
       if(!Array.isArray(capture.frames)||capture.frames.length!==frames.length||capture.frames.some((f:any)=>f.hasSourceImage!==true))throw new Error("One or more verification frames could not be rendered.");
     }
@@ -44,7 +46,7 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
       // The reference frame is a local calibration file; the public package does not ship it.
       let withReference=false;
       try{images.push({dataUrl:await env.imageData!(hostJoin(env.pluginDir,"evidence","reference-frame.jpg")),name:"Original reference: target small-caption scale and fixed phrase layout"});withReference=true;}catch{}
-      env.status("Reviewing the rendered images…");
+      env.status(cwProgressText(env,"Reviewing the rendered images…","\ub80c\ub354\ub41c \ucd5c\uc885 \ud654\uba74 \uac80\ud1a0 \uc911…"));
       visual=parseJsonLoose(await env.askAI(`Only inspect the supplied images. Do not use tools, read files, edit anything, or ask follow-up questions. Inspect the saved Chris Williamson short. Every image named "Saved Draft frames ..." is a saved-result contact sheet; inspect all of those sheets, including late phrases. Their combined frame numbers are ${JSON.stringify(points)}.${withReference?' Only the separately named "Original reference: target small-caption scale and fixed phrase layout" image is the style-calibration reference.':" No original reference image is supplied."} Expected: full phrase BOX centred at 50% height, with small text about 53/1920 frame height (the editor set it 20% larger than the reference's 44) and keywords 150/1920. Reveal is word by word with future words invisible but occupying layout space, so the visible first word is intentionally left of centre. A new word is gray for 0.1 seconds. Do not demand every partially revealed word be individually centred, or demand larger text than the reference. Check the contrast of ordinary phrases over bright B-roll on every saved-result sheet, including the late phrases. Report actual clipping, unreadable glyphs, wrong B-roll subject, missing expected captions or broken layer order. Full-screen inversion flashes are not expected. Inverted color confined to keyword letters is intentional. Return JSON {"ok":boolean,"issues":[string]}. Do not claim export or Inspector testing from these pictures.`,120000,images));
       visual.status=visual.ok===true?"passed":"failed";
       visual.issues=reviewIssues(visual,"Visual review did not pass");

@@ -345,6 +345,7 @@ Transcript: ${JSON.stringify(rows)}`;
 // ---------------------------------------------------------------------------------------------------------
 // The pipeline. `env` supplies host access so the same code runs from the panel or a test harness.
 export type Env = {
+  language?: string;
   signal?: AbortSignal;
   onFaceStage?: (active: boolean, journalPath: string) => void;
   runScript: (script: string, summary: string, allowCommit?: boolean) => Promise<any>;
@@ -364,6 +365,11 @@ export type Env = {
   pluginDir: string;
   ffmpeg: string;
 };
+// Local presentation only: existing panel locales use Korean and English fallback.
+// The stage text is emitted by real work boundaries; no timer manufactures progress.
+function cwProgressText(env: Pick<Env, 'language'>, en: string, ko: string) {
+  return /^ko(?:-|$)/i.test(String(env.language || '')) ? ko : en;
+}
 export type Options = { scope?: UpdateScope; copy: boolean; retryFaceFailures?: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
 
 // mac-only:start
@@ -741,6 +747,7 @@ function StylePanel({ sdk, context, ui }: any) {
       await ensureTranscript(from,controller.signal);
       const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
       const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
+      env.language = context?.language;
       const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
       if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId, warnings: Array.isArray(report.warnings) ? report.warnings.filter((text:any)=>typeof text==='string'&&text.trim()) : [] }); setStatus("Your Chris Williamson Style draft is ready."); }
       if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
@@ -840,7 +847,7 @@ async function templatePaths(sdk: any) {
 
 /** A new Draft holding the whole picked video. */
 async function templateDraftFromVideo(env: Env, projectId: string, video: { resourceId: string; name: string }) {
-  env.status("Creating the new Draft…");
+  env.status(cwProgressText(env,"Creating the new Draft…","\uc0c8 Draft \ub9cc\ub4dc\ub294 \uc911…"));
   const name = String(video.name || "Video").replace(/\.[A-Za-z0-9]{1,5}$/, "") + SUFFIX;
   const made = await env.runScript(`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:${JSON.stringify(name)}});await d.insertResource({resourceId:${JSON.stringify(video.resourceId)}});const saved=await d.commitAll('Chris Williamson Style: new Draft from the video');return {id:saved.createdDraftId};`, "Create a Draft from the video", true);
   if (!made?.id) throw new Error("Selects could not create a Draft from this video. Try again.");
@@ -853,19 +860,19 @@ function TemplateRun({ sdk, context }: any) {
   const runId: string = context.template.runId;
   const currentRunId = useRef(runId);
   currentRunId.current = runId;
-  const [status, setStatus] = useState("Getting ready…");
+  const [status, setStatus] = useState(cwProgressText({language:context?.language},"Getting ready…","\uc900\ube44 \uc911…"));
   const [finishedRun, setFinishedRun] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     // A newer run from the app reports instead of this one.
     const superseded = () => controller.signal.aborted || currentRunId.current !== runId;
-    const report = (text: string) => { if (!superseded()) setStatus(text); };
     let finished = false;
+    const report = (text: string) => { if (!finished && !superseded()) setStatus(text); };
     const finish = (result: { sequenceId: string } | { error: string }) => {
       if (finished || superseded()) return;
       finished = true;
       setFinishedRun(runId);
-      setStatus("sequenceId" in result ? "Done." : result.error);
+      setStatus("sequenceId" in result ? cwProgressText({language:context?.language},"Done.","\uc644\ub8cc\ud588\uc2b5\ub2c8\ub2e4.") : result.error);
       sdk.finishTemplate(result);
     };
     void (async () => {
@@ -875,6 +882,7 @@ function TemplateRun({ sdk, context }: any) {
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
         const env = panelEnv(sdk, await templatePaths(sdk), report,controller.signal);
+        env.language = context?.language;
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
@@ -882,6 +890,7 @@ function TemplateRun({ sdk, context }: any) {
         const result = await runPipeline(env, projectId, draftId, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
         // Only real completed-run warnings open the host dialog. Dismissal never
         // discards the saved Draft or starts a second generation/search.
+        if(result.warnings?.length)env.status(cwProgressText(env,"Waiting for the saved-draft review dialog…","\uc800\uc7a5\ub41c \uacb0\uacfc\uc758 \ud655\uc778 \ucc3d\uc744 \uae30\ub2e4\ub9ac\ub294 \uc911…"));
         try{result.notification=await notifyTemplateIssues(sdk,context,result);await env.writeText(hostJoin(result.jobDir,'report.json'),JSON.stringify(result));}
         catch(error:any){console.warn('Saved Chris draft notification could not be confirmed:',error?.message||error);}
         finish({ sequenceId: result.draftId });

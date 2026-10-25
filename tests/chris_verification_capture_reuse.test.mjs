@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
-import {stripTypeScriptTypes} from 'node:module';
-const source=fs.readFileSync(new URL('../plugins/chris-williamson-style/src/verification.ts',import.meta.url),'utf8');
-const verify=vm.runInNewContext(stripTypeScriptTypes(source.replace(/^export /gm,''))+';verifyDraft;',{hostJoin:(...parts)=>parts.join('/'),parseJsonLoose:JSON.parse,reviewIssues:value=>value.issues||[]});
+import {loadPanelModule,disposePanelModule} from './panel_module_fixture.mjs';
+const source=fs.readFileSync(new URL('../plugins/chris-williamson-style/panel.tsx',import.meta.url),'utf8');
+const api=loadPanelModule(source,{names:['verifyDraft']});
+test.after(()=>disposePanelModule(api));
+const verify=api.verifyDraft;
 const manifest={items:{},cues:Array.from({length:12},(_,i)=>({kind:'phrase',start:i*20,end:i*20+20}))};
 function fixture({metadata='valid',captureError,sourceError,sourcePresent=true,visualOk=true,captureAvailable=true}={}){
  const calls={native:[],legacy:[],review:[]},artifacts=[];

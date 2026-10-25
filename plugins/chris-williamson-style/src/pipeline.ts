@@ -92,7 +92,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   env = attachedPipelineEnv(env);
   const t0=Date.now(), report:any={warnings:[]};
   if(!env.imageData)throw new Error("Image inspection is unavailable in this Selects host.");
-  env.status("Checking the Draft and previous edits…");
+  env.status(cwProgressText(env,"Checking the Draft and previous edits…","Draft\uc640 \uae30\uc874 \ud3b8\uc9d1 \ud655\uc778 \uc911…"));
   setMeasuredEm(env.textMeasure?await env.textMeasure().catch(()=>null):null);
   const src=await readDraft(env,projectId,sequenceId),fps=src.fps,total=src.endFrame;
   await probeFrameSizes(env,src.files);
@@ -160,7 +160,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   };
   // Replanning is explicit. Captions-only and B-roll-only updates retain the established keyword slots.
   if(!state.keys || scope==='all' && !state.completed.includes('plan')) {
-    env.status("Planning keywords…");
+    env.status(cwProgressText(env,"Planning keywords…","\uac15\uc870 \ub2e8\uc5b4 \uacc4\ud68d \uc911…"));
     let plan=options.planOverride;
     if(!plan)plan=parseJsonLoose(await env.askAI(planPrompt(words,fps,total,options.instructions||""),240000));
     const keys=keysFromPlan(plan,words,fps);
@@ -178,7 +178,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     // planner's broader query (or the keyword itself), so gaps are not left wherever the first search failed.
     const missing=reel.brolls.filter(b=>!freshAssets.some((a:any)=>a.keyStart===b.key.start));
     if(missing.length&&!options.searchOverride) {
-      env.status(`Searching again for ${missing.length} missing B-roll…`);
+      env.status(cwProgressText(env,`Starting alternative search for ${missing.length} missing B-roll…`,`\ud655\ubcf4\ud558\uc9c0 \ubabb\ud55c B-roll ${missing.length}\uac1c \ub300\uccb4 \uac80\uc0c9 \uc2dc\uc791…`));
       const again=missing.map(b=>({...b,query:b.key.alt&&b.key.alt!==b.query?b.key.alt:b.key.text.replace(/[^\p{L}\p{N}' -]/gu,"").trim()}));
       const retryWarnings:string[]=[];
       freshAssets.push(...await chooseAssets(env,jobDir,mediaFolder,{brolls:again},fps,projectId,options,retryWarnings,"r",words));
@@ -230,6 +230,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     // Main-only splitting is not exposed by this SDK. Never razor unrelated overlays.
     const hasOverlays=existing.clips.some((c:any)=>c.trackKind==='video'||c.trackKind==='audio')||existing.graphics.length>0;
     if(!hasOverlays && !state.completed.includes('shots')) {
+      env.status(cwProgressText(env,"Finding source camera changes…","\uc6d0\ubcf8 \uc601\uc0c1\uc758 \uc7a5\uba74 \uc804\ud658 \ud655\uc778 \uc911…"));
       const shotsFile=hostJoin(jobDir,'shots.json');
       await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[{key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:sourceClipSeconds(m,fps)}])}}));
       await engine('shots',shotsFile,'Find source camera changes',240000);
@@ -258,15 +259,16 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const m=await d.meta();if(m.frameSize.width!==1080||m.frameSize.height!==1920){await d.setFrameSize({width:1080,height:1920});await d.commitAll('Chris Williamson Style: vertical frame');}return true;`,"Check vertical frame",true);
   const putGraphic=async(id:string,category:string,a:number,b:number,label:string,tsxCode:string,parameters:any,defs:any[])=>{
     const prev=state.items[id];if(prev && prev.status!=='pending')return;
-    env.status('Saving '+label+'…');
+    env.status(cwProgressText(env,'Saving caption: '+label+'…','\uc790\ub9c9 \uc800\uc7a5 \uc911: '+label+'…'));
     state.items[id]={category,status:'pending'};await save();
     const made=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const found=(await d.motionGraphics()).find(g=>g.name===${JSON.stringify(label)});if(found)return {clipId:found.clip.clipId};const made=await d.addMotionGraphic({within:await d.rangeAtFrames(${a},${b}),label:${JSON.stringify(label)},tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(parameters)},editableParameters:${JSON.stringify(defs)}});await d.commitAll('Chris Williamson Style: editable element');return {clipId:made.clipId};`,"Add "+label,true);
     state.items[id]={category,status:'applied',clipId:made.clipId,label};await save();
   };
   // Place only a verified asset. Existing clips and deliberate deletions survive Preserve.
-  for(const b of reel.brolls) {
+  for(const [brollIndex,b] of reel.brolls.entries()) {
     const id='broll:'+b.key.start,old=state.items[id];if(old&&old.status!=='pending')continue;
     const asset=assets.find(a=>a.keyStart===b.key.start);if(!asset)continue;
+    env.status(cwProgressText(env,`Saving verified B-roll ${brollIndex+1}/${reel.brolls.length}…`,`\uac80\ud1a0\ud55c B-roll \uc800\uc7a5 \uc911 ${brollIndex+1}/${reel.brolls.length}…`));
     const label=cueLabel(id,b.query);
     state.items[id]={category:'broll',status:'pending'};await save();
     const made=await env.runScript(`const S:any=selects;const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
@@ -277,7 +279,7 @@ if(found)return {clipId:found.clipId};const resource=idByPath[__pk(${JSON.string
   // Background music under the speech: one shared file in the plugin data folder, imported once, placed
   // across the whole Draft at a low level with fades. Kept on Preserve; replaced on Rebuild all.
   if(options.music!==false && !(state.items['music']&&state.items['music'].status!=='pending')) {
-    env.status('Adding the background music…');
+    env.status(cwProgressText(env,"Adding the background music…","\ubc30\uacbd \uc74c\uc545 \ucd94\uac00 \uc911…"));
     const musicPath=hostJoin(env.dataDir,'music',MUSIC.file);
     await fetchMusic(env,hostJoin(env.dataDir,'music'),musicPath);
     const label=PREFIX+MUSIC.title+' [cws:music]';
@@ -341,8 +343,9 @@ await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.str
     try {
       for(let k=0;k<kws.length;k+=6) {
         const part=kws.slice(k,k+6);
-        env.status(`Checking that keywords fit ${k+1}–${k+part.length} / ${kws.length}…`);
+        env.status(cwProgressText(env,`Rendering keyword preview ${k+1}–${k+part.length}/${kws.length} (check ${round+1}/2)…`,`\uac15\uc870 \ub2e8\uc5b4 \ubbf8\ub9ac\ubcf4\uae30 \ub80c\ub354 \uc911 ${k+1}–${k+part.length}/${kws.length} (\ud655\uc778 ${round+1}/2)…`));
         const images=await env.capture(draftId,part.map(c=>Math.min(c.end-1,c.start+Math.round(0.2*fps))));
+        env.status(cwProgressText(env,`Reviewing keyword preview ${k+1}–${k+part.length}/${kws.length} (check ${round+1}/2)…`,`\uac15\uc870 \ub2e8\uc5b4 \ubbf8\ub9ac\ubcf4\uae30 \uac80\ud1a0 \uc911 ${k+1}–${k+part.length}/${kws.length} (\ud655\uc778 ${round+1}/2)…`));
         const verdict=parseJsonLoose(await env.askAI(`Only inspect the supplied image. Do not use tools, edit anything, or ask questions. It is a contact sheet of ${part.length} frames of a vertical video in reading order (left to right, then top to bottom), numbered 1-${part.length}. Each shows one big keyword: ${JSON.stringify(part.map((c,i)=>[i+1,c.text]))}. For each frame decide whether any letter of that keyword is cut off by the left or right edge of the frame or runs outside it. Return only {"clipped":[frame numbers]}.`,120000,images));
         for(const n of Array.isArray(verdict?.clipped)?verdict.clipped:[])if(part[Number(n)-1])clipped.push(part[Number(n)-1]);
       }
@@ -375,5 +378,6 @@ await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.str
   report.counts.longestSpeakerSeconds=Math.round(longest/fps*10)/10;
   if(longest/fps>8)report.warnings.push(`The speaker stays on screen for ${report.counts.longestSpeakerSeconds} s without B-roll at one point; no usable picture was found there.`);
   report.seconds=Math.round((Date.now()-t0)/1000);report.jobDir=jobDir;report.name=src.name;
+  env.status(cwProgressText(env,"Saving the completed run report…","\uc644\ub8cc\ub41c \uc791\uc5c5 \uae30\ub85d \uc800\uc7a5 \uc911…"));
   await env.writeText(hostJoin(jobDir,'report.json'),JSON.stringify(report,null,2));return report;
 }

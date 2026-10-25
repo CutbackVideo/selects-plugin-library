@@ -1,3 +1,4 @@
+import {loadPanelModule,disposePanelModule} from './panel_module_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -5,6 +6,8 @@ import vm from 'node:vm';
 import {stripTypeScriptTypes} from 'node:module';
 const read=name=>fs.readFileSync(new URL('../plugins/chris-williamson-style/src/'+name,import.meta.url),'utf8');
 const pipeline=read('pipeline.ts'),verification=read('verification.ts'),panel=read('panel.template.tsx');
+const wholePanel=loadPanelModule(fs.readFileSync(new URL('../plugins/chris-williamson-style/panel.tsx',import.meta.url),'utf8'),{names:['verifyDraft']});
+test.after(()=>disposePanelModule(wholePanel));
 const helperStart=pipeline.indexOf('export function phraseBackdrop('),helperEnd=pipeline.indexOf('async function inventory(');
 const {phraseBackdrop,phraseColor}=vm.runInNewContext(stripTypeScriptTypes(pipeline.slice(helperStart,helperEnd).replace(/^export /gm,''))+';({phraseBackdrop,phraseColor})');
 const {verificationFrames}=vm.runInNewContext(stripTypeScriptTypes(verification.slice(0,verification.indexOf('export async function verifyDraft(')).replace(/^export /gm,''))+';({verificationFrames})');
@@ -69,7 +72,7 @@ test('bounded sampling keeps the end of a long short and explicitly marks incomp
 test('completed panel result retains the saved Draft ID and exposes pipeline warnings',async()=>{
  const create=panel.slice(panel.indexOf('  async function create()'),panel.indexOf('  async function cancelFaces()'));
  const observed={},warnings=['B-roll search failed; kept the speaker.'];
- const fn=vm.runInNewContext(stripTypeScriptTypes(create)+';create;',{AbortController,projectId:'project',sequenceId:'draft',paths:{},setupIssue:'',locked:{current:false},observer:{current:null},mounted:{current:true},onScreen:{current:'another-draft'},faceJournal:{current:''},setBusy:()=>{},setError:()=>{},setResult:value=>{observed.result=value;},setPending:()=>{},setStatus:()=>{},setFaceActive:()=>{},ensureTranscript:async()=>{},panelEnv:()=>({}),runPipeline:async()=>({draftId:'saved-draft',warnings}),MUSIC:{levelDb:-20},sdk:{},S:[]});
+ const fn=vm.runInNewContext(stripTypeScriptTypes(create)+';create;',{AbortController,context:{},projectId:'project',sequenceId:'draft',paths:{},setupIssue:'',locked:{current:false},observer:{current:null},mounted:{current:true},onScreen:{current:'another-draft'},faceJournal:{current:''},setBusy:()=>{},setError:()=>{},setResult:value=>{observed.result=value;},setPending:()=>{},setStatus:()=>{},setFaceActive:()=>{},ensureTranscript:async()=>{},panelEnv:()=>({}),runPipeline:async()=>({draftId:'saved-draft',warnings}),MUSIC:{levelDb:-20},sdk:{},S:[]});
  await fn();assert.equal(observed.result.id,'saved-draft');assert.deepEqual(plain(observed.result.warnings),warnings);assert.match(panel,/result\?\.warnings\?\.map/);
 });
 test('headless template result contract is unchanged and does not discard a saved Draft for warnings',()=>{
@@ -83,7 +86,7 @@ test('preserved completed phrase retains user edits without a new contrast probe
 });
 
 test('multiple saved contact sheets and an optional reference are identified by image names',async()=>{
- const verify=vm.runInNewContext(stripTypeScriptTypes(verification.replace(/^export /gm,''))+';verifyDraft;',{hostJoin:(...parts)=>parts.join('/'),parseJsonLoose:JSON.parse,reviewIssues:()=>[]});
+ const verify=wholePanel.verifyDraft;
  for(const withReference of [false,true]){
   let prompt,images;
   const env={pluginDir:'/owned',status:()=>{},imageData:async()=>{if(!withReference)throw Error('No reference');return 'controlled-reference';},
