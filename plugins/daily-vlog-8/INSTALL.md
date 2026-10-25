@@ -5,6 +5,8 @@ Selects SDK and reads its bundled audio from `daily-vlog-8/assets/` in the skill
 through the host's file access (no shell command), on macOS and Windows. No network access is
 used.
 
-Fonts: the titles use the reference edit's faces: `Chelsea Market Pro` for the animated title (not
-bundled; without it the title falls back to the system's default face) and `Courier New`, which macOS
-and Windows ship, for the two text cards. All three stay editable in the Draft.
+Fonts: the animated title prefers an installed `Chelsea Market Pro` (not bundled).
+The bundled `Chelsea Market` regular face is the fallback when Pro is unavailable;
+it is not identical to Pro. Its font data and OFL license are embedded in the saved
+opening title. The two text cards use `Courier New`. All three titles stay editable
+in the Draft.

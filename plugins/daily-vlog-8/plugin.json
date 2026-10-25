@@ -55,7 +55,7 @@
     {
       "id": "clips",
       "label": "Clips",
-      "hint": "The first eight fill the vlog in order; with seven, the opening clip returns once.",
+      "hint": "Pick at least seven distinct clips other than Opening; Opening and duplicate picks are excluded. Seven clips replay Opening before the closing shot. With eight or nine, the first eight distinct clips are used in order; the ninth is not used.",
       "accepts": [
         "video"
       ],
