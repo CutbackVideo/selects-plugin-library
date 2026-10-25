@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {recapAuthoringFixture} from './recap_authoring_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 const plain=x=>JSON.parse(JSON.stringify(x));
@@ -28,10 +31,23 @@ test('Recap fallback preserves sources, music, title and cut clock compared with
  assert.deepEqual(a.inserts,b.inserts);assert.deepEqual(a.clips,b.clips);assert.deepEqual(a.overlays,b.overlays);assert.deepEqual(a.graphics,b.graphics);assert.deepEqual(a.commits,b.commits);
 });
 
-test('actual prepared full-source intro/batch/finish scripts compile against the public SDK',async()=>{
+async function emittedAuthoringScripts(){
  const f=recapAuthoringFixture({manual:'none',faceMode:'no-faces'});await f.run();
- const scripts=f.requests.filter(request=>['Create recap intro','Add recap footage','Finish recap Draft'].includes(request.summary));
- assert.ok(scripts.length>=3);assert.equal(checkScriptTypes(scripts.map((request,index)=>({name:request.summary+' '+index,script:request.script}))).scripts,scripts.length);
+ const requests=f.requests.filter(request=>['Create recap intro','Add recap footage','Finish recap Draft'].includes(request.summary));
+ assert.ok(requests.length>=3);
+ return requests.map((request,index)=>({name:request.summary+' '+index,script:request.script}));
+}
+test('actual emitted intro/batch/finish scripts structurally typecheck without SDK declarations',async()=>{
+ const scripts=await emittedAuthoringScripts();
+ assert.deepEqual(checkScriptTypes(scripts,{sdkTypes:false}),{scripts:scripts.length,sdkTypings:false});
+});
+test('actual emitted intro/batch/finish scripts satisfy available public SDK declarations',async(t)=>{
+ const sdk=process.env.SELECTS_SDK_TYPES??path.join(os.homedir(),'.selects-staging','resources','sdk');
+ if(!process.env.SELECTS_SDK_TYPES&&!fs.existsSync(path.join(sdk,'core.d.ts'))){
+  t.skip('Public SDK declarations unavailable; emitted-script structural compilation is tested separately');return;
+ }
+ const scripts=await emittedAuthoringScripts();
+ assert.deepEqual(checkScriptTypes(scripts),{scripts:scripts.length,sdkTypings:true});
 });
 
 for(const options of [{ai:false},{storage:false},{sourceFps:null}])test('Recap unavailable analysis is not relabeled as valid no-faces '+JSON.stringify(options),async()=>{
