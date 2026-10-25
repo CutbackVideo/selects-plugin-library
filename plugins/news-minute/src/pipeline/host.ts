@@ -1,11 +1,13 @@
 // Thin wrappers over the panel SDK: run_script, askAI, storage, and the bundled FFmpeg.
 
 import type { ScriptCall } from "./scripts.ts";
+import type { AiProvider, AiProviders } from "./providers.ts";
 import { ffmpegScript, mediaJobScript, readChunksScript, writeChunkScript } from "./scripts.ts";
 
 export type PanelSdk = {
   runScript(input: { summary: string; script: string; allowCommit?: boolean }): Promise<{ isError?: boolean; output?: string; result?: any }>;
-  askAI?(input: { prompt: string; timeoutMs?: number; ephemeral?: boolean; images?: AskImage[] }): Promise<{ text: string }>;
+  askAI?(input: { prompt: string; provider?: AiProvider; timeoutMs?: number; ephemeral?: boolean; images?: AskImage[] }): Promise<{ text: string }>;
+  aiProviders?(): Promise<AiProviders>;
   storage?: { getItem(k: string): Promise<string | null>; setItem(k: string, v: string): Promise<void>; removeItem(k: string): Promise<void> };
   updates?: unknown;
 };

@@ -25,7 +25,7 @@
       "macOS",
       "Windows x64"
     ],
-    "selects": "Selects 2.0.763 or later with narration for plug-in panels (selects.narration) and plug-in storage. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Verified on macOS (Selects Staging 2.0.763). Not yet verified on Windows."
+    "selects": "Selects 2.0.763 or later with narration for plug-in panels (selects.narration) and plug-in storage. Writing and source checking require sdk.aiProviders and askAI.provider support; older hosts show an update message. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Verified on macOS (Selects Staging 2.0.763). Not yet verified on Windows."
   },
   "localized": {
     "en": {

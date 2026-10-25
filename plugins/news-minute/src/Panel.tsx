@@ -14,6 +14,7 @@ import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./pr
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
 import { issueText } from "./issues.ts";
+import { AI_PROVIDERS, isAiProvider, readAiProviders, scriptProvider, type AiProviders } from "./pipeline/providers.ts";
 
 type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: string } };
 
@@ -88,6 +89,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [status, setStatus] = useState("");
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [providers, setProviders] = useState<AiProviders | null>(null);
+  const [providerError, setProviderError] = useState("");
+  const [providerLoading, setProviderLoading] = useState(true);
+  const providerRead = useRef(0);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [tts, setTts] = useState<TtsRecord | null>(null);
@@ -112,6 +117,24 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
   const update = async (next: F.Session) => { latest.current = next; setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
 
+  const refreshProviders = async () => {
+    const id = ++providerRead.current;
+    setProviderLoading(true); setProviderError("");
+    try {
+      const next = await readAiProviders(sdk);
+      if (id === providerRead.current) setProviders(next);
+    } catch (e: any) {
+      if (id === providerRead.current) {
+        setProviders(null);
+        setProviderError(e?.message === "providerUpdateRequired" ? "providerUpdateRequired" : "providerReadFailed");
+      }
+    } finally { if (id === providerRead.current) setProviderLoading(false); }
+  };
+  useEffect(() => {
+    void refreshProviders();
+    return () => { providerRead.current++; };
+  }, [sdk]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -129,7 +152,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const guard = async (fn: () => Promise<void>) => {
     if (busy) return;
     setBusy(true); setError("");
-    try { await fn(); } catch (e: any) { setError(T("error", { error: String(e?.message || e) })); }
+    try { await fn(); } catch (e: any) { const message = String(e?.message || e); setError(T("error", { error: MESSAGES[message] ? T(message) : message })); }
     finally { setBusy(false); setStatus(""); }
   };
 
@@ -201,8 +224,11 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   if (!s) return <div style={{ padding: 12 }}>{error || "\u2026"}</div>;
   const preset = PRESETS[s.presetId] ?? PRESETS.chosun;
+  const provider = scriptProvider(providers, s.scriptProvider);
+  const providerReady = !providerLoading && !!provider && providers?.[provider] === "connected";
 
   const writeScript = () => guard(async () => {
+    if (!providerReady || !provider) throw new Error("providerChoose");
     const e = env.current!;
     let article;
     if (url.trim()) { log("fetching"); article = await F.fetchArticle(sdk, e, url.trim()); }
@@ -211,7 +237,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     const rec = F.newRunRecord(preset.id, url.trim());
     rec.notes.push("article: " + article.method + ", " + [...article.body].length + " chars, " + article.photos.length + " photos");
     let r;
-    try { r = await F.writeScript(sdk, article, preset, log, rec); } finally { await finish(rec); }
+    try { r = await F.writeScript(sdk, article, preset, log, rec, provider); } finally { await finish(rec); }
     await update({ ...s, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
   });
 
@@ -341,7 +367,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   };
 
   // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); });
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
 
   const pick = (i: number) => {
     setPicked(i);
@@ -533,8 +559,23 @@ function NewsMinutePanel({ sdk, context }: Props) {
         <div style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
           <input style={input} placeholder={T("url")} value={url} disabled={busy} onChange={(e) => setUrl(e.target.value)} />
           <textarea style={{ ...input, minHeight: 90 }} placeholder={T("orText")} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
-          <span style={muted}>{T("aiCredits")}</span>
-          <button disabled={busy || (!url.trim() && text.trim().length < 80)} onClick={writeScript}>{T("write")}</button>
+          <label style={field}>{T("scriptProvider")}
+            <select style={input} value={provider ?? ""} disabled={busy || providerLoading || !providers} onChange={(e) => {
+              const value = e.target.value;
+              if (isAiProvider(value)) void guard(() => update({ ...s, scriptProvider: value }));
+            }}>
+              {!provider ? <option value="" disabled>{T(providerLoading ? "providerLoading" : "providerSelect")}</option> : null}
+              {AI_PROVIDERS.map((id) => <option key={id} value={id} disabled={providers?.[id] !== "connected"}>
+                {T("provider_" + id) + (providers?.[id] ? " \u00b7 " + T("providerStatus_" + providers[id]) : "")}
+              </option>)}
+            </select>
+          </label>
+          <span style={muted}>{T("providerHint")}</span>
+          <button {...SECONDARY} disabled={busy || providerLoading} onClick={() => void refreshProviders()}>{T("providerRefresh")}</button>
+          {providerError ? <span role="alert" style={warn}>{T(providerError)}</span> : null}
+          {providers && !providerLoading && (!provider || providers[provider] !== "connected") ? <span role="alert" style={warn}>{T(provider ? "providerNotConnected" : "providerChoose")}</span> : null}
+          {provider ? <span style={muted}>{T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) })}</span> : null}
+          <button disabled={busy || !providerReady || (!url.trim() && text.trim().length < 80)} onClick={writeScript}>{T("write")}</button>
         </div>
       ) : (
         // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).

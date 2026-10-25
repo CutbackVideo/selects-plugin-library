@@ -2,6 +2,7 @@
 // preview Draft -> [human review] -> the same Draft renamed as the video.
 
 import * as P from "../prompts/index.ts";
+import { scriptAi, type AiProvider } from "./providers.ts";
 import type { Article as PromptArticle, PlanAsset, PlanScene, TimedSentence } from "../prompts/types.ts";
 import { DEFAULT_VOICE, type Preset } from "../preset.ts";
 import { decodeHtml, extractArticle, type Article } from "./article.ts";
@@ -22,6 +23,8 @@ export type Env = { platform: string; sep: string; dir: string; tmp: string; ski
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
+  // Explicit choice only; without one, each opening prefers a connected subscription.
+  scriptProvider?: AiProvider;
   presetId: string;
   voiceId: string;
   article: Article | null;
@@ -142,7 +145,9 @@ export async function saveRunRecord(sdk: PanelSdk, env: Env, rec: RunRecord): Pr
   try { await writeText(sdk, path, JSON.stringify(rec, null, 1)); return path; } catch { return null; }
 }
 
-export async function writeScript(sdk: PanelSdk, article: Article, preset: Preset, log: Log, rec: RunRecord): Promise<{ script: Script; errors: string[] }> {
+export async function writeScript(sdk: PanelSdk, article: Article, preset: Preset, log: Log, rec: RunRecord, provider: AiProvider): Promise<{ script: Script; errors: string[] }> {
+  sdk = await scriptAi(sdk, provider);
+  rec.notes.push("script and fidelity provider: " + provider);
   const pa = promptArticle(article);
   log("writing");
   const first = await askValid<any>(sdk, "script", P.scriptPrompt(pa, { language: preset.scriptLanguage }), (j) => P.validateScript(j, pa), log, rec);
