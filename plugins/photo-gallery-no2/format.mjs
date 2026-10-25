@@ -43,6 +43,7 @@ function validateMedia(media) {
     if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);
     assertPositiveInteger(item.width, `Slot ${index + 1} width`);
     assertPositiveInteger(item.height, `Slot ${index + 1} height`);
+    if(item.fit!==undefined&&!['cover','contain'].includes(item.fit))throw new Error(`Slot ${index+1} has an invalid fit`);
     const focusX = item.focusX ?? 0.5;
     const focusY = item.focusY ?? 0.5;
     if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {
@@ -110,6 +111,7 @@ export function planGallery(input, {preparing = false, pendingBpm = false} = {})
     endFrame: outputDurationFrames,
     focusX: item.focusX,
     focusY: item.focusY,
+    ...(item.fit==='contain'?{fit:'contain'}:{}),
   }));
   return {
     frameSize: { width: REFERENCE.width, height: REFERENCE.height },

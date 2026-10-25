@@ -788,7 +788,7 @@ async function galleryFaceScript(sdk,script,summary,allowCommit=false) {
 async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
   const current=()=>{if(!isCurrent())throw Object.assign(Error('Gallery context changed during face analysis.'),{contextChanged:true,safeNotSaved:true});};
   current();
-  const diagnostics=[],faceFingerprints=[],media=input.media.map(item=>({...item}));
+  const diagnostics=[],faceFingerprints=[],media=input.media.map(item=>{const next={...item};delete next.fit;return next;});
   const candidates=media.filter(item=>item.kind==='image'&&!item.manualFocus&&item.focusX===0.5&&item.focusY===0.5);
   if(!candidates.length)return {...input,media,faceFocus:diagnostics,faceFingerprints};
   let capability;
@@ -832,6 +832,7 @@ async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
     const focus=galleryFaceFocus(item,{width:356,height},observed);
     diagnostics.push({slot:index+1,resourceId:rawId,...workflowId?{workflowId}:{},...focus});
     if(focus.status==='focused')Object.assign(item,{focusX:focus.focusX,focusY:focus.focusY});
+    else if(focus.status==='cannot-fit'||focus.status==='unavailable'&&focus.reason==='no-faces')item.fit='contain';
   }
   current();return {...input,media,faceFocus:diagnostics,faceFingerprints};
 }

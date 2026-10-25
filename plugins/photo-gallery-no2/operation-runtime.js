@@ -81,8 +81,10 @@ async function galleryInventory(project, paths = null) {
 function galleryGeometry(tile, source, colorFrame) {
   const { left, right, top, bottom } = tile.rect;
   const width = right - left, height = bottom - top;
-  const q = Math.min(source.width / width, source.height / height);
-  const frameWidth = width * q, frameHeight = height * q;
+  const contain=tile.fit==='contain';
+  const q = (contain?Math.max:Math.min)(source.width / width, source.height / height);
+  // Contain exposes the full native raster; shrinking only its transform would keep the cover viewport.
+  const frameWidth = contain?source.width:width*q, frameHeight = contain?source.height:height*q;
   const conform = Math.min(1080 / source.width, 1920 / source.height);
   return {
     effect: {
@@ -214,7 +216,7 @@ function gallerySelectedInputs(input, inventory) {
         (item.height != null && fresh.height != null && fresh.height !== item.height)) {
       galleryFail(`Slot ${i + 1} dimensions changed`);
     }
-    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };
+    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY, fit:item.fit };
   });
   const music = input.music == null ? null :
     galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
@@ -496,7 +498,7 @@ async function galleryStyleExisting(selects, project, input, inventory, onCommit
     if (fresh.width != null && fresh.width !== item.width || fresh.height != null && fresh.height !== item.height) {
       galleryFail(`Slot ${i + 1} photo dimensions changed`);
     }
-    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };
+    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY, fit:item.fit };
   });
   const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,
