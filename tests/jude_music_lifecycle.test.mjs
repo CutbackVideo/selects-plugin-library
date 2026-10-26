@@ -6,7 +6,7 @@ import {loadPanelFunctions} from './windows_host.mjs';
 const panel=fs.readFileSync(new URL('../plugins/jude-kinetic-style/panel.tsx',import.meta.url),'utf8');
 const source=stripTypeScriptTypes(panel.slice(panel.indexOf('export async function placeMusic('),panel.indexOf('export async function readDraft(')),{mode:'strip'});
 const file='/qa/music/dark-hallway-distressed.mp3';
-const stale={type:'audio',path:'/Users/previous/.selects/plugin-data/jude-kinetic-style/music/dark-hallway-distressed.mp3',resourceId:'old',durationSeconds:52.6};
+const stale={type:'audio',path:'/previous-install/plugin-data/jude-kinetic-style/music/dark-hallway-distressed.mp3',resourceId:'old',durationSeconds:52.6};
 const exact={type:'audio',path:file,resourceId:'local',durationSeconds:52.6};
 const music={title:'Track',artist:'Artist',license:'CC BY',credit:'Credit',startSeconds:0,levelDb:-5,fadeOutSeconds:2};
 function fixture({entries=[],extraAudio=[],importError,readError,commitError,removeExactBeforePlace=false}={}){
