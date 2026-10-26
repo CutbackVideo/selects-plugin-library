@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readAiProviders, scriptProvider } from "../src/pipeline/providers.ts";
-import { emptySession, newRunRecord, planScenes, revisePlan, writeScript } from "../src/pipeline/flow.ts";
+import { emptySession, newRunRecord, planScenes, planUsesNarration, revisePlan, writeScript } from "../src/pipeline/flow.ts";
 import { PRESETS } from "../src/preset.ts";
 
 const connected = { chatgpt: "connected", claude: "connected", selects: "connected" };
@@ -74,6 +74,24 @@ const session = () => ({ ...emptySession(), article, script: fidelity, projectId
 const sceneReply = (revised = false) => JSON.stringify({
   assetSummaries: [],
   scenes: fidelity.sentences.map((s, i) => ({ sentenceIds: [s.id], type: "text_card", params: { text: revised && i === 0 ? "Revised" : "Park plan" }, hideCaption: false, disclaimer: false })),
+});
+
+test("first planning after restart stays visible when the saved TTS alias differs from the resolved job", async () => {
+  const saved = { ...narration, resourceId: "r22" }, before = structuredClone(saved);
+  const sdk = {
+    runScript: async c => ({ result: c.summary === "Verify the saved narration Resource" ? { ...narration, resourceId: "r0" } : null }),
+    aiProviders: async () => connected,
+    askAI: async () => ({ text: sceneReply() }),
+  };
+  const plan = await planScenes(sdk, env, session(), PRESETS.chosun, saved, () => {}, newRunRecord("chosun", ""), "selects");
+  assert.equal(plan.narrationId, "r0");
+  assert.equal(plan.narrationWorkflowId, "job");
+  assert.equal(planUsesNarration(plan, saved), true);
+  assert.deepEqual(saved, before); // display matching does not rewrite the TTS record
+  assert.equal(planUsesNarration(plan, { ...saved, resourceId: "r0", workflowId: "other-job" }), false);
+  assert.equal(planUsesNarration(plan, { ...saved, resourceId: "r0", workflowId: undefined }), false);
+  assert.equal(planUsesNarration({ narrationId: "r22" }, saved), true);
+  assert.equal(planUsesNarration({ narrationId: "r1" }, saved), false);
 });
 
 for (const provider of ["chatgpt", "claude", "selects"]) {

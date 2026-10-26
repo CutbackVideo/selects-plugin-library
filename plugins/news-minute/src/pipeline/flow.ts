@@ -368,6 +368,12 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
   return { scenes, summaries, images };
 }
 
+// A resolved plan and its saved TTS record can carry different process aliases.
+// Prefer the durable job; only legacy plans without one compare saved ids.
+export function planUsesNarration(plan: Pick<ScenePlan, "narrationId" | "narrationWorkflowId">, narration: Pick<NarrationReference, "resourceId" | "workflowId">): boolean {
+  return plan.narrationWorkflowId ? plan.narrationWorkflowId === narration.workflowId : plan.narrationId === narration.resourceId;
+}
+
 // Timing, photos and the first scene plan. Nothing is added to the Project here; the panel builds the preview
 // Draft from the plan next.
 export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: NarrationReference, log: Log, rec: RunRecord, provider: AiProvider, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {

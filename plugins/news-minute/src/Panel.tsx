@@ -448,7 +448,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const next = approved ? F.ttsNext(tts, s.approved!) : null;
   const quote = creditQuote(chars);
   const liveErrors = sc && s.article && touched ? F.checkEdited(sc, s.article).errors : s.scriptErrors;
-  const plan = approved && next?.kind === "ready" && s.plan && s.plan.narrationId === next.resourceId ? s.plan : null;
+  const plan = approved && next?.kind === "ready" && s.plan && F.planUsesNarration(s.plan, next) ? s.plan : null;
 
   const renderPlan = (plan: F.ScenePlan) => {
     const v = F.checkPlan(plan);

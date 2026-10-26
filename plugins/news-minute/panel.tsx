@@ -5515,6 +5515,9 @@ async function askPlan(sdk, base, script, preset, photos, log, rec, revision) {
   }
   return { scenes, summaries, images };
 }
+function planUsesNarration(plan, narration) {
+  return plan.narrationWorkflowId ? plan.narrationWorkflowId === narration.workflowId : plan.narrationId === narration.resourceId;
+}
 async function planScenes(sdk, env, s, preset, narration, log, rec, provider, thumb) {
   sdk = await selectedAi(sdk, provider);
   rec.notes.push("scene planning provider: " + provider);
@@ -6634,7 +6637,7 @@ function NewsMinutePanel({ sdk, context }) {
   const next = approved ? ttsNext(tts, s.approved) : null;
   const quote = creditQuote(chars);
   const liveErrors = sc && s.article && touched ? checkEdited(sc, s.article).errors : s.scriptErrors;
-  const plan = approved && next?.kind === "ready" && s.plan && s.plan.narrationId === next.resourceId ? s.plan : null;
+  const plan = approved && next?.kind === "ready" && s.plan && planUsesNarration(s.plan, next) ? s.plan : null;
   const renderPlan = (plan2) => {
     const v = checkPlan(plan2);
     const rowErrors = /* @__PURE__ */ new Map(), rowWarnings = /* @__PURE__ */ new Map();
