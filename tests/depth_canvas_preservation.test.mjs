@@ -12,7 +12,7 @@ const speech = ['This', 'is', 'one', 'complete', 'spoken', 'sentence.'].map((tex
 }));
 
 function fixture(t, {size = {width: 1920, height: 1080}, video = false, words = speech,
-  existing = 0, commitError, frameError, wrongProject = false} = {}) {
+  existing = 0, commitError, frameError, maskError, wrongProject = false} = {}) {
   let frameSize = {...size}, next = 100, commits = 0, drafts = 0, sid = 'draft';
   const transform = {scale: {x: 1.2, y: 1.2}, position: {x: 12, y: -8}};
   const main = [{clipId: 1, trackId: 'main', resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 60, transform: plain(transform)}];
@@ -60,6 +60,7 @@ function fixture(t, {size = {width: 1920, height: 1080}, video = false, words = 
       useAppUpdateGuard: () => {}, depthHostProblem: () => '', depthHostWarning: () => '', depthRequireHost: () => {},
       // Actual rendering/segmentation and DOM pixel measurement are host boundaries.
       depthMakeSpeakerMasks: async (_sdk, _pid, _sid, meta) => {
+        if (maskError) throw maskError;
         maskSizes.push({width: meta.width, height: meta.height, duration: meta.duration});
         return {files: {dir: '/fixture/masks', base: '/fixture/mask_', count: 60, width: meta.width, height: meta.height},
           mask: {width: meta.width, height: meta.height, fps: 30, frames: [], faces: {status: 'unverified', samples: []}}};
@@ -129,3 +130,29 @@ test('Depth does not swallow a failure setting the source-sized canvas for a pic
   const f = fixture(t, {video: true, frameError: new Error('Canvas storage unavailable')}), result = await f.run();
   assert.ok(result.error); assert.equal(f.commits(), 0);
 });
+
+for (const message of [
+  'Not enough free space to export: needs about 2.0 GB, 1.7 GB available.',
+  'Not enough free space to export: needs about 21.8 GB, 4.2 GB available.',
+]) {
+  test('Depth explains the native export storage shortage with its exact capacities: ' + message, {timeout: 5000}, async t => {
+    const f = fixture(t, {maskError: new Error(message)}), result = await f.run();
+    assert.equal(result.error, message + ' Free up space on the export drive, then try again.');
+    assert.equal(result.sequenceId, undefined);
+    assert.equal(f.commits(), 0);
+    assert.deepEqual(f.changes, []);
+  });
+}
+
+for (const message of [
+  'EACCES: failed to render /private/qa/source.mov',
+  'Not enough free space to export: needs about unknown GB, 1.7 GB available.',
+  'Not enough free space to export: needs about 2.0 GB, 1.7 GB available. /private/qa/source.mov',
+]) {
+  test('Depth keeps unexpected render diagnostics private: ' + message, {timeout: 5000}, async t => {
+    const f = fixture(t, {maskError: new Error(message)}), result = await f.run();
+    assert.equal(result.error, 'Depth Type Captions could not make the captioned timeline. Try again.');
+    assert.ok(f.warnings.some(warning => warning.includes(message)));
+    assert.equal(f.commits(), 0);
+  });
+}

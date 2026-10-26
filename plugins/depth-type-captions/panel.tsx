@@ -1616,7 +1616,10 @@ function DepthTemplateRun({ sdk, context }) {
       } catch (e) {
         if (superseded() || control.canceled) return finish({ error: DEPTH_TEMPLATE_FAILED });
         console.warn("[depth-type] template run failed:", e?.code || "", e?.message || e);
-        finish({ error: e?.publicMessage || (/^Update Selects/.test(String(e?.message || "")) ? e.message : e?.code && DEPTH_TEMPLATE_ERRORS[e.code] ? DEPTH_TEMPLATE_ERRORS[e.code] : DEPTH_TEMPLATE_FAILED) });
+        const message = String(e?.message || "");
+        const storageNotice = /^Not enough free space to export: needs about \d+\.\d GB, \d+\.\d GB available\.$/.test(message)
+          ? message + " Free up space on the export drive, then try again." : "";
+        finish({ error: e?.publicMessage || storageNotice || (/^Update Selects/.test(message) ? e.message : e?.code && DEPTH_TEMPLATE_ERRORS[e.code] ? DEPTH_TEMPLATE_ERRORS[e.code] : DEPTH_TEMPLATE_FAILED) });
       }
     })().catch(() => finish({ error: DEPTH_TEMPLATE_FAILED }));
     // A newer run, or the app taking the frame down, stops this one's render and masks.
