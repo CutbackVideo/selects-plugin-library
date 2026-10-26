@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import vm from 'node:vm';
-import ts from 'typescript';
 import {loadPanelModule, disposePanelModule} from './panel_module_fixture.mjs';
 
 const source = fs.readFileSync(new URL('../plugins/depth-type-captions/panel.tsx', import.meta.url), 'utf8');
@@ -46,10 +44,14 @@ function fixture(t, {size = {width: 1920, height: 1080}, video = false, words = 
     storage: {getItem: async key => store.get(key) ?? null, setItem: async (key, value) => store.set(key, value)},
     finishTemplate: finish,
     runScript: async ({script}) => {
+      let execution;
       try {
-        const js = ts.transpileModule(script, {compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext}}).outputText;
-        return {result: await vm.runInNewContext('(async()=>{' + js + '})()', {selects})};
+        execution = loadPanelModule('async function execute(){\n' + script + '\n}', {
+          names: ['execute'], globals: {selects}, filename: 'depth-canvas-sdk-script.ts',
+        });
+        return {result: await execution.execute()};
       } catch (error) { return {isError: true, output: error.message}; }
+      finally { if (execution) disposePanelModule(execution); }
     },
   };
   const React = {useState: value => [value, () => {}], useRef: value => ({current: value}),

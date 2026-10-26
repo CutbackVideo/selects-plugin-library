@@ -58,20 +58,40 @@ test('Travel shows the recoverable observation message instead of a generic temp
  const api=loadPanelModule(source,{names:['templateMessage']});
  assert.equal(api.templateMessage(error),error.message);
 });
-test('Depth template finish retains the recoverable observation message',async()=>{
- const error=await pendingError(),effects=[],scripts=[];let finish,captionCalls=0;
+test('Depth preserves landscape framing while its real caption pipeline retains the recoverable observation message',async t=>{
+ const error=await pendingError(),effects=[],scripts=[],geometries=[];let finish,maskCalls=0,writes=0;
  const finished=new Promise(resolve=>{finish=resolve;});
- const {loadPanelModule}=await import('./panel_module_fixture.mjs');
+ const frameSize={width:1920,height:1080},transform={scale:{x:1.2,y:1.2},position:{x:12,y:-8}};
+ const main=[{clipId:1,trackId:'main',trackKind:'main',resourceId:'r0',startFrame:0,endFrame:300,transform}];
+ const draft={meta:async()=>({name:'Landscape QA',fps:30,durationFrames:300,frameSize}),clips:async()=>main,
+  words:async()=>['This','is','one','complete','spoken','sentence.'].map((text,i)=>({text,startFrame:i*50,endFrame:(i+1)*50})),
+  setFrameSize:async size=>{writes++;Object.assign(frameSize,size);return{opCount:1};},
+  setClipTransform:async input=>{writes++;Object.assign(transform,{scale:input.scale,position:input.position});return{diff:{opCount:writes}};},
+  commitAll:async()=>{writes++;},
+ };
+ const selects={draft:()=>draft,listProjects:async()=>[{id:'p',title:'QA',draftIds:['d']}],project:()=>({resource:()=>({meta:async()=>({frameSize:{width:1920,height:1080}})})})};
+ const {loadPanelModule,disposePanelModule}=await import('./panel_module_fixture.mjs');
  const source=fs.readFileSync(require.resolve('../plugins/depth-type-captions/panel.tsx'),'utf8');
- const {DepthTemplateRun:component}=loadPanelModule(source,{names:['DepthTemplateRun'],
+ const api=loadPanelModule(source,{names:['DepthTemplateRun'],
   React:{useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:fn=>effects.push(fn),createElement:()=>null},
   overrides:{useAppUpdateGuard:()=>{},depthStorage:()=>({getItem:async()=>null}),depthSave:async()=>{},depthHostProblem:()=>false,
-   depthMakeCaptions:async()=>{captionCalls++;throw error;}},globals:{console:{warn:()=>{}}},
+   // Rendering/AI is the host boundary; dialogue, composition and template error handling remain actual code.
+   depthMakeSpeakerMasks:async(_sdk,_pid,_sid,meta)=>{maskCalls++;geometries.push({width:meta.width,height:meta.height,duration:meta.duration});throw error;}},
+  globals:{console:{warn:()=>{}}},
  });
- component({sdk:{runScript:async input=>{scripts.push(input);return {result:input.summary==="Read the draft's length"?{seconds:10}:true};},finishTemplate:finish},context:{projectId:'p',template:{runId:'run',libraryId:'lib',inputs:{speaker:[{kind:'timeline',sequenceId:'d'}]}}}});
- effects[0]();const result=await finished;
- assert.equal(captionCalls,1,'the template reaches the intended AI observation failure');
- assert.deepEqual(scripts.map(s=>s.summary),["Read the draft's length",'Frame Depth Type template to portrait']);
- assert.match(scripts[1].script,/await d\.setFrameSize\(\{width:1080,height:1920\}\)/);
- assert.equal(result.error,error.message);
+ const cleanups=[];t.after(()=>{for(const cleanup of cleanups)cleanup();disposePanelModule(api);});
+ const sdk={runScript:async input=>{scripts.push(input);let execution;try{
+   execution=loadPanelModule('async function execute(){\n'+input.script+'\n}',{names:['execute'],globals:{selects}});
+   return{result:await execution.execute()};
+  }finally{if(execution)disposePanelModule(execution);}},finishTemplate:finish};
+ api.DepthTemplateRun({sdk,context:{projectId:'p',template:{runId:'run',libraryId:'lib',inputs:{speaker:[{kind:'timeline',sequenceId:'d'}]}}}});
+ for(const effect of effects){const cleanup=effect();if(cleanup)cleanups.push(cleanup);}const result=await finished;
+ assert.equal(maskCalls,1,'the actual caption pipeline reaches the intended AI observation boundary');
+ assert.deepEqual(scripts.map(s=>s.summary),["Read the draft's length",'Read dialogue for Depth Type captions']);
+ assert.ok(scripts.every(s=>s.allowCommit===false));
+ assert.deepEqual(geometries,[{width:1920,height:1080,duration:10}]);
+ assert.deepEqual(frameSize,{width:1920,height:1080});
+ assert.deepEqual(transform,{scale:{x:1.2,y:1.2},position:{x:12,y:-8}});
+ assert.equal(main[0].endFrame,300);assert.equal(writes,0);
+ assert.equal(result.error,error.message);assert.equal(result.sequenceId,undefined);
 });
