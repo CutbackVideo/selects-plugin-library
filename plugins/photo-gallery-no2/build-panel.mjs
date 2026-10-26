@@ -36,14 +36,25 @@ const panelAuthoringSource = panelNames.map(name => functions[name].toString()).
 const sdkRunSource = sdkRunNames.map(name => runFunctions[name].toString()).join('\n');
 const panelRunSource = panelRunNames.map(name => runFunctions[name].toString()).join('\n');
 const stdout = process.argv.includes('--stdout');
+const check = process.argv.includes('--check');
+if (process.argv.slice(2).some(arg => !['--stdout', '--check'].includes(arg)) || stdout && check) throw Error('Usage: node build-panel.mjs [--stdout | --check]');
 // The installed builder cannot import repository-wide paths. Publish its small
 // generated copy before importing it, so a normal rebuild also bootstraps it.
-if (!stdout) writeFileSync(new URL('./input-facts.generated.mjs', import.meta.url), '// Generated from shared input/file observation; edit the canonical sources.\nexport '+fingerprintTemplateFile.toString()+'\nexport ' + originalImageSource + '\nexport '+requireSourceFileSupport.toString()+'\nexport '+observeSourceFiles.toString()+'\n');
-if (!stdout) writeFileSync(new URL('./authoring.generated.mjs', import.meta.url), '// Generated from existing shared authoring, run and asset features; edit the canonical sources.\nexport const IMAGE_AUTHORING_SOURCE = ' + JSON.stringify(sdkAuthoringSource) + ';\nexport const PANEL_AUTHORING_SOURCE = ' + JSON.stringify(panelAuthoringSource) + ';\nexport const TEMPLATE_RUN_SOURCE = ' + JSON.stringify(sdkRunSource) + ';\nexport const PANEL_RUN_SOURCE = ' + JSON.stringify(panelRunSource) + ';\nexport const PANEL_ASSET_SOURCE = ' + JSON.stringify(panelAssetSource) + ';\nexport const ASSET_RESOURCE_SOURCE = ' + JSON.stringify(assetResourceSource) + ';\n');
+const outputs = new Map([
+  ['./input-facts.generated.mjs', '// Generated from shared input/file observation; edit the canonical sources.\nexport '+fingerprintTemplateFile.toString()+'\nexport ' + originalImageSource + '\nexport '+requireSourceFileSupport.toString()+'\nexport '+observeSourceFiles.toString()+'\n'],
+  ['./authoring.generated.mjs', '// Generated from existing shared authoring, run and asset features; edit the canonical sources.\nexport const IMAGE_AUTHORING_SOURCE = ' + JSON.stringify(sdkAuthoringSource) + ';\nexport const PANEL_AUTHORING_SOURCE = ' + JSON.stringify(panelAuthoringSource) + ';\nexport const TEMPLATE_RUN_SOURCE = ' + JSON.stringify(sdkRunSource) + ';\nexport const PANEL_RUN_SOURCE = ' + JSON.stringify(panelRunSource) + ';\nexport const PANEL_ASSET_SOURCE = ' + JSON.stringify(panelAssetSource) + ';\nexport const ASSET_RESOURCE_SOURCE = ' + JSON.stringify(assetResourceSource) + ';\n'],
+]);
+if (!stdout && !check) for (const [file, content] of outputs) writeFileSync(new URL(file, import.meta.url), content);
 const { createScriptPrefix, FORMAT_SOURCE } = await import('./operation-builder.mjs');
 const prefix = createScriptPrefix(originalImageSource, sdkAuthoringSource, sdkRunSource, assetResourceSource, inputSupportSource);
 const withObservations=template.replace(/\/\/ file-observation:start\n[\s\S]*?\/\/ file-observation:end\n\/\/ draft-observation:start\n[\s\S]*?\/\/ draft-observation:end/,observationSource);
 const generated = withObservations.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\n${FORMAT_SOURCE}\n${faceModules}\nconst gallerySourceFacts = ${originalImageSource};\n${panelAuthoringSource}\n${panelRunSource}\n${panelAssetSource}\n${nativeSource}`);
 // `--stdout` prints the panel instead (tests compare it with the checked-in panel.tsx).
 if (stdout) process.stdout.write(generated);
-else writeFileSync(new URL('./panel.tsx', import.meta.url), generated);
+else if (check) {
+  outputs.set('./panel.tsx', generated);
+  for (const [file, content] of outputs) if (readFileSync(new URL(file, import.meta.url), 'utf8') !== content) {
+    console.error('Out-of-date Gallery artifact: ' + file);
+    process.exitCode = 1;
+  }
+} else writeFileSync(new URL('./panel.tsx', import.meta.url), generated);

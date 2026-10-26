@@ -17,13 +17,16 @@ jobs:
       - run: python3 tools/check_public.py
       - run: python3 tools/check_templates.py
       - run: python3 tools/plugin_files.py check
-      - run: node tools/sync_panel_modules.mjs --check
       - name: Install shared JavaScript test dependencies
         run: |
           npm install --prefix "$RUNNER_TEMP/shortform-test" --no-package-lock --ignore-scripts typescript@5.8.3 esbuild@0.25.0 @noble/hashes@2.2.0 react@18.3.1 react-dom@18.3.1 jsdom@24.1.3 @testing-library/react@16.3.0
           printf 'SELECTS_TSC=%s/shortform-test/node_modules/typescript/bin/tsc\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'MV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'AV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Check complete template module delivery without rewriting artifacts
+        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" npm run templates:check
+      - name: Test missed template synchronization and generation
+        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs
       - name: Test complete panel module fixtures
         run: node --test tests/panel_module_fixture.test.mjs
       - name: Test SDK-free template observation and saved-result compatibility
@@ -33,7 +36,6 @@ jobs:
       - name: Test original Image input preflight and module consumers
         run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_media_selection.test.mjs tests/native_image_preflight.test.mjs tests/source_file_bindings.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check
-      - run: node tools/sync_media_durations.mjs --check
       - name: Test media duration preflight
         run: node --test tests/media_duration.test.mjs tests/gongju_gallery_duration.test.mjs tests/gongju_gallery_fps.test.mjs
       - run: python3 -m unittest discover -s tests

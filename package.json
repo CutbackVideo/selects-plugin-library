@@ -1,0 +1,13 @@
+{
+  "name": "selects-plugin-library-tools",
+  "private": true,
+  "scripts": {
+    "templates:prepare": "node tools/prepare_template_modules.mjs",
+    "templates:check": "node tools/prepare_template_modules.mjs --check"
+  },
+  "devDependencies": {
+    "@noble/hashes": "2.2.0",
+    "esbuild": "0.25.0",
+    "typescript": "5.8.3"
+  }
+}
