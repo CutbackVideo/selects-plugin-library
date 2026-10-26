@@ -337,7 +337,9 @@ async function createPanelLocalClient(sdk: any) {
     if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const capability = await runSource("return typeof selects.media?.startFFmpeg === 'function';");
     if (capability !== true && capability !== false) throw new Error("The local media capability could not be confirmed.");
-    if (!capability) return runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");");
+    if (!capability) return fingerprintTemplateFile(files, path, () => {
+      if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    });
     const before = await files.stat(path);
     if (before === null) return null;
     if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino))
