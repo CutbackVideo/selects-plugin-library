@@ -396,7 +396,8 @@ export function stableCaptionPayload(data){
  return {...data,y:740-data.h};
 }
 function doacPortraitScript(pid,sid){
- return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});if((await d.motionGraphics()).length)throw Error('This draft already contains generated graphics. Open the original draft without captions.');await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}});}await d.commitAll('Frame DOAC Style template to portrait');return true;`;
+ // SDK diffs are cumulative: an already framed draft needs no save.
+ return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});if((await d.motionGraphics()).length)throw Error('This draft already contains generated graphics. Open the original draft without captions.');let diff=await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));diff=(await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}})).diff;}if(diff.opCount>0)await d.commitAll('Frame DOAC Style template to portrait');return true;`;
 }
 function captionSteps({sdk,currentProject,onStatus,persist}){
  hostUseSdk(sdk);

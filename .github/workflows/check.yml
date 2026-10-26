@@ -277,7 +277,7 @@ jobs:
           node --test plugins/jude-kinetic-style/tests/sprite-codec.test.mjs
           node --test tests/jude_face_result_pages.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_progress.test.cjs tests/template_progress_consumers.test.mjs
-          node --test plugins/doac-style/tests/caption-placement.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test plugins/doac-style/tests/caption-placement.test.mjs tests/caption_framing_noop.test.mjs
           node --test tests/video_ai_frames.test.mjs
           node --test tests/travel_beat_vlog.test.mjs tests/travel_beat_vlog_overlay.test.mjs tests/template_alias_failures.test.mjs tests/cutout_beat_gallery_windows.test.mjs
           node --test tests/portrait_beat_montage*.test.mjs
