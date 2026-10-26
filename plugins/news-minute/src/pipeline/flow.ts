@@ -14,7 +14,9 @@ import {
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
 import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { bandsScript, baseDraftScript, fitControls, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
+import { bandsScript, baseDraftScript, fitControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { applySceneEdits, readSceneSnapshots } from "./scene-edits.ts";
+import { TEMPLATES } from "../templates/generated.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
 import { clearPreviewCache, entranceSec, FPS, openPreview, renameDraft, sceneFrames, sceneStill, seekScene } from "./preview.ts";
@@ -57,8 +59,9 @@ export type PreviewDraft = {
   plateImage: boolean;
   bandsId: string | null;
   frames: number; // Main length in frames at 30000/1001
+  structureRev?: string;
   // The scene graphics as placed, in plan order; enterSec is when each card has come in (seeking lands there).
-  scenes: Array<{ startSec: number; endSec: number; enterSec?: number }>;
+  scenes: Array<{ startSec: number; endSec: number; enterSec?: number; clipId?: number; revision?: string; params?: Record<string, any>; type?: string; assetRef?: string; programRev?: string }>;
   at: string;
 };
 
@@ -237,7 +240,7 @@ async function embeddedFont(sdk: PanelSdk, env: Env): Promise<EmbeddedFont> {
 const photoCache = new Map<string, PhotoAsset[]>();
 const photoKey = (article: Article) => article.url + "|" + article.photos.map((p) => p.url).join("|");
 
-async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): Promise<PhotoAsset[]> {
+export async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): Promise<PhotoAsset[]> {
   if (!article.photos.length) return [];
   const cached = photoCache.get(photoKey(article));
   if (cached) return cached;
@@ -434,6 +437,9 @@ export function sceneSpans(sp: Pick<ScenePlan, "scenes" | "sentences" | "times" 
 // The plan as the preview shows it: scenes, look, headline and narration.
 export const previewRev = (s: Pick<Session, "presetId" | "script" | "plan">) =>
   ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
+export const sceneRevision = (sc: PlanScene) => ttsRevision(JSON.stringify(sc), "scene");
+export const programRevision = (sc: PlanScene) => ttsRevision(JSON.stringify(sc.program ?? null), "program");
+export const previewStructureRev = (s: Session) => ttsRevision(JSON.stringify([s.presetId, s.script?.headline, s.plan?.narrationId, s.plan?.durationSeconds, s.plan?.times, s.plan?.scenes.map(sc => [sc.sentenceIds, sc.disclaimer])]), "structure");
 export const previewFresh = (s: Session) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s) && !s.videos?.includes(s.preview.draftId));
 // The Draft the scene rows show and go to: a placed preview, else the confirmed video while it still shows this plan.
 export function rowsDraft(s: Session): PreviewDraft | null {
@@ -522,7 +528,7 @@ export function previewViewer(sdk: PanelSdk, env: () => Env | null, queue: Retur
 export type AssembleTarget = { name: string; reuse?: PreviewDraft | null };
 export type Assembled = { draftId: string; timing: string; fallbackPlan: boolean; refilled: boolean; draft: Omit<PreviewDraft, "name" | "planRev" | "at"> };
 
-// Builds the Draft from the reviewed plan, or fills the recorded preview Draft again when it can.
+// A full build always uses a new candidate. Reuse only background Resources.
 export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Preset, log: Log, rec: RunRecord, target?: AssembleTarget): Promise<Assembled> {
   const script = s.script!, article = s.article!, projectId = s.projectId!, sp = s.plan!;
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
@@ -582,24 +588,17 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   log("assembling");
   const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
     headlineFont: headFont?.kind === "installed" ? headFont.params : undefined };
-  let draftId: string | null = null, frames = 0, refilled = false;
+  let draftId: string | null = null, frames = 0;
+  const placed: Array<{ clipId: number }> = [];
   // A scene whose entrance cannot be worked out (or that has no graphic) is entered at its first frame.
   const enterSec = (sc: (typeof scenes)[number]) => {
     try { const f = sceneFrames(frames, sc); return Number(entranceSec(sc.type, fitControls(sc.type, sc.params), f.end - f.start).toFixed(3)); }
     catch { return 0; }
   };
-  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames,
-    scenes: scenes.map((sc) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc) })) });
+  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, structureRev: previewStructureRev(s),
+    scenes: scenes.map((sc, i) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc), clipId: placed[i]?.clipId, revision: sceneRevision(plan[i]), params: plan[i].params, type: plan[i].type, assetRef: plan[i].assetRef, programRev: programRevision(plan[i]) })) });
   try {
-    if (reuse) {
-      // Stills rendered from the Draft before this refill must not come back from the cache.
-      clearPreviewCache(sdk);
-      const call = refillDraftScript(reuse.draftId, reuse.frames, x);
-      rec.notes.push("script bytes: refill " + scriptBytes(call));
-      const r = await run<{ refilled: boolean; reason: string; frames: number; removed?: number }>(sdk, call);
-      if (r.refilled) { draftId = reuse.draftId; frames = r.frames; refilled = true; rec.notes.push("preview: refilled Draft " + draftId + " (" + (r.removed ?? 0) + " clips removed)"); }
-      else rec.notes.push("preview: Draft " + reuse.draftId + " not refilled (" + r.reason + "); building a new Draft, the old one stays in the Project");
-    }
+    if (target?.reuse) rec.notes.push("preview: kept previous Draft " + target.reuse.draftId + "; building a new candidate");
     if (!draftId) {
       const baseCall = baseDraftScript(x);
       rec.notes.push("script bytes: base " + scriptBytes(baseCall));
@@ -617,14 +616,17 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     rec.notes.push("script bytes: " + calls.map((k) => k.what.split(" ")[0] + " " + Math.round(scriptBytes(k.c) / 1024) + " KB").join(", "));
     for (let i = 0; i < calls.length; i++) {
       log("assemblingStep", { n: i + 1, of: calls.length });
-      try { await run(sdk, calls[i].c); }
+      try {
+        const out = await run(sdk, calls[i].c);
+        if (calls[i].what === "scene" && out?.placed) placed.push(...out.placed);
+      }
       catch (e: any) { throw new PartialDraftError(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`, record()); }
     }
   } finally {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
   rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback, refilled, draft: record() };
+  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback, refilled: false, draft: record() };
 }
 
 // The preview Draft for the current plan: built (or refilled) and named "Preview \u00b7 <article title>".
@@ -633,13 +635,38 @@ export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: 
   const planRev = previewRev(s);
   log("previewBuilding");
   const t0 = Date.now();
+  const p = s.preview;
+  if (p?.planRev && p.projectId === s.projectId && p.structureRev === previewStructureRev(s) && p.scenes.every(sc => sc.clipId != null && sc.revision && sc.params) && !s.videos?.includes(p.draftId)) {
+    const changed = s.plan!.scenes.map((sc, i) => sceneRevision(sc) !== p.scenes[i]?.revision ? i : -1).filter(i => i >= 0);
+    if (changed.length) {
+      const photos = await prepPhotos(sdk, env, s.article!, log);
+      const clips = sceneClips(s.plan!.scenes, s.plan!.sentences, s.plan!.times, s.plan!.durationSeconds, photos);
+      const snapshots = await readSceneSnapshots(sdk, p, s.plan!);
+      await applySceneEdits(sdk, p.draftId, snapshots, changed.map(index => {
+        const sc = s.plan!.scenes[index], before = p.scenes[index], template = (TEMPLATES as any)[sc.type];
+        const parameters: Record<string, any> = {};
+        for (const key of new Set([...Object.keys(before.params!), ...Object.keys(sc.params)])) {
+          if (JSON.stringify(before.params![key]) !== JSON.stringify(sc.params[key])) parameters[key] = sc.params[key] ?? template.editableParameters.find((d: any) => d.key === key)?.defaultValue ?? null;
+        }
+        if (before.assetRef !== sc.assetRef) {
+          const imageKey = sc.type === "quote_card" ? "headshot" : "image";
+          parameters[imageKey] = clips[index].params[imageKey] ?? "";
+          if (sc.type === "news_photo") parameters.credit = clips[index].params.credit ?? "";
+        }
+        const program = before.type !== sc.type ? (sc.program ?? template) : before.programRev !== programRevision(sc) ? sc.program : undefined;
+        return { index, parameters: sc.program ? parameters : fitControls(sc.type, parameters), ...(program ? { tsxCode: program.tsxCode, editableParameters: program.editableParameters } : {}) };
+      }));
+      clearPreviewCache(sdk);
+    }
+    return { preview: { ...p, planRev, at: new Date().toISOString(), scenes: p.scenes.map((sc, i) => ({ ...sc, revision: sceneRevision(s.plan!.scenes[i]), params: s.plan!.scenes[i].params, type: s.plan!.scenes[i].type, assetRef: s.plan!.scenes[i].assetRef, programRev: programRevision(s.plan!.scenes[i]) })) }, refilled: true };
+  }
   try {
     const r = await assemble(sdk, env, s, preset, log, rec, { name, reuse: s.preview });
     rec.notes.push("preview: " + (r.refilled ? "refilled" : "built") + " in " + ((Date.now() - t0) / 1000).toFixed(1) + " s");
     return { preview: { ...r.draft, name, planRev, at: new Date().toISOString() }, refilled: r.refilled };
   } catch (e) {
-    // The partly built Draft is kept as an outdated preview, so the next build fills it again.
-    if (e instanceof PartialDraftError) e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+    // A failed candidate must not replace the last complete preview/session.
+    if (e instanceof PartialDraftError && !s.preview) e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
     throw e;
   }
 }

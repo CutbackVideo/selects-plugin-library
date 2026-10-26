@@ -122,7 +122,7 @@ export function sceneClips(plan: PlanScene[], sentences: Sentence[], times: Span
     }
     const type = sc.type === "news_photo" && !asset ? "text_card" : sc.type;
     if (type === "text_card" && !params.text) params.text = captionChunks(sentences[first[k]].text, 12).slice(0, 2).join("\n");
-    return { type, label: `${labels[type]?.label ?? type} ${String(k + 1).padStart(2, "0")}`, params, startSec: wins[k].startSec, endSec: wins[k].endSec, disclaimer: !!sc.disclaimer };
+    return { type, label: `${labels[type]?.label ?? type} ${String(k + 1).padStart(2, "0")}`, params, startSec: wins[k].startSec, endSec: wins[k].endSec, disclaimer: !!sc.disclaimer, program: sc.program };
   });
 }
 
@@ -136,7 +136,7 @@ export function stableJson(v: unknown): string {
 }
 
 const sceneKey = (sc: PlanScene) => (sc.sentenceIds || []).join(",");
-const sceneLook = (sc: PlanScene) => stableJson({ type: sc.type, params: sc.params ?? {}, assetRef: sc.assetRef ?? null, hideCaption: !!sc.hideCaption });
+const sceneLook = (sc: PlanScene) => stableJson({ type: sc.type, params: sc.params ?? {}, program: sc.program, assetRef: sc.assetRef ?? null, hideCaption: !!sc.hideCaption });
 
 // Indexes of scenes in next that differ from previous: no scene over the same sentences before, or a different
 // type, params, assetRef or hideCaption.

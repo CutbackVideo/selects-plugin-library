@@ -350,8 +350,10 @@ export function validatePlan(json: any, sentences: TimedSentence[], assets: Plan
     }
     const sceneText = sceneSentences.map((s) => s.text).join(" ");
     const sceneNums = new Set([...numberTokens(sceneText), ...rawNumberTokens(sceneText)]);
-    checkParams(sc.type, sc.params ?? {}, sceneNums, where, errors);
-    if (isObj(sc.params)) {
+    if (sc.program) {
+      if (!isStr(sc.program.tsxCode) || !sc.program.tsxCode.trim() || !Array.isArray(sc.program.editableParameters) || !Array.isArray(sc.program.sources)) errors.push(`${where}: invalid custom graphic program`);
+    } else checkParams(sc.type, sc.params ?? {}, sceneNums, where, errors);
+    if (isObj(sc.params) && !sc.program) {
       const { title, subtitle } = sc.params;
       if (isStr(title) && title.trim().length > TITLE_MAX_CHARS) warnings.push(`${where}: title "${title}" is over ${TITLE_MAX_CHARS} characters and will not fit one line`);
       if (isStr(subtitle) && subtitle.trim().length > SUBTITLE_MAX_CHARS) warnings.push(`${where}: subtitle is over ${SUBTITLE_MAX_CHARS} characters and will not fit one line`);

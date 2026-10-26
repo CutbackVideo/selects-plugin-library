@@ -334,16 +334,14 @@ test("only order and coverage errors block building the Draft", async () => {
   assert.ok(!numbers.errors.some((e) => BLOCKING_PLAN_ERROR.test(e)));
 });
 
-test("preview refill keeps Main, clears the Video and Audio tracks, renames, and puts narration and frame back", async () => {
+test("new drafts put narration on Main and background above it without removing clips", async () => {
   const { PRESETS } = await import("../src/preset.ts");
-  const { refillDraftScript } = await import("../src/pipeline/assemble.ts");
-  const x = { projectId: "p", draftName: "Preview \u00B7 t", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
-  const r = refillDraftScript("d1", 1228, x).script;
-  assert.ok(r.includes('selects.draft("d1")') && !r.includes("createDraft") && !r.includes("insertResource"));
-  assert.ok(r.includes('c.trackKind === "video" || c.trackKind === "audio"') && r.includes("removeClips(extra)") && r.includes("removeEmptyTracks()"));
-  assert.ok(r.includes("mainEnd !== 1228") && r.includes('setName("Preview \u00B7 t")') && r.includes('resource("r2")') && r.includes("commitAll"));
-  assert.ok(r.indexOf("removeClips") < r.indexOf("overlayResource"));
-  assert.ok(r.includes('"News frame"') && !refillDraftScript("d1", 1228, { ...x, bandsId: "r3" }).script.includes('"News frame"'));
+  const { baseDraftScript } = await import("../src/pipeline/assemble.ts");
+  const x = { projectId: "p", draftName: "Preview", plateId: "plate", plateSeconds: 41, narrationId: "voice", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
+  const r = baseDraftScript(x).script;
+  assert.ok(r.includes('insertResource({ resourceId: "voice"'));
+  assert.ok(r.includes('overlayResource({ resource: p.resource("plate")'));
+  assert.ok(!/removeClips|removeEmptyTracks/.test(r));
 });
 
 test("preview revision follows the scenes, look, headline and narration only", async () => {
@@ -399,7 +397,9 @@ const DRAFT_ANSWERS = {
   "Check a media job": { state: "succeeded", events: [] },
   "Add media to the Project": { ids: ["plate1"] },
   "Build the news short Draft": { draftId: "d-new", frames: 1230 },
-  "Add scene graphics (1/1)": { added: 1 },
+  "Add scene graphics (1/1)": { added: 2, placed: [{ clipId: 10 }, { clipId: 11 }] },
+  "Read the current news graphics": [0, 1].map(index => ({ index, clipId: 10 + index, trackId: "graphic", signature: "sig", startFrame: index * 600, endFrame: (index + 1) * 600, program: { tsxCode: "export default function G() { return null; }", parameters: {}, editableParameters: [] } })),
+  "Update only the requested news graphics": { updated: [1] },
   "Add headline and captions (1/1)": { added: 1 },
 };
 async function planSession() {
@@ -412,7 +412,7 @@ async function planSession() {
   return { s, preset };
 }
 
-test("the preview Draft is built once, then refilled in place without new Resources", async () => {
+test("the preview is built once, then only the changed scene is updated", async () => {
   const F = await import("../src/pipeline/flow.ts");
   const { s, preset } = await planSession();
   const log = () => {};
@@ -442,13 +442,13 @@ test("the preview Draft is built once, then refilled in place without new Resour
   assert.equal(b.preview.planRev, F.previewRev(edited));
   assert.ok(!again.calls.some((c) => c.script.includes("createDraft") || c.summary === "Add media to the Project"));
   assert.ok(again.calls.every((c) => c.summary === "Refill the preview Draft" || c.script.includes('selects.draft("d-new")') || c.summary === "Read a downloaded file"));
-  assert.ok(rec.notes.some((n) => n.startsWith("preview: refilled Draft d-new")));
+  assert.ok(again.calls.some(c => c.summary === "Update only the requested news graphics"));
 
   // the video from a refilled preview keeps the Draft and takes the final name
   const video = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230 } });
   const v = await F.assemble(video.sdk, HOST_ENV, edited, preset, log, F.newRunRecord("chosun", "u"), { name: F.finalName(edited), reuse: a.preview });
   assert.equal(v.draftId, "d-new");
-  assert.ok(video.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Head")'));
+  assert.ok(video.calls.find((c) => c.summary === "Build the news short Draft").script.includes('createDraft({ name: "Head" })'));
 });
 
 test("a number scene keeps its caption, even from a plan that still says hideCaption", async () => {
@@ -472,8 +472,8 @@ test("a preview Draft that cannot be refilled is left alone and a new one is bui
   assert.equal(r.refilled, false);
   // the recorded plate is reused even for the new Draft
   assert.ok(!h.calls.some((c) => c.summary === "Add media to the Project"));
-  assert.ok(h.calls.find((c) => c.summary === "Build the news short Draft").script.includes('resourceId: "plate0"'));
-  assert.ok(rec.notes.some((n) => n.includes("not refilled (main is 900 frames")));
+  assert.ok(h.calls.find((c) => c.summary === "Build the news short Draft").script.includes('resource("plate0")'));
+  assert.ok(rec.notes.some((n) => n.includes("kept previous Draft d-old")));
 });
 
 test("a build that stops part way keeps its Draft as an outdated preview", async () => {
@@ -513,9 +513,9 @@ test("a Draft that became the video is never refilled; a new article's refill ta
   // after "start over" with another article: the same Draft, renamed for the new article
   const h2 = fakeHost({ ...DRAFT_ANSWERS, "Refill the preview Draft": { refilled: true, reason: "", frames: 1230 } });
   const next = await F.buildPreview(h2.sdk, HOST_ENV, { ...s, article: { ...s.article, title: "Second" }, preview: prev, videos: ["d-other"] }, preset, "Preview", () => {}, F.newRunRecord("chosun", "u"));
-  assert.equal(next.preview.draftId, "d-old");
+  assert.equal(next.preview.draftId, "d-new");
   assert.equal(next.preview.name, "Preview \u00B7 Second");
-  assert.ok(h2.calls.find((c) => c.summary === "Refill the preview Draft").script.includes('setName("Preview \u00B7 Second")'));
+  assert.ok(h2.calls.find((c) => c.summary === "Build the news short Draft").script.includes('createDraft({ name: "Preview \u00B7 Second" })'));
 });
 
 test("calls on the preview Draft run one at a time, in order, past a failure", async () => {

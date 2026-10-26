@@ -1,8 +1,9 @@
 # Install
 
 Install the plug-in from the Selects library; the panel appears under Apps.
-This update requires the Selects release containing `sdk.aiProviders()` and
-`sdk.askAI({ provider })` support. The manifest minimum, **2.0.797**, is the
+This update requires the Selects release containing `sdk.aiProviders()`,
+`sdk.askAI({ provider })`, and `DraftHandle.setMotionGraphicProgram()` support.
+Scene editing checks for the new API before modifying a draft. The manifest minimum, **2.0.797**, is the
 current release candidate; maintainers must confirm or update it against the
 actual app release before publishing this plug-in update.
 

@@ -1,20 +1,13 @@
-// Draft assembly as a series of run_script calls, verified on Selects Staging 2.0.763 (export with audio):
-//   1. createDraft, 29.97 fps 1080x1920, the brand plate on Main (a Draft needs video on Main to export),
-//      the narration over it, the frame graphic (only without a bands image); commit.
-//   2. scene graphics, a few per call (photos travel as data URLs, so batches keep each script small); commit.
-//   3. the bands image held over the whole Draft (when the preset has one); commit.
-//   4. headline, captions, disclaimers in batches; commit each.
-// Clips added later draw on top (an image overlay too: checked on Staging 2.0.763, its transparent middle shows
-// the scenes and a graphic added after it lands above it), so the calls follow the stacking order
-// frame -> scenes -> bands -> headline -> captions -> disclaimers.
-// The preview Draft is built the same way and later refilled in place: refillDraftScript replaces step 1 (not yet
-// run on Selects; removeClips, removeEmptyTracks and setName follow the SDK declarations).
+// New drafts put narration on Main (A1) and the plate on a video overlay (V2).
+// Stack: plate -> frame -> scenes -> bands -> headline -> captions -> disclaimers.
+// Multi-call builds always create a candidate; they never clear an existing draft.
+// Visual revisions use scene-edits.ts and commit all requested changes together.
 
 import { TEMPLATES } from "../templates/generated.ts";
 import type { Preset } from "../preset.ts";
 import type { ScriptCall } from "./scripts.ts";
 
-export type SceneClip = { type: string; label: string; params: Record<string, unknown>; startSec: number; endSec: number; disclaimer: boolean };
+export type SceneClip = { type: string; label: string; params: Record<string, unknown>; startSec: number; endSec: number; disclaimer: boolean; program?: { tsxCode: string; editableParameters: any[] } };
 export type TextClip = { text: string; startSec: number; endSec: number };
 export type AssemblyInput = {
   projectId: string;
@@ -56,61 +49,35 @@ const win = async (a: number, b: number) => {
 };
 const mg = async (label: string, tsxCode: string, parameters: any, editableParameters: any, timeIndependent: boolean, a: number, b: number) => {
   const within = await win(a, b);
-  if (within) await d.addMotionGraphic({ label, tsxCode, parameters, editableParameters, timeIndependent, within });
+  if (within) return await d.addMotionGraphic({ label, tsxCode, parameters, editableParameters, timeIndependent, within });
 };`;
 
-// Narration over the plate and the frame graphic (only without a bands image); shared by a new and a refilled Draft.
+// Plate over the Main narration, then the frame graphic (without a bands image).
 function narrationAndFrame(x: AssemblyInput): string {
   const frame = tpl("frame");
   const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
   return `${PRELUDE}
-const narr = await win(0, ${J(x.narrationSeconds)});
-if (!narr) throw new Error("narration range is empty");
-await d.overlayResource({ resource: p.resource(${J(x.narrationId)}), over: narr });
+const background = await win(0, ${J(x.narrationSeconds)});
+if (!background) throw new Error("narration range is empty");
+await d.overlayResource({ resource: p.resource(${J(x.plateId)}), over: background });
 ${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);`}`;
 }
 
 export function baseDraftScript(x: AssemblyInput): ScriptCall {
   if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
   if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
-  const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
     script: `const p = selects.project(${J(x.projectId)});
 const d = await p.createDraft({ name: ${J(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
-await d.insertResource({ resourceId: ${J(x.plateId)}, sourceRange: { startSeconds: 0, endSeconds: ${J(end)} } });
+await d.insertResource({ resourceId: ${J(x.narrationId)}, sourceRange: { startSeconds: 0, endSeconds: ${J(x.narrationSeconds)} } });
 ${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`,
-  };
-}
-
-// The preview Draft filled again from a changed plan: every clip on the Video and Audio tracks goes (scenes,
-// bands, headline, captions, narration), the Main plate stays, and the narration and frame go back on; the rest
-// follows with the usual scene, bands and text calls. A Draft that is gone or whose Main no longer has the
-// recorded length (edited by hand) is left alone and reported, and the caller builds a new one.
-export function refillDraftScript(draftId: string, frames: number, x: AssemblyInput): ScriptCall {
-  if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
-  return {
-    summary: "Refill the preview Draft",
-    allowCommit: true,
-    script: `const p = selects.project(${J(x.projectId)});
-const d = selects.draft(${J(draftId)});
-try { await d.meta(); } catch (e) { return { refilled: false, reason: "missing: " + String((e as any)?.message || e).slice(0, 200), frames: 0 }; }
-const before = await d.clips({ trackScope: "all" });
-const mainEnd = before.filter((c: any) => c.trackKind === "main").reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);
-if (mainEnd !== ${J(frames)}) return { refilled: false, reason: "main is " + mainEnd + " frames, expected " + ${J(frames)}, frames: mainEnd };
-const extra = before.filter((c: any) => c.trackKind === "video" || c.trackKind === "audio");
-if (extra.length) await d.removeClips(extra);
-await d.removeEmptyTracks();
-await d.setName(${J(x.draftName)});
-${narrationAndFrame(x)}
-await d.commitAll("News short: preview refilled");
-return { refilled: true, reason: "", frames: total, removed: extra.length };`,
   };
 }
 
@@ -132,7 +99,7 @@ export function sceneScripts(draftId: string, scenes: SceneClip[]): ScriptCall[]
   const batches: SceneClip[][] = [];
   let cur: SceneClip[] = [], size = 0;
   for (const s of scenes) {
-    const n = J(s.params).length + tpl(s.type).tsxCode.length;
+    const n = J(s.params).length + (s.program?.tsxCode ?? tpl(s.type).tsxCode).length;
     if (cur.length && size + n > SCENE_BATCH_BYTES) { batches.push(cur); cur = []; size = 0; }
     cur.push(s);
     size += n;
@@ -141,16 +108,21 @@ export function sceneScripts(draftId: string, scenes: SceneClip[]): ScriptCall[]
   const calls = batches.map((batch, i) => {
     const types = [...new Set(batch.map((s) => s.type))];
     const codes = Object.fromEntries(types.map((t) => [t, { tsx: tpl(t).tsxCode, edit: tpl(t).editableParameters, ti: tpl(t).timeIndependent }]));
-    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: fitControls(s.type, s.params), a: s.startSec, b: s.endSec }));
+    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.program ? s.params : fitControls(s.type, s.params), program: s.program, a: s.startSec, b: s.endSec }));
     return {
       summary: `Add scene graphics (${i + 1}/${batches.length})`,
       allowCommit: true,
       script: `const d = selects.draft(${J(draftId)});
 ${PRELUDE}
 const T: any = ${J(codes)};
-for (const s of ${J(rows)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, s.b);
+const placed: any[] = [];
+for (const s of ${J(rows)} as any[]) {
+  const r = await mg(s.label, s.program?.tsxCode ?? T[s.type].tsx, s.params, s.program?.editableParameters ?? T[s.type].edit, s.program ? false : T[s.type].ti, s.a, s.b);
+  if (!r) throw new Error("scene range is empty");
+  placed.push({ clipId: r.clipId });
+}
 await d.commitAll("News short: scenes");
-return { added: ${batch.length} };`,
+return { added: ${batch.length}, placed };`,
     };
   });
   for (const c of calls) if (new TextEncoder().encode(c.script).length > 240_000) throw new Error("a scene is too large for one script (photo too big)");

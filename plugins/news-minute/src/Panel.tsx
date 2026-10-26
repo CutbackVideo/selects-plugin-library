@@ -10,6 +10,7 @@ import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
 import { renameDraft } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
+import { reviseGraphics } from "./pipeline/visual-editor.ts";
 import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
@@ -155,7 +156,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     try { await fn(); } catch (e: any) {
       const message = String(e?.message || e);
       if (message === "providerNotConnected" || message === "providerUnavailable" || message === "providerReadFailed") await refreshProviders();
-      setError(T("error", { error: MESSAGES[message] ? T(message) : message }));
+      const key = message.split(":")[0];
+      setError(T("error", { error: MESSAGES[key] ? T(key) : message }));
     }
     finally { setBusy(false); setStatus(""); }
   };
@@ -318,18 +320,27 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const revise = () => guard(async () => {
     const note = feedback.trim();
     if (!note || !s.plan) return;
-    const selected = await startAi();
+    let selected: F.Session = await startAi();
+    if (selected.preview && selected.preview.planRev !== F.previewRev(selected)) {
+      await previewInto(selected);
+      selected = latest.current!;
+      if (!F.previewFresh(selected)) throw new Error(T("graphicPreviewRequired"));
+    }
     log("revising");
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     let r;
-    try { r = await F.revisePlan(aiSdk, env.current!, selected, preset, note, log, rec, selected.scriptProvider); }
+    try {
+      const photos = await F.prepPhotos(sdk, env.current!, selected.article!, log);
+      r = await onDraft(() => reviseGraphics(aiSdk, selected, note, log, rec, photos, selected.scriptProvider, picked));
+      const next2 = { ...selected, plan: r.plan };
+      const placed = { ...r.preview, planRev: F.previewRev(next2), structureRev: F.previewStructureRev(next2), scenes: r.preview.scenes.map((sc, i) => ({ ...sc, revision: F.sceneRevision(r.plan!.scenes[i]), params: r.plan!.scenes[i].params, type: r.plan!.scenes[i].type, assetRef: r.plan!.scenes[i].assetRef, programRev: F.programRevision(r.plan!.scenes[i]) })) };
+      await update(selected.preview ? { ...next2, preview: placed } : { ...next2, video: placed });
+      setJsonErr({}); setFeedback("");
+      log("revised", { n: r.plan!.changed.length, of: r.plan!.scenes.length });
+      await openNow(selected.projectId!, placed.draftId);
+    }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
-    const next2 = { ...selected, plan: r.plan };
-    await update(next2);
-    setJsonErr({});
-    if (r.kept) setError(T("reviseKept"));
-    else { setFeedback(""); log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length }); await previewInto(next2); }
   });
 
   // "Use this layout": only the preview the reviewer has seen becomes the video; a changed plan updates the preview first.
@@ -367,7 +378,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     }
     catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError) await update({ ...s, preview: { ...e.draft, name, planRev: "", at: new Date().toISOString() } });
+      if (e instanceof F.PartialDraftError && !s.preview) await update({ ...s, preview: { ...e.draft, name, planRev: "", at: new Date().toISOString() } });
       throw e;
     }
     finally { await finish(rec); }
@@ -536,6 +547,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
                       }} />
                     {jsonErr[i] ? <span style={warn}>{jsonErr[i]}</span> : null}
                   </details>
+                  {scene.program?.sources.length ? <details>
+                    <summary style={muted}>{T("graphicSources")}</summary>
+                    {scene.program.sources.map((source, k) => <p key={k} style={muted}>{source.ref}: {source.quote}</p>)}
+                  </details> : null}
                 </div>
               ) : null}
             </div>
@@ -548,6 +563,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
               <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
             </label>
             <span style={muted}>{aiUsage}</span>
+            <span style={muted}>{T("graphicEditHint")}</span>
             <button {...SECONDARY} disabled={busy || !providerReady || !feedback.trim()} onClick={revise}>{T("revise")}</button>
           </div>
         </details>
