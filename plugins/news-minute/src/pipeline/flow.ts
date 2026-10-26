@@ -13,9 +13,9 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { bandsScript, baseDraftScript, fitControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
-import { applySceneEdits, readSceneSnapshots } from "./scene-edits.ts";
+import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, retainPlanPrograms, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
+import { bandsScript, baseDraftScript, fitControls, fitEditableControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { applySceneEdits, readSceneSnapshots, supportsSceneEditing } from "./scene-edits.ts";
 import { TEMPLATES } from "../templates/generated.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
@@ -43,7 +43,10 @@ export type Session = {
   videos?: string[];
   // Where the scenes sit on the Draft that became the video (draftId), so its rows still go to each scene.
   video?: PreviewDraft | null;
+  // Older and incomplete candidates remain accessible; never delete user work.
+  retainedDrafts?: RetainedDraft[];
 };
+export type RetainedDraft = Pick<PreviewDraft, "draftId" | "projectId" | "name" | "at"> & { status: "previous" | "incomplete"; error?: string };
 
 // What the preview Draft was built from. planRev differs from previewRev(...) once the plan changes (an outdated
 // preview); the rest says whether the Draft can be refilled in place and where each scene sits on it.
@@ -349,10 +352,11 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
   let scenes: PlanScene[] | null = null;
   let summaries: AssetSummary[] = [];
   try {
-    const check = (j: any) => P.validatePlan(j, base.sentences, base.assets);
+    const preserve = (j: any) => revision ? retainPlanPrograms(j, revision.previous.scenes) : j;
+    const check = (j: any) => P.validatePlan(preserve(j), base.sentences, base.assets);
     const prompt = P.plannerPrompt({ headline: script.headline, sentences: base.sentences, assets: base.assets, language: preset.scriptLanguage, feedback: revision?.feedback, previous: revision?.previous });
     const r = await askValid<any>(sdk, revision ? "plan revision" : "plan", prompt, check, log, rec, 1, images);
-    const settled = settlePlan(r.json, r.errors, base.sentences, check);
+    const settled = settlePlan(preserve(r.json), r.errors, base.sentences, check);
     scenes = settled.scenes;
     if (scenes && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a: any) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
     if (settled.demoted) { rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards"); log("planDemoted", { n: settled.demoted }); }
@@ -486,6 +490,25 @@ export class PartialDraftError extends Error {
   draft: Omit<PreviewDraft, "name" | "planRev" | "at">;
   preview: PreviewDraft | null = null;
   constructor(message: string, draft: Omit<PreviewDraft, "name" | "planRev" | "at">) { super(message); this.draft = draft; }
+}
+
+export function retainDraft(s: Session, draft: PreviewDraft, status: RetainedDraft["status"], error?: string): Session {
+  const record: RetainedDraft = { draftId: draft.draftId, projectId: draft.projectId, name: draft.name, at: draft.at, status, ...(error ? { error } : {}) };
+  return { ...s, retainedDrafts: [...(s.retainedDrafts ?? []).filter(d => d.draftId !== draft.draftId), record] };
+}
+
+export function acceptPreview(s: Session, preview: PreviewDraft): Session {
+  let next = s;
+  if (s.preview && s.preview.draftId !== preview.draftId) next = retainDraft(s, s.preview, s.preview.planRev ? "previous" : "incomplete");
+  return { ...next, preview };
+}
+
+export function retainPartialDraft(s: Session, error: PartialDraftError): Session {
+  if (!error.preview) return s;
+  const next = retainDraft(s, error.preview, "incomplete", error.message);
+  // Keep the previous complete preview/video active. On a first build, show the
+  // incomplete candidate so its existence is visible even after panel reload.
+  return !s.preview && !s.video ? { ...next, preview: error.preview } : next;
 }
 
 // Mutations (build, refill, rename) wait for all earlier work. Navigation and stills each
@@ -622,6 +645,9 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
       }
       catch (e: any) { throw new PartialDraftError(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`, record()); }
     }
+  } catch (e) {
+    if (draftId && !(e instanceof PartialDraftError)) throw new PartialDraftError(String((e as any)?.message || e), record());
+    throw e;
   } finally {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
@@ -630,13 +656,13 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
 }
 
 // The preview Draft for the current plan: built (or refilled) and named "Preview \u00b7 <article title>".
-export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: Preset, prefix: string, log: Log, rec: RunRecord): Promise<{ preview: PreviewDraft; refilled: boolean }> {
-  const name = previewName(s, prefix);
+export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: Preset, prefix: string, log: Log, rec: RunRecord, options: { candidateOnly?: boolean; incompleteLabel?: string } = {}): Promise<{ preview: PreviewDraft; refilled: boolean }> {
+  let name = previewName(s, prefix);
   const planRev = previewRev(s);
   log("previewBuilding");
   const t0 = Date.now();
   const p = s.preview;
-  if (p?.planRev && p.projectId === s.projectId && p.structureRev === previewStructureRev(s) && p.scenes.every(sc => sc.clipId != null && sc.revision && sc.params) && !s.videos?.includes(p.draftId)) {
+  if (!options.candidateOnly && p?.planRev && p.projectId === s.projectId && p.structureRev === previewStructureRev(s) && p.scenes.every(sc => sc.clipId != null && sc.revision && sc.params) && !s.videos?.includes(p.draftId) && await supportsSceneEditing(sdk, p.draftId)) {
     const changed = s.plan!.scenes.map((sc, i) => sceneRevision(sc) !== p.scenes[i]?.revision ? i : -1).filter(i => i >= 0);
     if (changed.length) {
       const photos = await prepPhotos(sdk, env, s.article!, log);
@@ -646,7 +672,7 @@ export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: 
         const sc = s.plan!.scenes[index], before = p.scenes[index], template = (TEMPLATES as any)[sc.type];
         const parameters: Record<string, any> = {};
         for (const key of new Set([...Object.keys(before.params!), ...Object.keys(sc.params)])) {
-          if (JSON.stringify(before.params![key]) !== JSON.stringify(sc.params[key])) parameters[key] = sc.params[key] ?? template.editableParameters.find((d: any) => d.key === key)?.defaultValue ?? null;
+          if (JSON.stringify(before.params![key]) !== JSON.stringify(sc.params[key])) parameters[key] = sc.params[key] ?? (sc.program?.editableParameters ?? template.editableParameters).find((d: any) => d.key === key)?.defaultValue ?? null;
         }
         if (before.assetRef !== sc.assetRef) {
           const imageKey = sc.type === "quote_card" ? "headshot" : "image";
@@ -654,19 +680,28 @@ export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: 
           if (sc.type === "news_photo") parameters.credit = clips[index].params.credit ?? "";
         }
         const program = before.type !== sc.type ? (sc.program ?? template) : before.programRev !== programRevision(sc) ? sc.program : undefined;
-        return { index, parameters: sc.program ? parameters : fitControls(sc.type, parameters), ...(program ? { tsxCode: program.tsxCode, editableParameters: program.editableParameters } : {}) };
+        const controls = program?.editableParameters ?? snapshots[index].program.editableParameters;
+        return { index, parameters: fitEditableControls(controls, parameters), ...(program ? { tsxCode: program.tsxCode, editableParameters: program.editableParameters } : {}) };
       }));
       clearPreviewCache(sdk);
     }
     return { preview: { ...p, planRev, at: new Date().toISOString(), scenes: p.scenes.map((sc, i) => ({ ...sc, revision: sceneRevision(s.plan!.scenes[i]), params: s.plan!.scenes[i].params, type: s.plan!.scenes[i].type, assetRef: s.plan!.scenes[i].assetRef, programRev: programRevision(s.plan!.scenes[i]) })) }, refilled: true };
   }
+  // Give every retained candidate a distinct visible name, even when the last
+  // one failed. Never rename or delete older drafts to make room for a new one.
+  try { name = uniqueName(name, await draftNames(sdk, s.projectId!, null)); }
+  catch { name += " · " + new Date().toISOString(); }
   try {
     const r = await assemble(sdk, env, s, preset, log, rec, { name, reuse: s.preview });
     rec.notes.push("preview: " + (r.refilled ? "refilled" : "built") + " in " + ((Date.now() - t0) / 1000).toFixed(1) + " s");
     return { preview: { ...r.draft, name, planRev, at: new Date().toISOString() }, refilled: r.refilled };
   } catch (e) {
-    // A failed candidate must not replace the last complete preview/session.
-    if (e instanceof PartialDraftError && !s.preview) e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+    if (e instanceof PartialDraftError) {
+      const incomplete = name + " · " + (options.incompleteLabel ?? "Incomplete");
+      try { await renameDraft(sdk, { projectId: s.projectId!, draftId: e.draft.draftId, name: incomplete }); name = incomplete; }
+      catch { rec.notes.push("incomplete candidate: could not rename " + e.draft.draftId); }
+      e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+    }
     throw e;
   }
 }

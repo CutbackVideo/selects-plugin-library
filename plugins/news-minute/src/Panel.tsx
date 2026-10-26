@@ -11,6 +11,7 @@ import { renameDraft } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
 import { reviseGraphics } from "./pipeline/visual-editor.ts";
+import { feedbackRoute, revisePlanPreview } from "./pipeline/feedback.ts";
 import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
@@ -305,14 +306,15 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (blocking.length) { setError(T("previewBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") })); return; }
     const rec = F.newRunRecord(preset.id, sess.article?.url ?? "");
     try {
-      const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec));
-      await update({ ...sess, preview: r.preview });
+      const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec, { incompleteLabel: T("incompleteDraft") }));
+      await update(F.acceptPreview(sess, r.preview));
       await openNow(sess.projectId!, r.preview.draftId);
       log("previewReady");
     } catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError && e.preview) await update({ ...sess, preview: e.preview });
-      setError(T("previewFailed", { error: String(e?.message || e) }));
+      if (e instanceof F.PartialDraftError) await update(F.retainPartialDraft(sess, e));
+      const message = String(e?.message || e), key = message.split(":")[0];
+      setError(T("previewFailed", { error: MESSAGES[key] ? T(key) : message }));
     } finally { await finish(rec); }
   };
   const refreshPreview = () => guard(async () => { if (latest.current?.plan) await previewInto(latest.current); });
@@ -321,15 +323,30 @@ function NewsMinutePanel({ sdk, context }: Props) {
     const note = feedback.trim();
     if (!note || !s.plan) return;
     let selected: F.Session = await startAi();
-    if (selected.preview && selected.preview.planRev !== F.previewRev(selected)) {
-      await previewInto(selected);
-      selected = latest.current!;
-      if (!F.previewFresh(selected)) throw new Error(T("graphicPreviewRequired"));
-    }
     log("revising");
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     let r;
     try {
+      const route = await feedbackRoute(aiSdk, selected, note, selected.scriptProvider!, picked);
+      if (route.kind === "plan") {
+        if (route.candidateOnly) log("feedbackCandidate");
+        const request = picked == null ? note : note + "\nHighlighted scene (a hint; explicit references take precedence): " + (picked + 1);
+        const revised = await onDraft(() => revisePlanPreview(aiSdk, env.current!, selected, preset, request, T("previewPrefix"), log, rec, selected.scriptProvider!, { candidateOnly: route.candidateOnly, incompleteLabel: T("incompleteDraft") }));
+        await update(revised.session);
+        if (revised.kept) {
+          log("reviseKept");
+          return;
+        }
+        setJsonErr({}); setFeedback(""); setOpenRow(null); setPicked(null);
+        log("revised", { n: revised.session.plan!.changed.length, of: revised.session.plan!.scenes.length });
+        await openNow(selected.projectId!, revised.session.preview!.draftId);
+        return;
+      }
+      if ((selected.preview ?? selected.video)?.planRev !== F.previewRev(selected)) {
+        await previewInto(selected);
+        selected = latest.current!;
+        if (!F.previewFresh(selected)) throw new Error(T("graphicPreviewRequired"));
+      }
       const photos = await F.prepPhotos(sdk, env.current!, selected.article!, log);
       r = await onDraft(() => reviseGraphics(aiSdk, selected, note, log, rec, photos, selected.scriptProvider, picked));
       const next2 = { ...selected, plan: r.plan };
@@ -339,7 +356,11 @@ function NewsMinutePanel({ sdk, context }: Props) {
       log("revised", { n: r.plan!.changed.length, of: r.plan!.scenes.length });
       await openNow(selected.projectId!, placed.draftId);
     }
-    catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
+    catch (e: any) {
+      rec.notes.push("error: " + String(e?.message || e));
+      if (e instanceof F.PartialDraftError) await update(F.retainPartialDraft(selected, e));
+      throw e;
+    }
     finally { await finish(rec); }
   });
 
@@ -378,7 +399,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
     }
     catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError && !s.preview) await update({ ...s, preview: { ...e.draft, name, planRev: "", at: new Date().toISOString() } });
+      if (e instanceof F.PartialDraftError) {
+        e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+        await update(F.retainPartialDraft(s, e));
+      }
       throw e;
     }
     finally { await finish(rec); }
@@ -397,8 +421,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     update({ ...s, plan: { ...plan, scenes, edited } });
   };
 
-  // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
+  // Starting over keeps records of earlier previews/candidates for recovery.
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos, retainedDrafts: s.retainedDrafts }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
 
   const pick = (i: number) => {
     setPicked(i);
@@ -585,6 +609,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
     // Korean breaks between words, not inside one; a word longer than the line still wraps.
     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13, wordBreak: "keep-all", overflowWrap: "break-word" }}>
       <strong>{T("title")}</strong>
+      {s.retainedDrafts?.length ? <details style={box}>
+        <summary style={{ cursor: "pointer" }}>{T("retainedDrafts", { n: s.retainedDrafts.length })}</summary>
+        <p style={muted}>{T("retainedDraftsHint")}</p>
+        {s.retainedDrafts.map(d => <div key={d.draftId} style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+          <span style={{ ...muted, flex: 1 }}>{d.name + " · " + T(d.status === "incomplete" ? "incompleteDraft" : "previousDraft")}</span>
+          <button {...SECONDARY} style={rowButton} disabled={busy} onClick={() => guard(() => openNow(d.projectId, d.draftId))}>{T("openRetainedDraft")}</button>
+        </div>)}
+      </details> : null}
       <label>{T("preset")}{" "}
         <select value={s.presetId} disabled={busy} onChange={(e) => update({ ...s, presetId: e.target.value })}>
           {Object.values(PRESETS).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}

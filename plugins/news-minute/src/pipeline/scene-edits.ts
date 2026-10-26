@@ -1,6 +1,6 @@
 // Scene edits are one run_script transaction. No narration, captions or tracks
 // are removed; the host validates every graphic before the single commit.
-import { run, type PanelSdk } from "./host.ts";
+import { run, scriptBytes, SCRIPT_GUARD_BYTES, type PanelSdk } from "./host.ts";
 import { TEMPLATES } from "../templates/generated.ts";
 import type { PreviewDraft, ScenePlan } from "./flow.ts";
 import type { ScriptCall } from "./scripts.ts";
@@ -9,6 +9,9 @@ export type GraphicProgram = { tsxCode: string; parameters: Record<string, any>;
 export type SceneSnapshot = { index: number; clipId: number; trackId: string; startFrame: number; endFrame: number; signature: string; program: GraphicProgram };
 export type GraphicEdit = { index: number; parameters: Record<string, any>; tsxCode?: string; editableParameters?: any[] };
 const J = JSON.stringify;
+export function supportsSceneEditing(sdk: PanelSdk, draftId: string): Promise<boolean> {
+  return run<boolean>(sdk, { summary: "Check graphic editing support", script: `return typeof (selects.draft(${J(draftId)}) as any).setMotionGraphicProgram === "function";` });
+}
 const SIGNATURE = `const signature = (c: any, p: any) => {
   const stable = (v: any): string => Array.isArray(v) ? "[" + v.map(stable).join(",") + "]" : v && typeof v === "object" ? "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}" : JSON.stringify(v ?? null);
   const s = stable([c.clipId, c.trackId, c.startFrame, c.endFrame, p]);
@@ -82,5 +85,9 @@ return { updated: edits.map(e => e.index) };` };
 }
 
 export async function applySceneEdits(sdk: PanelSdk, draftId: string, snapshots: SceneSnapshot[], edits: GraphicEdit[]) {
-  return run<{ updated: number[] }>(sdk, editScenesScript(draftId, snapshots, edits));
+  const call = editScenesScript(draftId, snapshots, edits);
+  // Keep the transaction atomic: never apply the first batch and then discover
+  // that a later batch cannot be committed. The user can request fewer scenes.
+  if (scriptBytes(call) > SCRIPT_GUARD_BYTES) throw new Error("graphicEditTooLarge");
+  return run<{ updated: number[] }>(sdk, call);
 }

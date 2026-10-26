@@ -4,6 +4,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { readSceneSnapshots, applySceneEdits } from "../src/pipeline/scene-edits.ts";
 import { reviseGraphics, checkGraphicReply } from "../src/pipeline/visual-editor.ts";
 import { newRunRecord, previewRev } from "../src/pipeline/flow.ts";
+import { feedbackRoute } from "../src/pipeline/feedback.ts";
 
 const code = 'export default function Graphic({data}) { return <div style={{color:data.color}}>News</div>; }';
 function fixture() {
@@ -38,6 +39,7 @@ function host() {
         },
         commitAll: async () => { h.commits++; h.state = working; },
       };
+      if (h.legacy) delete d.setMotionGraphicProgram;
       const source = stripTypeScriptTypes(`async function execute(selects) { ${call.script}\n }`);
       return { result: await new Function(source + "; return execute;")()({ draft: () => d }) };
     },
@@ -55,6 +57,46 @@ test("scene code edit keeps moved clips, manual transforms, voice and sibling gr
   assert.equal(h.state.programs[1].parameters.fontCss, before.programs[1].parameters.fontCss);
   assert.equal(h.state.programs[1].parameters.color, "black");
   assert.ok(h.calls.every(c => !/removeClips|removeEmptyTracks|narration\.generate/.test(c.script)));
+});
+
+test("oversized photo and UTF-8 program edits never reach the host or commit a partial batch", async () => {
+  for (const patch of [{ parameters: { image: "data:image/jpeg;base64," + "a".repeat(180000) } }, { parameters: {}, tsxCode: code + "/*" + "\ud55c".repeat(45000) + "*/" }]) {
+    const h = host(), s = fixture(), before = structuredClone(h.state);
+    const snapshots = await readSceneSnapshots(h.sdk, s.preview, s.plan);
+    const reads = h.calls.length;
+    await assert.rejects(applySceneEdits(h.sdk, "d", snapshots, [0, 1].map(index => ({ index, ...patch }))), /graphicEditTooLarge/);
+    assert.equal(h.calls.length, reads);
+    assert.equal(h.writes, 0);
+    assert.equal(h.commits, 0);
+    assert.deepEqual(h.state, before);
+  }
+});
+
+test("scene feedback retains the plan route and uses the chosen provider for routing", async () => {
+  const h = host(), s = fixture();
+  for (const kind of ["plan", "graphics"]) {
+    h.replies.push({ kind });
+    assert.deepEqual(await feedbackRoute(h.sdk, s, kind === "plan" ? "Replace photo 1 and split scene 2" : "Change hair color and animate the chart", "chatgpt", 1), { kind, candidateOnly: false });
+  }
+  assert.ok(h.prompts.every(p => p.provider === "chatgpt"));
+  assert.match(h.prompts[0].prompt, /replace an article photo/);
+  h.replies.push({ error: "Separate photo replacement and illustration changes" });
+  await assert.rejects(feedbackRoute(h.sdk, s, "mixed request", "chatgpt"), /Separate photo/);
+  assert.equal(h.writes, 0);
+});
+
+test("a host without the new setter keeps feedback available through a new plan candidate", async () => {
+  const h = host(), s = fixture();
+  h.legacy = true;
+  assert.deepEqual(await feedbackRoute(h.sdk, s, "Use another article photo", "chatgpt"), { kind: "plan", candidateOnly: true });
+  assert.equal(h.prompts.length, 0);
+  assert.equal(h.writes, 0);
+});
+
+test("parameter edits coerce types using the graphic's current controls", () => {
+  const snapshot = { index: 0, program: { editableParameters: [{ key: "amount", type: "number" }, { key: "label", type: "text" }] } };
+  const edit = checkGraphicReply({ parameters: { amount: "34", label: 34 }, sources: [] }, snapshot, fixture(), []);
+  assert.deepEqual(edit.parameters, { amount: 34, label: "34" });
 });
 
 test("failure in a later scene commits none of the scene edits", async () => {

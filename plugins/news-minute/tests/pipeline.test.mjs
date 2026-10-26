@@ -340,8 +340,34 @@ test("new drafts put narration on Main and background above it without removing 
   const x = { projectId: "p", draftName: "Preview", plateId: "plate", plateSeconds: 41, narrationId: "voice", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
   const r = baseDraftScript(x).script;
   assert.ok(r.includes('insertResource({ resourceId: "voice"'));
+  assert.ok(r.indexOf('insertGap({ seconds: 0.5 })') > r.indexOf('insertResource({ resourceId: "voice"'));
+  assert.ok(r.includes('const background = await win(0, total / fps)'));
   assert.ok(r.includes('overlayResource({ resource: p.resource("plate")'));
   assert.ok(!/removeClips|removeEmptyTracks/.test(r));
+});
+
+test("the ending hold is covered even though the clip inventory omits Main gaps", async () => {
+  const { stripTypeScriptTypes } = await import("node:module");
+  const { baseDraftScript } = await import("../src/pipeline/assemble.ts");
+  const { PRESETS } = await import("../src/preset.ts");
+  let frames = 0, narration, background;
+  const d = {
+    setSettings: async () => {},
+    insertResource: async opts => { narration = opts; frames = 120; },
+    insertGap: async ({ seconds }) => { frames += Math.round(seconds * 30000 / 1001); },
+    clips: async () => [{ startFrame: 0, endFrame: 120 }],
+    meta: async () => ({ durationFrames: frames }),
+    rangeAtFrames: async (startFrame, endFrame) => ({ startFrame, endFrame }),
+    overlayResource: async opts => { background = opts.over; },
+    addMotionGraphic: async () => {},
+    commitAll: async () => ({ createdDraftId: "d" }),
+  };
+  const call = baseDraftScript({ projectId: "p", draftName: "Test", plateId: "plate", plateSeconds: 4.5, narrationId: "voice", narrationSeconds: 4, preset: PRESETS.chosun });
+  const source = stripTypeScriptTypes(`async function execute(selects) { ${call.script}\n }`);
+  const result = await new Function(source + "; return execute;")()({ project: () => ({ createDraft: async () => d, resource: () => ({}) }) });
+  assert.equal(result.frames, 135);
+  assert.deepEqual(background, { startFrame: 0, endFrame: 135 });
+  assert.deepEqual(narration.sourceRange, { startSeconds: 0, endSeconds: 4 });
 });
 
 test("preview revision follows the scenes, look, headline and narration only", async () => {
@@ -392,6 +418,9 @@ function fakeHost(answers) {
 }
 const HOST_ENV = { platform: "darwin", sep: "/", dir: "/d", tmp: "/tmp", skills: "/s", projectId: "p" };
 const DRAFT_ANSWERS = {
+  "Read the Project's Draft names": [],
+  "Check graphic editing support": true,
+  "Approve the preview Draft": true,
   "Check a file": { exists: false, size: 0 },
   "Make the background": { jobId: "j" },
   "Check a media job": { state: "succeeded", events: [] },
@@ -488,6 +517,165 @@ test("a build that stops part way keeps its Draft as an outdated preview", async
     assert.equal(e.preview.frames, 1230);
     return true;
   });
+});
+
+test("old hosts rebuild a separate candidate and keep the previous preview recoverable", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const first = fakeHost(DRAFT_ANSWERS);
+  const built = await F.buildPreview(first.sdk, HOST_ENV, s, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+  const prev = { ...built.preview, draftId: "old" };
+  const current = { ...s, preview: prev, plan: { ...s.plan, scenes: s.plan.scenes.map((sc, i) => i ? sc : { ...sc, params: { text: "changed" } }) } };
+  const h = fakeHost({ ...DRAFT_ANSWERS, "Check graphic editing support": false, "Read the Project's Draft names": [prev.name] });
+  const out = await F.buildPreview(h.sdk, HOST_ENV, current, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+  const accepted = F.acceptPreview(current, out.preview);
+  assert.equal(out.refilled, false);
+  assert.equal(out.preview.name, prev.name + " (2)");
+  assert.equal(accepted.retainedDrafts[0].draftId, "old");
+  assert.equal(accepted.retainedDrafts[0].status, "previous");
+  assert.equal(accepted.plan.narrationId, current.plan.narrationId);
+  assert.ok(!h.calls.some(c => c.summary === "Read the current news graphics" || c.summary === "Update only the requested news graphics"));
+});
+
+test("plan feedback reaches the old-host candidate workflow without changing approved content", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { revisePlanPreview } = await import("../src/pipeline/feedback.ts");
+  const { s, preset } = await planSession();
+  s.plan.durationSeconds = 6;
+  s.plan.sentences = s.plan.sentences.map((line, i) => ({ ...line, startSec: i * 3, endSec: (i + 1) * 3 }));
+  s.plan.times = s.plan.sentences.map(({ startSec, endSec }) => ({ startSec, endSec }));
+  s.plan.scenes = s.plan.scenes.map(sc => ({ ...sc, hideCaption: false, disclaimer: false }));
+  const previous = await F.buildPreview(fakeHost(DRAFT_ANSWERS).sdk, HOST_ENV, s, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+  const current = { ...s, preview: { ...previous.preview, draftId: "old" } }, before = structuredClone(current);
+  const h = fakeHost({ ...DRAFT_ANSWERS, "Check graphic editing support": false });
+  const prompts = [];
+  h.sdk.aiProviders = async () => ({ chatgpt: "connected", claude: "disconnected", selects: "connected" });
+  h.sdk.askAI = async input => {
+    prompts.push(input);
+    return { text: JSON.stringify({ assetSummaries: [], scenes: s.plan.scenes.map((sc, i) => i ? sc : { ...sc, params: { text: "Updated" } }) }) };
+  };
+  const out = await revisePlanPreview(h.sdk, HOST_ENV, current, preset, "Change the first card", "Preview", () => {}, F.newRunRecord("chosun", ""), "chatgpt", { candidateOnly: true });
+  assert.equal(out.kept, false);
+  assert.equal(out.session.plan.scenes[0].params.text, "Updated");
+  assert.deepEqual(out.session.script, current.script);
+  assert.equal(out.session.approved, current.approved);
+  assert.equal(out.session.plan.narrationId, current.plan.narrationId);
+  assert.equal(out.session.retainedDrafts[0].draftId, "old");
+  assert.deepEqual(current, before);
+  assert.ok(prompts.every(p => p.provider === "chatgpt"));
+  assert.ok(!h.calls.some(c => /removeClips|removeEmptyTracks|narration\.generate/.test(c.script)));
+});
+
+test("plan feedback retains custom programs when the planner omits or rewrites their code", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  s.plan.durationSeconds = 6;
+  s.plan.sentences = s.plan.sentences.map((line, i) => ({ ...line, startSec: i * 3, endSec: (i + 1) * 3 }));
+  s.plan.times = s.plan.sentences.map(({ startSec, endSec }) => ({ startSec, endSec }));
+  s.plan.scenes = s.plan.scenes.map(sc => ({ ...sc, hideCaption: false, disclaimer: false }));
+  const program = { tsxCode: "export default function Custom() { return null; }", editableParameters: [{ key: "amount", type: "number" }], sources: [] };
+  s.plan.scenes[0] = { ...s.plan.scenes[0], params: { amount: 12 }, program };
+  for (const returnedProgram of [undefined, { ...program, tsxCode: "export default function Replaced() { return null; }" }]) {
+    const h = fakeHost(DRAFT_ANSWERS);
+    h.sdk.aiProviders = async () => ({ chatgpt: "connected", claude: "disconnected", selects: "connected" });
+    h.sdk.askAI = async () => ({ text: JSON.stringify({ assetSummaries: [], scenes: s.plan.scenes.map((sc, i) => i ? { ...sc, params: { text: "Updated" } } : { ...sc, program: returnedProgram }) }) });
+    const out = await F.revisePlan(h.sdk, HOST_ENV, s, preset, "Change only the second card", () => {}, F.newRunRecord("chosun", ""), "chatgpt");
+    assert.equal(out.kept, false);
+    assert.deepEqual(out.plan.scenes[0].program, program);
+    assert.deepEqual(out.plan.scenes[0].params, { amount: 12 });
+    assert.equal(out.plan.scenes[1].params.text, "Updated");
+    assert.deepEqual(out.plan.changed, [1]);
+  }
+});
+
+test("split and merged plan feedback builds new candidates, never retargets old scene clips", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { revisePlanPreview } = await import("../src/pipeline/feedback.ts");
+  for (const merge of [true, false]) {
+    const { s, preset } = await planSession();
+    s.plan.durationSeconds = 6;
+    s.plan.sentences = s.plan.sentences.map((line, i) => ({ ...line, startSec: i * 3, endSec: (i + 1) * 3 }));
+    s.plan.times = s.plan.sentences.map(({ startSec, endSec }) => ({ startSec, endSec }));
+    const split = s.plan.scenes.map(sc => ({ ...sc, hideCaption: false, disclaimer: false }));
+    const combined = [{ ...split[0], sentenceIds: ["s1", "s2"] }];
+    s.plan.scenes = merge ? split : combined;
+    const previous = await F.buildPreview(fakeHost(DRAFT_ANSWERS).sdk, HOST_ENV, s, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+    const current = { ...s, preview: { ...previous.preview, draftId: "old" } };
+    const h = fakeHost(DRAFT_ANSWERS);
+    h.sdk.aiProviders = async () => ({ chatgpt: "connected", claude: "disconnected", selects: "connected" });
+    h.sdk.askAI = async () => ({ text: JSON.stringify({ assetSummaries: [], scenes: merge ? combined : split }) });
+    const out = await revisePlanPreview(h.sdk, HOST_ENV, current, preset, merge ? "Merge" : "Split", "Preview", () => {}, F.newRunRecord("chosun", ""), "chatgpt");
+    assert.equal(out.kept, false);
+    assert.equal(out.session.plan.scenes.length, merge ? 1 : 2);
+    assert.equal(out.session.preview.draftId, "d-new");
+    assert.equal(out.session.retainedDrafts[0].draftId, "old");
+    assert.ok(!h.calls.some(c => c.summary === "Update only the requested news graphics"));
+  }
+});
+
+test("article-photo feedback resolves pixels in code, outside the model's parameter patch", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { revisePlanPreview } = await import("../src/pipeline/feedback.ts");
+  const { s, preset } = await planSession();
+  s.article.url = "photo-feedback-test";
+  s.article.photos = [1, 2].map(n => ({ ref: "photo-" + n, url: "https://example.test/photo-feedback-" + n + ".jpg", credit: "Source " + n }));
+  s.plan.assets = s.article.photos.map(p => ({ ...p, kind: "photo" }));
+  s.plan.assetSummaries = s.plan.assets.map(a => ({ ref: a.ref, summary: "Park" }));
+  s.plan.durationSeconds = 6;
+  s.plan.sentences = s.plan.sentences.map((line, i) => ({ ...line, startSec: i * 3, endSec: (i + 1) * 3 }));
+  s.plan.times = s.plan.sentences.map(({ startSec, endSec }) => ({ startSec, endSec }));
+  s.plan.scenes = s.plan.scenes.map((sc, i) => ({ ...sc, hideCaption: false, disclaimer: false, ...(i ? {} : { type: "news_photo", params: {}, assetRef: "photo-1" }) }));
+  const answers = { ...DRAFT_ANSWERS, "Download the article page": {}, "Prepare an article photo": { jobId: "j" }, "Remove a temporary file": true,
+    "Read a downloaded file": c => ({ chunks: [Buffer.from(c.script.includes("photo-2.jpg") ? "photo-two" : "photo-one").toString("base64")], offset: 9 }) };
+  const previous = await F.buildPreview(fakeHost(answers).sdk, HOST_ENV, s, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+  const current = { ...s, preview: previous.preview };
+  const h = fakeHost(answers);
+  h.sdk.aiProviders = async () => ({ chatgpt: "connected", claude: "disconnected", selects: "connected" });
+  h.sdk.askAI = async () => ({ text: JSON.stringify({ assetSummaries: s.plan.assetSummaries, scenes: s.plan.scenes.map((sc, i) => i ? sc : { ...sc, assetRef: "photo-2" }) }) });
+  const out = await revisePlanPreview(h.sdk, HOST_ENV, current, preset, "Use the second article photo", "Preview", () => {}, F.newRunRecord("chosun", ""), "chatgpt");
+  assert.equal(out.kept, false);
+  assert.equal(out.session.plan.scenes[0].assetRef, "photo-2");
+  const applied = h.calls.find(c => c.summary === "Update only the requested news graphics").script;
+  assert.ok(applied.includes("data:image/jpeg;base64," + Buffer.from("photo-two").toString("base64")));
+  assert.ok(applied.includes('"credit":"Source 2"'));
+  assert.deepEqual(out.session.script, current.script);
+  assert.equal(out.session.plan.narrationId, current.plan.narrationId);
+});
+
+test("a failed candidate is recorded without replacing the complete preview or plan", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const prev = { draftId: "old", name: "Earlier", projectId: "p", planRev: "saved", scenes: [], at: "before" };
+  const current = { ...s, preview: prev };
+  const before = structuredClone(current);
+  const { ["Add headline and captions (1/1)"]: _drop, ...answers } = DRAFT_ANSWERS;
+  const h = fakeHost(answers);
+  await assert.rejects(F.buildPreview(h.sdk, HOST_ENV, current, preset, "Preview", () => {}, F.newRunRecord("chosun", "")), e => {
+    const saved = F.retainPartialDraft(current, e);
+    assert.deepEqual(saved.preview, prev);
+    assert.deepEqual(saved.plan, s.plan);
+    assert.equal(saved.retainedDrafts[0].draftId, "d-new");
+    assert.equal(saved.retainedDrafts[0].status, "incomplete");
+    assert.match(saved.retainedDrafts[0].name, /Incomplete/);
+    assert.deepEqual(JSON.parse(JSON.stringify(saved)).retainedDrafts, saved.retainedDrafts);
+    return true;
+  });
+  assert.deepEqual(current, before);
+});
+
+test("custom-program scene rows normalize against current controls without replacing the code", async () => {
+  const F = await import("../src/pipeline/flow.ts");
+  const { s, preset } = await planSession();
+  const program = { tsxCode: "export default function G() { return null; }", editableParameters: [{ key: "amount", type: "number" }], sources: [] };
+  s.plan.scenes[0] = { ...s.plan.scenes[0], program, params: { amount: 10 } };
+  const first = await F.buildPreview(fakeHost(DRAFT_ANSWERS).sdk, HOST_ENV, s, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+  const reads = DRAFT_ANSWERS["Read the current news graphics"].map(row => ({ ...row, program }));
+  const h = fakeHost({ ...DRAFT_ANSWERS, "Read the current news graphics": reads });
+  const next = { ...s, preview: first.preview, plan: { ...s.plan, scenes: s.plan.scenes.map((sc, i) => i ? sc : { ...sc, params: { amount: "20" } }) } };
+  await F.buildPreview(h.sdk, HOST_ENV, next, preset, "Preview", () => {}, F.newRunRecord("chosun", ""));
+  const script = h.calls.find(c => c.summary === "Update only the requested news graphics").script;
+  assert.match(script, /"parameters":\{"amount":20\}/);
+  assert.ok(!script.includes('"tsxCode":'));
 });
 
 test("preview strings exist in both languages", async () => {

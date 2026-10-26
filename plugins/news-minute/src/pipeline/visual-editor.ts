@@ -5,6 +5,7 @@ import { readSceneSnapshots, applySceneEdits, type GraphicEdit, type SceneSnapsh
 import { clearPreviewCache } from "./preview.ts";
 import type { Session, Log, RunRecord, PreviewDraft } from "./flow.ts";
 import type { PhotoAsset } from "./plan.ts";
+import { fitEditableControls } from "./assemble.ts";
 
 // Fonts and photo pixels stay in the existing program. Do not send base64
 // through the language model or let its placeholder overwrite a real asset.
@@ -62,7 +63,7 @@ export function checkGraphicReply(reply: any, snapshot: SceneSnapshot, s: Sessio
     } else if (!imageRefs.includes(source.ref)) throw new Error("graphicInvalidSource");
   }
   if (!reply.tsxCode && !Object.keys(reply.parameters).length) throw new Error("graphicNoChanges");
-  return { index: snapshot.index, parameters: reply.parameters, ...(reply.tsxCode ? { tsxCode: reply.tsxCode, editableParameters: reply.editableParameters } : {}) } as GraphicEdit;
+  return { index: snapshot.index, parameters: fitEditableControls(reply.editableParameters ?? snapshot.program.editableParameters, reply.parameters), ...(reply.tsxCode ? { tsxCode: reply.tsxCode, editableParameters: reply.editableParameters } : {}) } as GraphicEdit;
 }
 
 // All expensive model calls happen before the single transactional application.

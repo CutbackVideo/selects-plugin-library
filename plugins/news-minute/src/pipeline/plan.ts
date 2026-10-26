@@ -23,6 +23,19 @@ const MAX_SCENE_SEC = 10;
 // How far past its type's limit a scene may run before the plan falls back.
 export const PLAN_LENGTH_GRACE_SEC = 2;
 
+// The planner owns grouping, assets and template parameters, not custom code.
+// Keep a program only for an unambiguous scene with the same type and sentences;
+// a type/group change must not carry a different scene's custom renderer over.
+export function retainPlanPrograms(json: any, previous: PlanScene[]): any {
+  if (!json || !Array.isArray(json.scenes)) return json;
+  return { ...json, scenes: json.scenes.map((scene: any) => {
+    if (!scene || typeof scene !== "object" || Array.isArray(scene)) return scene;
+    const matches = previous.filter(p => p.type === scene.type && JSON.stringify(p.sentenceIds) === JSON.stringify(scene.sentenceIds));
+    const { program: _ignored, ...planned } = scene;
+    return matches.length === 1 && matches[0].program ? { ...planned, program: matches[0].program } : planned;
+  }) };
+}
+
 // Settles a plan that still has errors after repair: number callouts without a number become text cards
 // (then the plan is checked again), and a plan whose only remaining errors are scenes at most
 // PLAN_LENGTH_GRACE_SEC over their type's limit, or text that does not fit (LAYOUT_ERROR: the reviewer shortens

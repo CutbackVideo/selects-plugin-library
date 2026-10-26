@@ -41,8 +41,8 @@ function tpl(type: string) {
 // Shared prelude: frame helpers over a committed Draft.
 const PRELUDE = `const fps = 30000 / 1001;
 const F = (s: number) => Math.round(s * fps);
-const mainClips = await d.clips({ trackScope: "main" });
-const total = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);
+// clips() omits gaps. Use the draft duration so the ending hold is covered too.
+const total = (await d.meta()).durationFrames;
 const win = async (a: number, b: number) => {
   const s = Math.max(0, Math.min(total - 1, F(a))), e = Math.min(total, F(b));
   return e > s ? await d.rangeAtFrames(s, e) : null;
@@ -59,7 +59,7 @@ function narrationAndFrame(x: AssemblyInput): string {
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
   return `${PRELUDE}
-const background = await win(0, ${J(x.narrationSeconds)});
+const background = await win(0, total / fps);
 if (!background) throw new Error("narration range is empty");
 await d.overlayResource({ resource: p.resource(${J(x.plateId)}), over: background });
 ${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);`}`;
@@ -67,7 +67,7 @@ ${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(framePa
 
 export function baseDraftScript(x: AssemblyInput): ScriptCall {
   if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
-  if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
+  if (x.plateSeconds < x.narrationSeconds + 0.5) throw new Error("background plate shorter than the narration and ending hold");
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
@@ -75,6 +75,7 @@ export function baseDraftScript(x: AssemblyInput): ScriptCall {
 const d = await p.createDraft({ name: ${J(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
 await d.insertResource({ resourceId: ${J(x.narrationId)}, sourceRange: { startSeconds: 0, endSeconds: ${J(x.narrationSeconds)} } });
+await d.insertGap({ seconds: 0.5 });
 ${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`,
@@ -85,8 +86,14 @@ return { draftId: out.createdDraftId ?? null, frames: total };`,
 // parameter 'value' does not match its definition"). The planner may send 3592 where the control is text, so
 // numbers become text for text controls and numeric text becomes a number for number controls.
 export function fitControls(type: string, params: Record<string, unknown>): Record<string, unknown> {
+  return fitEditableControls(tpl(type).editableParameters as Array<{ key: string; type: string }>, params);
+}
+
+// A custom program can change a template's controls. Coerce against the actual
+// definitions, including when a scene-row input returns numeric text.
+export function fitEditableControls(definitions: Array<{ key: string; type: string }>, params: Record<string, unknown>): Record<string, unknown> {
   const out = { ...params };
-  for (const d of tpl(type).editableParameters as Array<{ key: string; type: string }>) {
+  for (const d of definitions) {
     const v = out[d.key];
     if (d.type === "text" && typeof v === "number") out[d.key] = String(v);
     else if (d.type === "number" && typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) out[d.key] = Number(v);
@@ -108,7 +115,7 @@ export function sceneScripts(draftId: string, scenes: SceneClip[]): ScriptCall[]
   const calls = batches.map((batch, i) => {
     const types = [...new Set(batch.map((s) => s.type))];
     const codes = Object.fromEntries(types.map((t) => [t, { tsx: tpl(t).tsxCode, edit: tpl(t).editableParameters, ti: tpl(t).timeIndependent }]));
-    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.program ? s.params : fitControls(s.type, s.params), program: s.program, a: s.startSec, b: s.endSec }));
+    const rows = batch.map((s) => ({ type: s.type, label: s.label, params: s.program ? fitEditableControls(s.program.editableParameters, s.params) : fitControls(s.type, s.params), program: s.program, a: s.startSec, b: s.endSec }));
     return {
       summary: `Add scene graphics (${i + 1}/${batches.length})`,
       allowCommit: true,
