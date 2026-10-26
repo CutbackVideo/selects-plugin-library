@@ -145,7 +145,8 @@ async function createPanelLocalClient(sdk: any) {
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
-    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
+    fingerprint: (path: string, options?: { native?: boolean; signal?: AbortSignal; onProgress?: (bytes: number) => void; timeoutMs?: number }) =>
+      options?.native ? nativeFingerprint(path, options) : runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -323,6 +324,46 @@ async function createPanelLocalClient(sdk: any) {
     } finally {
       signal?.removeEventListener("abort", abort);
       activeJobs.delete(jobId);
+    }
+  };
+  // Opt-in only: raw data demuxing copies every original byte into FFmpeg's hash
+  // muxer. No media decoding, source rewrite, shell interpolation or hash cache.
+  // Missing capability may use the complete legacy read; execution errors cannot.
+  const nativeFingerprint = async (path: string, options: { signal?: AbortSignal; onProgress?: (bytes: number) => void; timeoutMs?: number }) => {
+    if (typeof path !== "string" || !paths.isAbsolute(path) || path.includes("\0") ||
+        options.onProgress !== undefined && typeof options.onProgress !== "function" ||
+        options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 300000))
+      throw new Error("The original file observation input is invalid.");
+    if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const capability = await runSource("return typeof selects.media?.startFFmpeg === 'function';");
+    if (capability !== true && capability !== false) throw new Error("The local media capability could not be confirmed.");
+    if (!capability) return runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");");
+    const before = await files.stat(path);
+    if (before === null) return null;
+    if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino))
+      throw new Error("The file's size or identity could not be confirmed.");
+    const controller = new AbortController(), abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, {once:true});
+    if (options.signal?.aborted) abort();
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; abort(); }, options.timeoutMs ?? 120000);
+    try {
+      const result = await process("FFmpeg", ["-nostdin", "-v", "error", "-protocol_whitelist", "file", "-f", "data", "-i", "file:" + path,
+        "-map", "0:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], true, controller.signal);
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      const match = /^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(result.stdout);
+      if (!match) throw new Error("The original file hash returned an incomplete result.");
+      const after = await files.stat(path);
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino)
+        throw new Error("The file changed while its contents were read.");
+      options.onProgress?.(before.size);
+      return {size:before.size,sha256:match[1].toLowerCase()};
+    } catch (cause) {
+      if (timedOut && cause?.name === "AbortError") throw new Error("Original file verification timed out.");
+      throw cause;
+    } finally {
+      clearTimeout(timer);options.signal?.removeEventListener("abort", abort);
     }
   };
   return {
