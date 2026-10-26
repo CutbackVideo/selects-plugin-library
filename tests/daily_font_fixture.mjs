@@ -19,9 +19,9 @@ const SECONDS = {'relaxed-urban-bed.wav': 69.84, 'transition-w2.wav': 1.389977, 
 
 // A fake Draft: inserts round to whole frames, overlays go to the first audio track free over their range, a
 // transition spans round(offset * fps) frames each side of its cut.
-export async function buildDailyFixture(fps, {clipSeconds = 30, clips = 8, frameSize = {width: 1920, height: 1080}, reported = fps, adopt = null, fontOptions = {}, lifecycle = {}} = {}) {
+export async function buildDailyFixture(fps, {clipSeconds = 30, durations = {}, clips = 8, frameSize = {width: 1920, height: 1080}, reported = fps, adopt = null, fontOptions = {}, lifecycle = {}} = {}) {
   const initialFps = fps, initialReported = reported; let draftCount=0, commits=0;
-  const rows = [...Array.from({length: 9}, (_, i) => ({resourceId: 'v' + i, type: 'Video', name: 'v' + i, durationSeconds: clipSeconds})),
+  const rows = [...Array.from({length: 9}, (_, i) => ({resourceId: 'v' + i, type: 'Video', name: 'v' + i, durationSeconds: durations['v' + i] ?? clipSeconds})),
     ...Object.entries(SECONDS).map(([name, s]) => ({resourceId: 'a:' + name, type: 'Audio', name, durationSeconds: s}))];
   const main = [], audio = [], transitions = [], graphics = [], transforms = [], inserts = [];
   let cursor = 0, next = 0;

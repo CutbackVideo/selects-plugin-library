@@ -7,7 +7,6 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 for (const [plugin, binding] of [
   ['doac-style', 'doacPortraitScript'],
-  ['depth-type-captions', 'depthPortraitDraftScript'],
 ]) {
   const source = fs.readFileSync(new URL(`../plugins/${plugin}/panel.tsx`, import.meta.url), 'utf8');
   const api = loadPanelModule(source, {names: [binding]});

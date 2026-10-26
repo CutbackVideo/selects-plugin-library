@@ -1408,6 +1408,7 @@ async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse 
   const r = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Read dialogue for Depth Type captions", allowCommit: false });
   if (r.isError || !r.result) throw new Error(r.output || "No draft data returned.");
   const meta = r.result;
+  if (!meta.words.length) throw new Error("No dialogue found in this draft.");
   let next = depthComposeFromWords(meta.words, meta, settings, fallbackSize.width, fallbackSize.height);
   if (!next.length) throw new Error("No dialogue found in this draft.");
   hooks.onRead?.(meta, next);
@@ -1518,19 +1519,13 @@ const base=${JSON.stringify(baseName + " · Depth Type")};const names=[];for(con
 let name=base;for(let n=2;names.includes(name);n++)name=base+' ('+n+')';
 const d=await p.createDraft({name});
 await d.insertResource(range?{resourceId,sourceRange:range}:{resourceId});
-try{await d.setFrameSize(size||'original');}catch{}
+await d.setFrameSize(size||'original');
 const dm=await d.meta();
 const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&!w.cut&&!w.unanalyzed&&String(w.text||'').trim());
 if(!words.length)return {noWords:true};
 if(!(dm.durationFrames>0)||dm.durationFrames/dm.fps>${DEPTH_TEMPLATE_SECONDS})throw new Error('The new Draft runs '+(dm.durationFrames/dm.fps)+' s, over the ${DEPTH_TEMPLATE_SECONDS} s limit.');
 const r=await d.commitAll('Create Depth Type draft from a video');if(!r.createdDraftId)throw new Error('The Draft was not created.');
 return {id:r.createdDraftId,name,sourceSeconds:total,endSeconds:range?range.endSeconds:null,draftSeconds:dm.durationFrames/dm.fps,words:words.length};`;
-}
-// Headless templates promise a vertical short; source pixels are fitted by the
-// editor before this relative transform, so cover/contain is the required scale.
-function depthPortraitDraftScript(pid, sid) {
-  // SDK diffs are cumulative: an already framed draft needs no save.
-  return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});let diff=await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw new Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));diff=(await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}})).diff;}if(diff.opCount>0)await d.commitAll('Frame Depth Type template to portrait');return true;`;
 }
 function DepthTemplateRun({ sdk, context }) {
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
@@ -1602,8 +1597,6 @@ function DepthTemplateRun({ sdk, context }) {
             console.info("[depth-type] template run: clip of " + r.result.sourceSeconds + " s placed up to " + r.result.endSeconds + " s (Behind speaker handles " + DEPTH_TEMPLATE_SECONDS + " s).");
         }
         if (control.canceled || superseded()) throw new Error("Canceled.");
-        const framed = await sdk.runScript({ script: depthPortraitDraftScript(pid, sid), summary: "Frame Depth Type template to portrait", allowCommit: true });
-        if (framed.isError) throw new Error(framed.output || "The portrait framing could not be saved.");
         const settings = { ...DEPTH_DEFAULTS };
         let made;
         try {

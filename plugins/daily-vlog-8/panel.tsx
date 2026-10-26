@@ -702,12 +702,20 @@ const name=${JSON.stringify(draftName)};
 let rows=await project.resources();
 const resourceById=new Map(rows.map(x=>[x.resourceId,x]));
 for(const shot of cast){const r=resourceById.get(shot.id);if(!r||r.type!=='Video'||!(r.durationSeconds>0.1))throw new Error('A picked clip is not a usable video');}
+const RATES=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60];
+// A split may shorten its forward jump, but must have enough unique footage for both pieces.
+// Include frame rounding at every supported Draft rate before importing audio or creating a Draft.
+for(const [index,shot] of cast.entries()){
+ const r=resourceById.get(shot.id);
+ const needed=Math.max(...RATES.map(fps=>(Math.round(shot.end*fps/REF.fps)-Math.round(shot.start*fps/REF.fps))/fps))+0.003;
+ if(r.durationSeconds+1e-9<needed)throw new Error((index===0?'Opening':'Clip '+index)+' ('+r.name+') needs at least '+(Math.ceil(needed*100)/100).toFixed(2)+' seconds; this video has '+r.durationSeconds.toFixed(2)+' seconds. Pick a longer video for this slot.');
+}
 let audioByName=new Map(rows.filter(x=>x.type==='Audio').map(x=>[x.name,x.resourceId]));
 for(let i=0;i<assetNames.length;i++){if(!audioByName.has(assetNames[i])){const imported=await project.importFiles({paths:[assetPaths[i]]});if(!imported.addedResourceIds[0])throw new Error('Template sound missing: '+assetNames[i]);audioByName.set(assetNames[i],imported.addedResourceIds[0]);}}
 let draft;
 // Reference frames (25 fps) on the Draft's rate; the rate is read again after each insert (a Draft can adopt its
-// first clip's rate). Ducking offsets (at) stay 30000/1001 fps frames. A shot longer than its clip repeats the clip.
-const rate=async()=>{const reported=(await draft.meta()).fps;const r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error('Unsupported draft frame rate: '+reported);return r;};
+// first clip's rate). Ducking offsets (at) stay 30000/1001 fps frames.
+const rate=async()=>{const reported=(await draft.meta()).fps;const r=RATES.find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error('Unsupported draft frame rate: '+reported);return r;};
 let dfps;
 const F=(f)=>Math.round(f*dfps/REF.fps);
 const at=(f)=>Math.round(f*1001/30000*dfps);
@@ -718,21 +726,21 @@ const lay=async(aim=null)=>{
 for(const shot of cast){
   const r=resourceById.get(shot.id);
   const len=(shot.end-shot.start+shot.skip)/REF.fps;
-  let start=Math.max(0,(r.durationSeconds-Math.min(len,r.durationSeconds-0.003))*OFFSETS[shot.pass%OFFSETS.length]);
-  // One clip per piece (after a split, skip frames further on, or as far on as the clip allows); another only when the
-  // clip ran out (not for a frame lost to a rate change).
+  const available=r.durationSeconds-0.003;
+  const visible=(F(shot.end)-F(shot.start))/dfps;
+  let start=Math.max(0,Math.min(available-visible,(r.durationSeconds-Math.min(len,available))*OFFSETS[shot.pass%OFFSETS.length]));
+  // Reserve the whole shot before its first insert. At a split, reduce only the forward jump;
+  // never clamp behind the end of the preceding piece or loop over an already used range.
   for(const [piece,stop] of (shot.split?[shot.split,shot.end]:[shot.end]).entries()){
-    if(piece)start=Math.max(0,Math.min(start+shot.skip/REF.fps,r.durationSeconds-0.003-(F(stop)-placed)/dfps));
-    for(let wanted=F(stop),more=true;more&&placed<wanted;wanted=F(stop)){
-      const end=Math.min(r.durationSeconds-0.003,start+(wanted-placed)/dfps);more=end<start+(wanted-placed)/dfps-1e-6;
-      if(end-start<1/dfps)throw new Error('Video '+r.name+' is too short');
-      await draft.insertResource({resourceId:shot.id,sourceRange:{startSeconds:start,endSeconds:end}});
-      const actual=await rate();
-      // The first insert can adopt a different source rate. Discard this unsaved attempt before effects/commit;
-      // aiming its first range at the adopted rate keeps the first cut on the same frame as its transition.
-      if(placed===0&&actual!==dfps)return actual;
-      dfps=actual;placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=more?0:end;
-    }
+    if(piece)start=Math.max(start,Math.min(start+shot.skip/REF.fps,available-(F(stop)-placed)/dfps));
+    const end=start+(F(stop)-placed)/dfps;
+    if(end>available+1e-9||end-start<1/dfps-1e-9)throw new Error('Video '+r.name+' is too short for this slot');
+    await draft.insertResource({resourceId:shot.id,sourceRange:{startSeconds:start,endSeconds:end}});
+    const actual=await rate();
+    // The first insert can adopt a different source rate. Discard this unsaved attempt before effects/commit;
+    // aiming its first range at the adopted rate keeps the first cut on the same frame as its transition.
+    if(placed===0&&actual!==dfps)return actual;
+    dfps=actual;placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=end;
   }
 }
  return null;
