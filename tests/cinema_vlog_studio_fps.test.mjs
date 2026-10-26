@@ -4,18 +4,15 @@
 // Card geometry may change; cuts, audio and the other graphics retain their contracts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import cp from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {loadPanelFunctions, topLevel} from './windows_host.mjs';
+import {readDraftReference, draftCallDigests} from './fixed_draft_reference.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
 const panel = read(process.env.CINEMA_VLOG_STUDIO_PANEL || path.join(root, 'plugins/cinema-vlog-studio/panel.tsx'));
-const base = (() => {
-  if (process.env.CINEMA_VLOG_STUDIO_BASE) return read(process.env.CINEMA_VLOG_STUDIO_BASE);
-  try { return cp.execSync('git show origin/main:plugins/cinema-vlog-studio/panel.tsx', {cwd: root, encoding: 'utf8', maxBuffer: 1 << 26}); } catch { return null; }
-})();
+const reference = readDraftReference('cinema-vlog-studio');
 
 const NAMES = ['clean', 'TITLE', 'CURTAIN', 'GLITCH', 'FLASH', 'cinemaInsetGeometry', 'cinemaCardSources', 'CARD', 'CARD_FLASH', 'ASSET_SECONDS', 'CUTS', 'STARTS',
   'GLITCH_SLOT', 'GLITCH_NOTE_KO', 'isGlitchNote', 'cinemaCuts', 'assembly'];
@@ -119,14 +116,13 @@ test('a Draft reporting a rounded 29.97 builds like the exact rate', async () =>
   assert.equal(rounded.result.endFrame, exact.result.endFrame);
 });
 
-for (const fps of [30000 / 1001, 30]) {
-  test(`at ${fps.toFixed(3)} fps card layout changes preserve every other Draft call`, {skip: base ? false : 'origin/main not available'}, async () => {
-    const before = await run(scriptOf(base), fps);
+for (const expected of reference.cases) {
+  const {fps} = expected;
+  test(`at ${fps.toFixed(3)} fps the fixed reference preserves every non-layout Draft call`, async () => {
     const after = await run(scriptOf(panel), fps);
-    assert.deepEqual(after.result, before.result);
-    assert.equal(after.calls.length, before.calls.length);
+    assert.deepEqual(after.result, expected.result);
     const stable=call=>{if(!call.startsWith('addVideoEffect '))return call;const data=JSON.parse(call.slice('addVideoEffect '.length));if(!data.label.startsWith('Cinema Vlog · inset '))return call;return JSON.stringify({clip:data.clip,label:data.label,widthPct:data.parameters.widthPct});};
-    for (let i = 0; i < after.calls.length; i++) assert.equal(stable(after.calls[i]),stable(before.calls[i]), 'call ' + i);
+    assert.deepEqual(draftCallDigests(after.calls, stable), expected.calls);
   });
 }
 

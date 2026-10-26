@@ -4,20 +4,17 @@
 // simulation covered only part of …"), and only the host's "not placeable yet" errors may come back as notReady.
 // The reference excerpt starts 5.25 seconds into the bundled track; the earlier
 // bass roll is not part of the shipped example.
-// THANK_YOU_RECAP_PANEL / THANK_YOU_RECAP_BASE override the panels.
+// THANK_YOU_RECAP_PANEL may override the implementation under test.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import cp from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {readDraftReference} from './fixed_draft_reference.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
 const panel = read(process.env.THANK_YOU_RECAP_PANEL || path.join(root, 'plugins/thank-you-recap/panel.tsx'));
-const base = (() => {
-  if (process.env.THANK_YOU_RECAP_BASE) return read(process.env.THANK_YOU_RECAP_BASE);
-  try { return cp.execSync('git show origin/main:plugins/thank-you-recap/panel.tsx', {cwd: root, encoding: 'utf8', maxBuffer: 1 << 26}); } catch { return null; }
-})();
+const reference = readDraftReference('thank-you-recap');
 
 const constant = (src, name) => { const m = new RegExp('^const ' + name + ' = (.*);$', 'm').exec(src); return m ? eval('(' + m[1] + ')') : undefined; };
 // music.mp3's length (ffprobe of plugins/thank-you-recap/assets/music.mp3).
@@ -155,13 +152,14 @@ test('only "not placeable yet" errors come back as notReady; any other error as 
   }
 });
 
-for (const fps of [30000 / 1001, 30]) {
-  test(`at ${fps.toFixed(3)} fps the reference trim preserves canvas and commit contracts`, {skip: base ? false : 'origin/main not available'}, async () => {
-    const before = await run(scriptOf(base).script, fps);
+for (const expected of reference.cases) {
+  const {fps} = expected;
+  test(`at ${fps.toFixed(3)} fps the fixed reference preserves timing, canvas and commit contracts`, async () => {
     const after = await run(scriptOf(panel).script, fps);
-    assert.equal(after.result.cuts,before.result.cuts-constant(base,'ROLL').length);
-    assert.equal(after.result.endFrame,Math.round((constant(base,'END')-5.25)*fps));
-    assert.equal(after.clips[0].resourceId,'h');assert.equal(music(after.clips).sourceStartSeconds,5.25);
-    assert.deepEqual(after.calls.filter(c=>/^(setFrameSize|commitAll) /.test(c)),before.calls.filter(c=>/^(setFrameSize|commitAll) /.test(c)));
+    assert.deepEqual(after.result, expected.result);
+    assert.equal(after.result.endFrame, Math.round(reference.durationSeconds * fps));
+    assert.equal(after.clips[0].resourceId, reference.firstResourceId);
+    assert.equal(music(after.clips).sourceStartSeconds, reference.musicSourceStartSeconds);
+    assert.deepEqual(after.calls.filter(c => /^(setFrameSize|commitAll) /.test(c)), expected.calls);
   });
 }

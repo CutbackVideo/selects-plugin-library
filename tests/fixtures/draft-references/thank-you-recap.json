@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "source": {"revision": "766202a1352d719622c278b5596dad9713236fd6", "path": "plugins/thank-you-recap/panel.tsx", "sha256": "73dcc12a8b3391fddbe0f252a9b6bf57016fe5ecf27c4a027857afbe8ae7a351"},
+  "durationSeconds": 20.633,
+  "musicSourceStartSeconds": 5.25,
+  "firstResourceId": "h",
+  "cases": [
+    {
+      "fps": 29.97002997002997,
+      "result": {"draftId": "d1", "cuts": 49, "endFrame": 618, "fps": 29.97002997002997, "edges": [0, 99, 106, 113, 119, 126, 133, 139, 146, 153, 159, 166, 173, 179, 186, 193, 199, 213, 226, 233, 246, 259, 266, 273, 279, 289, 300, 313, 326, 340, 353, 366, 380, 393, 406, 420, 433, 446, 459, 473, 486, 499, 513, 533, 546, 559, 572, 586, 599, 618]},
+      "calls": [
+        "setFrameSize {\"width\":1920,\"height\":1080}",
+        "commitAll \"Cut recap montage\""
+      ]
+    },
+    {
+      "fps": 30,
+      "result": {"draftId": "d1", "cuts": 49, "endFrame": 619, "fps": 30, "edges": [0, 99, 106, 113, 120, 126, 133, 140, 146, 153, 160, 166, 173, 180, 186, 193, 200, 213, 226, 233, 246, 260, 266, 273, 280, 289, 300, 313, 327, 340, 353, 367, 380, 393, 407, 420, 433, 447, 460, 473, 487, 500, 513, 533, 546, 560, 573, 586, 600, 619]},
+      "calls": [
+        "setFrameSize {\"width\":1920,\"height\":1080}",
+        "commitAll \"Cut recap montage\""
+      ]
+    }
+  ]
+}

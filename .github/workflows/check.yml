@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Test fixed Draft references without Git history or optional baselines
+        run: node --test tests/fixed_draft_references.test.mjs
       - name: Install media test dependency
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: python3 tools/check_public.py
