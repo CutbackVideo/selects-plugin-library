@@ -69,7 +69,7 @@ test("subscription failure during writing or source checking never retries on Se
 });
 
 const env = { platform: "darwin", sep: "/", dir: "/test", tmp: "/test", skills: "/test", projectId: "test" };
-const narration = { resourceId: "voice", durationSeconds: 48 };
+const narration = { resourceId: "voice", durationSeconds: 48, workflowId: "job" };
 const session = () => ({ ...emptySession(), article, script: fidelity, projectId: "test" });
 const sceneReply = (revised = false) => JSON.stringify({
   assetSummaries: [],
@@ -81,7 +81,7 @@ for (const provider of ["chatgpt", "claude", "selects"]) {
     const calls = [];
     const answers = [new Error("timed out"), "invalid JSON", sceneReply(), new Error("timed out"), "invalid JSON", sceneReply(true)];
     const sdk = {
-      runScript: async () => ({ result: null }),
+      runScript: async c => ({ result: c.summary === "Verify the saved narration Resource" ? narration : null }),
       aiProviders: async () => connected,
       askAI: async (input) => { calls.push(input); const reply = answers.shift(); if (reply instanceof Error) throw reply; return { text: reply }; },
     };
@@ -114,7 +114,7 @@ test("failed planning and revision never switch to credits, and disconnected sel
   const calls = [];
   let status = connected;
   const sdk = {
-    runScript: async () => ({ result: null }),
+    runScript: async c => ({ result: c.summary === "Verify the saved narration Resource" ? narration : null }),
     aiProviders: async () => status,
     askAI: async (input) => { calls.push(input); throw Error("subscription expired"); },
   };

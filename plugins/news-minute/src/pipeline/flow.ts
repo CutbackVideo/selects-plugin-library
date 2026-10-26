@@ -13,6 +13,7 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
+import { resolveNarration, resolvePlanNarration, type NarrationReference } from "./narration-reference.ts";
 import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, retainPlanPrograms, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
 import { bandsScript, baseDraftScript, fitControls, fitEditableControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { applySceneEdits, readSceneSnapshots, supportsSceneEditing } from "./scene-edits.ts";
@@ -72,6 +73,7 @@ export type PreviewDraft = {
 export type PlanRound = { round: number; feedback: string; changed: number; scenes: number; ms: number; fallback: boolean; at: string };
 export type ScenePlan = {
   narrationId: string;
+  narrationWorkflowId?: string; // stable identity; rN is reassigned after app restart
   durationSeconds: number;
   sentences: TimedSentence[];
   times: Span[];
@@ -368,10 +370,11 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
 
 // Timing, photos and the first scene plan. Nothing is added to the Project here; the panel builds the preview
 // Draft from the plan next.
-export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord, provider: AiProvider, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
+export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: NarrationReference, log: Log, rec: RunRecord, provider: AiProvider, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
   sdk = await selectedAi(sdk, provider);
   rec.notes.push("scene planning provider: " + provider);
   const script = s.script!, article = s.article!, projectId = s.projectId!;
+  narration = await resolveNarration(sdk, projectId, narration);
   const total = narration.durationSeconds;
   if (!(total > 0)) throw new Error("narration length unknown");
   if (plateSeconds(total) > PLATE_MAX_SECONDS) throw new Error("narration longer than " + PLATE_MAX_SECONDS + " s");
@@ -388,7 +391,7 @@ export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   const assets: PlanAsset[] = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo" as const, caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
   const thumbs: Record<string, string> = {};
   if (thumb) for (const p of photos) { try { thumbs[p.ref] = await thumb(p.dataUrl); } catch { /* no thumbnail */ } }
-  const base = { narrationId: narration.resourceId, durationSeconds: total, sentences, times, timing: source, chars, assets, thumbs };
+  const base = { narrationId: narration.resourceId, narrationWorkflowId: narration.workflowId, durationSeconds: total, sentences, times, timing: source, chars, assets, thumbs };
 
   const r = await askPlan(sdk, base, script, preset, photos, log, rec);
   let plan: ScenePlan;
@@ -480,11 +483,6 @@ return out;` });
   return Array.isArray(names) ? names : [];
 }
 
-// The Draft a recorded preview can be refilled into: same Project, look and plate length (the narration is put
-// back on, so a new narration of the same length still fits).
-export const canRefill = (p: PreviewDraft | null | undefined, projectId: string, presetId: string, plateLen: number, videos: string[] = []): p is PreviewDraft =>
-  !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
-
 type DraftView = { projectId: string; draftId: string };
 // A build that stopped after the Draft was saved; keep the candidate and the
 // complete Draft that was on screen immediately before candidate creation.
@@ -564,14 +562,13 @@ export function previewViewer(sdk: PanelSdk, env: () => Env | null, queue: Retur
 export type AssembleTarget = { name: string; reuse?: PreviewDraft | null };
 export type Assembled = { draftId: string; timing: string; fallbackPlan: boolean; refilled: boolean; draft: Omit<PreviewDraft, "name" | "planRev" | "at"> };
 
-// A full build always uses a new candidate. Reuse only background Resources.
+// A full build always uses a new candidate. Resolve media for this app process.
 export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Preset, log: Log, rec: RunRecord, target?: AssembleTarget): Promise<Assembled> {
   const script = s.script!, article = s.article!, projectId = s.projectId!, sp = s.plan!;
+  const narration = await resolvePlanNarration(sdk, s);
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
   const texts = sentences.map((x) => x.text);
   const plateLen = plateSeconds(total);
-  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen, s.videos) ? target!.reuse! : null;
-  if (target?.reuse && !reuse && s.videos?.includes(target.reuse.draftId)) rec.notes.push("preview: Draft " + target.reuse.draftId + " is a video, not refilled");
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
@@ -610,19 +607,19 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   // Every sentence keeps its caption, number scenes included (style spec 1); a plan's hideCaption is ignored.
   const captions = captionTimes(texts, times, chars);
 
-  // A refill keeps the plate and bands Resources it was built with (importing them again adds duplicates).
-  if (reuse) rec.notes.push("plate: reused " + (reuse.plateImage ? "image" : "colour") + " Resource " + reuse.plateId, "bands: " + (reuse.bandsId ? "reused image Resource " + reuse.bandsId : "frame graphic"));
-  const bg = reuse ? { id: reuse.plateId, image: reuse.plateImage } : await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  // Cached files are safe to import again; persisted rN Resource aliases are
+  // not. They may now name an unrelated file after a complete app restart.
+  const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;
   // Scenes draw in the layout's window; over a background image they leave their own fill off so it shows.
   // "transparent" fails the colour control's check (addMotionGraphic rejects it); a zero-alpha hex passes.
   const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: CLEAR_PAPER } : {}) };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
-  const bandsId = reuse ? reuse.bandsId ?? undefined : await bands(sdk, env, projectId, preset, rec);
+  const bandsId = await bands(sdk, env, projectId, preset, rec);
   const headFont = await findHeadlineFont(preset.headlineFonts);
   rec.notes.push(headlineFontNote(headFont));
   log("assembling");
-  const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
+  const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
     headlineFont: headFont?.kind === "installed" ? headFont.params : undefined };
   let draftId: string | null = null, frames = 0;
   const placed: Array<{ clipId: number }> = [];
@@ -631,7 +628,7 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     try { const f = sceneFrames(frames, sc); return Number(entranceSec(sc.type, fitControls(sc.type, sc.params), f.end - f.start).toFixed(3)); }
     catch { return 0; }
   };
-  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, structureRev: previewStructureRev(s),
+  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: narration.resourceId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, structureRev: previewStructureRev(s),
     scenes: scenes.map((sc, i) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc), clipId: placed[i]?.clipId, revision: sceneRevision(plan[i]), params: plan[i].params, type: plan[i].type, assetRef: plan[i].assetRef, programRev: programRevision(plan[i]) })) });
   const previousView = await completeDraftOnScreen(sdk, s);
   try {
@@ -639,10 +636,16 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     if (!draftId) {
       const baseCall = baseDraftScript(x);
       rec.notes.push("script bytes: base " + scriptBytes(baseCall));
-      const base = await run<{ draftId: string | null; frames: number }>(sdk, baseCall);
+      const base = await run<{ draftId: string | null; frames: number; narrationFrames: number }>(sdk, baseCall);
       if (!base.draftId) throw new Error("the Draft was not created");
       draftId = base.draftId;
       frames = base.frames;
+      // The imported source grid can differ from the job's seconds by a
+      // frame. End the final scene/caption at the actual placed audio, while
+      // frame/bands/headline use the full Draft including its 0.5 s gap.
+      const audioEnd = base.narrationFrames / FPS;
+      if (scenes.length) scenes[scenes.length - 1].endSec = audioEnd;
+      if (captions.length) captions[captions.length - 1].endSec = audioEnd;
     }
     // Stacking follows call order: scenes above the frame, the bands above the scenes, then headline and captions.
     const calls = [

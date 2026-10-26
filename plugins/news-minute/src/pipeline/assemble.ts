@@ -74,11 +74,15 @@ export function baseDraftScript(x: AssemblyInput): ScriptCall {
     script: `const p = selects.project(${J(x.projectId)});
 const d = await p.createDraft({ name: ${J(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
-await d.insertResource({ resourceId: ${J(x.narrationId)}, sourceRange: { startSeconds: 0, endSeconds: ${J(x.narrationSeconds)} } });
+// Use the complete source grid. The job's seconds can round above the local
+// source timeline's last frame; using that value as a trim endpoint rejects it.
+await d.insertResource({ resourceId: ${J(x.narrationId)} });
+const narrationFrames = (await d.meta()).durationFrames;
 await d.insertGap({ seconds: 0.5 });
+if ((await d.meta()).durationFrames / (30000 / 1001) > ${J(x.plateSeconds)}) throw new Error("background plate shorter than the placed narration and ending hold");
 ${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
-return { draftId: out.createdDraftId ?? null, frames: total };`,
+return { draftId: out.createdDraftId ?? null, frames: total, narrationFrames };`,
   };
 }
 

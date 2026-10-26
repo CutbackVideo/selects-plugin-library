@@ -88,6 +88,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const T = (k: string, v?: Record<string, string | number>) => t(lang, k, v);
   const [s, setS] = useState<F.Session | null>(null);
   const [busy, setBusy] = useState(false);
+  const [narrationRecovery, setNarrationRecovery] = useState(false);
   const [status, setStatus] = useState("");
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -164,6 +165,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       const message = String(e?.message || e);
       if (message === "providerNotConnected" || message === "providerUnavailable" || message === "providerReadFailed") await refreshProviders();
       const key = message.split(":")[0];
+      if (key === "narrationReferenceLost") setNarrationRecovery(true);
       setError(T("error", { error: MESSAGES[key] ? T(key) : message }));
     }
     finally { setBusy(false); setStatus(""); }
@@ -300,6 +302,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     finally { await finish(rec); }
     const next2 = { ...selected, plan };
     await update(next2);
+    setNarrationRecovery(false);
     setFeedback(""); setJsonErr({}); setOpenRow(null); setPicked(null);
     if (plan.timing === "ratio") setError(T("timingRatio"));
     await previewInto(next2);
@@ -320,6 +323,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       rec.notes.push("error: " + String(e?.message || e));
       if (e instanceof F.PartialDraftError) await keepPartialDraft(sess, e);
       const message = String(e?.message || e), key = message.split(":")[0];
+      if (key === "narrationReferenceLost") setNarrationRecovery(true);
       setError(T("previewFailed", { error: MESSAGES[key] ? T(key) : message }));
     } finally { await finish(rec); }
   };
@@ -686,7 +690,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       )}
 
       {approved && next ? (
-        <Step done={!!plan && next.kind === "ready"} summary={next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : ""}>
+        <Step done={!!plan && next.kind === "ready" && !narrationRecovery} summary={next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : ""}>
           <label>{T("voice")}{" "}
             <select value={s.voiceId} disabled={busy || next.kind === "poll" || next.kind === "ready"} onChange={(e) => update({ ...s, voiceId: e.target.value, approved: F.revisionOf(sc!, e.target.value) })}>
               {(voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name}</option>)}
@@ -712,11 +716,16 @@ function NewsMinutePanel({ sdk, context }: Props) {
             </>
           ) : (
             <>
-              {plan ? null : <>
+              {plan && !narrationRecovery ? null : <>
                 <span>{"\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) })}</span>
                 <span style={muted}>{aiUsage}</span>
                 <button disabled={busy || !providerReady} onClick={makePlan}>{T("makePlan")}</button>
               </>}
+              {narrationRecovery ? <>
+                <span style={warn}>{T("narrationReferenceLost")}</span>
+                <span style={muted}>{T("credits", { chars, est: quote.estimated, held: quote.held })}</span>
+                <button {...SECONDARY} disabled={busy} onClick={narrate}>{T("newNarration")}</button>
+              </> : null}
             </>
           )}
         </Step>
