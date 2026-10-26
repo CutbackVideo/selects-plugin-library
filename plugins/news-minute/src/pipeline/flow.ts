@@ -485,11 +485,25 @@ return out;` });
 export const canRefill = (p: PreviewDraft | null | undefined, projectId: string, presetId: string, plateLen: number, videos: string[] = []): p is PreviewDraft =>
   !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
 
-// A build that stopped after the Draft was saved; the Draft is kept and recorded as an outdated preview.
+type DraftView = { projectId: string; draftId: string };
+// A build that stopped after the Draft was saved; keep the candidate and the
+// complete Draft that was on screen immediately before candidate creation.
 export class PartialDraftError extends Error {
   draft: Omit<PreviewDraft, "name" | "planRev" | "at">;
   preview: PreviewDraft | null = null;
+  previousView: DraftView | null = null;
   constructor(message: string, draft: Omit<PreviewDraft, "name" | "planRev" | "at">) { super(message); this.draft = draft; }
+}
+
+async function completeDraftOnScreen(sdk: PanelSdk, s: Session): Promise<DraftView | null> {
+  try {
+    const state = await run(sdk, { summary: "Remember the visible complete news Draft", script: "return await selects.editor.state();" });
+    const id = state?.onScreenTab?.kind === "draft" ? state.onScreenTab.sequenceId : null;
+    if (!id || state.projectId !== s.projectId || !state.draftIds?.includes(id)) return null;
+    const complete = [s.preview, s.video].some(d => d?.projectId === s.projectId && d.draftId === id && d.planRev) ||
+      s.retainedDrafts?.some(d => d.projectId === s.projectId && d.draftId === id && d.status === "previous");
+    return complete ? { projectId: s.projectId!, draftId: id } : null;
+  } catch { return null; } // Unavailable presentation state must not block building or guess a target.
 }
 
 export function retainDraft(s: Session, draft: PreviewDraft, status: RetainedDraft["status"], error?: string): Session {
@@ -505,10 +519,9 @@ export function acceptPreview(s: Session, preview: PreviewDraft): Session {
 
 export function retainPartialDraft(s: Session, error: PartialDraftError): Session {
   if (!error.preview) return s;
-  const next = retainDraft(s, error.preview, "incomplete", error.message);
-  // Keep the previous complete preview/video active. On a first build, show the
-  // incomplete candidate so its existence is visible even after panel reload.
-  return !s.preview && !s.video ? { ...next, preview: error.preview } : next;
+  // Even on a first failure, the incomplete candidate belongs only in the
+  // recovery list. It must not become the preview or enable scene navigation.
+  return retainDraft(s, error.preview, "incomplete", error.message);
 }
 
 // Mutations (build, refill, rename) wait for all earlier work. Navigation and stills each
@@ -620,6 +633,7 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   };
   const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, structureRev: previewStructureRev(s),
     scenes: scenes.map((sc, i) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc), clipId: placed[i]?.clipId, revision: sceneRevision(plan[i]), params: plan[i].params, type: plan[i].type, assetRef: plan[i].assetRef, programRev: programRevision(plan[i]) })) });
+  const previousView = await completeDraftOnScreen(sdk, s);
   try {
     if (target?.reuse) rec.notes.push("preview: kept previous Draft " + target.reuse.draftId + "; building a new candidate");
     if (!draftId) {
@@ -646,7 +660,11 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
       catch (e: any) { throw new PartialDraftError(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`, record()); }
     }
   } catch (e) {
-    if (draftId && !(e instanceof PartialDraftError)) throw new PartialDraftError(String((e as any)?.message || e), record());
+    if (draftId) {
+      const partial = e instanceof PartialDraftError ? e : new PartialDraftError(String((e as any)?.message || e), record());
+      partial.previousView = previousView;
+      throw partial;
+    }
     throw e;
   } finally {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
@@ -697,7 +715,9 @@ export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: 
     return { preview: { ...r.draft, name, planRev, at: new Date().toISOString() }, refilled: r.refilled };
   } catch (e) {
     if (e instanceof PartialDraftError) {
-      const incomplete = name + " · " + (options.incompleteLabel ?? "Incomplete");
+      let incomplete = name + " · " + (options.incompleteLabel ?? "Incomplete");
+      try { incomplete = uniqueName(incomplete, await draftNames(sdk, s.projectId!, e.draft.draftId)); }
+      catch { incomplete += " · " + new Date().toISOString(); }
       try { await renameDraft(sdk, { projectId: s.projectId!, draftId: e.draft.draftId, name: incomplete }); name = incomplete; }
       catch { rec.notes.push("incomplete candidate: could not rename " + e.draft.draftId); }
       e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };

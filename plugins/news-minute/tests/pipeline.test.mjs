@@ -573,18 +573,26 @@ test("plan feedback retains custom programs when the planner omits or rewrites t
   s.plan.sentences = s.plan.sentences.map((line, i) => ({ ...line, startSec: i * 3, endSec: (i + 1) * 3 }));
   s.plan.times = s.plan.sentences.map(({ startSec, endSec }) => ({ startSec, endSec }));
   s.plan.scenes = s.plan.scenes.map(sc => ({ ...sc, hideCaption: false, disclaimer: false }));
-  const program = { tsxCode: "export default function Custom() { return null; }", editableParameters: [{ key: "amount", type: "number" }], sources: [] };
+  const program = { tsxCode: "export default function Custom() { return null; }" + "/* retained helper */".repeat(2500), editableParameters: [{ key: "amount", type: "number" }], sources: [] };
   s.plan.scenes[0] = { ...s.plan.scenes[0], params: { amount: 12 }, program };
   for (const returnedProgram of [undefined, { ...program, tsxCode: "export default function Replaced() { return null; }" }]) {
     const h = fakeHost(DRAFT_ANSWERS);
+    const prompts = [];
     h.sdk.aiProviders = async () => ({ chatgpt: "connected", claude: "disconnected", selects: "connected" });
-    h.sdk.askAI = async () => ({ text: JSON.stringify({ assetSummaries: [], scenes: s.plan.scenes.map((sc, i) => i ? { ...sc, params: { text: "Updated" } } : { ...sc, program: returnedProgram }) }) });
+    h.sdk.askAI = async input => {
+      prompts.push(input.prompt);
+      return { text: JSON.stringify({ assetSummaries: [], scenes: s.plan.scenes.map((sc, i) => i ? { ...sc, sentenceIds: prompts.length === 1 ? ["missing"] : sc.sentenceIds, params: { text: "Updated" } } : { ...sc, program: returnedProgram }) }) };
+    };
     const out = await F.revisePlan(h.sdk, HOST_ENV, s, preset, "Change only the second card", () => {}, F.newRunRecord("chosun", ""), "chatgpt");
     assert.equal(out.kept, false);
     assert.deepEqual(out.plan.scenes[0].program, program);
     assert.deepEqual(out.plan.scenes[0].params, { amount: 12 });
     assert.equal(out.plan.scenes[1].params.text, "Updated");
     assert.deepEqual(out.plan.changed, [1]);
+    assert.equal(prompts.length, 2); // The invalid grouping requires a repair.
+    assert.ok(prompts.every(p => p.length < 20000 && !p.includes("function Custom") && !p.includes("function Replaced")));
+    assert.match(prompts[0], /Do not return a program field/);
+    assert.match(prompts[0], /"customGraphic":\{"controls":\[\{"key":"amount","type":"number"\}\]\}/);
   }
 });
 
@@ -646,21 +654,36 @@ test("a failed candidate is recorded without replacing the complete preview or p
   const F = await import("../src/pipeline/flow.ts");
   const { s, preset } = await planSession();
   const prev = { draftId: "old", name: "Earlier", projectId: "p", planRev: "saved", scenes: [], at: "before" };
-  const current = { ...s, preview: prev };
-  const before = structuredClone(current);
+  const current = { ...s, preview: prev, retainedDrafts: [
+    { ...prev, draftId: "older", status: "previous" },
+    { ...prev, draftId: "incomplete", status: "incomplete" },
+  ] };
   const { ["Add headline and captions (1/1)"]: _drop, ...answers } = DRAFT_ANSWERS;
-  const h = fakeHost(answers);
-  await assert.rejects(F.buildPreview(h.sdk, HOST_ENV, current, preset, "Preview", () => {}, F.newRunRecord("chosun", "")), e => {
-    const saved = F.retainPartialDraft(current, e);
-    assert.deepEqual(saved.preview, prev);
-    assert.deepEqual(saved.plan, s.plan);
-    assert.equal(saved.retainedDrafts[0].draftId, "d-new");
-    assert.equal(saved.retainedDrafts[0].status, "incomplete");
-    assert.match(saved.retainedDrafts[0].name, /Incomplete/);
-    assert.deepEqual(JSON.parse(JSON.stringify(saved)).retainedDrafts, saved.retainedDrafts);
-    return true;
-  });
-  assert.deepEqual(current, before);
+  for (const [session, id, projectId, expected] of [
+    [current, "old", "p", "old"], [current, "older", "p", "older"],
+    [current, "incomplete", "p", null], [current, "unrelated", "p", null],
+    [current, "old", "another-project", null], [s, null, "p", null],
+  ]) {
+    const before = structuredClone(session);
+    const state = { projectId, onScreenTab: id ? { kind: "draft", sequenceId: id } : { kind: "none", sequenceId: null }, draftIds: id ? [id] : [] };
+    const existingIncomplete = F.previewName(session, "Preview") + " · Incomplete";
+    const h = fakeHost({ ...answers, "Remember the visible complete news Draft": state, "Read the Project's Draft names": [existingIncomplete] });
+    await assert.rejects(F.buildPreview(h.sdk, HOST_ENV, session, preset, "Preview", () => {}, F.newRunRecord("chosun", "")), e => {
+      assert.deepEqual(e.previousView, expected ? { projectId: "p", draftId: expected } : null);
+      const saved = F.retainPartialDraft(session, e);
+      assert.deepEqual(saved.preview, session.preview); // First failure never becomes a preview.
+      assert.deepEqual(saved.plan, s.plan);
+      assert.deepEqual(saved.retainedDrafts.slice(0, -1), session.retainedDrafts ?? []);
+      assert.equal(saved.retainedDrafts.at(-1).draftId, "d-new");
+      assert.equal(saved.retainedDrafts.at(-1).status, "incomplete");
+      assert.match(saved.retainedDrafts.at(-1).name, /Incomplete/);
+      assert.notEqual(saved.retainedDrafts.at(-1).name, existingIncomplete);
+      assert.deepEqual(JSON.parse(JSON.stringify(saved)).retainedDrafts, saved.retainedDrafts);
+      return true;
+    });
+    assert.ok(h.calls.findIndex(c => c.summary === "Remember the visible complete news Draft") < h.calls.findIndex(c => c.summary === "Build the news short Draft"));
+    assert.deepEqual(session, before);
+  }
 });
 
 test("custom-program scene rows normalize against current controls without replacing the code", async () => {

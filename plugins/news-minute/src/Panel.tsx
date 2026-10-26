@@ -118,6 +118,12 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const log: F.Log = (k, v) => { setStatus(T(k, v)); note(k, v); };
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
   const update = async (next: F.Session) => { latest.current = next; setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
+  const keepPartialDraft = async (sess: F.Session, error: F.PartialDraftError) => {
+    await update(F.retainPartialDraft(sess, error));
+    // Restore the completed Draft the user actually had open, including an
+    // older retained candidate. Never choose the newest one as a substitute.
+    if (error.previousView) await openNow(error.previousView.projectId, error.previousView.draftId);
+  };
 
   const refreshProviders = async () => {
     const id = ++providerRead.current;
@@ -312,7 +318,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       log("previewReady");
     } catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError) await update(F.retainPartialDraft(sess, e));
+      if (e instanceof F.PartialDraftError) await keepPartialDraft(sess, e);
       const message = String(e?.message || e), key = message.split(":")[0];
       setError(T("previewFailed", { error: MESSAGES[key] ? T(key) : message }));
     } finally { await finish(rec); }
@@ -358,7 +364,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     }
     catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError) await update(F.retainPartialDraft(selected, e));
+      if (e instanceof F.PartialDraftError) await keepPartialDraft(selected, e);
       throw e;
     }
     finally { await finish(rec); }
@@ -401,7 +407,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
       rec.notes.push("error: " + String(e?.message || e));
       if (e instanceof F.PartialDraftError) {
         e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
-        await update(F.retainPartialDraft(s, e));
+        await keepPartialDraft(s, e);
       }
       throw e;
     }
