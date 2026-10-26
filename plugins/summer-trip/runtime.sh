@@ -56,6 +56,14 @@ runtime_ready() {
   fi
 }
 if runtime_ready; then exit 0; fi
+# Older installed plugins know only .lock. A probe followed by release has a
+# check/use race: an old bootstrap could begin writing immediately afterwards.
+# Keep its lock through the entire cold install/repair, always before the typed
+# lock. This intentionally serializes cold Node/Python installs for coexistence;
+# already verified warm runtimes above remain independent of every installer.
+if [ "${SELECTS_RUNTIME_COMPAT_LOCKED:-}" != 1 ]; then
+  SELECTS_RUNTIME_COMPAT_LOCKED=1 exec /usr/bin/lockf -k -t 280 "$STORE/.lock" /bin/sh "$0" "$want"
+fi
 if [ "${SELECTS_RUNTIME_LOCKED:-}" != "$want" ]; then
   SELECTS_RUNTIME_LOCKED="$want" exec /usr/bin/lockf -k -t 280 "$STORE/.$want.lock" /bin/sh "$0" "$want"
 fi

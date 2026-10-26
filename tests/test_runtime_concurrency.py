@@ -19,6 +19,7 @@ class RuntimeConcurrencyTest(unittest.TestCase):
         self.bin.mkdir()
         self.env = {**os.environ, 'HOME': str(self.home), 'PATH': str(self.bin) + ':' + os.environ['PATH']}
         self.env.pop('SELECTS_RUNTIME_LOCKED', None)
+        self.env.pop('SELECTS_RUNTIME_COMPAT_LOCKED', None)
         self.processes = []
         self.script = ROOT / 'tools/runtime.sh'
         self.lockf = Path('/usr/bin/lockf')
@@ -69,6 +70,71 @@ class RuntimeConcurrencyTest(unittest.TestCase):
         self.hold(self.store / '.python.lock')
         out, err = self.run_runtime('node').communicate(timeout=.5)
         self.assertEqual(out.strip(), str(self.node), err)
+    def test_verified_warm_python_does_not_wait_for_the_legacy_global_lock(self):
+        py = self.python_fixture()
+        (self.home / 'python-ready').touch()
+        self.hold(self.store / '.lock')
+        p = self.run_runtime('python')
+        out, err = p.communicate(timeout=.5)
+        self.assertEqual(p.returncode, 0, err)
+        self.assertEqual(out.strip(), str(py))
+        self.assertFalse((self.home / 'python-installing').exists())
+    def trace_installer_lock(self):
+        probe = self.bin / 'installer-lock-probe'
+        self.executable(probe, 'if [ ! -e "$HOME/first-installer-lock" ]; then printf "%s\\n" "$4" > "$HOME/first-installer-lock"; fi\nexec "' + str(self.lockf) + '" "$@"\n')
+        self.script = self.home / 'probed-runtime.sh'
+        self.script.write_text((ROOT / 'tools/runtime.sh').read_text().replace('/usr/bin/lockf', str(probe)))
+    def test_cold_install_waits_for_the_old_global_lock_until_publication(self):
+        self.node_download_fixture()
+        self.trace_installer_lock()
+        self.hold(self.store / '.lock')  # Existing old bootstrap's real lock boundary.
+        new = self.run_runtime('node')
+        self.wait_for('first-installer-lock')
+        self.assertEqual((self.home / 'first-installer-lock').read_text().strip(), str(self.store / '.lock'),
+                         'a per-runtime lock alone does not exclude an old global installer')
+        self.assertFalse((self.home / 'downloading').exists())
+        self.assertFalse(self.node.exists())
+        (self.home / 'release').touch()
+        out, err = new.communicate(timeout=3)
+        self.assertEqual(new.returncode, 0, err)
+        self.assertEqual(out.strip(), str(self.node))
+    def test_new_cold_call_rechecks_and_reuses_the_old_installers_publication(self):
+        self.node_download_fixture()
+        self.trace_installer_lock()
+        self.executable(self.home / 'old-node', 'exit 0\n')
+        old_env = {**self.env, 'NODE_DEST': str(self.node)}
+        old_command = 'touch "$HOME/locked"; while [ ! -e "$HOME/release" ]; do sleep .01; done; mkdir -p "$(dirname "$NODE_DEST")"; cp "$HOME/old-node" "$NODE_DEST"'
+        old = subprocess.Popen([str(self.lockf), '-k', '-t', '2', str(self.store / '.lock'), '/bin/sh', '-c', old_command], env=old_env)
+        self.processes.append(old)
+        self.wait_for('locked')
+        new = self.run_runtime('node')
+        self.wait_for('first-installer-lock')
+        self.assertFalse(self.node.exists())
+        self.assertFalse((self.home / 'downloading').exists())
+        (self.home / 'release').touch()
+        out, err = new.communicate(timeout=3)
+        self.assertEqual(new.returncode, 0, err)
+        self.assertEqual(out.strip(), str(self.node))
+        self.assertFalse((self.home / 'downloads').exists(), 'the old installation is reused rather than replaced')
+    def test_old_installer_starting_later_cannot_enter_before_new_publication(self):
+        self.node_download_fixture()
+        (self.home / 'gate').touch()
+        new = self.run_runtime('node')
+        self.wait_for('downloading')
+        self.assertFalse(self.node.exists())
+        old_env = {**self.env, 'NODE_DEST': str(self.node)}
+        old_command = 'touch "$HOME/old-entered"; [ -x "$NODE_DEST" ] || exit 41; "$NODE_DEST" -e pinned-version-check'
+        old = subprocess.Popen([str(self.lockf), '-k', '-t', '2', str(self.store / '.lock'), '/bin/sh', '-c', old_command], env=old_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.processes.append(old)
+        time.sleep(.05)
+        self.assertIsNone(old.poll())
+        self.assertFalse((self.home / 'old-entered').exists())
+        (self.home / 'release').touch()
+        _, err = new.communicate(timeout=3)
+        self.assertEqual(new.returncode, 0, err)
+        _, err = old.communicate(timeout=3)
+        self.assertEqual(old.returncode, 0, err)
+        self.assertTrue((self.home / 'old-entered').exists())
     def test_an_executable_with_wrong_version_is_not_ready(self):
         self.warm_node(False)
         self.executable(self.bin / 'curl', 'echo unexpected-download >&2; exit 11\n')
@@ -159,19 +225,21 @@ fi
 printf '%s\\n' "$HOME/managed-python"
 ''')
         return py
-    def test_node_install_does_not_wait_for_a_cold_python_install(self):
+    def test_cold_node_waits_for_python_to_preserve_legacy_global_lock_coexistence(self):
         py = self.python_fixture()
         self.node_download_fixture()
         python = self.run_runtime('python')
         self.wait_for('python-installing')
         node = self.run_runtime('node')
-        out, err = node.communicate(timeout=2)
-        self.assertEqual(node.returncode, 0, err)
-        self.assertEqual(out.strip(), str(self.node))
-        self.assertIsNone(python.poll(), 'Node finishing must not finish another runtime installation')
+        time.sleep(.05)
+        self.assertIsNone(node.poll())
+        self.assertFalse((self.home / 'downloading').exists(), 'cold work must wait, not share the legacy global lock')
         (self.home / 'release').touch()
         out, err = python.communicate(timeout=2)
         self.assertEqual(python.returncode, 0, err)
         self.assertEqual(out.strip(), str(py))
+        out, err = node.communicate(timeout=3)
+        self.assertEqual(node.returncode, 0, err)
+        self.assertEqual(out.strip(), str(self.node))
 
 if __name__ == '__main__': unittest.main()
