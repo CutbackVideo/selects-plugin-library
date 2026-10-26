@@ -1948,26 +1948,26 @@
     },
     {
       "path": "tests/archive_preview_fixture.mjs",
-      "sha256": "616a123fbdf8ee598aea95d6173caa9e69521c3992a1eb567f8b23fba4147f0b",
+      "sha256": "f40227b737faddf421bbbcf11197fb0b144bb9d232de23042778e82c583f1161",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 54,
+          "endLine": 74,
           "feature": "test-harness"
         }
       ]
     },
     {
       "path": "tests/archive_preview_lifetime.test.mjs",
-      "sha256": "16763acab830e0882446611fc2bc674ce20c88de7c01b2667eeabd39cfc28e8a",
+      "sha256": "9fa6145ecccae5ae9e4ca30fd001b0ebc984b810de2307b701697527211030ae",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 103,
+          "endLine": 121,
           "feature": "test-harness"
         }
       ]
