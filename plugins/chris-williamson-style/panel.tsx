@@ -1992,7 +1992,7 @@ function faceUI(context: any) { return FACE_UI[String(context?.language || 'en')
 function facePendingNotice(context: any) {
   const resume=faceUI(context)[0];
   return String(context?.language||'en').toLowerCase().split('-')[0]==='ko'
-    ? '얼굴 분석이 아직 끝나지 않았거나 상태를 확인하지 못했습니다. 진행 내용은 저장되어 있습니다. 이 타임라인에서 Chris Williamson Style을 열고 ‘'+resume+'’를 누르면 같은 분석을 이어갑니다.'
+    ? '\uc5bc\uad74 \ubd84\uc11d\uc774 \uc544\uc9c1 \ub05d\ub098\uc9c0 \uc54a\uc558\uac70\ub098 \uc0c1\ud0dc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc9c4\ud589 \ub0b4\uc6a9\uc740 \uc800\uc7a5\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \uc774 \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c Chris Williamson Style\uc744 \uc5f4\uace0 ‘'+resume+'’\ub97c \ub204\ub974\uba74 \uac19\uc740 \ubd84\uc11d\uc744 \uc774\uc5b4\uac11\ub2c8\ub2e4.'
     : 'Face analysis has not finished or its status could not be confirmed. Progress is saved. Open Chris Williamson Style on this draft and choose '+resume+' to continue the same analysis.';
 }
 

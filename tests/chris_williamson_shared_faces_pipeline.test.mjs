@@ -274,7 +274,7 @@ test('panel observation expiry keeps Resume available and never cancels the save
 test('pending observation notice names the actual localized Resume button',()=>{
  const {facePendingNotice,faceUI}=loadUiPanel(production,{names:['facePendingNotice','faceUI'],React});
  for(const language of ['en','ko-KR','de'])assert.ok(facePendingNotice({language}).includes(faceUI({language})[0]));
- assert.match(facePendingNotice({language:'ko-KR'}),/진행 내용은 저장/);
+ assert.match(facePendingNotice({language:'ko-KR'}),/\uc9c4\ud589 \ub0b4\uc6a9\uc740 \uc800\uc7a5/);
 });
 
 test('normal panel unmount detaches without calling cancel and ignores late completion',async()=>{

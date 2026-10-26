@@ -11,7 +11,7 @@ import {fingerprintTemplateFile} from '../shared/file-observation.js';
 const source=fs.readFileSync(new URL('../shared/local-client.ts',import.meta.url),'utf8');
 function host({native=true,fail=false,mutate,stdout,hold=false}={}) {
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'template-native-hash-'));
- const filename=path.join(root,'한글 "quoted" ; $file.bin'),calls=[],jobs=new Map();let reads=0,cancels=0;
+ const filename=path.join(root,'\ud55c\uae00 "quoted" ; $file.bin'),calls=[],jobs=new Map();let reads=0,cancels=0;
  const selects={files:{
   environment:async()=>({platform:'darwin',homedir:root,tempDirectory:root,version:'test'}),
   stat:async p=>{try{const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};}catch(e){if(e.code==='ENOENT')return null;throw e;}},
