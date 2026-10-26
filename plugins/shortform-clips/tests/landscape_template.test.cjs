@@ -1,3 +1,4 @@
+if (!require('./customer-fixtures.cjs').available()) { require('node:test')('landscape customer fixture', {skip:'See CUSTOMER_FIXTURES.md'},()=>{}); } else {
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createRequire}=require('node:module');
 const modules=process.env.SBS_PANEL_TEST_MODULES;
@@ -68,3 +69,5 @@ test('landscape source-video template',{skip:!modules},async t=>{
   assert.ok(a.SCRIPT_BUILD.includes('landscapeTransform(P.frame.landscape,sm.frameSize)'));
  });
 });
+
+}

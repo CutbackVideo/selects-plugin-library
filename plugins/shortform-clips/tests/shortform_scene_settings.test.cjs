@@ -1,4 +1,8 @@
 'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
+'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createRequire}=require('node:module');
 const modules=process.env.SBS_PANEL_TEST_MODULES;
@@ -39,3 +43,5 @@ test('scene template AI settings edit the instructions generation consumes',{ski
   view.toggles[1].onChange(true);assert.deepEqual(view.changes.at(-1),['editing.removeSilences',true]);
  });
 });
+
+}

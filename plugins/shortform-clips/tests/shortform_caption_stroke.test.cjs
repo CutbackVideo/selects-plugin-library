@@ -1,3 +1,7 @@
+'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('Premiere outline and baseline survive import, sharing and export parameters',{skip:!modules},()=>{
@@ -28,3 +32,5 @@ test('templates never apply clip-specific blur, including older imported setting
  await emit({addMotionGraphic:async()=>{graphics++},rangeAtFrames:async()=>({})},{frame:{...frame,sourceMaskBlur:{enabled:true}}},30);
  assert.ok(graphics>0,'design emits without accessing clips or applying video effects');
 });
+
+}

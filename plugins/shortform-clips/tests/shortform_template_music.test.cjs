@@ -1,4 +1,8 @@
 'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
+'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const {createRequire}=require('node:module');
 const modules=process.env.SBS_PANEL_TEST_MODULES;
@@ -139,3 +143,5 @@ test('template background music',{skip:!modules},async t=>{
   assert.notEqual(api.STRINGS.ko.musicMissing('/x.mp3'),api.STRINGS.en.musicMissing('/x.mp3'));
  });
 });
+
+}

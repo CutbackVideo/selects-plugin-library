@@ -1,4 +1,8 @@
 'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
+'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createRequire}=require('node:module');
 const modules=process.env.SBS_PANEL_TEST_MODULES;
@@ -244,3 +248,5 @@ test('template pack update button follows the published catalog without the GitH
   assert.equal(rows.get('template-library/index').packs[0].installSource,undefined);
  });
 });
+
+}

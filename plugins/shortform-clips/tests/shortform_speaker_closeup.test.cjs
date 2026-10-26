@@ -23,7 +23,7 @@ test('template close-up changes only automatic single-person framing',{skip:!pro
  for(const invalid of [0,NaN,Infinity,-1,13])assert.deepEqual(run('speaker',invalid),tight);
  for(const layout of ['stacked','side-by-side','columns-3','grid-4','two-shot','wide','detail'])assert.deepEqual(run(layout,12),run(layout,2.2),layout+' must ignore single-person closeUp');
 });
-test('published packs carry reviewed close-up preferences',()=>{
+test('private packs carry reviewed close-up preferences',{skip:!require('./customer-fixtures.cjs').available() && 'See CUSTOMER_FIXTURES.md'},()=>{
  const values={'chosun-ilbo':{health:3.4,parenting:3.4,panilgi:3.35,heukbaek:2.2,jeongjwippul:2.2},'hankook-ilbo':{'issue-broadcast':2.7,'knowledge-exchange':6.2}};
  for(const [pack,templates] of Object.entries(values))for(const [name,value] of Object.entries(templates)){
   const j=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs',pack,'templates',name+'.json')));assert.equal(j.layout.closeUp,value);

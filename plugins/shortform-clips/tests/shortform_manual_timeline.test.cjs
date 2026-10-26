@@ -1,3 +1,7 @@
+'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createRequire}=require('node:module');
 const modules=process.env.SBS_PANEL_TEST_MODULES;
@@ -62,3 +66,5 @@ test('apply templates to current timeline',{skip:!modules},async t=>{
   }finally{await act(async()=>root.unmount());dom.window.close();for(const k of keys){if(before[k]===undefined)delete global[k];else global[k]=before[k];}}
  });
 });
+
+}
