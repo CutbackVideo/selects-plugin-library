@@ -354,7 +354,8 @@
         "tests/mini_video_sources.test.mjs",
         "tests/source_file_bindings.test.mjs",
         "tests/template_media_selection.test.mjs",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "tests/vlog_native_hash_cancel.test.mjs"
       ],
       "implementation": "implemented-extension"
     },
@@ -972,13 +973,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "796eb710978b7e80194798b54b659e988ec804ac593ea15304cbdb22eaae3122",
+      "sha256": "b682016262abe7dbecf80c5dc7fb87e857b21084b6996705e9388cc6b1a09a32",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8114,
+          "endLine": 8140,
           "feature": "panel-ui"
         },
         {
@@ -1017,13 +1018,13 @@
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7620,
-          "endLine": 8066,
+          "startLine": 7631,
+          "endLine": 8092,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8068,
-          "endLine": 8113,
+          "startLine": 8094,
+          "endLine": 8139,
           "feature": "app-guard"
         },
         {
@@ -1167,8 +1168,8 @@
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7295,
-          "endLine": 7455,
+          "startLine": 7306,
+          "endLine": 7466,
           "feature": "workflow-policy"
         },
         {
@@ -1193,7 +1194,7 @@
         },
         {
           "startLine": 7014,
-          "endLine": 7276,
+          "endLine": 7287,
           "feature": "source-input"
         },
         {
@@ -1207,8 +1208,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7504,
-          "endLine": 7618,
+          "startLine": 7515,
+          "endLine": 7629,
           "feature": "catalog-read"
         },
         {
@@ -1310,28 +1311,28 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/assemble.js",
-      "sha256": "353bb219f0ee06aae9ca04527833e12b741db3f01a7a09f16d80720f933df31d",
+      "sha256": "375af227adead62463ee4c869503ea1f016bceb8c5a1d60d0ee60d167a977a55",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 497,
+          "endLine": 508,
           "feature": "assembly-policy"
         },
         {
           "startLine": 1,
-          "endLine": 283,
+          "endLine": 294,
           "feature": "source-input"
         },
         {
-          "startLine": 284,
-          "endLine": 363,
+          "startLine": 295,
+          "endLine": 374,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 364,
-          "endLine": 397,
+          "startLine": 375,
+          "endLine": 408,
           "feature": "assembly-policy"
         }
       ]
@@ -1753,13 +1754,13 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "af6bb999ee5d7335c20b55ff58d3d27a5b2ffd0d5c97c87cf485aeb53f32010a",
+      "sha256": "71c2cf5d7e33bac4caab09f520773bc16aaff347ff662e1d717da4f4829a1448",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 448,
+          "endLine": 463,
           "feature": "local-sdk"
         }
       ]
@@ -1792,13 +1793,13 @@
     },
     {
       "path": "shared/native-image-input.mjs",
-      "sha256": "dfa87a2e42fa33df9013802bcc0a52125aee35abb203fe68a1411dd989c3a26d",
+      "sha256": "02575aa14430fee9bd766dcad530c4bada9cbf454680b508959988cc0e76a49e",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 263,
+          "endLine": 274,
           "feature": "source-input"
         }
       ]
@@ -2099,6 +2100,19 @@
           "feature": "draft-observation"
         }
       ]
+    },
+    {
+      "path": "tests/vlog_native_hash_cancel.test.mjs",
+      "sha256": "9a0fedc9d11be0e5158ca06859a04dff6d97daf8fe07c55052aac34eddd2d61b",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 90,
+          "feature": "test-harness"
+        }
+      ]
     }
   ],
   "assets": [
@@ -2317,7 +2331,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 7381
+          "line": 7392
         }
       ],
       "repairOwner": "media-inventory",

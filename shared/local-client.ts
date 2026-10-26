@@ -145,7 +145,7 @@ async function createPanelLocalClient(sdk: any) {
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
-    fingerprint: (path: string, options?: { native?: boolean; signal?: AbortSignal; onProgress?: (bytes: number) => void; timeoutMs?: number }) =>
+    fingerprint: (path: string, options?: { native?: boolean; signal?: AbortSignal; check?: () => void; onProgress?: (bytes: number) => void; timeoutMs?: number }) =>
       options?.native ? nativeFingerprint(path, options) : runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
@@ -240,12 +240,13 @@ async function createPanelLocalClient(sdk: any) {
       cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, check?: () => void) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
       onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    check?.();
     const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;
@@ -291,9 +292,11 @@ async function createPanelLocalClient(sdk: any) {
     };
     try {
       while (true) {
+        check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
         const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        check?.();
         if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
         settled = status.state !== "running";
         if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
@@ -329,34 +332,46 @@ async function createPanelLocalClient(sdk: any) {
   // Opt-in only: raw data demuxing copies every original byte into FFmpeg's hash
   // muxer. No media decoding, source rewrite, shell interpolation or hash cache.
   // Missing capability may use the complete legacy read; execution errors cannot.
-  const nativeFingerprint = async (path: string, options: { signal?: AbortSignal; onProgress?: (bytes: number) => void; timeoutMs?: number }) => {
+  const nativeFingerprint = async (path: string, options: { signal?: AbortSignal; check?: () => void; onProgress?: (bytes: number) => void; timeoutMs?: number }) => {
     if (typeof path !== "string" || !paths.isAbsolute(path) || path.includes("\0") ||
+        options.check !== undefined && typeof options.check !== "function" ||
         options.onProgress !== undefined && typeof options.onProgress !== "function" ||
         options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 300000))
       throw new Error("The original file observation input is invalid.");
     if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const capability = await runSource("return typeof selects.media?.startFFmpeg === 'function';");
-    if (capability !== true && capability !== false) throw new Error("The local media capability could not be confirmed.");
-    if (!capability) return fingerprintTemplateFile(files, path, () => {
+    const check = () => {
       if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    });
+      options.check?.();
+    };
+    check();
+    const capability = await runSource("return typeof selects.media?.startFFmpeg === 'function';");
+    check();
+    if (capability !== true && capability !== false) throw new Error("The local media capability could not be confirmed.");
+    if (!capability) return fingerprintTemplateFile(files, path, check);
     const before = await files.stat(path);
+    check();
     if (before === null) return null;
     if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino))
       throw new Error("The file's size or identity could not be confirmed.");
     const controller = new AbortController(), abort = () => controller.abort();
     options.signal?.addEventListener("abort", abort, {once:true});
     if (options.signal?.aborted) abort();
+    // A scope guard belongs to this invocation, just like its AbortSignal.
+    // Reuse the process owner so cancellation still waits for confirmed exit.
+    const checkLifetime = () => {
+      try { check(); } catch (cause) { controller.abort(); throw cause; }
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    };
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; abort(); }, options.timeoutMs ?? 120000);
     try {
       const result = await process("FFmpeg", ["-nostdin", "-v", "error", "-protocol_whitelist", "file", "-f", "data", "-i", "file:" + path,
-        "-map", "0:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], true, controller.signal);
-      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        "-map", "0:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], true, controller.signal, undefined, undefined, checkLifetime);
+      checkLifetime();
       const match = /^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(result.stdout);
       if (!match) throw new Error("The original file hash returned an incomplete result.");
       const after = await files.stat(path);
-      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      checkLifetime();
       if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino)
         throw new Error("The file changed while its contents were read.");
       options.onProgress?.(before.size);

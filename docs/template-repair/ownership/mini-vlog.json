@@ -378,7 +378,8 @@
         "shared/native-image-input.mjs",
         "tests/mini_video_sources.test.mjs",
         "tests/source_file_bindings.test.mjs",
-        "tests/template_media_selection.test.mjs"
+        "tests/template_media_selection.test.mjs",
+        "tests/vlog_native_hash_cancel.test.mjs"
       ],
       "implementation": "implemented-extension"
     },
@@ -828,12 +829,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "ed95f07f1d004bdef617a74c01ff45f8237da7f17041b7ae79edc7e3fef58a01",
+      "sha256": "f3282f75a35820441061518dff1e53d253457f199473c3b471105447eb91cc97",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7816,
+          "endLine": 7842,
           "feature": "panel-ui"
         },
         {
@@ -952,33 +953,33 @@
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6972,
-          "endLine": 6990,
+          "startLine": 6983,
+          "endLine": 7001,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6991,
-          "endLine": 7160,
+          "startLine": 7002,
+          "endLine": 7171,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7161,
-          "endLine": 7205,
+          "startLine": 7172,
+          "endLine": 7216,
           "feature": "panel-ui"
         },
         {
-          "startLine": 7322,
-          "endLine": 7768,
+          "startLine": 7333,
+          "endLine": 7794,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7769,
-          "endLine": 7815,
+          "startLine": 7795,
+          "endLine": 7841,
           "feature": "app-guard"
         },
         {
-          "startLine": 7815,
-          "endLine": 7815,
+          "startLine": 7841,
+          "endLine": 7841,
           "feature": "panel-ui"
         },
         {
@@ -1023,7 +1024,7 @@
         },
         {
           "startLine": 6709,
-          "endLine": 6971,
+          "endLine": 6982,
           "feature": "source-input"
         },
         {
@@ -1037,8 +1038,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7206,
-          "endLine": 7320,
+          "startLine": 7217,
+          "endLine": 7331,
           "feature": "catalog-read"
         },
         {
@@ -1154,22 +1155,22 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/assemble.js",
-      "sha256": "7f918438e89e0d712f5509382714de428fbdc0d730c3578f205347063e60bad0",
+      "sha256": "c544c944022b1fd5aa1802c04ddb94cd7e56aee63befc9b2b6968652b96980d1",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 495,
+          "endLine": 506,
           "feature": "source-input"
         },
         {
-          "startLine": 284,
-          "endLine": 363,
+          "startLine": 295,
+          "endLine": 374,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 364,
-          "endLine": 495,
+          "startLine": 375,
+          "endLine": 506,
           "feature": "assembly-policy"
         }
       ],
@@ -1712,11 +1713,11 @@
       "path": "shared/native-image-input.mjs",
       "role": "build-source",
       "hashMode": "lf-text",
-      "sha256": "dfa87a2e42fa33df9013802bcc0a52125aee35abb203fe68a1411dd989c3a26d",
+      "sha256": "02575aa14430fee9bd766dcad530c4bada9cbf454680b508959988cc0e76a49e",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 263,
+          "endLine": 274,
           "feature": "source-input"
         }
       ]
@@ -1864,14 +1865,27 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "af6bb999ee5d7335c20b55ff58d3d27a5b2ffd0d5c97c87cf485aeb53f32010a",
+      "sha256": "71c2cf5d7e33bac4caab09f520773bc16aaff347ff662e1d717da4f4829a1448",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 448,
+          "endLine": 463,
           "feature": "local-sdk"
+        }
+      ]
+    },
+    {
+      "path": "tests/vlog_native_hash_cancel.test.mjs",
+      "sha256": "9a0fedc9d11be0e5158ca06859a04dff6d97daf8fe07c55052aac34eddd2d61b",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 90,
+          "feature": "test-harness"
         }
       ]
     }
