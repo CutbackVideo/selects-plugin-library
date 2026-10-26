@@ -7,17 +7,25 @@ const{render,cleanup,act,fireEvent}=require('@testing-library/react'),h=React.cr
 const source=id=>fs.readFileSync(process.env.CAPTION_TARGET_BASELINE_DIR?path.join(process.env.CAPTION_TARGET_BASELINE_DIR,id,'panel.tsx'):new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}};
 const tick=async fn=>act(async()=>{await fn?.();await new Promise(r=>setImmediate(r))});
-const ui={Section:({title,children})=>h('section',null,h('h3',null,title),children),Stack:({children})=>h('div',null,children),Message:({children})=>h('p',null,children),Progress:()=>h('span',null,'Progress'),Button:({children,disabled,busy,onClick})=>h('button',{disabled:disabled||busy,onClick},children)};
+const ui={Select:({label,value,onChange,disabled,options})=>h('label',null,label,h('select',{value,disabled,onChange:e=>onChange(e.target.value)},options.map(o=>h('option',{key:o.value,value:o.value},o.label)))),Section:({title,children})=>h('section',null,h('h3',null,title),children),Stack:({children})=>h('div',null,children),Message:({children})=>h('p',null,children),Progress:()=>h('span',null,'Progress'),Button:({children,disabled,busy,onClick})=>h('button',{disabled:disabled||busy,onClick},children)};
 function jude({pipeline=null}={}){
- const reads=[],opens=[],gate=deferred();let detached=false,lateWrites=0,env;
+ const reads=[],opens=[],gate=deferred();let detached=false,lateWrites=0,env,options;
  const observedReact={...React,useState(initial){const[value,set]=React.useState(initial);return[value,v=>{if(detached)lateWrites++;set(v)}]}};
- const bindings=loadPanelModule(source('jude-kinetic-style'),{names:['StylePanel','readOpenDraft'],React:observedReact,overrides:{useAppUpdateGuard:()=>{},pluginPaths:async()=>({data:'/owned',plugin:'/owned'}),readOpenDraft:(sdk,pid,sid)=>{const q=deferred();reads.push({pid,sid,...q});return q.promise},...pipeline?{panelEnv:(_sdk,_paths,progress)=>{env={progress};return env},runPipeline:async()=>gate.promise}:{}},filename:'plugins/jude-kinetic-style/panel.tsx'});
+ const bindings=loadPanelModule(source('jude-kinetic-style'),{names:['StylePanel','readOpenDraft'],React:observedReact,overrides:{useAppUpdateGuard:()=>{},pluginPaths:async()=>({data:'/owned',plugin:'/owned'}),readOpenDraft:(sdk,pid,sid)=>{const q=deferred();reads.push({pid,sid,...q});return q.promise},...pipeline?{panelEnv:(_sdk,_paths,progress)=>{env={progress};return env},runPipeline:async(_env,_pid,_sid,value)=>{options=value;return gate.promise}}:{}},filename:'plugins/jude-kinetic-style/panel.tsx'});
  const sdk={runScript:async input=>{opens.push(input);throw Error('No unexpected host calls')}},initial={projectId:'p',sequenceId:'a',language:'en'};let context=initial;
  const view=render(h(bindings.StylePanel,{sdk,context,ui}));
  const update=async patch=>{context={...context,...patch};await tick(()=>view.rerender(h(bindings.StylePanel,{sdk,context,ui})))};
  const answer=async(sid,name,extra={})=>{const q=reads.findLast(x=>x.sid===sid);assert.ok(q);await tick(()=>q.resolve({name,projectName:'Project '+q.pid,projectId:q.pid,sequenceId:sid,words:1,resource:{status:'analyzed'},...extra}))};
- return{view,reads,opens,gate,answer,update,text:()=>view.container.textContent,env:()=>env,unmount(){detached=true;view.unmount()},lateWrites:()=>lateWrites};
+ return{view,reads,opens,gate,answer,update,text:()=>view.container.textContent,env:()=>env,options:()=>options,unmount(){detached=true;view.unmount()},lateWrites:()=>lateWrites};
 }
+for(const choice of ['none','bundled'])test(`Jude visible music selection reaches the production pipeline (${choice})`,async()=>{
+ const q=jude({pipeline:true});await tick();await q.answer('a','Alpha');
+ const select=q.view.getByRole('combobox',{name:'Background music'});assert.equal(select.value,'none');
+ await tick(()=>fireEvent.change(select,{target:{value:choice}}));
+ await tick(()=>fireEvent.click(q.view.getByRole('button',{name:'Apply Jude Kinetic'})));await q.answer('a','Alpha');
+ assert.equal(q.options().music,choice==='bundled');assert.equal(select.disabled,true);
+ q.unmount();await tick(()=>q.gate.resolve({draftId:'owned-result'}));assert.equal(q.opens.length,0);assert.equal(q.lateWrites(),0);
+});
 test('Jude retains the focused Project/Draft and analysis state after late old success',async()=>{
  const q=jude();await tick();await q.update({sequenceId:'b'});await q.answer('b','Beta');await q.answer('a','Alpha',{words:0});assert.doesNotMatch(q.text(),/Alpha/);assert.match(q.text(),/Project: Project p/);assert.match(q.text(),/Current draft: Beta/);assert.ok(q.view.getByRole('button',{name:'Apply Jude Kinetic'}));
 });
