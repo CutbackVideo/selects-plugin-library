@@ -24,11 +24,6 @@ esac
 STORE="$HOME/.selects/plugin-data/_runtime"
 mkdir -p "$STORE"
 
-# One installer at a time; a second caller waits, then finds the work done.
-if [ "${SELECTS_RUNTIME_LOCKED:-}" != 1 ]; then
-  SELECTS_RUNTIME_LOCKED=1 exec /usr/bin/lockf -k -t 280 "$STORE/.lock" /bin/sh "$0" "$want"
-fi
-
 case "$(uname -m)" in
   arm64)
     NODE_ARCH=arm64
@@ -42,6 +37,28 @@ case "$(uname -m)" in
     UV_SHA=76638fdcfa91357858771551a1c88de1f7c3b270b33ab1866f8a0618d9e442d8 ;;
   *) echo "This Mac's processor ($(uname -m)) is not supported." >&2; exit 2 ;;
 esac
+
+dir="$STORE/node-v22.23.3-darwin-$NODE_ARCH"
+uv="$STORE/uv-0.8.22-$UV_ARCH/uv"
+export UV_PYTHON_INSTALL_DIR="$STORE/python" UV_CACHE_DIR="$STORE/uv-cache" UV_NO_PROGRESS=1
+# A published executable is ready only when its pinned version actually runs.
+# Warm readers do not wait behind another runtime's download. The installer
+# re-enters this check under its own lock, so same-runtime cold callers share it.
+runtime_ready() {
+  if [ "$want" = node ]; then
+    [ -x "$dir/bin/node" ] && "$dir/bin/node" -e 'process.exit(process.version === "v22.23.3" ? 0 : 1)' || return 1
+    printf '%s\n' "$dir/bin/node"
+  else
+    [ -x "$uv" ] || return 1
+    py=$("$uv" python find --managed-python 3.11.13 2>/dev/null) || return 1
+    "$py" -c 'import sys; sys.exit(0 if sys.version_info[:3] == (3, 11, 13) else 1)' || return 1
+    printf '%s\n' "$py"
+  fi
+}
+if runtime_ready; then exit 0; fi
+if [ "${SELECTS_RUNTIME_LOCKED:-}" != "$want" ]; then
+  SELECTS_RUNTIME_LOCKED="$want" exec /usr/bin/lockf -k -t 280 "$STORE/.$want.lock" /bin/sh "$0" "$want"
+fi
 
 # fetch URL SHA256 FILE: download, verify, then move into place. A download the
 # panel shell cut short (it stops a call after a few minutes) stays as FILE.partial
@@ -73,8 +90,7 @@ unpack() {
 }
 
 if [ "$want" = node ]; then
-  dir="$STORE/node-v22.23.3-darwin-$NODE_ARCH"
-  if [ ! -x "$dir/bin/node" ]; then
+  if ! runtime_ready >/dev/null; then
     fetch "https://nodejs.org/dist/v22.23.3/node-v22.23.3-darwin-$NODE_ARCH.tar.xz" "$NODE_SHA" "$STORE/node.tar.xz"
     unpack "$STORE/node.tar.xz" "$dir"
   fi
@@ -83,12 +99,10 @@ if [ "$want" = node ]; then
   exit 0
 fi
 
-uv="$STORE/uv-0.8.22-$UV_ARCH/uv"
 if [ ! -x "$uv" ]; then
   fetch "https://github.com/astral-sh/uv/releases/download/0.8.22/uv-$UV_ARCH-apple-darwin.tar.gz" "$UV_SHA" "$STORE/uv.tar.gz"
   unpack "$STORE/uv.tar.gz" "$STORE/uv-0.8.22-$UV_ARCH"
 fi
-export UV_PYTHON_INSTALL_DIR="$STORE/python" UV_CACHE_DIR="$STORE/uv-cache" UV_NO_PROGRESS=1
 if ! py=$("$uv" python find --managed-python 3.11.13 2>/dev/null); then
   echo "Installing Python 3.11.13…" >&2
   "$uv" python install --no-bin 3.11.13 >&2
