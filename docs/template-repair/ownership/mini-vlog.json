@@ -828,242 +828,242 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "6dc47710aa3f8a3b78167d642bca98a5807335a6280016b83f9847bac04c9431",
+      "sha256": "ed95f07f1d004bdef617a74c01ff45f8237da7f17041b7ae79edc7e3fef58a01",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7807,
+          "endLine": 7816,
           "feature": "panel-ui"
         },
         {
           "startLine": 17,
-          "endLine": 1801,
+          "endLine": 1810,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1858,
-          "endLine": 1867,
+          "startLine": 1867,
+          "endLine": 1876,
           "feature": "panel-ui"
         },
         {
-          "startLine": 1870,
-          "endLine": 1944,
+          "startLine": 1879,
+          "endLine": 1953,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1945,
-          "endLine": 2692,
+          "startLine": 1954,
+          "endLine": 2701,
           "feature": "montage-policy"
         },
         {
-          "startLine": 2693,
-          "endLine": 2856,
+          "startLine": 2702,
+          "endLine": 2865,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 3107,
-          "endLine": 3503,
+          "startLine": 3116,
+          "endLine": 3512,
           "feature": "title-policy"
         },
         {
-          "startLine": 3504,
-          "endLine": 3599,
+          "startLine": 3513,
+          "endLine": 3608,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3600,
-          "endLine": 3613,
+          "startLine": 3609,
+          "endLine": 3622,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 3614,
-          "endLine": 3628,
+          "startLine": 3623,
+          "endLine": 3637,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3629,
-          "endLine": 3636,
+          "startLine": 3638,
+          "endLine": 3645,
           "feature": "music-policy"
         },
         {
-          "startLine": 3706,
-          "endLine": 3728,
+          "startLine": 3715,
+          "endLine": 3737,
           "feature": "music-policy"
         },
         {
-          "startLine": 3729,
-          "endLine": 3741,
+          "startLine": 3738,
+          "endLine": 3750,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 3742,
-          "endLine": 3804,
+          "startLine": 3751,
+          "endLine": 3813,
           "feature": "panel-ui"
         },
         {
-          "startLine": 3805,
-          "endLine": 3818,
+          "startLine": 3814,
+          "endLine": 3827,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3819,
-          "endLine": 3968,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 3969,
+          "startLine": 3828,
           "endLine": 3977,
-          "feature": "host-bootstrap"
-        },
-        {
-          "startLine": 5208,
-          "endLine": 5227,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 5251,
-          "endLine": 5257,
           "feature": "panel-ui"
-        },
-        {
-          "startLine": 5258,
-          "endLine": 5268,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 5287,
-          "endLine": 5317,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 5318,
-          "endLine": 5386,
-          "feature": "program-policy"
-        },
-        {
-          "startLine": 5387,
-          "endLine": 6451,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 6452,
-          "endLine": 6501,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 6963,
-          "endLine": 6981,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6982,
-          "endLine": 7151,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 7152,
-          "endLine": 7196,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 7313,
-          "endLine": 7759,
-          "feature": "local-sdk"
-        },
-        {
-          "startLine": 7760,
-          "endLine": 7806,
-          "feature": "app-guard"
-        },
-        {
-          "startLine": 7806,
-          "endLine": 7806,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 5462,
-          "endLine": 5485,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 5486,
-          "endLine": 5493,
-          "feature": "host-bootstrap"
-        },
-        {
-          "startLine": 5757,
-          "endLine": 5851,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 5854,
-          "endLine": 5872,
-          "feature": "scene-observation"
-        },
-        {
-          "startLine": 5913,
-          "endLine": 6139,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6176,
-          "endLine": 6180,
-          "feature": "montage-policy"
-        },
-        {
-          "startLine": 5230,
-          "endLine": 5250,
-          "feature": "music-policy"
         },
         {
           "startLine": 3978,
-          "endLine": 4514,
+          "endLine": 3986,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5217,
+          "endLine": 5236,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5260,
+          "endLine": 5266,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 5267,
+          "endLine": 5277,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5296,
+          "endLine": 5326,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5327,
+          "endLine": 5395,
+          "feature": "program-policy"
+        },
+        {
+          "startLine": 5396,
+          "endLine": 6460,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 6461,
+          "endLine": 6510,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 6972,
+          "endLine": 6990,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6991,
+          "endLine": 7160,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 7161,
+          "endLine": 7205,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 7322,
+          "endLine": 7768,
+          "feature": "local-sdk"
+        },
+        {
+          "startLine": 7769,
+          "endLine": 7815,
+          "feature": "app-guard"
+        },
+        {
+          "startLine": 7815,
+          "endLine": 7815,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 5471,
+          "endLine": 5494,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5495,
+          "endLine": 5502,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5766,
+          "endLine": 5860,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5863,
+          "endLine": 5881,
+          "feature": "scene-observation"
+        },
+        {
+          "startLine": 5922,
+          "endLine": 6148,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6185,
+          "endLine": 6189,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 5239,
+          "endLine": 5259,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 3987,
+          "endLine": 4523,
           "feature": "asset-owner"
         },
         {
-          "startLine": 6700,
-          "endLine": 6962,
+          "startLine": 6709,
+          "endLine": 6971,
           "feature": "source-input"
         },
         {
-          "startLine": 4516,
-          "endLine": 5207,
+          "startLine": 4525,
+          "endLine": 5216,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 3637,
-          "endLine": 3705,
+          "startLine": 3646,
+          "endLine": 3714,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7197,
-          "endLine": 7311,
+          "startLine": 7206,
+          "endLine": 7320,
           "feature": "catalog-read"
         },
         {
-          "startLine": 2858,
-          "endLine": 3105,
+          "startLine": 2867,
+          "endLine": 3114,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3517,
-          "endLine": 3578,
+          "startLine": 3526,
+          "endLine": 3587,
           "feature": "host-file-facade"
         },
         {
-          "startLine": 1804,
-          "endLine": 1856,
+          "startLine": 1813,
+          "endLine": 1865,
           "feature": "text-runtime"
         },
         {
-          "startLine": 6502,
-          "endLine": 6604,
+          "startLine": 6511,
+          "endLine": 6613,
           "feature": "file-observation"
         },
         {
-          "startLine": 6605,
-          "endLine": 6699,
+          "startLine": 6614,
+          "endLine": 6708,
           "feature": "draft-observation"
         }
       ],

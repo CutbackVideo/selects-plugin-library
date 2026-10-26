@@ -972,268 +972,268 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "9ab802e766af8e5db794c638b1a65a4ff08c3d6761467e1e4558c325bd6ec1cd",
+      "sha256": "796eb710978b7e80194798b54b659e988ec804ac593ea15304cbdb22eaae3122",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8105,
+          "endLine": 8114,
           "feature": "panel-ui"
         },
         {
           "startLine": 19,
-          "endLine": 1843,
+          "endLine": 1852,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1918,
-          "endLine": 1947,
+          "startLine": 1927,
+          "endLine": 1956,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1952,
-          "endLine": 2709,
+          "startLine": 1961,
+          "endLine": 2718,
           "feature": "montage-policy"
         },
         {
-          "startLine": 2711,
-          "endLine": 2835,
+          "startLine": 2720,
+          "endLine": 2844,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2837,
-          "endLine": 3021,
+          "startLine": 2846,
+          "endLine": 3030,
           "feature": "program-policy"
         },
         {
-          "startLine": 3518,
-          "endLine": 3529,
+          "startLine": 3527,
+          "endLine": 3538,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 4370,
-          "endLine": 4450,
+          "startLine": 4379,
+          "endLine": 4459,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7611,
-          "endLine": 8057,
+          "startLine": 7620,
+          "endLine": 8066,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8059,
-          "endLine": 8104,
+          "startLine": 8068,
+          "endLine": 8113,
           "feature": "app-guard"
         },
         {
-          "startLine": 3025,
-          "endLine": 3412,
+          "startLine": 3034,
+          "endLine": 3421,
           "feature": "title-policy"
         },
         {
-          "startLine": 3414,
-          "endLine": 3517,
+          "startLine": 3423,
+          "endLine": 3526,
           "feature": "credit-policy"
         },
         {
-          "startLine": 2844,
-          "endLine": 2859,
+          "startLine": 2853,
+          "endLine": 2868,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2950,
-          "endLine": 2955,
+          "startLine": 2959,
+          "endLine": 2964,
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4453,
-          "endLine": 4456,
+          "startLine": 4462,
+          "endLine": 4465,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4462,
-          "endLine": 4497,
+          "startLine": 4471,
+          "endLine": 4506,
           "feature": "music-policy"
         },
         {
-          "startLine": 4567,
-          "endLine": 4582,
+          "startLine": 4576,
+          "endLine": 4591,
           "feature": "music-policy"
         },
         {
-          "startLine": 4584,
-          "endLine": 4587,
+          "startLine": 4593,
+          "endLine": 4596,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5284,
-          "endLine": 5297,
+          "startLine": 5293,
+          "endLine": 5306,
           "feature": "music-policy"
         },
         {
-          "startLine": 5299,
-          "endLine": 5324,
+          "startLine": 5308,
+          "endLine": 5333,
           "feature": "program-policy"
         },
         {
-          "startLine": 5340,
-          "endLine": 5362,
+          "startLine": 5349,
+          "endLine": 5371,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5367,
-          "endLine": 5375,
+          "startLine": 5376,
+          "endLine": 5384,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5377,
-          "endLine": 5390,
+          "startLine": 5386,
+          "endLine": 5399,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5395,
-          "endLine": 5419,
+          "startLine": 5404,
+          "endLine": 5428,
           "feature": "music-policy"
         },
         {
-          "startLine": 5421,
-          "endLine": 5428,
+          "startLine": 5430,
+          "endLine": 5437,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5449,
-          "endLine": 5459,
+          "startLine": 5458,
+          "endLine": 5468,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5755,
-          "endLine": 5778,
+          "startLine": 5764,
+          "endLine": 5787,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5779,
-          "endLine": 5797,
+          "startLine": 5788,
+          "endLine": 5806,
           "feature": "title-policy"
         },
         {
-          "startLine": 5872,
-          "endLine": 5922,
+          "startLine": 5881,
+          "endLine": 5931,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5961,
-          "endLine": 6002,
+          "startLine": 5970,
+          "endLine": 6011,
           "feature": "music-policy"
         },
         {
-          "startLine": 6011,
-          "endLine": 6102,
+          "startLine": 6020,
+          "endLine": 6111,
           "feature": "title-policy"
         },
         {
-          "startLine": 6105,
-          "endLine": 6135,
+          "startLine": 6114,
+          "endLine": 6144,
           "feature": "music-policy"
         },
         {
-          "startLine": 6178,
-          "endLine": 6190,
+          "startLine": 6187,
+          "endLine": 6199,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6207,
-          "endLine": 6405,
+          "startLine": 6216,
+          "endLine": 6414,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6436,
-          "endLine": 6464,
+          "startLine": 6445,
+          "endLine": 6473,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6743,
-          "endLine": 6756,
+          "startLine": 6752,
+          "endLine": 6765,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6765,
-          "endLine": 6767,
+          "startLine": 6774,
+          "endLine": 6776,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6776,
-          "endLine": 6803,
+          "startLine": 6785,
+          "endLine": 6812,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7286,
-          "endLine": 7446,
+          "startLine": 7295,
+          "endLine": 7455,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 1948,
-          "endLine": 1950,
+          "startLine": 1957,
+          "endLine": 1959,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5746,
-          "endLine": 5751,
+          "startLine": 5755,
+          "endLine": 5760,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6137,
-          "endLine": 6175,
+          "startLine": 6146,
+          "endLine": 6184,
           "feature": "audio-preview"
         },
         {
-          "startLine": 3832,
-          "endLine": 4368,
+          "startLine": 3841,
+          "endLine": 4377,
           "feature": "asset-owner"
         },
         {
-          "startLine": 7005,
-          "endLine": 7267,
+          "startLine": 7014,
+          "endLine": 7276,
           "feature": "source-input"
         },
         {
-          "startLine": 4589,
-          "endLine": 5280,
+          "startLine": 4598,
+          "endLine": 5289,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4498,
-          "endLine": 4566,
+          "startLine": 4507,
+          "endLine": 4575,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7495,
-          "endLine": 7609,
+          "startLine": 7504,
+          "endLine": 7618,
           "feature": "catalog-read"
         },
         {
-          "startLine": 3562,
-          "endLine": 3809,
+          "startLine": 3571,
+          "endLine": 3818,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 4371,
-          "endLine": 4432,
+          "startLine": 4380,
+          "endLine": 4441,
           "feature": "host-file-facade"
         },
         {
-          "startLine": 1845,
-          "endLine": 1897,
+          "startLine": 1854,
+          "endLine": 1906,
           "feature": "text-runtime"
         },
         {
-          "startLine": 6807,
-          "endLine": 6909,
+          "startLine": 6816,
+          "endLine": 6918,
           "feature": "file-observation"
         },
         {
-          "startLine": 6910,
-          "endLine": 7004,
+          "startLine": 6919,
+          "endLine": 7013,
           "feature": "draft-observation"
         }
       ]
