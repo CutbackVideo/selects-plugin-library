@@ -1,21 +1,18 @@
 // portrait-beat-montage's Draft script at the frame rates a new Draft can take from its Project. The manifest's frames
 // (pipeline.py / pbmAssemble) are 30000/1001 fps frames; the script converts them to the Draft's frames, and no sound
 // overlay may ask past the end of its asset (Selects: "Resource overlay simulation covered only part of ..."). At 29.97
-// and 30 every Draft call must match origin/main's script exactly. PORTRAIT_BEAT_MONTAGE_PANEL /
-// PORTRAIT_BEAT_MONTAGE_BASE override the panels.
+// and 30 every Draft call must match a fixed accepted contract. PORTRAIT_BEAT_MONTAGE_PANEL
+// may override the implementation under test.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import cp from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {readDraftReference, draftCallDigests} from './fixed_draft_reference.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
 const panel = read(process.env.PORTRAIT_BEAT_MONTAGE_PANEL || path.join(root, 'plugins/portrait-beat-montage/panel.tsx'));
-const base = (() => {
-  if (process.env.PORTRAIT_BEAT_MONTAGE_BASE) return read(process.env.PORTRAIT_BEAT_MONTAGE_BASE);
-  try { return cp.execSync('git show origin/main:plugins/portrait-beat-montage/panel.tsx', {cwd: root, encoding: 'utf8', maxBuffer: 1 << 26}); } catch { return null; }
-})();
+const reference = readDraftReference('portrait-beat-montage');
 
 // The manifest both builds hand to buildMontage (pipeline.py op_assemble / panel.tsx pbmAssemble).
 const FPS = 60, BASE = 30000 / 1001, BLACK = 370, PERIOD = .6445104895, TAIL = 30, RISER_START = 300;
@@ -141,14 +138,13 @@ test('at 29.97 the bed, shutter and riser keep their 490, 60 and 35 frames', asy
     [['a:music-bed.wav', 0, 490], ['a:shutter.wav', 125, 185], ['a:riser.wav', 150, 185]]);
 });
 
-for (const fps of [BASE, 30]) {
-  test(`at ${fps.toFixed(3)} fps every Draft call matches origin/main`, {skip: base ? false : 'origin/main not available'}, async () => {
-    const before = await run(scriptOf(base), fps);
+for (const expected of reference.cases) {
+  const {fps} = expected;
+  test(`at ${fps.toFixed(3)} fps every Draft call matches the fixed reference`, async () => {
     const after = await run(scriptOf(panel), fps);
-    assert.deepEqual(after.result, before.result);
-    assert.equal(after.calls.length, before.calls.length);
+    assert.deepEqual(after.result, expected.result);
     // Insert ranges are compared in frames (c.frames/fps and c.frames*1001/30000 can differ in the last bit).
     const norm = (c) => c.startsWith('insertResource') ? c.replace(/"endSeconds":([0-9.e-]+)/, (_, v) => '"endFrames":' + Math.round(Number(v) * fps)) : c;
-    for (let i = 0; i < after.calls.length; i++) assert.equal(norm(after.calls[i]), norm(before.calls[i]), 'call ' + i);
+    assert.deepEqual(draftCallDigests(after.calls, norm), expected.calls);
   });
 }

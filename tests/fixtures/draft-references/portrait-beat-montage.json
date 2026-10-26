@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "source": {"revision": "766202a1352d719622c278b5596dad9713236fd6", "path": "plugins/portrait-beat-montage/panel.tsx", "sha256": "a226326abb7a461d6dedec11824e971663630bc8063ecb4ca9b408e9b4d236ca"},
+  "cases": [
+    {
+      "fps": 29.97002997002997,
+      "result": {"draftId": "d1", "end": 490, "shots": 17},
+      "calls": [
+        {"method": "createDraft", "sha256": "16b85ba762287cddaae24f105ece629ed23fee019dda82d36e683deecd235754"},
+        {"method": "setFrameSize", "sha256": "f87120dbd9cf286a59389f16535b43651fa63b3b0ac62613b8514b16a4a06fe3"},
+        {"method": "insertGap", "sha256": "9535d4f6b5e2dbeef27c1f3baff9fc870abcc92d64ba08e6d658181b0817a31b"},
+        {"method": "insertResource", "sha256": "31a046be136a8eb1c400312db2ae6f84bfc697a13181328cb8d1f45511b768ac"},
+        {"method": "insertResource", "sha256": "c6545fbc1f0960ff24ccc877a540320c9bb490a2f9b63c57319c8f04fc112e50"},
+        {"method": "insertResource", "sha256": "cce414c2738ca37982b251b0bee02b00e946a2a3c739e473d2030c71578083e2"},
+        {"method": "insertResource", "sha256": "df89a4834491206663040f1acc945efcc6210405dfb517e080811a4eccb5c861"},
+        {"method": "insertResource", "sha256": "c892df8f980bd39d58ec700ebefa10fb077abed3e051778a4a26ade9e0ed0488"},
+        {"method": "insertResource", "sha256": "d27a066effc8257641257719136fa3fda6bffb810d01f179a28911578d5ac3e8"},
+        {"method": "insertResource", "sha256": "6dcea33ff2f2771968a6d0f994a4c4bb04128296826e99a438a1b61dbbf08b0e"},
+        {"method": "insertResource", "sha256": "83845b3d202a1dee5fafeda792f2f2e1a5e094baeaee3fd4cbbdd12f8ecca064"},
+        {"method": "insertResource", "sha256": "7e46da45cf0775ec4cecb507eea77ca74b1cc1f96cd5c1816469e720353ac40d"},
+        {"method": "insertResource", "sha256": "8723b1ec7ce382f186589d68467ff408e4a01aa92f176a79ff8cbebc75d70029"},
+        {"method": "insertResource", "sha256": "0ef3c5d4ec7fc07859cf43364a64d483e848e9b09557872df175b6d7f58848f8"},
+        {"method": "insertResource", "sha256": "3486c0cd7cb2f1a73f90b0af6f9892c5690b5593bce6c9779373366e08dbaf04"},
+        {"method": "insertResource", "sha256": "5124dbbb81d2641ddf36f01639dd1f32ac4d9d230fdc702ed326aa61475a666a"},
+        {"method": "insertResource", "sha256": "67396dabfda95350585e1e0e7c46bed4c1c40f6448a3ef42e0951174e1ac15d3"},
+        {"method": "insertResource", "sha256": "819fc45808034fb0412ff2dbffa51202e6c8ad3d3e171052e99a6d353d1fba10"},
+        {"method": "insertResource", "sha256": "3860f26074bf1e0bc1be346470db3bd6832697990d46d687cf29680e23122510"},
+        {"method": "insertResource", "sha256": "ad0c357c36e514282797bb9268ffd37a17bd4171084cb4897337450af4ef5bf9"},
+        {"method": "overlayResource", "sha256": "d2bb37484d946e9fec617cb12157aa8beae536c3a5a6091765cd18026934032f"},
+        {"method": "overlayResource", "sha256": "fcde2d49bed77296251dfbc259dead3d9684e7ab8881bedcb3810c07829ac6cd"},
+        {"method": "overlayResource", "sha256": "03b6c8b65fafb3f95c3a494f4e8e5f260a7216e85a332851066de99356b5d99f"},
+        {"method": "commitAll", "sha256": "5378f1e5768f6452193770caa10f1265933c63553bd5ba1fd3691a9f9097f3ef"}
+      ]
+    },
+    {
+      "fps": 30,
+      "result": {"draftId": "d1", "end": 490, "shots": 17},
+      "calls": [
+        {"method": "createDraft", "sha256": "16b85ba762287cddaae24f105ece629ed23fee019dda82d36e683deecd235754"},
+        {"method": "setFrameSize", "sha256": "f87120dbd9cf286a59389f16535b43651fa63b3b0ac62613b8514b16a4a06fe3"},
+        {"method": "insertGap", "sha256": "bca0253218e453a2cbd3d11aab4741ea0143954b27d9ca2c6feb9e42a41669fb"},
+        {"method": "insertResource", "sha256": "31a046be136a8eb1c400312db2ae6f84bfc697a13181328cb8d1f45511b768ac"},
+        {"method": "insertResource", "sha256": "c6545fbc1f0960ff24ccc877a540320c9bb490a2f9b63c57319c8f04fc112e50"},
+        {"method": "insertResource", "sha256": "cce414c2738ca37982b251b0bee02b00e946a2a3c739e473d2030c71578083e2"},
+        {"method": "insertResource", "sha256": "df89a4834491206663040f1acc945efcc6210405dfb517e080811a4eccb5c861"},
+        {"method": "insertResource", "sha256": "c892df8f980bd39d58ec700ebefa10fb077abed3e051778a4a26ade9e0ed0488"},
+        {"method": "insertResource", "sha256": "d27a066effc8257641257719136fa3fda6bffb810d01f179a28911578d5ac3e8"},
+        {"method": "insertResource", "sha256": "6dcea33ff2f2771968a6d0f994a4c4bb04128296826e99a438a1b61dbbf08b0e"},
+        {"method": "insertResource", "sha256": "83845b3d202a1dee5fafeda792f2f2e1a5e094baeaee3fd4cbbdd12f8ecca064"},
+        {"method": "insertResource", "sha256": "7e46da45cf0775ec4cecb507eea77ca74b1cc1f96cd5c1816469e720353ac40d"},
+        {"method": "insertResource", "sha256": "8723b1ec7ce382f186589d68467ff408e4a01aa92f176a79ff8cbebc75d70029"},
+        {"method": "insertResource", "sha256": "0ef3c5d4ec7fc07859cf43364a64d483e848e9b09557872df175b6d7f58848f8"},
+        {"method": "insertResource", "sha256": "3486c0cd7cb2f1a73f90b0af6f9892c5690b5593bce6c9779373366e08dbaf04"},
+        {"method": "insertResource", "sha256": "5124dbbb81d2641ddf36f01639dd1f32ac4d9d230fdc702ed326aa61475a666a"},
+        {"method": "insertResource", "sha256": "67396dabfda95350585e1e0e7c46bed4c1c40f6448a3ef42e0951174e1ac15d3"},
+        {"method": "insertResource", "sha256": "819fc45808034fb0412ff2dbffa51202e6c8ad3d3e171052e99a6d353d1fba10"},
+        {"method": "insertResource", "sha256": "3860f26074bf1e0bc1be346470db3bd6832697990d46d687cf29680e23122510"},
+        {"method": "insertResource", "sha256": "ad0c357c36e514282797bb9268ffd37a17bd4171084cb4897337450af4ef5bf9"},
+        {"method": "overlayResource", "sha256": "d2bb37484d946e9fec617cb12157aa8beae536c3a5a6091765cd18026934032f"},
+        {"method": "overlayResource", "sha256": "fcde2d49bed77296251dfbc259dead3d9684e7ab8881bedcb3810c07829ac6cd"},
+        {"method": "overlayResource", "sha256": "03b6c8b65fafb3f95c3a494f4e8e5f260a7216e85a332851066de99356b5d99f"},
+        {"method": "commitAll", "sha256": "5378f1e5768f6452193770caa10f1265933c63553bd5ba1fd3691a9f9097f3ef"}
+      ]
+    }
+  ]
+}
