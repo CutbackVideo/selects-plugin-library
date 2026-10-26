@@ -1,4 +1,8 @@
 'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
+'use strict';
 const test=require('node:test'), assert=require('node:assert/strict');
 const fs=require('node:fs'), path=require('node:path'), os=require('node:os');
 const {createRequire}=require('node:module');
@@ -354,3 +358,5 @@ test('legacy pack reader and source installation compatibility', {skip:!modulesR
     await install(repo,realPack);data=await repo.load();assert.equal(data.templates.length,4);assert.equal(data.templates[0].modified,false);
   });
 });
+
+}

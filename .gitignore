@@ -9,3 +9,9 @@ plugins/summer-trip/dev/sources/
 # Local regression outputs retain videos, diagnostics and machine-specific paths.
 plugins/shortform-clips/tests/regression/test-runs/
 plugins/shortform-clips/tests/regression/index.html
+
+# Migrated customer templates: local/private fixtures only
+/plugins/shortform-clips/template-packs/
+/plugins/shortform-clips/tests/fixtures/chosun-legacy-template-summary.json
+/plugins/shortform-clips/tests/fixtures/chosun-premiere-corrections.json
+/plugins/shortform-clips/tests/fixtures/legacy-template-packs.json

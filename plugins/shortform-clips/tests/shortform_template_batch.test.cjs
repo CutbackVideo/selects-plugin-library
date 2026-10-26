@@ -1,4 +1,8 @@
 'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
+'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {loadPanel}=require('./survey_harness.cjs');
@@ -94,3 +98,5 @@ test('batched template file reads preserve errors, budgets and complete-template
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  });
 });
+
+}

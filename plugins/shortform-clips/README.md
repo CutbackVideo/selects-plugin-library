@@ -1,5 +1,14 @@
 # Shortform Clips
 
+## Customer template migration
+
+Customer packs and customer-specific fixtures are no longer published here.
+Use built-in Shortform Clips in Selects and a share code from the template owner.
+Existing local template snapshots and jobs are not changed by this removal.
+See [private regression fixtures](tests/CUSTOMER_FIXTURES.md) for test coverage.
+
+## Legacy plugin
+
 A shared app for turning a YouTube link, project video, synced timeline, or existing
 Draft into editable vertical Drafts. Customer designs, detection keywords and passage-selection instructions
 are delivered separately as template packs. The app has no bundled customer templates.
@@ -22,7 +31,7 @@ saving, preventing a project/tab change from silently applying to another Draft.
 ## Scene templates
 
 Template API 5 adds an editable scene workflow, used by Huick Alpha in the
-[Hankook Ilbo pack](template-packs/hankook-ilbo). Existing API 1/2 layout templates
+Hankook Ilbo pack (private customer material). Existing API 1/2 layout templates
 retain their settings-based generation. Scene templates set `editorial.mode` to
 `scenes` and `editorial.execution` to `layers`.
 
@@ -63,7 +72,7 @@ template renderer. The builder reserves their region but does not recreate them.
 Optional `layout.headlineX` changes the topic's horizontal center; omitted values
 retain the existing centered layout.
 
-See [Huick Alpha reference audit](template-packs/hankook-ilbo/huick-style-audit.md)
+See Huick Alpha reference audit (private customer material)
 for the observations, counterexamples and approximation limits behind its styles.
 
 The common input selector includes **All project sources** alongside YouTube and
@@ -272,7 +281,10 @@ calls can use credits. Agent reframing start/completion reports are recorded in
 `reframeLog`; the saved clip retains its `reframeReport`. The normal app chat
 history holds the tool-using turn when supported by the selected runtime.
 
-## Pack updates and local edits
+## Legacy pack updates and local edits
+
+The following describes the legacy runtime only. Public customer packs have been
+removed; use built-in Shortform Clips and share codes for current delivery.
 
 GitHub links resolve to one commit per installation; only declared JSON/images
 are downloaded. Use a folder, `pack.json` page or raw file link. The pack must
@@ -314,7 +326,7 @@ remain with the old app and are not migrated.
 
 ## Authoring
 
-See [Template packs](template-packs/README.md). Template JSON and image files
+Customer packs are maintained privately. Template JSON and image files
 are the source of truth; do not embed customer defaults in `panel.tsx`.
 
 The panel remains a single React file for Selects. Shared renderers implement
@@ -609,7 +621,7 @@ bundled FFmpeg, then applies the plan using current Draft/source-file mappings. 
 can finish after transcription without waiting for whole-resource visual analysis.
 Synced timeline inputs retain their existing merged-analysis requirements.
 
-The Chosun Ilbo pack under `template-packs/chosun-ilbo/` restores six legacy designs.
+The Chosun Ilbo customer pack is now distributed privately through built-in Shortform Clips.
 See `tests/regression/README.md` for repeatable real-footage cases and local HTML runs.
 
 Reapplying remembers template-owned tracks per project and Draft. If their clips were deleted, empty owned tracks are removed before graphics are added again; occupied tracks and unrelated empty tracks are preserved. Tracks left empty before this ownership record existed cannot be identified automatically.

@@ -1,3 +1,7 @@
+'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 test('Chosun migration preserves requested designs with explicit Premiere corrections and original image bytes',()=>{
  const root=path.join(__dirname,'../template-packs/chosun-ilbo'),manifest=JSON.parse(fs.readFileSync(path.join(root,'pack.json'))),baseline=require('./fixtures/chosun-legacy-template-summary.json');
@@ -53,3 +57,5 @@ test('Parenting preserves Premiere title metrics and the customer frame with its
  assert.equal(t.captions.highlight,false);
  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,t.background.image))).digest('hex'),'64ed25a3c492d375bb172944b076963e8bb38fb8b4c552528f19efa968eddb78');
 });
+
+}

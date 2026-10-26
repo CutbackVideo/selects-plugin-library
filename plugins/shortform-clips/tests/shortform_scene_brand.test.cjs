@@ -1,4 +1,8 @@
 'use strict';
+if (!require('./customer-fixtures.cjs').available()) {
+  require('node:test')('customer template regression requires private fixtures', { skip: 'Customer packs migrated out of the public repository; see CUSTOMER_FIXTURES.md' }, () => {});
+} else {
+'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
 const modulesRoot=process.env.SBS_PANEL_TEST_MODULES;
 test('scene fixed branding uses the shared template renderer',{skip:!modulesRoot},async t=>{
@@ -16,3 +20,5 @@ test('scene fixed branding uses the shared template renderer',{skip:!modulesRoot
   await t.test('resume refreshes remaining graphic handles after inserting a missing earlier element',async()=>{graphics[1].parameters.logoWidth=1080;graphics.splice(0,1);let revision=0;d.motionGraphics=async()=>graphics.map(g=>({...g,clip:{...g.clip,revision}}));const add=d.addMotionGraphic;d.addMotionGraphic=async o=>{await add(o);revision++;};d.motionGraphicProgram=async c=>{assert.equal(c.revision,revision,'stale clip handle');return {parameters:graphics.find(g=>g.name==='Clip · \ud504\ub85c\uadf8\ub7a8 \ub85c\uace0').parameters};};await run(sdk);assert.equal(graphics.length,2);});
  await t.test('shared preview and generated brand preserve horizontal center with legacy center default',()=>{const React=dep('react'),render=dep('react-dom/server').renderToStaticMarkup;const p=api.radioFrameParams(tpl,'Topic','');const preview=render(React.createElement(api.RadioPreviewFrame,{data:{...p,designElement:'headline1'}}));assert(preview.includes('left:-276px'));const old=structuredClone(tpl);delete old.layout.headlineX;assert.equal(api.radioFrameParams(old,'Topic','').headlineX,540);});
 });
+
+}

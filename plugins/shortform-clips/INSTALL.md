@@ -1,38 +1,7 @@
-# Install Shortform Clips
+# Legacy plugin installation
 
-Use the library's standard installation layout:
+For new installations, use built-in Shortform Clips in Selects. Customer templates
+are delivered through share codes, not GitHub template-pack links.
 
-- `panel.tsx` goes to `SELECTS_USER_PANELS_ROOT/shortform-clips/panel.tsx`.
-- Other listed package files go under `SELECTS_USER_SKILLS_ROOT/shortform-clips/`.
-
-Open **Shortform Clips** from Apps. It initially has no customer templates.
-In **Templates**, choose **+ Add templates** in the template picker (or the
-**Add templates** button if none are installed), paste the link you received,
-and click **Add**. Share the published folder link for
-`plugins/shortform-clips/template-packs/sbs-radio` to install the SBS pack.
-A public pack manifest page or raw file link also works.
-
-Template packs are kept beside the app source but excluded from `plugin.json`'s
-file list. Installing the app downloads no customer packs; each pack is added
-separately by link. No file upload or command-line helper is required.
-
-On hosts supporting catalog installation links, a link such as
-`cutback-selects://plugin/install?id=shortform-clips&pack=sbs-radio` installs the app
-and adds the selected pack through the same import flow. See
-[Template packs](template-packs/README.md#distribution) for client release requirements.
-
-Install the `selects-ai-runtime` dependency for speaker framing. Without an
-available runtime, the app warns and uses fixed crops. The YouTube downloader
-(yt-dlp) is downloaded on first use and refreshed if a download fails.
-
-Template API 5 scene templates, including Huick Alpha in the Hankook Ilbo pack,
-also use the runtime for new foreground preparation. They require a host exposing
-`selects.ai` person matting and `prepareMatte`, local media capture/probe/FFmpeg,
-AI requests with images, SDK scripts and editable Draft overlays/text. See
-[Scene templates](README.md#scene-templates). Install the matching app update before
-adding a pack that requires API 5; older panels reject that pack version.
-
-App updates preserve runtime data under `~/.selects/plugin-data/shortform-clips/`.
-Pack updates preserve user overrides and independent template copies.
-The SBS pack copies legacy template edits on its first installation; it never
-deletes the old app, its settings or its unfinished jobs. Finish legacy jobs there.
+This repository retains the legacy plugin runtime. Removing public pack sources
+does not delete installed templates, local edits, media, or saved jobs.
