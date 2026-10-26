@@ -9,6 +9,46 @@ After a merge to `main`, the **Publish catalog** workflow copies every `plugin.j
 
 Only designated Cutback maintainers publish. Each Git commit preserves a version of the plugin. No separate release or archive is needed.
 
+## Common template module delivery
+
+Install the build-only dependencies once with `npm ci` (Node.js 22 and Python 3).
+After changing a registered common module or one of its generator inputs, run:
+
+```sh
+npm run templates:prepare
+```
+
+This rebuilds the file fingerprint helper, synchronizes the registered module
+blocks and standalone files, updates the Gongju/Recap duration helpers and the
+seven explicitly scoped private Panel adapters, and rebuilds the Mini, Archive,
+Gallery and Chris artifacts. It then checks the completed result. Review and
+commit the generated changes with their source changes. Repeated runs produce
+the same files. Chan's Shortform plugins and template packs are excluded.
+
+To detect missing synchronization or generation without changing any file:
+
+```sh
+npm run templates:check
+```
+
+The existing required `validate` CI job runs this read-only gate on every push
+and pull request. The catalog publishing workflow runs the same gate before
+obtaining AWS credentials or publishing anything. Neither workflow repairs stale
+files: a missed build fails and must be committed by the author. The optional
+pre-push hook also checks this boundary when enabled.
+
+The pipeline covers the registered common modules and the delivery paths above,
+not every generator in this repository. A newly registered build-time consumer
+must be added to the pipeline; an unknown builder is rejected. New template
+consumers must still be registered in `shared/panel-modules.json`. These checks
+prove artifact freshness, not real-app playback or export quality. Existing
+behavior tests remain in CI.
+
+CI may set `SELECTS_DEV_REPO` to reuse an existing build dependency directory;
+local commands otherwise use this checkout's pinned dependencies. Branch
+protection is managed separately in GitHub: keep `validate` required. Existing
+administrator bypass permissions are not changed by these workflow files.
+
 ## Installation layout
 
 Every plugin installs the same way, so the app and the install agent treat all
