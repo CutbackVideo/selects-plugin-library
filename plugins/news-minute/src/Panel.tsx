@@ -334,7 +334,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         const revised = await onDraft(() => revisePlanPreview(aiSdk, env.current!, selected, preset, request, T("previewPrefix"), log, rec, selected.scriptProvider!, { candidateOnly: route.candidateOnly, incompleteLabel: T("incompleteDraft") }));
         await update(revised.session);
         if (revised.kept) {
-          log("reviseKept");
+          log(route.candidateOnly && (selected.preview || selected.video) ? "feedbackLegacyUnchanged" : "reviseKept");
           return;
         }
         setJsonErr({}); setFeedback(""); setOpenRow(null); setPicked(null);

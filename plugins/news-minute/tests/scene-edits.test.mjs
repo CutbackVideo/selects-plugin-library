@@ -80,8 +80,10 @@ test("scene feedback retains the plan route and uses the chosen provider for rou
   }
   assert.ok(h.prompts.every(p => p.provider === "chatgpt"));
   assert.match(h.prompts[0].prompt, /replace an article photo/);
-  h.replies.push({ error: "Separate photo replacement and illustration changes" });
-  await assert.rejects(feedbackRoute(h.sdk, s, "mixed request", "chatgpt"), /Separate photo/);
+  h.replies.push({ error: "mixed_request" }, { error: "script_change" }, { error: "unrecognized reason" });
+  await assert.rejects(feedbackRoute(h.sdk, s, "mixed request", "chatgpt"), /feedbackSeparateRequests/);
+  await assert.rejects(feedbackRoute(h.sdk, s, "rewrite narration", "chatgpt"), /feedbackScriptChange/);
+  await assert.rejects(feedbackRoute(h.sdk, s, "unexpected reply", "chatgpt"), /graphicInvalidReply/);
   assert.equal(h.writes, 0);
 });
 
