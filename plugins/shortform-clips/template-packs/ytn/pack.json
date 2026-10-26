@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "ytn",
+  "version": "0.1.0",
+  "name": "YTN - Draft templates",
+  "names": {
+    "en": "YTN - Draft templates",
+    "ko": "YTN \u00b7 \uc81c\uc791 \ucd08\uc548"
+  },
+  "requiresApp": {
+    "id": "shortform-clips",
+    "templateApi": 2
+  },
+  "templates": [
+    "templates/news-shorts.json",
+    "templates/top-secret-16x9.json",
+    "templates/top-secret-4x3.json",
+    "templates/knowledge-16x9.json",
+    "templates/knowledge-4x3.json",
+    "templates/now-news-shorts.json",
+    "templates/one-shot-full.json",
+    "templates/one-shot-window.json",
+    "templates/star-shorts.json"
+  ],
+  "assets": [
+    "assets/digital-news-frame.png",
+    "assets/top-secret-16x9-frame.png",
+    "assets/top-secret-4x3-frame.png",
+    "assets/knowledge-16x9-frame.png",
+    "assets/knowledge-4x3-frame.png",
+    "assets/one-shot-full-frame.png",
+    "assets/one-shot-window-frame.png",
+    "assets/star-frame.png"
+  ]
+}

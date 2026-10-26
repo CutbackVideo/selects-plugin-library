@@ -1,0 +1,141 @@
+{
+  "id": "knowledge-4x3",
+  "version": 2,
+  "names": {
+    "ko": "디지털제작팀 · 이게웬날리지 4x3 · 초안",
+    "en": "Knowledge 4x3 (Draft)"
+  },
+  "detect": {
+    "keywords": [],
+    "exclude": [],
+    "host": "YTN Digital Production / Knowledge 4x3"
+  },
+  "layout": {
+    "windowTop": 476,
+    "windowBottom": 1286,
+    "sourceTop": -180.0,
+    "sourceBottom": 1260.0,
+    "offsetX": 0,
+    "headlineCenter": 278.5546875,
+    "logoCenter": 1550,
+    "reframe": false,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "cropMotion": "fixed",
+    "cameraMode": "auto",
+    "allowedLayouts": []
+  },
+  "background": {
+    "mode": "image",
+    "style": "#000000",
+    "color": "#000000",
+    "image": "assets/knowledge-4x3-frame.png",
+    "imageName": "knowledge-4x3-frame.png",
+    "dim": 0,
+    "canvasAligned": true
+  },
+  "border": {
+    "on": false,
+    "color": "#000000"
+  },
+  "headline": {
+    "on": true,
+    "font": "SDWalkieTalkie02Cd",
+    "fontWeight": 400,
+    "size1": 102.78239901937417,
+    "size2": 102.78239901937417,
+    "color1": "#FFFFFF",
+    "color2": "#FFFFFF",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": false,
+    "shadow": false,
+    "strokeOn": false,
+    "strokeWidth": 0,
+    "strokeColor": "#000000",
+    "lineHeight": 1.2,
+    "letterSpacing": 0,
+    "gap": 0,
+    "rowGap": 123.33887882324899,
+    "fitWidth": 930,
+    "fitPadding": 2,
+    "fitCjk": 1,
+    "fitSpace": 0.3,
+    "fitLatin": 0.6,
+    "fitOther": 0.6,
+    "fitWideLatin": 0.7,
+    "baseline1": 278.5546875,
+    "baseline2": 401.893566323249,
+    "baselineCenter": 278.5546875,
+    "offsetX1": 0,
+    "offsetX2": 0
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "",
+    "width": 360
+  },
+  "captions": {
+    "on": true,
+    "mode": "box",
+    "barHeight": 1,
+    "bottom": 1459.5769824483796,
+    "baselineBottom": 1444,
+    "boxBounds": "ink",
+    "boxPerLine": false,
+    "fontSize": 62.3079297935182,
+    "fontWeight": 400,
+    "boxColor": "#00000000",
+    "color": "#FFFFFF",
+    "font": "HGGGothicssiP80g",
+    "lineMax": 16,
+    "letterSpacing": 0,
+    "left": 90,
+    "width": 900,
+    "boxPaddingTop": 0,
+    "boxPaddingBottom": 0,
+    "boxPaddingX": 0,
+    "rowGap": 71.65411926254592,
+    "strokeOn": false,
+    "strokeWidth": 0,
+    "strokeColor": "#000000",
+    "shadowCss": "none",
+    "cleanSpeechText": false
+  },
+  "editing": {
+    "removeFillers": false,
+    "removeSilences": false
+  },
+  "prompt": {
+    "role": "You edit factual YTN news excerpts for Knowledge 4x3.",
+    "format": "Preserve the source camera cuts and original image. Add editable Korean title lines and transcript captions inside the supplied frame.",
+    "good": "A complete statement or explanation supported by the supplied transcript.",
+    "bad": "Incomplete context, invented facts or speaker identities, misleading edits or repeated excerpts.",
+    "lengthGuide": "Use the user requested duration. Otherwise choose a self-contained passage; no customer-specific duration rule has been supplied.",
+    "countGuide": "Use the user requested clip count; avoid duplicate excerpts.",
+    "rules": "Preserve chronological order and meaning. Do not infer speaker names or attribution. Avoid duplicate captions when the source already contains subtitles. Do not zoom into a face or split the frame unless explicitly requested.",
+    "headline": "Write two short factual Korean lines that fit the title safe area. Preserve uncertainty and attribution. Do not invent quotations, names, dates or numbers. Exact editorial headline rules remain to be confirmed."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 30,
+      "weight": 400
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 30,
+      "weight": 400
+    }
+  }
+}

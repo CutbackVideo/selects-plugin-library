@@ -1,0 +1,49 @@
+[
+  {
+    "asset": "assets/digital-news-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ub514\uc9c0\ud138\ub274\uc2a4\ud300/\ub514\uc9c0\ud138\ub274\uc2a4\ud300_\ud0ec\ud50c\ub9bf \ubaa8\uc74c (20261022)/\uc1fc\uce20\uc6a9/\uc1fc\uce20\uc7ac\ub8cc\ub4e4/\ub514\uc9c0\ud138\ub274\uc2a4\ud300_\uc1fc\uce20_\ud2c0.png",
+    "sha256": "bdba5822f2fec63bf8e2a12b2987eebac1d6e4baf861eca23a3fc0dafe5dfd1d",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/top-secret-16x9-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ub514\uc9c0\ud138\uc81c\uc791\ud300/1\uae09\uae30\ubc00_\uc1fc\uce20 \ud504\ub9ac\ubbf8\uc5b4 \ud30c\uc77c/1\uae09\uae30\ubc00_\uc1fc\uce20 \ud504\ub9ac\ubbf8\uc5b4 \ud30c\uc77c/1\uae09\uae30\ubc00 _\uc1fc\uce20_ 16\ub3009.png",
+    "sha256": "a2586e9b760c5de549985f3b2d5061696ba58344cf83ddeb24c894ef6f0ec057",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/top-secret-4x3-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ub514\uc9c0\ud138\uc81c\uc791\ud300/1\uae09\uae30\ubc00_\uc1fc\uce20 \ud504\ub9ac\ubbf8\uc5b4 \ud30c\uc77c/1\uae09\uae30\ubc00_\uc1fc\uce20 \ud504\ub9ac\ubbf8\uc5b4 \ud30c\uc77c/1\uae09\uae30\ubc00 _\uc1fc\uce20_ 4\ub3003.png",
+    "sha256": "89cc69b8ef48ec41efdcd8bba20a919d58aee881a3a40780068238fc88c6df2c",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/knowledge-16x9-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ub514\uc9c0\ud138\uc81c\uc791\ud300/\uc774\uac8c\uc6ec\ub0a0\ub9ac\uc9c0 \uc1fc\uce20 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c/\uc774\uac8c\uc6ec\ub0a0\ub9ac\uc9c0 \uc1fc\uce20 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c/(Footage)/\uc774\uac8c\uc6ec\ub0a0\ub9ac\uc9c0-\uc1fc\uce20(16_9-\ube44\uc728).png",
+    "sha256": "d93cf7b4b7d818d611aa782a5e38d2f85c4f8b943546909b446b38de9d95657f",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/knowledge-4x3-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ub514\uc9c0\ud138\uc81c\uc791\ud300/\uc774\uac8c\uc6ec\ub0a0\ub9ac\uc9c0 \uc1fc\uce20 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c/\uc774\uac8c\uc6ec\ub0a0\ub9ac\uc9c0 \uc1fc\uce20 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c/(Footage)/\uc774\uac8c\uc6ec\ub0a0\ub9ac\uc9c0-\uc1fc\uce20(4_3-\ube44\uc728).png",
+    "sha256": "0874e9188e52c9333b59e72ce7d3f704d436e35403a0ac147224ecae7cd2e233",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/one-shot-full-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ucf58\ud150\uce20\uc81c\uc791\ud300/\ud55c\ubc29\uc774\uc288 \ucef7\ubc31 \uc804\ub2ec\uc6a9/\uc1fc\uce20 \ud3ec\ub9f71.png",
+    "sha256": "113d1e22cfd7a84d40f1a225126b68fb858ce635d52542194bb3cf3cb6aa14f2",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/one-shot-window-frame.png",
+    "source": "extracted/\ud300\ubcc4 \ud15c\ud50c\ub9bf/\ucf58\ud150\uce20\uc81c\uc791\ud300/\ud55c\ubc29\uc774\uc288 \ucef7\ubc31 \uc804\ub2ec\uc6a9/\uc1fc\uce20 \ud3ec\ub9f72.png",
+    "sha256": "db49667c4b2b7a105ab1e775246d5761fb81647a74778f5e71c061fca1f88d98",
+    "method": "byte-for-byte original"
+  },
+  {
+    "asset": "assets/star-frame.png",
+    "source": "YTN \uc2a4\ud0c0 \uc1fc\uce20-\ube14\ub8e8\ubc84\uc804.psd",
+    "method": "PSD composite with editable title TypeLayer hidden; background and logo retained"
+  }
+]

@@ -1,0 +1,141 @@
+{
+  "id": "one-shot-window",
+  "version": 2,
+  "names": {
+    "ko": "디지털콘텐츠팀 · 한방이슈 영상 틀 · 초안",
+    "en": "One Shot window (Draft)"
+  },
+  "detect": {
+    "keywords": [],
+    "exclude": [],
+    "host": "YTN Digital Content / One Shot window"
+  },
+  "layout": {
+    "windowTop": 467,
+    "windowBottom": 1282,
+    "sourceTop": -184.44444444444446,
+    "sourceBottom": 1264.4444444444443,
+    "offsetX": 0,
+    "headlineCenter": 265.66191872223783,
+    "logoCenter": 1550,
+    "reframe": false,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "cropMotion": "fixed",
+    "cameraMode": "auto",
+    "allowedLayouts": []
+  },
+  "background": {
+    "mode": "image",
+    "style": "#000000",
+    "color": "#000000",
+    "image": "assets/one-shot-window-frame.png",
+    "imageName": "one-shot-window-frame.png",
+    "dim": 0,
+    "canvasAligned": true
+  },
+  "border": {
+    "on": false,
+    "color": "#000000"
+  },
+  "headline": {
+    "on": true,
+    "font": "HGGGothicssiP99g",
+    "fontWeight": 400,
+    "size1": 87.33029225237138,
+    "size2": 87.33029225237138,
+    "color1": "#FFFFFF",
+    "color2": "#FFF846",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": false,
+    "shadow": false,
+    "strokeOn": false,
+    "strokeWidth": 0,
+    "strokeColor": "#000000",
+    "lineHeight": 1.2,
+    "letterSpacing": -3.0565602288329985,
+    "gap": 0,
+    "rowGap": 94.94442795740997,
+    "fitWidth": 930,
+    "fitPadding": 2,
+    "fitCjk": 1,
+    "fitSpace": 0.3,
+    "fitLatin": 0.6,
+    "fitOther": 0.6,
+    "fitWideLatin": 0.7,
+    "baseline1": 265.66191872223783,
+    "baseline2": 360.6063466796478,
+    "baselineCenter": 265.66191872223783,
+    "offsetX1": 7.8389425383615,
+    "offsetX2": 0.0084742532142
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "",
+    "width": 360
+  },
+  "captions": {
+    "on": false,
+    "mode": "box",
+    "barHeight": 1,
+    "bottom": 1412.0,
+    "baselineBottom": 1401,
+    "boxBounds": "ink",
+    "boxPerLine": false,
+    "fontSize": 44,
+    "fontWeight": 400,
+    "boxColor": "#00000000",
+    "color": "#FFFFFF",
+    "font": "SDGyeokdongG204Rg",
+    "lineMax": 16,
+    "letterSpacing": 0,
+    "left": 90,
+    "width": 900,
+    "boxPaddingTop": 0,
+    "boxPaddingBottom": 0,
+    "boxPaddingX": 0,
+    "rowGap": 50.599999999999994,
+    "strokeOn": false,
+    "strokeWidth": 0,
+    "strokeColor": "#000000",
+    "shadowCss": "none",
+    "cleanSpeechText": false
+  },
+  "editing": {
+    "removeFillers": false,
+    "removeSilences": false
+  },
+  "prompt": {
+    "role": "You edit factual YTN news excerpts for One Shot window.",
+    "format": "Preserve the source camera cuts and original image. Add editable Korean title lines and transcript captions inside the supplied frame.",
+    "good": "A complete statement or explanation supported by the supplied transcript.",
+    "bad": "Incomplete context, invented facts or speaker identities, misleading edits or repeated excerpts.",
+    "lengthGuide": "Use the user requested duration. Otherwise choose a self-contained passage; no customer-specific duration rule has been supplied.",
+    "countGuide": "Use the user requested clip count; avoid duplicate excerpts.",
+    "rules": "Preserve chronological order and meaning. Do not infer speaker names or attribution. Avoid duplicate captions when the source already contains subtitles. Do not zoom into a face or split the frame unless explicitly requested.",
+    "headline": "Write two short factual Korean lines that fit the title safe area. Preserve uncertainty and attribution. Do not invent quotations, names, dates or numbers. Exact editorial headline rules remain to be confirmed."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 30,
+      "weight": 400
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 30,
+      "weight": 400
+    }
+  }
+}

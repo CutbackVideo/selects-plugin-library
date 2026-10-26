@@ -1,0 +1,141 @@
+{
+  "id": "news-shorts",
+  "version": 2,
+  "names": {
+    "ko": "디지털뉴스팀 · 공통 쇼츠 · 초안",
+    "en": "Digital News Shorts (Draft)"
+  },
+  "detect": {
+    "keywords": [],
+    "exclude": [],
+    "host": "YTN Digital News / Digital News Shorts"
+  },
+  "layout": {
+    "windowTop": 467,
+    "windowBottom": 1282,
+    "sourceTop": -184.44444444444446,
+    "sourceBottom": 1264.4444444444443,
+    "offsetX": 0,
+    "headlineCenter": 263,
+    "logoCenter": 1550,
+    "reframe": false,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "cropMotion": "fixed",
+    "cameraMode": "auto",
+    "allowedLayouts": []
+  },
+  "background": {
+    "mode": "image",
+    "style": "#000000",
+    "color": "#000000",
+    "image": "assets/digital-news-frame.png",
+    "imageName": "digital-news-frame.png",
+    "dim": 0,
+    "canvasAligned": true
+  },
+  "border": {
+    "on": false,
+    "color": "#000000"
+  },
+  "headline": {
+    "on": true,
+    "font": "HGHaeDotumP80g",
+    "fontWeight": 400,
+    "size1": 87,
+    "size2": 87,
+    "color1": "#FFFFFF",
+    "color2": "#FFF846",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": false,
+    "shadow": false,
+    "strokeOn": false,
+    "strokeWidth": 0,
+    "strokeColor": "#000000",
+    "lineHeight": 1.2,
+    "letterSpacing": -4.35,
+    "gap": 0,
+    "rowGap": 90,
+    "fitWidth": 930,
+    "fitPadding": 2,
+    "fitCjk": 1,
+    "fitSpace": 0.3,
+    "fitLatin": 0.6,
+    "fitOther": 0.6,
+    "fitWideLatin": 0.7,
+    "baseline1": 263,
+    "baseline2": 353,
+    "baselineCenter": 263,
+    "offsetX1": 0,
+    "offsetX2": 0
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "",
+    "width": 360
+  },
+  "captions": {
+    "on": true,
+    "mode": "box",
+    "barHeight": 1,
+    "bottom": 1452.75,
+    "baselineBottom": 1437,
+    "boxBounds": "ink",
+    "boxPerLine": false,
+    "fontSize": 63,
+    "fontWeight": 400,
+    "boxColor": "#00000000",
+    "color": "#FFFFFF",
+    "font": "HGHaeDotumP60g",
+    "lineMax": 16,
+    "letterSpacing": -2.205,
+    "left": 90,
+    "width": 900,
+    "boxPaddingTop": 0,
+    "boxPaddingBottom": 0,
+    "boxPaddingX": 0,
+    "rowGap": 68,
+    "strokeOn": false,
+    "strokeWidth": 0,
+    "strokeColor": "#000000",
+    "shadowCss": "none",
+    "cleanSpeechText": false
+  },
+  "editing": {
+    "removeFillers": false,
+    "removeSilences": false
+  },
+  "prompt": {
+    "role": "You edit factual YTN news excerpts for Digital News Shorts.",
+    "format": "Preserve the source camera cuts and original image. Add editable Korean title lines and transcript captions inside the supplied frame.",
+    "good": "A complete statement or explanation supported by the supplied transcript.",
+    "bad": "Incomplete context, invented facts or speaker identities, misleading edits or repeated excerpts.",
+    "lengthGuide": "Use the user requested duration. Otherwise choose a self-contained passage; no customer-specific duration rule has been supplied.",
+    "countGuide": "Use the user requested clip count; avoid duplicate excerpts.",
+    "rules": "Preserve chronological order and meaning. Do not infer speaker names or attribution. Avoid duplicate captions when the source already contains subtitles. Do not zoom into a face or split the frame unless explicitly requested.",
+    "headline": "Write two short factual Korean lines that fit the title safe area. Preserve uncertainty and attribution. Do not invent quotations, names, dates or numbers. Exact editorial headline rules remain to be confirmed."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 30,
+      "weight": 400
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 30,
+      "weight": 400
+    }
+  }
+}
