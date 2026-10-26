@@ -13,7 +13,7 @@ function fixture(t) {
   t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
   for (const folder of ['shared', 'tools']) fs.cpSync(path.join(root, folder), path.join(directory, folder), {recursive: true});
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'shared/panel-modules.json')));
-  const ids = new Set(['gongju-gallery']);
+  const ids = new Set(['gongju-gallery', 'a16z-style-captions']);
   for (const module of registry.modules) for (const key of ['targets', 'buildTimeTargets', 'fileTargets', 'compatibilityTargets']) {
     for (const target of module[key] || []) ids.add(target.split('/')[1]);
   }
@@ -21,9 +21,12 @@ function fixture(t) {
     recursive: true,
     filter: file => fs.statSync(file).isDirectory() || /\.(?:tsx?|[cm]?js|json|py|css)$/.test(file),
   });
-  const sentinel = path.join(directory, 'plugins/shortform-clips/panel.tsx');
-  fs.mkdirSync(path.dirname(sentinel), {recursive: true});
-  fs.writeFileSync(sentinel, 'foreign task sentinel');
+  const sentinels = ['shortform-clips','shortform-cloner','eo-shorts'].map(id => path.join(directory,'plugins',id,'panel.tsx'));
+  for (const sentinel of sentinels) {
+    fs.mkdirSync(path.dirname(sentinel), {recursive: true});
+    fs.writeFileSync(sentinel, 'foreign task sentinel');
+  }
+  const sentinel = sentinels[0];
   const run = (...args) => spawnSync(process.execPath, [path.join(directory, script), ...args], {
     cwd: directory, encoding: 'utf8', timeout: 60000,
     env: {...process.env, SELECTS_DEV_REPO: process.env.SELECTS_DEV_REPO || root},
@@ -40,7 +43,7 @@ function fixture(t) {
     visit(directory);
     return files;
   };
-  return {directory, run, contents, sentinel};
+  return {directory, run, contents, sentinel, sentinels};
 }
 
 test('one command rebuilds all managed delivery paths, is repeatable, and leaves excluded plugins alone', t => {
@@ -70,7 +73,7 @@ test('one command rebuilds all managed delivery paths, is repeatable, and leaves
   const second = f.run();
   assert.equal(second.status, 0, second.stdout + second.stderr);
   assert.deepEqual(f.contents(), prepared, 'a repeated prepare must produce identical bytes');
-  assert.equal(fs.readFileSync(f.sentinel, 'utf8'), 'foreign task sentinel');
+  for (const sentinel of f.sentinels) assert.equal(fs.readFileSync(sentinel, 'utf8'), 'foreign task sentinel');
 });
 
 test('check rejects missed generation at each boundary without rewriting the checkout', async t => {
@@ -88,6 +91,8 @@ test('check rejects missed generation at each boundary without rewriting the che
     ['Gallery panel', 'plugins/photo-gallery-no2/panel.tsx', source => source + '\n// stale panel\n'],
     ['Mini operation', 'plugins/mini-vlog/scripts/assemble.js', source => source + '\n// stale operation\n'],
     ['Archive operation', 'plugins/archive-vlog/scripts/decorate.js', source => source + '\n// stale operation\n'],
+    ['a16z renderer', 'plugins/a16z-style-captions/src/renderers.ts', source => source + '\n// stale renderer\n'],
+    ['a16z panel', 'plugins/a16z-style-captions/panel.tsx', source => source + '\n// stale panel\n'],
     ['Chris source section', 'plugins/chris-williamson-style/src/broll.tsx', source => source + '\n// new source section\n'],
   ];
   for (const [label, target, mutate] of cases) await t.test(label, () => {

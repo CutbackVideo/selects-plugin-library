@@ -13,6 +13,7 @@ if (args.length > 1 || args.some(arg => arg !== '--check')) {
 }
 const checkOnly = args.includes('--check');
 const generators = [
+  'plugins/a16z-style-captions/build.cjs',
   'plugins/mini-vlog/operation-builder.mjs',
   'plugins/archive-vlog/operation-builder.mjs',
   'plugins/photo-gallery-no2/build-panel.mjs',

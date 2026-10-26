@@ -752,7 +752,7 @@ async function createPanelLocalClient(sdk) {
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
-    fingerprint: (path) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
+    fingerprint: (path, options) => options?.native ? nativeFingerprint(path, options) : runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path) => run2("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -858,10 +858,11 @@ async function createPanelLocalClient(sdk) {
     );
   });
   const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, check) => {
     if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    check?.();
     const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started;
@@ -914,9 +915,11 @@ async function createPanelLocalClient(sdk) {
     };
     try {
       while (true) {
+        check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
         const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        check?.();
         if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
         settled = status.state !== "running";
         if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
@@ -952,6 +955,79 @@ async function createPanelLocalClient(sdk) {
     } finally {
       signal?.removeEventListener("abort", abort);
       activeJobs.delete(jobId);
+    }
+  };
+  const nativeFingerprint = async (path, options) => {
+    if (typeof path !== "string" || !paths.isAbsolute(path) || path.includes("\0") || options.check !== void 0 && typeof options.check !== "function" || options.onProgress !== void 0 && typeof options.onProgress !== "function" || options.timeoutMs !== void 0 && (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 3e5))
+      throw new Error("The original file observation input is invalid.");
+    if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const check = () => {
+      if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      options.check?.();
+    };
+    check();
+    const capability = await runSource("return typeof selects.media?.startFFmpeg === 'function';");
+    check();
+    if (capability !== true && capability !== false) throw new Error("The local media capability could not be confirmed.");
+    if (!capability) return fingerprintTemplateFile(files, path, check);
+    const before = await files.stat(path);
+    check();
+    if (before === null) return null;
+    if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino))
+      throw new Error("The file's size or identity could not be confirmed.");
+    const controller = new AbortController(), abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
+    const checkLifetime = () => {
+      try {
+        check();
+      } catch (cause) {
+        controller.abort();
+        throw cause;
+      }
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    };
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort();
+    }, options.timeoutMs ?? 12e4);
+    try {
+      const result = await process("FFmpeg", [
+        "-nostdin",
+        "-v",
+        "error",
+        "-protocol_whitelist",
+        "file",
+        "-f",
+        "data",
+        "-i",
+        "file:" + path,
+        "-map",
+        "0:0",
+        "-c",
+        "copy",
+        "-f",
+        "hash",
+        "-hash",
+        "sha256",
+        "-"
+      ], true, controller.signal, void 0, void 0, checkLifetime);
+      checkLifetime();
+      const match = /^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(result.stdout);
+      if (!match) throw new Error("The original file hash returned an incomplete result.");
+      const after = await files.stat(path);
+      checkLifetime();
+      if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino)
+        throw new Error("The file changed while its contents were read.");
+      options.onProgress?.(before.size);
+      return { size: before.size, sha256: match[1].toLowerCase() };
+    } catch (cause) {
+      if (timedOut && cause?.name === "AbortError") throw new Error("Original file verification timed out.");
+      throw cause;
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
     }
   };
   return {

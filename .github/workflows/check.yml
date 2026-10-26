@@ -28,7 +28,7 @@ jobs:
       - name: Check complete template module delivery without rewriting artifacts
         run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" npm run templates:check
       - name: Test missed template synchronization and generation
-        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs tests/panel_version_delivery.test.mjs
+        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs tests/panel_version_delivery.test.mjs tests/portable_panel_delivery.test.mjs
       - name: Test complete panel module fixtures
         run: node --test tests/panel_module_fixture.test.mjs
       - name: Test SDK-free template observation and saved-result compatibility
@@ -277,7 +277,7 @@ jobs:
           node --test plugins/jude-kinetic-style/tests/sprite-codec.test.mjs
           node --test tests/jude_face_result_pages.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_progress.test.cjs tests/template_progress_consumers.test.mjs
-          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test plugins/doac-style/tests/caption-placement.test.mjs tests/caption_framing_noop.test.mjs tests/depth_canvas_preservation.test.mjs tests/ali_live_clip_targets.test.mjs tests/ali_camera_continuity.test.mjs tests/ali_layout_transition.test.mjs tests/ali_face_placement.test.mjs tests/ali_face_pipeline.test.mjs tests/jude_music_opt_in.test.mjs tests/jude_music_lifecycle.test.mjs tests/jude_track_reuse.test.mjs tests/doac_runtime_setup.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test plugins/doac-style/tests/caption-placement.test.mjs tests/caption_framing_noop.test.mjs tests/depth_canvas_preservation.test.mjs tests/ali_live_clip_targets.test.mjs tests/ali_camera_continuity.test.mjs tests/ali_layout_transition.test.mjs tests/ali_face_placement.test.mjs tests/ali_face_pipeline.test.mjs tests/jude_music_opt_in.test.mjs tests/jude_music_lifecycle.test.mjs tests/jude_track_reuse.test.mjs tests/vlog_native_hash_cancel.test.mjs tests/doac_runtime_setup.test.mjs
           node --test tests/video_ai_frames.test.mjs
           node --test tests/travel_beat_vlog.test.mjs tests/travel_beat_vlog_overlay.test.mjs tests/template_alias_failures.test.mjs tests/cutout_beat_gallery_windows.test.mjs
           node --test tests/portrait_beat_montage*.test.mjs

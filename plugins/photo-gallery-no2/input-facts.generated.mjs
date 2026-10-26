@@ -142,7 +142,8 @@ export async function observeSourceFiles(files,paths,expected=null,options=null)
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
  options=options??{};
  if(!options||typeof options!=='object'||options.check!==undefined&&typeof options.check!=='function'||options.onProgress!==undefined&&typeof options.onProgress!=='function')throw issue('source-file-input','The source observation options are invalid.');
- const check=()=>{if(options.signal?.aborted)throw Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'});options.check?.();};
+ let guardFailed=false,guardFailure;
+ const check=()=>{if(options.signal?.aborted)throw Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'});try{options.check?.();}catch(cause){guardFailed=true;guardFailure=cause;throw cause;}};
  // The SDK cannot abort a range read already dispatched. Stop caller waiting
  // immediately; the original promise stays handled and its next check stops it.
  const observe=operation=>new Promise((resolve,reject)=>{
@@ -161,7 +162,17 @@ export async function observeSourceFiles(files,paths,expected=null,options=null)
   check();
   options.onProgress?.({path,index:observed.length+1,total:selected.length,bytesRead:0,complete:false});
   let fingerprint;
-  try{fingerprint=await observe(()=>options.native===true&&typeof files.fingerprint==='function'?files.fingerprint(path,{native:true,signal:options.signal}):fingerprintTemplateFile(files,path,check));}catch(cause){check();if(cause?.name==='AbortError')throw cause;throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{
+   // Native reads own cancellation and confirmed exit. Do not race their
+   // settlement with the caller-only abort used for uncancellable range reads.
+   fingerprint=options.native===true&&typeof files.fingerprint==='function'
+    ?await files.fingerprint(path,{native:true,signal:options.signal,check})
+    :await observe(()=>fingerprintTemplateFile(files,path,check));
+  }catch(cause){
+   if(cause?.preserveTemporaryFiles)throw cause;
+   if(guardFailed&&cause===guardFailure)throw cause;
+   check();if(cause?.name==='AbortError')throw cause;throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);
+  }
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
