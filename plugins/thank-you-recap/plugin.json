@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "thank-you-recap",
-  "version": "0.1.0-alpha.8",
+  "version": "0.1.0-alpha.9",
   "name": "Thank You Recap",
-  "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music.",
+  "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a held hero shot under a flickering year, and a salsa finale on bundled music.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -41,7 +41,7 @@
     },
     "en": {
       "name": "Thank You Recap",
-      "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music."
+      "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a held hero shot under a flickering year, and a salsa finale on bundled music."
     },
     "es": {
       "name": "Resumen Thank You",
@@ -82,13 +82,13 @@
     {
       "id": "hero",
       "label": "Select hero video",
-      "hint": "Held for about 6 seconds under THANK YOU and the year.",
+      "hint": "Held for about 3.3 seconds under THANK YOU and the year.",
       "accepts": [
         "video"
       ],
       "min": 1,
       "max": 1,
-      "minSeconds": 6.1,
+      "minSeconds": 3.4,
       "query": "a calm wide scenic shot"
     },
     {
@@ -106,6 +106,6 @@
   ],
   "prepare": [
     "Videos from your year",
-    "One calm, wide video at least 6.1 seconds long for the hero shot"
+    "One calm, wide video at least 3.4 seconds long for the hero shot"
   ]
 }

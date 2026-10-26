@@ -158,6 +158,86 @@ var require_ai_job_client = __commonJS({
       if (typeof projectId !== "string" || !projectId || typeof scope !== "string" || !scope || ![runScript, load, save].every((f) => typeof f === "function")) throw invalid();
       const storageKey = stable({ projectId, scope });
       const fresh2 = () => ({ version: 1, projectId, scope, records: [] });
+      function observation(options, cancel2 = false) {
+        const timing2 = (value, fallback, max, zero = false) => {
+          const n = value ?? fallback;
+          if (!Number.isFinite(n) || n < (zero ? 0 : 1) || n > max) throw invalid();
+          return n;
+        };
+        const maxWaitMs = timing2(options.maxWaitMs ?? env.maxWaitMs, cancel2 ? 6e4 : 18e5, 864e5);
+        const pollMs = timing2(options.pollMs ?? env.pollMs, 500, 6e4, true);
+        const readTimeoutMs = timing2(options.readTimeoutMs ?? env.readTimeoutMs, 3e4, 6e4);
+        const readRetryMs = timing2(options.readRetryMs ?? env.readRetryMs, 500, 6e4, true);
+        const now = typeof performance !== "undefined" && typeof performance.now === "function" ? () => performance.now() : () => Date.now();
+        const deadline = now() + maxWaitMs, signal = options.signal;
+        const pending = (record, cause) => {
+          const message = cancel2 ? "AI cancellation could not be confirmed. Cancellation is saved; reopen to recover it." : "AI progress or results could not be confirmed. Reopen to recover the saved job.";
+          return Object.assign(
+            error(cancel2 ? "SHARED_AI_CANCEL_PENDING" : "SHARED_AI_OBSERVATION_PENDING", message),
+            { publicMessage: message, workflowId: record?.workflowId, projectId, ...cause === void 0 ? {} : { cause } }
+          );
+        };
+        const check = (record) => {
+          attached(signal);
+          if (now() >= deadline) throw pending(record);
+        };
+        function wait(task, milliseconds, onTimeout) {
+          return new Promise((resolve, reject) => {
+            let done = false;
+            const finish = (fn, value) => {
+              if (done) return;
+              done = true;
+              clearTimeout(timer);
+              signal?.removeEventListener("abort", abort);
+              fn(value);
+            };
+            const abort = () => {
+              try {
+                attached(signal);
+              } catch (cause) {
+                finish(reject, cause);
+              }
+            };
+            const timer = setTimeout(() => task ? finish(reject, onTimeout()) : finish(resolve), milliseconds);
+            signal?.addEventListener("abort", abort, { once: true });
+            if (signal?.aborted) {
+              abort();
+              return;
+            }
+            if (task) Promise.resolve().then(task).then((value) => finish(resolve, value), (cause) => finish(reject, cause));
+          });
+        }
+        async function pause(milliseconds, record) {
+          check(record);
+          const remaining = Math.max(0, deadline - now());
+          await wait(null, Math.min(milliseconds, remaining));
+          if (milliseconds >= remaining) throw pending(record);
+          check(record);
+        }
+        async function read2(record, script2, summary) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            check(record);
+            let value;
+            try {
+              const remaining = Math.max(0, deadline - now());
+              value = await wait(
+                () => runScript(script2, summary, false),
+                Math.min(readTimeoutMs, remaining),
+                () => readTimeoutMs >= remaining ? pending(record) : error("SHARED_AI_READ_TIMEOUT", "The AI observation read timed out.")
+              );
+            } catch (cause) {
+              if (["SHARED_AI_DETACHED", "SHARED_AI_OBSERVATION_PENDING", "SHARED_AI_CANCEL_PENDING"].includes(cause?.code)) throw cause;
+              check(record);
+              if (attempt === 2) throw pending(record, cause);
+              await pause(Math.min(6e4, readRetryMs * 2 ** attempt), record);
+              continue;
+            }
+            check(record);
+            return value;
+          }
+        }
+        return { check, read: read2, pause: (record) => pause(pollMs, record) };
+      }
       async function read() {
         let journal;
         try {
@@ -214,28 +294,28 @@ var require_ai_job_client = __commonJS({
         await update(record);
         attached(signal);
       }
-      async function status(record, cancel2 = false) {
-        const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel2 ? "cancel" : "status"}();`, cancel2 ? "Cancel shared AI analysis" : "Read shared AI progress", cancel2);
+      async function status(record, observer, cancel2 = false) {
+        observer.check(record);
+        const script2 = `return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel2 ? "cancel" : "status"}();`;
+        const value = cancel2 ? await runScript(script2, "Cancel shared AI analysis", true) : await observer.read(record, script2, "Read shared AI progress");
         if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== "selects-ai-runtime" || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
         record.status = value.status;
         await update(record);
         return value;
       }
-      async function stop(record, options = {}) {
+      async function stop(record, options, observer) {
         record.cancelRequested = true;
         await update(record);
         await ack(record, options.signal);
-        if (!terminal(record.status)) await status(record, true);
-        const deadline = Date.now() + (options.maxWaitMs ?? 6e4);
+        if (!terminal(record.status)) await status(record, observer, true);
         while (!terminal(record.status)) {
-          attached(options.signal);
-          if (Date.now() >= deadline) throw error("SHARED_AI_CANCEL_PENDING", "AI is still stopping. Cancellation is saved; reopen to recover it.");
-          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
-          await status(record);
+          await observer.pause(record);
+          await status(record, observer);
         }
       }
       async function run2(request, options = {}) {
         attached(options.signal);
+        const observer = observation(options);
         const input = inputFor(projectId, request), identity = options.identity ?? "";
         if (typeof identity !== "string") throw invalid();
         const journal = await read();
@@ -243,10 +323,10 @@ var require_ai_job_client = __commonJS({
         if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
         if (record?.workflowId && options.retryTerminal) {
           attached(options.signal);
-          await status(record);
+          await status(record, observer);
           attached(options.signal);
         }
-        if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+        if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options, observer);
         if (!record || options.retryTerminal && (["failed", "canceled"].includes(record.status) || record.cancelRequested && terminal(record.status))) {
           const attempt = record ? record.attempt + 1 : 0;
           if (attempt > 255) throw invalid();
@@ -259,26 +339,27 @@ var require_ai_job_client = __commonJS({
           const latest = (await read()).records.find((r) => r.input.requestKey === record.input.requestKey);
           if (!latest) throw invalid();
           Object.assign(record, latest);
-          const value = await status(record, record.cancelRequested && !terminal(record.status));
+          const value = await status(record, observer, record.cancelRequested && !terminal(record.status));
           attached(options.signal);
           if (record.cancelRequested || record.status === "canceled") throw error("SHARED_AI_CANCELED", "AI analysis was canceled. Start again to retry.");
           if (record.status === "failed") throw error("SHARED_AI_FAILED", "AI analysis failed. " + String(value.lastErrorMessage || "").slice(0, 300));
           if (record.status === "succeeded") {
-            const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
+            const result = await observer.read(record, `return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
             attached(options.signal);
             if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== "object") throw invalid();
             return { workflowId: record.workflowId, input: clone(record.input), result };
           }
           options.onProgress?.(value);
-          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+          await observer.pause(record);
         }
       }
       async function cancel(options = {}) {
+        const observer = observation(options, true);
         const journal = await read();
         for (const record of journal.records) {
           if (options.identity !== void 0 && record.identity !== options.identity || terminal(record.status)) continue;
           if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
-          await stop(record, options);
+          await stop(record, options, observer);
         }
       }
       return { run: run2, cancel };
@@ -327,6 +408,220 @@ var require_face_request_windows = __commonJS({
 
 // shared/local-client.ts
 import React from "react";
+
+// shared/file-observation.js
+async function fingerprintTemplateFile(files, path, check = () => {
+}) {
+  const __templateHashAny = (value) => value;
+  var __templateFileHash = __templateHashAny(() => {
+    var w = __templateHashAny(Object).defineProperty;
+    var G = __templateHashAny(Object).getOwnPropertyDescriptor;
+    var V = __templateHashAny(Object).getOwnPropertyNames;
+    var O = __templateHashAny(__templateHashAny(Object).prototype).hasOwnProperty;
+    var k = (t, e, r) => e in t ? __templateHashAny(w)(t, e, { enumerable: true, configurable: true, writable: true, value: r }) : __templateHashAny(t)[e] = r;
+    var R = (t, e) => {
+      for (var r in e)
+        __templateHashAny(w)(t, r, { get: __templateHashAny(e)[r], enumerable: true });
+    }, $ = (t, e, r, o) => {
+      if (e && typeof e == "object" || typeof e == "function")
+        for (let n of __templateHashAny(V)(e))
+          !__templateHashAny(O).call(t, n) && n !== r && __templateHashAny(w)(t, n, { get: () => __templateHashAny(e)[n], enumerable: !(o = __templateHashAny(G)(e, n)) || __templateHashAny(o).enumerable });
+      return t;
+    };
+    var M = (t) => __templateHashAny($)(__templateHashAny(w)({}, "__esModule", { value: true }), t);
+    var a = (t, e, r) => __templateHashAny(k)(t, typeof e != "symbol" ? e + "" : e, r);
+    var N = {};
+    __templateHashAny(R)(N, { sha256: () => _ });
+    function j(t) {
+      return t instanceof Uint8Array || __templateHashAny(ArrayBuffer).isView(t) && __templateHashAny(__templateHashAny(t).constructor).name === "Uint8Array" && "BYTES_PER_ELEMENT" in t && __templateHashAny(t).BYTES_PER_ELEMENT === 1;
+    }
+    function m(t, e, r = "") {
+      let o = __templateHashAny(j)(t), n = __templateHashAny(t)?.length, f = e !== void 0;
+      if (!o || f && n !== e) {
+        let s = r && `"${r}" `, x = f ? ` of length ${e}` : "", i = o ? `length=${n}` : `type=${typeof t}`, h = s + "expected Uint8Array" + x + ", got " + i;
+        throw o ? new (__templateHashAny(RangeError))(h) : new (__templateHashAny(TypeError))(h);
+      }
+      return t;
+    }
+    function L(t, e = true) {
+      if (__templateHashAny(t).destroyed)
+        throw new (__templateHashAny(Error))("Hash instance has been destroyed");
+      if (e && __templateHashAny(t).finished)
+        throw new (__templateHashAny(Error))("Hash#digest() has already been called");
+    }
+    function C(t, e) {
+      __templateHashAny(m)(t, void 0, "digestInto() output");
+      let r = __templateHashAny(e).outputLen;
+      if (__templateHashAny(t).length < r)
+        throw new (__templateHashAny(RangeError))('"digestInto() output" expected to be of length >=' + r);
+    }
+    function y(...t) {
+      for (let e = 0; e < __templateHashAny(t).length; e++)
+        __templateHashAny(__templateHashAny(t)[e]).fill(0);
+    }
+    function A(t) {
+      return new (__templateHashAny(DataView))(__templateHashAny(t).buffer, __templateHashAny(t).byteOffset, __templateHashAny(t).byteLength);
+    }
+    function d(t, e) {
+      return t << 32 - e | t >>> e;
+    }
+    function F2(t, e = {}) {
+      let r = (n, f) => __templateHashAny(__templateHashAny(__templateHashAny(t)(f)).update(n)).digest(), o = __templateHashAny(t)(void 0);
+      return __templateHashAny(r).outputLen = __templateHashAny(o).outputLen, __templateHashAny(r).blockLen = __templateHashAny(o).blockLen, __templateHashAny(r).canXOF = __templateHashAny(o).canXOF, __templateHashAny(r).create = (n) => __templateHashAny(t)(n), __templateHashAny(Object).assign(r, e), __templateHashAny(Object).freeze(r);
+    }
+    var T = (t) => ({ oid: __templateHashAny(Uint8Array).from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, t]) });
+    function D(t, e, r) {
+      return t & e ^ ~t & r;
+    }
+    function I(t, e, r) {
+      return t & e ^ t & r ^ e & r;
+    }
+    var E = class {
+      constructor(e, r, o, n) {
+        __templateHashAny(a)(__templateHashAny(this), "blockLen");
+        __templateHashAny(a)(__templateHashAny(this), "outputLen");
+        __templateHashAny(a)(__templateHashAny(this), "canXOF", false);
+        __templateHashAny(a)(__templateHashAny(this), "padOffset");
+        __templateHashAny(a)(__templateHashAny(this), "isLE");
+        __templateHashAny(a)(__templateHashAny(this), "buffer");
+        __templateHashAny(a)(__templateHashAny(this), "view");
+        __templateHashAny(a)(__templateHashAny(this), "finished", false);
+        __templateHashAny(a)(__templateHashAny(this), "length", 0);
+        __templateHashAny(a)(__templateHashAny(this), "pos", 0);
+        __templateHashAny(a)(__templateHashAny(this), "destroyed", false);
+        __templateHashAny(__templateHashAny(this)).blockLen = e, __templateHashAny(__templateHashAny(this)).outputLen = r, __templateHashAny(__templateHashAny(this)).padOffset = o, __templateHashAny(__templateHashAny(this)).isLE = n, __templateHashAny(__templateHashAny(this)).buffer = new (__templateHashAny(Uint8Array))(e), __templateHashAny(__templateHashAny(this)).view = __templateHashAny(A)(__templateHashAny(__templateHashAny(this)).buffer);
+      }
+      update(e) {
+        __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(m)(e);
+        let { view: r, buffer: o, blockLen: n } = __templateHashAny(this), f = __templateHashAny(e).length;
+        for (let s = 0; s < f; ) {
+          let x = __templateHashAny(Math).min(n - __templateHashAny(__templateHashAny(this)).pos, f - s);
+          if (x === n) {
+            let i = __templateHashAny(A)(e);
+            for (; n <= f - s; s += n)
+              __templateHashAny(__templateHashAny(this)).process(i, s);
+            continue;
+          }
+          __templateHashAny(o).set(__templateHashAny(e).subarray(s, s + x), __templateHashAny(__templateHashAny(this)).pos), __templateHashAny(__templateHashAny(this)).pos += x, s += x, __templateHashAny(__templateHashAny(this)).pos === n && (__templateHashAny(__templateHashAny(this)).process(r, 0), __templateHashAny(__templateHashAny(this)).pos = 0);
+        }
+        return __templateHashAny(__templateHashAny(this)).length += __templateHashAny(e).length, __templateHashAny(__templateHashAny(this)).roundClean(), __templateHashAny(this);
+      }
+      digestInto(e) {
+        __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(C)(e, __templateHashAny(this)), __templateHashAny(__templateHashAny(this)).finished = true;
+        let { buffer: r, view: o, blockLen: n, isLE: f } = __templateHashAny(this), { pos: s } = __templateHashAny(this);
+        __templateHashAny(r)[s++] = 128, __templateHashAny(y)(__templateHashAny(__templateHashAny(__templateHashAny(this)).buffer).subarray(s)), __templateHashAny(__templateHashAny(this)).padOffset > n - s && (__templateHashAny(__templateHashAny(this)).process(o, 0), s = 0);
+        for (let c = s; c < n; c++)
+          __templateHashAny(r)[c] = 0;
+        __templateHashAny(o).setBigUint64(n - 8, __templateHashAny(BigInt)(__templateHashAny(__templateHashAny(this)).length * 8), f), __templateHashAny(__templateHashAny(this)).process(o, 0);
+        let x = __templateHashAny(A)(e), i = __templateHashAny(__templateHashAny(this)).outputLen;
+        if (i % 4)
+          throw new (__templateHashAny(Error))("_sha2: outputLen must be aligned to 32bit");
+        let h = i / 4, u = __templateHashAny(__templateHashAny(this)).get();
+        if (h > __templateHashAny(u).length)
+          throw new (__templateHashAny(Error))("_sha2: outputLen bigger than state");
+        for (let c = 0; c < h; c++)
+          __templateHashAny(x).setUint32(4 * c, __templateHashAny(u)[c], f);
+      }
+      digest() {
+        let { buffer: e, outputLen: r } = __templateHashAny(this);
+        __templateHashAny(__templateHashAny(this)).digestInto(e);
+        let o = __templateHashAny(e).slice(0, r);
+        return __templateHashAny(__templateHashAny(this)).destroy(), o;
+      }
+      _cloneInto(e) {
+        e || (e = new (__templateHashAny(__templateHashAny(__templateHashAny(this)).constructor))()), __templateHashAny(e).set(...__templateHashAny(__templateHashAny(this)).get());
+        let { blockLen: r, buffer: o, length: n, finished: f, destroyed: s, pos: x } = __templateHashAny(this);
+        return __templateHashAny(e).destroyed = s, __templateHashAny(e).finished = f, __templateHashAny(e).length = n, __templateHashAny(e).pos = x, n % r && __templateHashAny(__templateHashAny(e).buffer).set(o), e;
+      }
+      clone() {
+        return __templateHashAny(__templateHashAny(this))._cloneInto();
+      }
+    }, b = __templateHashAny(Uint32Array).from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
+    var W2 = __templateHashAny(Uint32Array).from([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]), l = new (__templateHashAny(Uint32Array))(64), B = class extends __templateHashAny(E) {
+      constructor(e) {
+        super(64, e, 8, false);
+      }
+      get() {
+        let { A: e, B: r, C: o, D: n, E: f, F: s, G: x, H: i } = __templateHashAny(this);
+        return [e, r, o, n, f, s, x, i];
+      }
+      set(e, r, o, n, f, s, x, i) {
+        __templateHashAny(__templateHashAny(this)).A = e | 0, __templateHashAny(__templateHashAny(this)).B = r | 0, __templateHashAny(__templateHashAny(this)).C = o | 0, __templateHashAny(__templateHashAny(this)).D = n | 0, __templateHashAny(__templateHashAny(this)).E = f | 0, __templateHashAny(__templateHashAny(this)).F = s | 0, __templateHashAny(__templateHashAny(this)).G = x | 0, __templateHashAny(__templateHashAny(this)).H = i | 0;
+      }
+      process(e, r) {
+        for (let c = 0; c < 16; c++, r += 4)
+          __templateHashAny(l)[c] = __templateHashAny(e).getUint32(r, false);
+        for (let c = 16; c < 64; c++) {
+          let g = __templateHashAny(l)[c - 15], p = __templateHashAny(l)[c - 2], S = __templateHashAny(d)(g, 7) ^ __templateHashAny(d)(g, 18) ^ g >>> 3, H2 = __templateHashAny(d)(p, 17) ^ __templateHashAny(d)(p, 19) ^ p >>> 10;
+          __templateHashAny(l)[c] = H2 + __templateHashAny(l)[c - 7] + S + __templateHashAny(l)[c - 16] | 0;
+        }
+        let { A: o, B: n, C: f, D: s, E: x, F: i, G: h, H: u } = __templateHashAny(this);
+        for (let c = 0; c < 64; c++) {
+          let g = __templateHashAny(d)(x, 6) ^ __templateHashAny(d)(x, 11) ^ __templateHashAny(d)(x, 25), p = u + g + __templateHashAny(D)(x, i, h) + __templateHashAny(W2)[c] + __templateHashAny(l)[c] | 0, H2 = (__templateHashAny(d)(o, 2) ^ __templateHashAny(d)(o, 13) ^ __templateHashAny(d)(o, 22)) + __templateHashAny(I)(o, n, f) | 0;
+          u = h, h = i, i = x, x = s + p | 0, s = f, f = n, n = o, o = p + H2 | 0;
+        }
+        o = o + __templateHashAny(__templateHashAny(this)).A | 0, n = n + __templateHashAny(__templateHashAny(this)).B | 0, f = f + __templateHashAny(__templateHashAny(this)).C | 0, s = s + __templateHashAny(__templateHashAny(this)).D | 0, x = x + __templateHashAny(__templateHashAny(this)).E | 0, i = i + __templateHashAny(__templateHashAny(this)).F | 0, h = h + __templateHashAny(__templateHashAny(this)).G | 0, u = u + __templateHashAny(__templateHashAny(this)).H | 0, __templateHashAny(__templateHashAny(this)).set(o, n, f, s, x, i, h, u);
+      }
+      roundClean() {
+        __templateHashAny(y)(l);
+      }
+      destroy() {
+        __templateHashAny(__templateHashAny(this)).destroyed = true, __templateHashAny(__templateHashAny(this)).set(0, 0, 0, 0, 0, 0, 0, 0), __templateHashAny(y)(__templateHashAny(__templateHashAny(this)).buffer);
+      }
+    }, U = class extends __templateHashAny(B) {
+      constructor() {
+        super(32);
+        __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b)[0] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b)[1] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b)[2] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b)[3] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b)[4] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b)[5] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b)[6] | 0);
+        __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b)[7] | 0);
+      }
+    };
+    var _ = __templateHashAny(F2)(() => new (__templateHashAny(U))(), __templateHashAny(T)(1));
+    return __templateHashAny(M)(N);
+  })();
+  if (typeof path !== "string" || !path || path.includes("\0") || typeof check !== "function" || typeof files?.stat !== "function" || typeof files?.readRange !== "function") throw Error("The original file observation input is invalid.");
+  const observe = async (operation) => {
+    check();
+    const result = await operation();
+    check();
+    return result;
+  };
+  const before = await observe(() => files.stat(path));
+  if (before === null) return null;
+  if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino)) throw Error("The file's size or identity could not be confirmed.");
+  const hash3 = __templateFileHash.sha256.create(), alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  for (let offset = 0; offset < before.size; ) {
+    const length = Math.min(49152, before.size - offset);
+    const chunk = await observe(() => files.readRange({ path, offset, length }));
+    if (!chunk || chunk.bytesRead !== length || typeof chunk.base64 !== "string" || chunk.base64.length !== 4 * Math.ceil(length / 3) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64)) throw Error("The file read returned an incomplete or invalid binary chunk.");
+    const bytes = new Uint8Array(length);
+    let position = 0;
+    for (let i = 0; i < chunk.base64.length; i += 4) {
+      const a = alphabet.indexOf(chunk.base64[i]), b = alphabet.indexOf(chunk.base64[i + 1]), c = chunk.base64[i + 2] === "=" ? 0 : alphabet.indexOf(chunk.base64[i + 2]), d = chunk.base64[i + 3] === "=" ? 0 : alphabet.indexOf(chunk.base64[i + 3]);
+      if (chunk.base64[i + 2] === "=" && (b & 15) !== 0 || chunk.base64[i + 3] === "=" && chunk.base64[i + 2] !== "=" && (c & 3) !== 0) throw Error("The file read returned a noncanonical binary chunk.");
+      bytes[position++] = a << 2 | b >> 4;
+      if (position < length) bytes[position++] = (b & 15) << 4 | c >> 2;
+      if (position < length) bytes[position++] = (c & 3) << 6 | d;
+    }
+    hash3.update(bytes);
+    check();
+    offset += length;
+  }
+  const after = await observe(() => files.stat(path));
+  if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino) throw Error("The file changed while its contents were read.");
+  const digest = hash3.digest();
+  check();
+  let hex = "";
+  for (let index = 0; index < digest.length; index++) hex += digest[index].toString(16).padStart(2, "0");
+  return { size: before.size, sha256: hex };
+}
+
+// shared/local-client.ts
 function panelLocalPaths(platform) {
   const windows = platform === "win32";
   const slash = (path) => {
@@ -456,8 +751,12 @@ async function createPanelLocalClient(sdk) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
+    // One script owns every read and its deadline; only the compact digest returns.
+    fingerprint: (path) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path) => run2("files.readdir", [path]),
-    readRange,
+    // SDK-shaped requests support the same shared observation in SDK scripts and
+    // the panel. Positional reads retain their existing byte/partial-EOF contract.
+    readRange: (path, offset, length) => typeof path === "string" ? readRange(path, offset, length) : run2("files.readRange", [path]),
     async readFile(path, encoding) {
       const stat = await run2("files.stat", [path]);
       if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
@@ -526,34 +825,110 @@ async function createPanelLocalClient(sdk) {
     pathToLocalURL: (path) => run2("files.localUrl", [path]),
     localURLToPath: (url) => run2("files.pathFromLocalUrl", [url])
   };
-  const activeJobs = /* @__PURE__ */ new Set();
+  const activeJobs = /* @__PURE__ */ new Map();
   let disposed = false;
+  const SETTLEMENT_MS = 5e3, OUTPUT_BYTES = 4 * 1024 * 1024;
+  const mediaIssue = (code, message, cause, uncertain = false) => Object.assign(new Error(message), {
+    code: "LOCAL_MEDIA_" + code,
+    publicMessage: message,
+    terminal: true,
+    cause,
+    ...uncertain ? { preserveTemporaryFiles: true } : {}
+  });
   const cancel = async (jobId) => {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
+  const observeMedia = (read, deadline) => new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      reject(mediaIssue("STATUS", "The media job response could not be confirmed."));
+      return;
+    }
+    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+    Promise.resolve().then(read).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (cause) => {
+        clearTimeout(timer);
+        reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause));
+      }
+    );
+  });
+  const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
   const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+    if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
+      throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run2("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation = null;
-    const abort = () => {
-      cancellation ??= cancel(jobId);
-      void cancellation.catch(() => {
+    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
+    let started;
+    const starting = runSource(startSource, true);
+    try {
+      started = await observeMedia(() => starting, Date.now() + SETTLEMENT_MS);
+    } catch (cause) {
+      void starting.then((value) => validJob(value) ? cancel(value.jobId) : void 0, () => {
+      }).catch(() => {
       });
+      throw mediaIssue("START_UNKNOWN", "The media job start could not be confirmed. Its temporary workspace is retained for inspection.", cause, true);
+    }
+    if (!validJob(started))
+      throw mediaIssue("START_UNKNOWN", "The media job identity could not be confirmed. Its temporary workspace is retained for inspection.", void 0, true);
+    const jobId = started.jobId;
+    let cancellation = null, cancellationDeadline = null, settled = false;
+    const requestCancel = () => {
+      if (!cancellation) {
+        cancellationDeadline = Date.now() + SETTLEMENT_MS;
+        cancellation = cancel(jobId);
+        void cancellation.catch(() => {
+        });
+      }
+      return cancellation;
     };
+    const abort = () => {
+      void requestCancel();
+    };
+    activeJobs.set(jobId, requestCancel);
     signal?.addEventListener("abort", abort, { once: true });
     if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
+    let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
+    const knownState = (status) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
+    const statusAt = (deadline) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const settleAfterFailure = async (cause) => {
+      requestCancel();
+      const deadline = cancellationDeadline;
+      while (Date.now() < deadline) {
+        try {
+          const status = await statusAt(deadline);
+          if (knownState(status) && status.state !== "running") {
+            settled = true;
+            return;
+          }
+        } catch {
+        }
+        if (Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+      }
+      throw Object.assign(mediaIssue("SETTLEMENT_UNKNOWN", "The media job exit could not be confirmed. Its temporary workspace is retained for inspection.", cause, true), { jobId });
+    };
     try {
       while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
+          throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
+        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
+        settled = status.state !== "running";
+        if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
+          throw mediaIssue("STATUS", "The media job returned an incomplete status.");
+        if (status.truncated) throw mediaIssue("OUTPUT", "Media output was truncated; no incomplete result was accepted.");
+        let position = cursor;
         for (const event of status.events) {
+          if (!event || !["stdout", "stderr"].includes(event.stream) || typeof event.text !== "string" || event.text.length > 4096 || !Number.isSafeInteger(event.cursor) || event.cursor !== position + 1 || event.cursor > status.nextCursor)
+            throw mediaIssue("OUTPUT", "The media job returned incomplete output.");
+          outputBytes += new TextEncoder().encode(event.text).byteLength;
+          if (outputBytes > OUTPUT_BYTES) throw mediaIssue("OUTPUT_LIMIT", "The media output exceeds its 4 MiB byte budget.");
+          position = event.cursor;
           if (event.stream === "stdout") {
             stdout += event.text;
             onStdout?.(event.text);
@@ -562,17 +937,17 @@ async function createPanelLocalClient(sdk) {
             onStderr?.(event.text);
           }
         }
+        if (position !== status.nextCursor) throw mediaIssue("OUTPUT", "The media job returned an incomplete output cursor.");
         cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (settled && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted || disposed) throw new DOMException("Aborted", "AbortError");
           if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
           return { stdout, stderr };
         }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+        if (!settled) await new Promise((resolve) => setTimeout(resolve, 150));
       }
     } catch (error) {
-      await cancel(jobId).catch(() => {
-      });
+      if (!settled) await settleAfterFailure(error);
       throw error;
     } finally {
       signal?.removeEventListener("abort", abort);
@@ -593,7 +968,7 @@ async function createPanelLocalClient(sdk) {
     },
     dispose() {
       disposed = true;
-      for (const jobId of activeJobs) void cancel(jobId).catch(() => {
+      for (const requestCancel of activeJobs.values()) void requestCancel().catch(() => {
       });
     }
   };
@@ -607,30 +982,58 @@ function panelLocalClient(sdk) {
 function withPanelLocalClient(Component) {
   return function LocalSdkPanel(props) {
     const [state, setState] = React.useState(null);
+    const reported = React.useRef(/* @__PURE__ */ new WeakMap());
+    const key = JSON.stringify([
+      props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null
+    ]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client;
+      const fail = (timeout, cause) => {
+        if (!active || settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const error = timeout ? "Connecting to Selects took too long. Reopen the Project and try again." : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        setState({ sdk: props.sdk, key, error, cause });
+      };
+      const timer = setTimeout(() => fail(true), 3e4);
       createPanelLocalClient(props.sdk).then((value) => {
         client = { ...props.sdk, ...value };
-        if (!active) {
+        if (!active || settled) {
           value.dispose();
           return;
         }
+        settled = true;
+        clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({ sdk: props.sdk });
-      }).catch((error) => {
-        if (active) setState({ error: String(error?.message || error) });
-      });
+        setState({ sdk: props.sdk, key });
+      }).catch((error) => fail(false, error));
       return () => {
         active = false;
+        clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? /* @__PURE__ */ new Set();
+      if (seen.has(key)) return;
+      seen.add(key);
+      reported.current.set(props.sdk, seen);
+      try {
+        Promise.resolve(props.sdk.finishTemplate({ error: state.error })).catch(() => {
+        });
+      } catch {
+      }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
     if (state?.error) return React.createElement("div", { role: "alert" }, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
     return React.createElement(Component, props);
   };
 }
@@ -738,6 +1141,9 @@ async function hostFF(tool, args, timeoutMs = 12e4) {
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+function isTerminalMediaFailure(error) {
+  return error?.preserveTemporaryFiles === true || error?.terminal === true && typeof error.code === "string" && error.code.startsWith("LOCAL_MEDIA_");
 }
 function lastJsonObject(text) {
   const s = String(text || "");
@@ -1236,14 +1642,15 @@ async function trackFaces(sdk, projectId, dir, jobs, progress = () => {
 }) {
   const out = {};
   if (!jobs.length) return out;
-  await fs().mkdir(dir, { recursive: true });
-  const journal = fs().join(dir, "shared-ai-jobs.json");
+  const files = fs();
+  await files.mkdir(dir, { recursive: true });
+  const journal = files.join(dir, "shared-ai-jobs.json");
   const client = (0, import_ai_job_client.createSharedAiJobClient)({
     projectId,
     scope: "a16z-faces:" + dir,
     runScript: (body, summary, effect) => script(sdk, summary, body, effect),
-    load: async () => await fs().exists(journal) ? JSON.parse(String(await fs().readFile(journal, "utf8"))) : null,
-    save: async (value) => fs().writeFile(journal, JSON.stringify(value))
+    load: async () => await files.exists(journal) ? JSON.parse(String(await files.readFile(journal, "utf8"))) : null,
+    save: async (value) => files.writeFile(journal, JSON.stringify(value))
   });
   for (const job of jobs) {
     if (!(job.fps > 0 && job.width > 0 && job.height > 0) || !Number.isFinite(job.start) || !(job.end > job.start)) throw new Error("Invalid source frame clock.");
@@ -1272,16 +1679,25 @@ return {total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})
       (0, import_face_request_windows.appendFaceSamples)(samples, incoming, window2.acceptFromSeconds);
     }
     const scale = Math.min(1, 640 / Math.max(job.width, job.height)), width = Math.max(1, Math.round(job.width * scale)), height = Math.max(1, Math.round(job.height * scale));
-    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = fs().join(dir, "shot-" + job.id + ".rgb");
-    let cuts;
+    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = files.join(dir, "shot-" + crypto.randomUUID() + ".rgb");
+    let cuts, producerFailure = null;
+    try {
+      await files.writeFile(rgb, new Uint8Array(), { flag: "wx" });
+    } catch (cause) {
+      throw Object.assign(new Error("The camera workspace reservation could not be confirmed."), { code: "LOCAL_MEDIA_WORKSPACE_UNKNOWN", terminal: true, preserveTemporaryFiles: true, retainedTemporaryFiles: [rgb], cause });
+    }
     try {
       const decoded = await hostFF("runFFmpeg", cameraSampleArgs(job, rgb, width, height, step), 3e5);
-      const stat = await fs().stat(rgb);
+      const stat = await files.stat(rgb);
       if (!stat || stat.size < bytes || stat.size % bytes) throw new Error("Camera sample decoding was incomplete.");
       const count = Math.floor(stat.size / bytes), times = cameraSampleTimes(decoded.stderr, count, job.start, job.end);
-      cuts = await histogramCuts({ read: (i) => fs().readRange(rgb, i * bytes, bytes), count, times });
+      cuts = await histogramCuts({ read: (i) => files.readRange(rgb, i * bytes, bytes), count, times });
+    } catch (error) {
+      producerFailure = error;
+      if (error?.preserveTemporaryFiles) throw Object.assign(new Error(error.publicMessage || "The camera media job exit could not be confirmed."), { code: error.code, terminal: true, preserveTemporaryFiles: true, retainedTemporaryFiles: [rgb], jobId: error.jobId, cause: error });
+      throw error;
     } finally {
-      await fs().rm(rgb, { force: true });
+      if (!producerFailure?.preserveTemporaryFiles) await files.rm(rgb, { force: true });
     }
     out[job.id] = speakerShots(samples, cuts, job.start, job.end, job.width, job.height);
   }
@@ -1695,7 +2111,8 @@ async function loudness(sdk, path, from, dur) {
     const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", ...win, "-i", path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"], 18e4);
     const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(r.stderr + r.stdout) || [])[1]);
     return Number.isFinite(i) && i > -70 ? i : null;
-  } catch {
+  } catch (error) {
+    if (isTerminalMediaFailure(error)) throw error;
     return null;
   }
 }
@@ -3439,7 +3856,10 @@ function hash2(s) {
   return h;
 }
 async function probeDuration(sdk, path) {
-  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 3e4).then((r) => r.stdout).catch(() => "");
+  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 3e4).then((r) => r.stdout).catch((error) => {
+    if (isTerminalMediaFailure(error)) throw error;
+    return "";
+  });
   return Number(String(out).trim()) || 0;
 }
 
@@ -3546,11 +3966,20 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}) {
   if (!todo.length) return { shots: out.sort((a, b) => a.a - b.a), notes };
   const cut = async (cand, s) => {
     onTick("Cutting footage " + (out.length + 1));
-    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
+    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch((error) => {
+      if (isTerminalMediaFailure(error)) throw error;
+      return null;
+    });
     if (!clip) return null;
-    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
+    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch((error) => {
+      if (isTerminalMediaFailure(error)) throw error;
+      return null;
+    });
     if (whole != null && whole < 28) return null;
-    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null) };
+    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch((error) => {
+      if (isTerminalMediaFailure(error)) throw error;
+      return null;
+    }) };
   };
   for (let r = 0; r < todo.length; r += 1) {
     const run2 = todo[r];
@@ -3649,12 +4078,16 @@ async function makeShort(sdk, ctx, opts, onStep) {
       onStep("faces", "done", n + " shot" + (n === 1 ? "" : "s") + " with a face");
       return faces2;
     } catch (e) {
+      if (isTerminalMediaFailure(e)) throw e;
       notes.push("Speaker framing was skipped (" + String(e?.message || e).slice(0, 160) + "), so shots are centred.");
       onStep("faces", "fail", "centred");
       return {};
     }
   })();
-  const [semantic, faces] = await Promise.all([think, facesJob]);
+  const observed = await Promise.allSettled([think, facesJob]);
+  if (observed[0].status === "rejected") throw observed[0].reason;
+  if (observed[1].status === "rejected") throw observed[1].reason;
+  const semantic = observed[0].value, faces = observed[1].value;
   onStep("cut", "run", "Tightening pauses\u2026");
   const cut = planPauses(src.words, fps, src.endFrame, semantic?.tags || {});
   const layout = layoutRanges(cut.ranges, src.clips, fps);
@@ -3739,6 +4172,10 @@ async function build(sdk, job, onStep) {
       const cover = insertTimes.reduce((n, x) => n + x.b - x.a, 0) / prep.duration;
       onStep("broll", got.shots.length ? "done" : "skip", placed.length + " shots, " + Math.round(cover * 100) + "% of the Short");
     } catch (e) {
+      if (isTerminalMediaFailure(e)) {
+        await Promise.allSettled([musicJob]);
+        throw e;
+      }
       notes.push("B-roll: " + String(e?.message || e).slice(0, 200));
       onStep("broll", "fail", String(e?.message || e).slice(0, 80));
     }
@@ -3786,6 +4223,10 @@ async function build(sdk, job, onStep) {
       onStep("music", "done", "bed " + (musicLufs != null && job.voiceLufs != null ? "9 dB under the voice" : "added"));
     }
   } catch (e) {
+    if (isTerminalMediaFailure(e)) {
+      await Promise.allSettled([musicJob]);
+      throw e;
+    }
     notes.push("Levels: " + String(e?.message || e).slice(0, 160));
   }
   await saveJob(job);

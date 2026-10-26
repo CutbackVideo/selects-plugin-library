@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "four-photo-stop-motion",
-  "version": "0.1.7",
+  "version": "0.1.28",
   "name": "Four Photo Stop Motion",
   "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips.",
   "status": "experimental",
@@ -20,7 +20,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal and Camera Shutter Dump), public clip effects, motion graphics and Audio overlays; no Node.js. Verified in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app. Windows (2026-10-02): the music is found through the host FileSystem, with no shell command; a Windows pass on the Staging build is pending."
+    "selects": "Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified."
   },
   "preview": {
     "video": "preview.mp4",

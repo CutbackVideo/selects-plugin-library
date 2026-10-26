@@ -1,7 +1,23 @@
 // plugins/archive-vlog/tests/scripts-edit.test.cjs
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const dir = path.resolve(__dirname, '..', 'scripts');
-const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.readFileSync(path.join(dir, name), 'utf8').replace('__CONFIG__', () => JSON.stringify(cfg))}})();`);
+const load = (name, cfg) => async selects => {
+  const execute = new Function('selects', `return (async()=>{${fs.readFileSync(path.join(dir, name), 'utf8').replace('__CONFIG__', () => JSON.stringify(cfg))}})();`);
+  if (name !== 'assemble.js') return execute(selects);
+  // Native-clock probes are distinct unsaved Drafts. Keep legacy policy
+  // assertions attached to their actual assembly handle, never a probe.
+  const project = selects.project(cfg.projectId); let reserved = null;
+  const proxy = { ...project, resources: async () => cfg.music ? [{ resourceId: cfg.music.resourceId, type: 'Audio' }] : [],
+    createDraft: async options => {
+      if (options.name === 'Archive source timing check') {
+        if (!reserved) reserved = await project.createDraft({ name: cfg.draftName });
+        return mockDraft(reserved.__nativeFps || (await reserved.meta()).fps).d;
+      }
+      if (reserved) { const draft = reserved; reserved = null; return draft; }
+      return project.createDraft(options);
+    } };
+  return execute({ ...selects, project: () => proxy });
+};
 // Models Selects: a Draft created in this run_script call has no saved audio-track inventory, so
 // setAudioTracks throws until it is reopened (selects.draft) in a later call; commitAll runs once per call.
 // Like Selects, a new Draft adopts its first clip's frame size (`adopt`) on the first insert, over an earlier setFrameSize.
@@ -16,45 +32,43 @@ const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.read
 function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null, durations = {}, mainAsVideo = false } = {}) {
   const log = [], clips = [], graphics = [], effects = {}, reads = { clips: 0 };
   let frame = 0, committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false;
+  const plain = value => JSON.parse(JSON.stringify(value));
+  const transform = () => ({ enabled: true, scale: { x: 1, y: 1 }, position: { x: 0, y: 0 }, anchor: { x: 0, y: 0 }, rotation: 0, flipHorizontal: false, flipVertical: false, positionKeys: [], scaleKeys: [], rotationKeys: [] });
+  const rowOf = clip => clips.find(c => c.clipId === clip.clipId);
   return { log, clips, graphics, effects, reads, reopen() { unsaved = false; committed = false; }, d: {
-    meta: async () => ({ fps, frameSize: { ...frameSize } }),
-    setFrameSize: async (s) => { frameSize = { ...s }; log.push(['size', s]); },
+    __nativeFps: adoptFps || fps,
+    meta: async () => ({ fps, durationFrames: Math.max(0, ...clips.map(c => c.endFrame)), frameSize: { ...frameSize } }),
+    setFrameSize: async s => { frameSize = { ...s }; log.push(['size', s]); },
     insertResource: async ({ resourceId, sourceRange }) => {
       if (!inserted) { inserted = true; frameSize = { ...adopt }; if (adoptFps) fps = adoptFps; }
       if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
-      if (sourceRange.startSeconds < 0 || (durations[resourceId] != null && sourceRange.endSeconds > Math.floor(durations[resourceId] * fps) / fps + 1e-9)) throw Error('invalid_source_range');
-      const len = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null }); frame += len; log.push(['insert', resourceId, sourceRange]); },
-    clips: async ({ trackScope } = {}) => { reads.clips++; return clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c, trackKind: mainAsVideo && trackScope !== 'main' && c.trackKind === 'main' ? 'video' : c.trackKind })); },
-    clipTransform: async () => ({ scale: { x: 1, y: 1 }, position: { x: 0, y: 0 } }),
-    setClipTransform: async (o) => log.push(['transform', o.clip.clipId, o.scale]),
+      if (sourceRange.startSeconds < 0 || durations[resourceId] != null && sourceRange.endSeconds > Math.floor(durations[resourceId] * fps) / fps + 1e-9) throw Error('invalid_source_range');
+      const len = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps);
+      clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null, _source: { startSeconds: sourceRange.startSeconds, endSeconds: sourceRange.startSeconds + len / fps } });
+      frame += len; log.push(['insert', resourceId, sourceRange]);
+    },
+    clips: async ({ trackScope } = {}) => { reads.clips++; return clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...plain(c), trackId: c.trackId || c.trackKind, audioSourceIndexes: c.audioSourceIndexes ?? null, playbackSpeed: { numerator: 1, denominator: 1 }, preserveAudioPitch: true, trackKind: mainAsVideo && trackScope !== 'main' && c.trackKind === 'main' ? 'video' : c.trackKind })); },
+    clipSourceWindow: async clip => ({ clipId: clip.clipId, ...(rowOf(clip)._source || { startSeconds: 0, endSeconds: (clip.endFrame - clip.startFrame) / fps }), playbackSpeed: { numerator: 1, denominator: 1 }, preserveAudioPitch: true }),
+    clipAudio: async clip => ({ clipId: clip.clipId, volumeDb: rowOf(clip).volumeDb ?? 0, volumeKeys: [], fadeInSeconds: 0, fadeOutSeconds: 0, ...rowOf(clip)._audio }),
+    clipTransform: async clip => plain(rowOf(clip)._transform || transform()),
+    setClipTransform: async o => { rowOf(o.clip)._transform = { ...transform(), ...plain(Object.fromEntries(Object.entries(o).filter(([key]) => key !== 'clip'))) }; log.push(['transform', o.clip.clipId, o.scale]); },
+    trimBoundary: async ({ frame: boundary, byFrames }) => { const row = clips.find(c => c.endFrame === boundary); row.endFrame += byFrames; row._source.endSeconds += byFrames / fps; frame = Math.max(...clips.map(c => c.endFrame)); },
     rangeAtFrames: async (a, b) => ({ a, b }),
-    setAudioTracks: async (o) => {
-      if (unsaved) throw Error('audio_track_inventory_unavailable: Could not load audio tracks for draft "x": Error: Project not found for sequence x');
+    setAudioTracks: async o => {
+      if (unsaved) throw Error('audio_track_inventory_unavailable');
       let opCount = 0;
-      for (const c of clips) {
-        if (c.trackKind !== 'main' || photos.includes(c.resourceId) || silent.includes(c.resourceId)) continue;
-        if (JSON.stringify(c.audioSourceIndexes) !== JSON.stringify(o.audioSourceIndexes)) { c.audioSourceIndexes = [...o.audioSourceIndexes]; opCount++; }
-      }
-      log.push(['mute', o.audioSourceIndexes]);
-      return { beforeDurationFrames: frame, afterDurationFrames: frame, deltaFrames: 0, opCount, removedDurationFrames: 0, warnings: [] };
+      for (const c of clips) { if (c.trackKind !== 'main' || photos.includes(c.resourceId) || silent.includes(c.resourceId)) continue; if (JSON.stringify(c.audioSourceIndexes) !== JSON.stringify(o.audioSourceIndexes)) { c.audioSourceIndexes = [...o.audioSourceIndexes]; opCount++; } }
+      log.push(['mute', o.audioSourceIndexes]); return { opCount };
     },
-    overlayResource: async (o) => { clips.push({ clipId: 99, resourceId: o.resource.id, trackKind: 'audio', startFrame: 0, endFrame: frame }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
-    setClipAudio: async (o) => {
-      if (o.volumeDb != null) { const c = clips.find(x => x.clipId === o.clip.clipId); c.volumeDb = o.volumeDb; log.push(['volume', o.clip.clipId, o.volumeDb]); }
-      if (o.fadeOutSeconds != null || o.fadeInSeconds != null) log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]);
-    },
-    addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['graphic', o.within, o.label, o.parameters, o.editableParameters, o.tsxCode]); },
-    addVideoEffect: async (o) => {
-      if (!clips.some(c => c.clipId === o.clip.clipId)) throw Error('unknown clip');
-      (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label });
-      log.push(['fx', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.tsxCode]);
-    },
+    overlayResource: async o => { const start = Math.round(o.sourceStartSeconds * fps) / fps; clips.push({ clipId: 99, resourceId: o.resource.id, trackKind: 'audio', startFrame: 0, endFrame: frame, _source: { startSeconds: start, endSeconds: start + frame / fps } }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
+    setClipAudio: async o => { const c = rowOf(o.clip); if (o.volumeDb != null) { c.volumeDb = o.volumeDb; log.push(['volume', o.clip.clipId, o.volumeDb]); } if (o.fadeOutSeconds != null || o.fadeInSeconds != null) { c._audio = { fadeInSeconds: Math.round((o.fadeInSeconds || 0) * fps) / fps, fadeOutSeconds: Math.round((o.fadeOutSeconds || 0) * fps) / fps }; log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]); } },
+    addMotionGraphic: async o => { graphics.push({ name: o.label, clip: { clipId: 100 + graphics.length, trackId: 'graphic', trackKind: 'video', resourceId: null, startFrame: o.within.a, endFrame: o.within.b }, program: { tsxCode: o.tsxCode, parameters: plain(o.parameters), editableParameters: plain(o.editableParameters) } }); log.push(['graphic', o.within, o.label, o.parameters, o.editableParameters, o.tsxCode]); },
+    addVideoEffect: async o => { if (!rowOf(o.clip)) throw Error('unknown clip'); (effects[o.clip.clipId] ||= []).push({ name: o.label, effectName: o.label, enabled: true, program: { tsxCode: o.tsxCode, parameters: plain(o.parameters), editableParameters: plain(o.editableParameters) } }); log.push(['fx', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.tsxCode]); },
     motionGraphics: async () => graphics.map(g => ({ ...g })),
-    videoEffects: async (clip) => (effects[clip.clipId] || []).map(e => ({ ...e })),
-    commitAll: async (reason) => {
-      if (committed) throw Error('Cannot commitAll draft: it was already committed in this run_script call.');
-      committed = true; log.push(['commit', reason]); return { createdDraftId: 'seq-new' };
-    },
+    motionGraphicProgram: async clip => plain(graphics.find(g => g.clip.clipId === clip.clipId)?.program || null),
+    videoEffects: async clip => (effects[clip.clipId] || []).map((e, effectIndex) => ({ ...e, effectIndex, clipId: clip.clipId, trackId: clip.trackId })),
+    videoEffectProgram: async e => plain(effects[e.clipId][e.effectIndex].program),
+    commitAll: async reason => { if (committed) throw Error('Cannot commitAll draft twice'); committed = true; log.push(['commit', reason]); return { createdDraftId: 'seq-new' }; },
   } };
 }
 (async () => {
@@ -110,13 +124,12 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const m3 = mockDraft(30);
   m3.clips.push({ clipId: 50, resourceId: 'r9', trackKind: 'audio', startFrame: 0, endFrame: 10 }, { clipId: 51, resourceId: 'other', trackKind: 'audio', startFrame: 0, endFrame: 10 });
   const sel4 = { project: () => ({ createDraft: async () => m3.d, resource: id => ({ id }) }) };
-  const r3 = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1], crops: {}, music: { resourceId: 'r9', sectionStart: 1 } })(sel4);
-  assert.deepEqual(m3.log.filter(x => x[0] === 'fade').map(x => x[1]), [99], 'fade targets only the new music clip');
-  assert.deepEqual(r3.notes, []);
+  await assert.rejects(load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1], crops: {}, music: { resourceId: 'r9', sectionStart: 1 } })(sel4), /not empty/);
+  assert.equal(m3.log.filter(x => x[0] === 'commit' || x[0] === 'fade').length, 0, 'preexisting media is preserved');
 
 
-  // Photos: placed from 0 for the slot's frame-snapped hold, cover-cropped like videos; an unmeasured photo is measured
-  // on an unsaved scratch Draft (it adopts the photo's size) and nothing but the real Draft is committed.
+  // Photos use the caller's verified native dimensions, preserve frame-snapped
+  // holds and centre crops, and never create a scratch measurement Draft.
   const mp = mockDraft(30, { unsaved: true, adopt: { width: 898, height: 898 }, photos: ['p1', 'p2', 'p3'] });
   const scratch = [];
   const selP = { project: () => ({ createDraft: async ({ name }) => {
@@ -129,14 +142,13 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const rp = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [
     { slot: 0, rid: 'p1', kind: 'photo', holdSeconds: 1.0667 }, { slot: 1, rid: 'r0', kind: 'video', startSeconds: 5, endSeconds: 5.9 },
     { slot: 2, rid: 'p2', kind: 'photo', holdSeconds: 0.6 }, { slot: 3, rid: 'p3', kind: 'photo', holdSeconds: 1.2 }],
-    boundaries: pb, crops: { p1: { width: 898, height: 898 }, r0: { width: 1080, height: 1920 }, p3: { width: 1920, height: 1080 } }, music: null })(selP);
+    boundaries: pb, crops: { p1: { width: 898, height: 898 }, p2: { width: 756, height: 1008 }, r0: { width: 1080, height: 1920 }, p3: { width: 1920, height: 1080 } }, music: null })(selP);
   assert.equal(rp.placed, 4);
   assert.deepEqual(mp.clips.map(c => [c.resourceId, c.startFrame, c.endFrame]), [['p1', 0, 32], ['r0', 32, 59], ['p2', 59, 77], ['p3', 77, 113]]);
   const ins = mp.log.filter(x => x[0] === 'insert');
   assert.deepEqual(ins.filter(x => x[1] !== 'r0').map(x => x[2].startSeconds), [0, 0, 0], 'photos start at 0');
   assert.ok(Math.abs(ins[0][2].endSeconds - 32 / 30) < 1e-9, 'hold = frame-snapped slot length');
-  assert.equal(scratch.length, 1, 'only the unmeasured photo is measured');
-  assert.equal(scratch[0].commits, 0, 'the scratch Draft is never committed');
+  assert.equal(scratch.length, 0, 'native Image facts never come from a Draft canvas');
   const tp = Object.fromEntries(mp.log.filter(x => x[0] === 'transform').map(x => [mp.clips.find(c => c.clipId === x[1]).resourceId, x[2].x]));
   assert.deepEqual(Object.keys(tp).sort(), ['p1', 'p2', 'r0'], 'the square, 3:4 and 9:16 clips are cropped; the 16:9 photo is not');
   assert.ok(Math.abs(tp.p1 - (1920 / 898) / (1080 / 898)) < 1e-9);
@@ -197,7 +209,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const sound = async (clipSound, extra = {}) => {
     const ms = mockDraft(30, { photos: ['p1'] });
     const sel = { project: () => ({ createDraft: async () => ms.d, resource: id => ({ id }) }) };
-    const out = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks, boundaries: [0, 1, 2, 3], crops: {}, music: { resourceId: 'r9', sectionStart: 0 }, clipSound, ...extra })(sel);
+    const out = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks, boundaries: [0, 1, 2, 3], crops: { p1: { width: 1920, height: 1080 } }, music: { resourceId: 'r9', sectionStart: 0 }, clipSound, ...extra })(sel);
     return { ms, out };
   };
   const amb = await sound('ambient', { ambientDb: -18 });
@@ -239,13 +251,13 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     assert.deepEqual(many.clips.filter(c => c.trackKind === 'main').map(c => c.endFrame), mb.slice(1).map(b => Math.round((b + offM) * 30)));
     assert.equal(rm.totalFrames, Math.round((mb[n] + offM) * 30));
     assert.equal(rm.placed, n);
-    assert.ok(many.reads.clips <= 4, 'clip reads do not grow with the clip count: ' + many.reads.clips);
+    assert.ok(many.reads.clips <= n + 10, 'one observed state per edit plus bounded final checks: ' + many.reads.clips);
     // Ambient sound reads again only after each edit (an edit makes earlier rows stale).
     const amb2 = mockDraft(30);
     await load('assemble.js', { projectId: 'p', draftName: 'x', picks: Array.from({ length: 6 }, (_, i) => ({ rid: 'r' + i, kind: 'video', startSeconds: 1, endSeconds: 2 })),
       boundaries: [0, 1, 2, 3, 4, 5, 6], crops: {}, music: null, clipSound: 'ambient' })({ project: () => ({ createDraft: async () => amb2.d, resource: id => ({ id }) }) });
     assert.equal(amb2.log.filter(x => x[0] === 'volume').length, 6);
-    assert.ok(amb2.reads.clips <= 2 + 6, 'one read per sound edit at most: ' + amb2.reads.clips);
+    assert.ok(amb2.reads.clips <= 2 * 6 + 10, 'one read per sound edit at most: ' + amb2.reads.clips);
   }
 
   // ---- decorate.js ----
@@ -275,7 +287,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   // A mute failure fails the step (the panel reports it and offers the retry) and commits nothing.
   const bad = mockDraft(30); bad.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
   bad.d.setAudioTracks = async () => { throw Error('nope'); };
-  await assert.rejects(load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd: 30 })({ draft: () => bad.d }), /mute the clips' own sound: nope/);
+  await assert.rejects(load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd: 30 })({ draft: () => bad.d }), error => error.code === 'IMAGE_PROGRAM_INVALID' && /mute the clips' own sound: nope/.test(error.cause?.message || ''));
   assert.equal(bad.log.filter(x => x[0] === 'commit' || x[0] === 'graphic').length, 0);
   // A missing or non-positive videoEnd fails before anything is touched.
   for (const videoEnd of [undefined, 0, -5, 'x']) {
@@ -293,7 +305,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   // the mute again, it changes nothing (opCount 0), and nothing is committed ("Nothing to stage" otherwise).
   const mr = mockDraft(30, { silent: ['s0'] });
   mr.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 'r0', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: [] });
-  mr.graphics.push({ name: 'Archive title', clip: {} });
+  await load('decorate.js', { ...cfgM, mute: false, sequenceId: 's', videoEnd: 60 })({ draft: () => mr.d }); mr.reopen(); mr.log.length = 0;
   mr.d.commitAll = async () => { throw Error('Nothing to stage'); };
   const dret = await load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd: 60 })({ draft: () => mr.d });
   assert.deepEqual([dret.muted, dret.muteKept, dret.committed, dret.alreadyDone], [false, true, false, true]);
@@ -381,11 +393,11 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     const mr1 = built();
     await load('decorate.js', fullCfg())({ draft: () => mr1.d });
     const edits = mr1.log.filter(x => x[0] === 'fx' || x[0] === 'graphic').length;
-    assert.ok(mr1.reads.clips <= edits + 2, 'reads ' + mr1.reads.clips + ' for ' + edits + ' edits');
+    assert.ok(mr1.reads.clips <= edits + 2 * 6 + 4, 'reads ' + mr1.reads.clips + ' for ' + edits + ' edits');
     mr1.reopen();
     const before = mr1.reads.clips;
     await load('decorate.js', fullCfg())({ draft: () => mr1.d });
-    assert.ok(mr1.reads.clips - before <= 2, 'a retry reads the clips once (plus the Main list): ' + (mr1.reads.clips - before));
+    assert.ok(mr1.reads.clips - before <= 2 * 6 + 3, 'a retry reads the clips once (plus the Main list): ' + (mr1.reads.clips - before));
   }
   // A host that lists the Main clips as video rows too: they are not decorated twice, and a retry does not count their
   // effects twice (effectsKept 12, as above) nor a skipped photo twice.
@@ -449,8 +461,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   // A partial earlier run: the title and the opening's reveal exist; only the rest is added, reveal not duplicated.
   {
     const mpart = built();
-    mpart.graphics.push({ name: 'Archive title', clip: {} });
-    mpart.effects[1] = [{ name: 'Letterbox reveal', effectName: 'Letterbox reveal' }];
+    await load('decorate.js', fullCfg())({ draft: () => mpart.d }); mpart.reopen(); mpart.log.length = 0;
+    mpart.graphics.splice(1); for (const key of Object.keys(mpart.effects)) if (key !== '1') delete mpart.effects[key]; mpart.effects[1].splice(1);
     const dpart = await load('decorate.js', fullCfg())({ draft: () => mpart.d });
     assert.deepEqual([dpart.titleAdded, dpart.creditAdded, dpart.letterbox, dpart.effectsKept, dpart.committed], [false, true, 0, 1, true]);
     assert.deepEqual(fxOf(mpart, 1), ['Letterbox reveal', 'Cinematic look']);

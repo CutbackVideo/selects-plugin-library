@@ -34,3 +34,25 @@ test('a missing install keeps the existing message',async()=>{
 test('an old Selects build gets the update message, not "Reinstall"',()=>{
  assert.ok(source.includes(NEWER_SELECTS));
 });
+test('inset cards keep 19/51/79 percent of output width for portrait and landscape sources',()=>{
+ const {cinemaInsetGeometry}=loadPanelFunctions(source,['cinemaInsetGeometry']);
+ for(const [sw,sh] of [[1920,1080],[640,360],[640,338],[202,338],[1080,1920],[1000,1000],[4096,2160]])for(const pct of [19,51,79]){
+  const box=cinemaInsetGeometry(1920,1080,sw,sh,pct),fit=Math.min(1920/sw,1080/sh);
+  assert.ok(Math.abs(box.width*fit-1920*pct/100)<1e-9);
+  assert.ok(Math.abs(box.height*fit-1920*pct/100*9/16)<1e-9);
+  if(sw/sh>=16/9)assert.ok(Math.abs(box.width-sw*pct/100)<1e-9,'normal landscape geometry stays unchanged');
+ }
+});
+test('card size lookup preserves display dimensions through nested and paged Project files',async()=>{
+ const {cinemaCardSources}=loadPanelFunctions(source,['cinemaCardSources']);
+ const row={type:'video',resourceId:'portrait',frameSize:{width:202,height:338}};
+ const flat=await cinemaCardSources({sourceFiles:async()=>({fileTree:[{type:'dir',children:[row]}]})},['portrait']);
+ assert.deepEqual(JSON.parse(JSON.stringify(flat)),{portrait:{width:202,height:338}});
+ const calls=[],paged=await cinemaCardSources({sourceFiles:async args=>{calls.push(args);return args?{fileTree:[row]}:{folders:[{name:'People'}]};}},['portrait']);
+ assert.deepEqual(JSON.parse(JSON.stringify(paged)),JSON.parse(JSON.stringify(flat)));assert.equal(calls.length,2);
+});
+test('unknown or contradictory card dimensions refuse to guess',async()=>{
+ const {cinemaCardSources,cinemaInsetGeometry}=loadPanelFunctions(source,['cinemaCardSources','cinemaInsetGeometry']);
+ for(const rows of [[],[{resourceId:'r',frameSize:{width:0,height:1080}}],[{resourceId:'r',frameSize:{width:1920,height:1080}},{resourceId:'r',frameSize:{width:1080,height:1920}}]])await assert.rejects(cinemaCardSources({sourceFiles:async()=>({fileTree:rows})},['r']),/dimensions are unavailable/);
+ assert.throws(()=>cinemaInsetGeometry(1920,1080,NaN,338,19),/dimensions are unavailable/);
+});

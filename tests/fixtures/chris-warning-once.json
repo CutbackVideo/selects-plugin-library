@@ -1,0 +1,15 @@
+{
+  "warnings": [
+    "No visually verified B-roll for “camera viewfinder framing shot”; kept the speaker.",
+    "No visually verified B-roll for “video camera recording studio”; kept the speaker.",
+    "No visually verified B-roll for “skateboard trick slow motion”; kept the speaker.",
+    "No visually verified B-roll for “film camera”; kept the speaker.",
+    "No visually verified B-roll for “video camera”; kept the speaker.",
+    "No visually verified B-roll for “skateboarder”; kept the speaker.",
+    "Face framing clips the speaker: at frame 29 (0.97s) the head is pushed to the right edge and cut off at the top and right. At frames 558–589 (18.6–19.7s) the face is mostly outside the right edge. At frame 127 (4.24s) the top of the head is cut off. Re-centre the face crop on these stretches.",
+    "Ordinary phrase over bright B-roll has low contrast: at frame 98 (3.27s) the small white 'Als- also, uh,' sits on the pale champagne in the glass and is hard to read.",
+    "Ordinary phrase over bright B-roll is effectively unreadable: at frame 101 (3.37s) the word 'the' is nearly invisible against the bright glass. Add a shadow or outline to small phrases over B-roll.",
+    "The keyword 'make the money' at frame 501 (16.72s) is pale grey/white over the bright cushion and window, so it has very low contrast and its letters partly disappear.",
+    "The keyword 'hate cameras' at frame 364 (12.15s): 'cameras' is a dark brown-grey over the dark lens, so it reads much weaker than 'hate'. The keyword 'Champagnes' at frames 30–68 (1.0–2.3s) is a blue-grey gradient over the bright glass, which is only marginally readable."
+  ]
+}

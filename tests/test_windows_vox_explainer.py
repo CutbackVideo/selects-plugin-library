@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Windows safety of vox-explainer (static checks).
 
 The engine runs inside the panel (voxEngine, the port of engine.py; tests/vox_explainer_engine.test.mjs compares the
@@ -71,8 +72,8 @@ class VoxExplainerWindowsTest(unittest.TestCase):
         for name in AV_NAMES:
             self.assertRegex(block, r'(?:async )?function ' + name + r'\(', name)
 
-    def test_av_host_block_is_archive_vlogs(self):
-        ref = av_block((ROOT / 'plugins' / 'archive-vlog' / 'panel.tsx').read_text(encoding='utf-8'))
+    def test_av_host_block_is_legacy_reference(self):
+        ref = av_block((ROOT / 'plugins' / 'city-weekend-vlog' / 'panel.tsx').read_text(encoding='utf-8'))
         self.assertEqual(av_block(self.panel), ref)
 
     def test_no_platform_sniffing_of_its_own(self):

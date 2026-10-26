@@ -35,8 +35,8 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(Object.keys(s.candidates[0]).sort(), ['rid', 'role', 'score', 't']);
   assert.equal(s.stats.waitedMs, 1000, 'one retry pass after a 1 s pause');
 
-  // Photos: Image resources come back with kind 'photo', respecting `only`; sourceFiles has no size for them, so an
-  // unsaved scratch Draft measures each (it adopts the photo's size); known sizes are reused and nothing is committed.
+  // Photos preserve selection and native source metadata. Unknown metadata stays
+  // unknown; neither a cached value nor an unsaved Draft canvas measures it.
   const res2 = resources.concat([
     { resourceId: 'r4', name: 'IMG_1.jpeg', type: 'Image', hasAnalysis: false, status: 'analysisNotApplicable', durationSeconds: 0, recording: { recordedAt: '2026-09-27T10:00:00Z' } },
     { resourceId: 'r5', name: 'IMG_2.jpeg', type: 'Image', hasAnalysis: false, status: 'analysisNotApplicable', durationSeconds: 0 }]);
@@ -50,18 +50,19 @@ const keepAlive = setInterval(() => {}, 50);
   const inv2 = await load('inventory.js', { projectId: 'p', only: null })(sel2);
   assert.deepEqual(inv2.resources.map(r => [r.rid, r.kind]), [['r0', 'video'], ['r3', 'video']]);
   assert.deepEqual(inv2.photos, [
-    { rid: 'r4', name: 'IMG_1.jpeg', width: 898, height: 898, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo' },
-    { rid: 'r5', name: 'IMG_2.jpeg', width: 2268, height: 4032, recordedAt: null, kind: 'photo' }]);
+    { rid: 'r4', name: 'IMG_1.jpeg', width: null, height: null, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo' },
+    { rid: 'r5', name: 'IMG_2.jpeg', width: null, height: null, recordedAt: null, kind: 'photo' }]);
   assert.equal(inv2.skipped.unanalysed, 1, 'photos never count as unanalysed');
   assert.ok(!('latestYear' in inv2), 'no latestYear with photos either');
-  assert.equal(drafts.length, 2);
-  assert.ok(drafts.every(d => !d.committed), 'scratch Drafts are not committed');
+  assert.equal(drafts.length, 0, 'inventory creates no measurement Drafts');
   const inv3 = await load('inventory.js', { projectId: 'p', only: ['r5'], known: { r5: { width: 10, height: 20 } } })(sel2);
-  assert.deepEqual(inv3.photos.map(r => [r.rid, r.width, r.height]), [['r5', 10, 20]]);
+  assert.deepEqual(inv3.photos.map(r => [r.rid, r.width, r.height]), [['r5', null, null]]);
   assert.equal(inv3.resources.length, 0);
-  assert.equal(drafts.length, 2, 'a known size is not measured again');
+  assert.equal(drafts.length, 0, 'cached dimensions cannot authorize a scratch measurement');
+  const native = await load('inventory.js', { projectId: 'p', only: ['r5'], known: { r5: { width: 10, height: 20 } } })({ project: () => ({ resources: async () => res2, sourceFiles: async () => ({ fileTree: [{ resourceId: 'r5', type: 'image', path: '/p/2.jpeg', frameSize: { width: 96, height: 160 } }] }) }) });
+  assert.deepEqual(native.photos.map(r => [r.rid, r.width, r.height]), [['r5', 96, 160]], 'fresh source facts win over a stale cached size');
   const inv4 = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(sel2);
-  assert.deepEqual(inv4.photos.map(r => r.width), [null, null], 'no measuring past the budget');
+  assert.deepEqual(inv4.photos.map(r => r.width), [null, null], 'missing native metadata stays unknown regardless of the old measurement budget');
 
   assert.equal(inv.incomplete, false, 'a fully loaded Project is complete');
 
@@ -193,14 +194,13 @@ const keepAlive = setInterval(() => {}, 50);
   await load('search.js', { projectId: 'p', rids: ['a'], queries: { street: 'q1' }, pageSize: 4, checkAnalysis: false })({ project: () => ({ resources: async () => { reads++; return mixRes; }, resource: selS(mixRes).project().resource }) });
   assert.equal(reads, 0);
 
-  // ensure-audio.js: host paths compared normalised (NFC, backslashes, case on Windows), never as raw strings; a bundled
-  // cue also matches by file name, but only with the manifest length (within 0.25 s), so a user's same-named file never
-  // passes for the cue. Otherwise the file is imported.
+  // Own music and bundled cues both use their selected Project path. Matching
+  // names and approximate lengths cannot identify the bytes of a cue.
   {
     const ensureSel = (audio, tree) => {
       const imported = [];
       return { imported, sel: { project: () => ({ sourceFiles: async () => ({ fileTree: tree }), resources: async () => audio,
-        importFiles: async ({ paths }) => { imported.push(...paths); return { addedResourceIds: ['new1'] }; } }) } };
+        importFiles: async ({ paths }) => { imported.push(...paths);audio.push({resourceId:'new1',type:'Audio',durationSeconds:60.029});tree.push({resourceId:'new1',type:'audio',path:paths[0]});return { addedResourceIds: ['new1'] }; } }) } };
     };
     const node = (rid, p) => ({ type: 'file', resourceId: rid, path: p });
     // The Project stores the decomposed (NFD) Hangul folder name with backslashes; the panel asks with the composed
@@ -212,10 +212,10 @@ const keepAlive = setInterval(() => {}, 50);
     // macOS keeps case: a differently cased path is another file, imported.
     e = ensureSel([{ resourceId: 'a1', type: 'Audio', name: 'x', durationSeconds: 3 }], [node('a1', '/Volumes/Media/Music/Song.mp3')]);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Volumes/Media/Music/song.mp3' })(e.sel), { resourceId: 'new1', imported: true });
-    // A cue matched by file name with the manifest length; a same-named file of another length is not the cue.
+    // A same-named cue at another path remains a different file, even at the same length.
     const cuePath = '/Volumes/Home/.selects/skills/mini-vlog/assets/cues/bedroom-pop-108.mp3';
     e = ensureSel([{ resourceId: 'a2', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 60.1 }], [node('a2', '/Volumes/Copy/bedroom-pop-108.mp3')]);
-    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'a2', imported: false }, 'name + length');
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'new1', imported: true }, 'name and length cannot substitute another file');
     e = ensureSel([{ resourceId: 'a3', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 61 }], [node('a3', '/Volumes/Media/Music/bedroom-pop-108.mp3')]);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'new1', imported: true }, 'same name, other length');
     assert.deepEqual(e.imported, [cuePath]);

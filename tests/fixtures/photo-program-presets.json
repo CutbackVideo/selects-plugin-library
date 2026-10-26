@@ -1,0 +1,527 @@
+{
+  "repository": "CutbackVideo/cutback-client",
+  "revision": "0016295298e800dd045168bb771c9de4c48bc7f7",
+  "sources": [
+    "src/js/main/effects/presets/textPresets.ts",
+    "src/js/main/effects/presets/stickerPresets.ts",
+    "src/js/main/effects/presets/revealPresets.ts"
+  ],
+  "presets": [
+    {
+      "id": "text-default",
+      "kind": "generator",
+      "label": "Text",
+      "parameters": {},
+      "editableParameters": [
+        {
+          "key": "body",
+          "label": "Text",
+          "type": "text",
+          "defaultValue": "Text"
+        },
+        {
+          "key": "anchor",
+          "label": "Anchor",
+          "type": "select",
+          "defaultValue": "center",
+          "options": [
+            {
+              "value": "top-left",
+              "label": "Top left"
+            },
+            {
+              "value": "top-center",
+              "label": "Top center"
+            },
+            {
+              "value": "top-right",
+              "label": "Top right"
+            },
+            {
+              "value": "center-left",
+              "label": "Center left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "center-right",
+              "label": "Center right"
+            },
+            {
+              "value": "bottom-left",
+              "label": "Bottom left"
+            },
+            {
+              "value": "bottom-center",
+              "label": "Bottom center"
+            },
+            {
+              "value": "bottom-right",
+              "label": "Bottom right"
+            }
+          ]
+        },
+        {
+          "key": "overlayScale",
+          "label": "Scale",
+          "type": "number",
+          "defaultValue": 100,
+          "min": 1,
+          "max": 500,
+          "step": 1
+        },
+        {
+          "key": "fontFamily",
+          "label": "Font",
+          "type": "text",
+          "defaultValue": ""
+        },
+        {
+          "key": "fontWeight",
+          "label": "Weight",
+          "type": "select",
+          "defaultValue": "700",
+          "options": [
+            {
+              "value": "400",
+              "label": "Regular"
+            },
+            {
+              "value": "600",
+              "label": "Semibold"
+            },
+            {
+              "value": "700",
+              "label": "Bold"
+            },
+            {
+              "value": "800",
+              "label": "Heavy"
+            }
+          ]
+        },
+        {
+          "key": "fontSize",
+          "label": "Font size",
+          "type": "number",
+          "defaultValue": 72,
+          "min": 12,
+          "max": 200,
+          "step": 1
+        },
+        {
+          "key": "color",
+          "label": "Color",
+          "type": "color",
+          "defaultValue": "#ffffff"
+        },
+        {
+          "key": "italic",
+          "label": "Italic",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "underline",
+          "label": "Underline",
+          "type": "boolean",
+          "defaultValue": false
+        },
+        {
+          "key": "textAlign",
+          "label": "Alignment",
+          "type": "select",
+          "defaultValue": "center",
+          "options": [
+            {
+              "value": "left",
+              "label": "Left"
+            },
+            {
+              "value": "center",
+              "label": "Center"
+            },
+            {
+              "value": "right",
+              "label": "Right"
+            }
+          ]
+        },
+        {
+          "key": "enterStyle",
+          "label": "In",
+          "type": "select",
+          "defaultValue": "instant",
+          "options": [
+            {
+              "value": "instant",
+              "label": "None"
+            },
+            {
+              "value": "dissolve",
+              "label": "Dissolve"
+            },
+            {
+              "value": "rise",
+              "label": "Rise"
+            },
+            {
+              "value": "drop",
+              "label": "Drop"
+            },
+            {
+              "value": "pop",
+              "label": "Pop"
+            },
+            {
+              "value": "typewriter",
+              "label": "Typewriter"
+            }
+          ]
+        },
+        {
+          "key": "enterDuration",
+          "label": "In duration",
+          "type": "number",
+          "defaultValue": 0.4,
+          "min": 0,
+          "max": 5,
+          "step": 0.05
+        },
+        {
+          "key": "exitStyle",
+          "label": "Out",
+          "type": "select",
+          "defaultValue": "instant",
+          "options": [
+            {
+              "value": "instant",
+              "label": "None"
+            },
+            {
+              "value": "dissolve",
+              "label": "Dissolve"
+            },
+            {
+              "value": "rise",
+              "label": "Rise"
+            },
+            {
+              "value": "drop",
+              "label": "Drop"
+            },
+            {
+              "value": "pop",
+              "label": "Pop"
+            },
+            {
+              "value": "typewriter",
+              "label": "Typewriter"
+            }
+          ]
+        },
+        {
+          "key": "exitDuration",
+          "label": "Out duration",
+          "type": "number",
+          "defaultValue": 0.4,
+          "min": 0,
+          "max": 5,
+          "step": 0.05
+        },
+        {
+          "key": "ease",
+          "label": "Easing",
+          "type": "select",
+          "defaultValue": "out",
+          "options": [
+            {
+              "value": "out",
+              "label": "Fast, then slow"
+            },
+            {
+              "value": "in",
+              "label": "Slow, then fast"
+            },
+            {
+              "value": "inOut",
+              "label": "Slow at both ends"
+            },
+            {
+              "value": "linear",
+              "label": "Steady"
+            }
+          ]
+        },
+        {
+          "key": "strokeColor",
+          "label": "Color",
+          "type": "color",
+          "defaultValue": "#000000"
+        },
+        {
+          "key": "strokeWidth",
+          "label": "Width",
+          "type": "number",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 24,
+          "step": 0.5
+        },
+        {
+          "key": "backgroundColor",
+          "label": "Color",
+          "type": "color",
+          "defaultValue": "#00000000"
+        },
+        {
+          "key": "backgroundPadding",
+          "label": "Padding",
+          "type": "number",
+          "defaultValue": 24,
+          "min": 0,
+          "max": 160,
+          "step": 1
+        },
+        {
+          "key": "backgroundRadius",
+          "label": "Corner radius",
+          "type": "number",
+          "defaultValue": 8,
+          "min": 0,
+          "max": 160,
+          "step": 1
+        },
+        {
+          "key": "shadowColor",
+          "label": "Color",
+          "type": "color",
+          "defaultValue": "#000000b3"
+        },
+        {
+          "key": "shadowX",
+          "label": "Offset X",
+          "type": "number",
+          "defaultValue": 0,
+          "min": -80,
+          "max": 80,
+          "step": 1
+        },
+        {
+          "key": "shadowY",
+          "label": "Offset Y",
+          "type": "number",
+          "defaultValue": 0,
+          "min": -80,
+          "max": 80,
+          "step": 1
+        },
+        {
+          "key": "shadowBlur",
+          "label": "Blur",
+          "type": "number",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 120,
+          "step": 1
+        },
+        {
+          "key": "glowColor",
+          "label": "Color",
+          "type": "color",
+          "defaultValue": "#ffffff"
+        },
+        {
+          "key": "glowStrength",
+          "label": "Strength",
+          "type": "number",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      ]
+    },
+    {
+      "id": "sticker-burst",
+      "kind": "generator",
+      "label": "Burst",
+      "parameters": {},
+      "editableParameters": [
+        {
+          "key": "kind",
+          "label": "Kind",
+          "type": "select",
+          "defaultValue": "confetti",
+          "options": [
+            {
+              "value": "confetti",
+              "label": "Confetti"
+            },
+            {
+              "value": "sparkle",
+              "label": "Sparkle"
+            },
+            {
+              "value": "impact",
+              "label": "Impact"
+            }
+          ]
+        },
+        {
+          "key": "count",
+          "label": "Pieces",
+          "type": "number",
+          "defaultValue": 40,
+          "min": 6,
+          "max": 160,
+          "step": 2
+        },
+        {
+          "key": "spread",
+          "label": "Spread",
+          "type": "number",
+          "defaultValue": 60,
+          "min": 5,
+          "max": 120,
+          "step": 1
+        },
+        {
+          "key": "fontFamily",
+          "label": "Font",
+          "type": "text",
+          "defaultValue": ""
+        },
+        {
+          "key": "fontWeight",
+          "label": "Weight",
+          "type": "select",
+          "defaultValue": "700",
+          "options": [
+            {
+              "value": "400",
+              "label": "Regular"
+            },
+            {
+              "value": "600",
+              "label": "Semibold"
+            },
+            {
+              "value": "700",
+              "label": "Bold"
+            },
+            {
+              "value": "800",
+              "label": "Heavy"
+            }
+          ]
+        },
+        {
+          "key": "fontSize",
+          "label": "Font size",
+          "type": "number",
+          "defaultValue": 64,
+          "min": 12,
+          "max": 200,
+          "step": 1
+        },
+        {
+          "key": "color",
+          "label": "Color",
+          "type": "color",
+          "defaultValue": "#ffffff"
+        },
+        {
+          "key": "accent",
+          "label": "Accent",
+          "type": "color",
+          "defaultValue": "#f472b6"
+        }
+      ]
+    },
+    {
+      "id": "reveal-fade-down",
+      "kind": "effect",
+      "label": "Fade down",
+      "parameters": {
+        "style": "fade",
+        "direction": "out"
+      },
+      "editableParameters": [
+        {
+          "key": "style",
+          "label": "Style",
+          "type": "select",
+          "defaultValue": "fade",
+          "options": [
+            {
+              "value": "fade",
+              "label": "Fade"
+            },
+            {
+              "value": "blur",
+              "label": "Blur"
+            },
+            {
+              "value": "blurFade",
+              "label": "Blur fade"
+            },
+            {
+              "value": "pixel",
+              "label": "Pixel"
+            },
+            {
+              "value": "glitch",
+              "label": "Glitch"
+            },
+            {
+              "value": "softMask",
+              "label": "Soft mask"
+            },
+            {
+              "value": "blackout",
+              "label": "Blackout"
+            }
+          ]
+        },
+        {
+          "key": "direction",
+          "label": "Direction",
+          "type": "select",
+          "defaultValue": "in",
+          "options": [
+            {
+              "value": "in",
+              "label": "In"
+            },
+            {
+              "value": "out",
+              "label": "Out"
+            }
+          ]
+        },
+        {
+          "key": "span",
+          "label": "Duration",
+          "type": "number",
+          "defaultValue": 0.6,
+          "min": 0.1,
+          "max": 5,
+          "step": 0.1
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "type": "number",
+          "defaultValue": 60,
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      ],
+      "referenceSource": "import {AbsoluteFill, useCurrentFrame, useVideoConfig} from \"remotion\";\n\nfunction smooth(t) {\n  const x = Math.max(0, Math.min(1, t));\n  return x * x * (3 - 2 * x);\n}\n\nfunction numberOf(d, key, fallback) {\n  const raw = d[key];\n  return typeof raw === \"number\" ? raw : fallback;\n}\n\n/**\n * How far the clip is from being clear: 0 at the affected edge, 1 once the\n * window has passed. An \"out\" counts from the tail instead of the head, which\n * is the only difference between arriving and leaving.\n */\nfunction clearness(d, fps, rangeDurationInFrames, frame) {\n  const seconds = numberOf(d, \"span\", 0.6);\n  const span = Math.max(1, Math.round(seconds * fps));\n  const total = rangeDurationInFrames > 0 ? rangeDurationInFrames : 150;\n  const leaving = (typeof d.direction === \"string\" ? d.direction : \"in\") === \"out\";\n  const into = leaving ? total - 1 - frame : frame;\n  return smooth(Math.max(0, Math.min(1, into / span)));\n}\n\nexport default function Reveal({Source, data, rangeDurationInFrames}) {\n  const d = data ?? {};\n  const {fps} = useVideoConfig();\n  const style = typeof d.style === \"string\" ? d.style : \"fade\";\n  const p = clearness(d, fps, rangeDurationInFrames, useCurrentFrame());\n  // How much of the treatment is still on the frame.\n  const k = 1 - p;\n  const amount = Math.max(0, Math.min(100, numberOf(d, \"amount\", 60))) / 100;\n\n  if (style === \"blackout\") {\n    return <AbsoluteFill style={{ background: \"#000000\" }} />;\n  }\n\n  if (style === \"glitch\") {\n    const shift = k * amount * 6;\n    return (\n      <AbsoluteFill style={{ opacity: 0.4 + p * 0.6 }}>\n        <AbsoluteFill><Source /></AbsoluteFill>\n        {k <= 0.01 ? null : (\n          <AbsoluteFill style={{ mixBlendMode: \"screen\", opacity: k, transform: \"translateX(\" + shift + \"%)\", filter: \"brightness(1.1)\" }}>\n            <AbsoluteFill style={{ background: \"#ff0040\", mixBlendMode: \"multiply\" }} />\n            <Source />\n          </AbsoluteFill>\n        )}\n        {k <= 0.01 ? null : (\n          <AbsoluteFill style={{ mixBlendMode: \"screen\", opacity: k, transform: \"translateX(\" + -shift + \"%)\" }}>\n            <AbsoluteFill style={{ background: \"#00e5ff\", mixBlendMode: \"multiply\" }} />\n            <Source />\n          </AbsoluteFill>\n        )}\n        {k <= 0.01 ? null : (\n          <AbsoluteFill style={{\n            pointerEvents: \"none\",\n            opacity: k * 0.5,\n            background: \"repeating-linear-gradient(0deg, rgba(0,0,0,0.6) 0 2px, transparent 2px 6px)\",\n          }} />\n        )}\n      </AbsoluteFill>\n    );\n  }\n\n  if (style === \"softMask\") {\n    // A feathered wipe: the hard edge is the reveal, the soft band is the\n    // amount, and at rest the whole frame is inside the mask.\n    const feather = 4 + amount * 40;\n    const edge = p * (100 + feather);\n    const gradient =\n      \"linear-gradient(90deg, #000 \" + Math.max(0, edge - feather) + \"%, transparent \" + edge + \"%)\";\n    return (\n      <AbsoluteFill style={{\n        maskImage: gradient,\n        WebkitMaskImage: gradient,\n      }}>\n        <Source />\n      </AbsoluteFill>\n    );\n  }\n\n  // A blur is a real filter; a pixel treatment has no CSS primitive, so it is a\n  // heavy blur held together with contrast \u2014 coarse in the same direction.\n  const blur = style === \"pixel\" ? k * amount * 26 : k * amount * 24;\n  const contrast = style === \"pixel\" ? 1 + k * amount * 0.9 : 1;\n  const fades = style === \"fade\" || style === \"blurFade\";\n  const blurs = style !== \"fade\";\n\n  // A filter costs a compositing layer for as long as it is set, so it comes off\n  // entirely once there is nothing left to blur \u2014 which is most of the clip.\n  const filtering = blurs && (blur > 0.01 || contrast !== 1);\n  return (\n    <AbsoluteFill style={{\n      opacity: fades ? p : 1,\n      filter: filtering ? \"blur(\" + blur + \"px) contrast(\" + contrast + \")\" : undefined,\n    }}>\n      <Source />\n    </AbsoluteFill>\n  );\n}"
+    }
+  ]
+}

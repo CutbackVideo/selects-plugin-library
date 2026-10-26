@@ -1,0 +1,177 @@
+{
+  "scope": "C01 template-side presentation only; not all28 template telemetry",
+  "templateCount": 28,
+  "implementedTemplateCount": 4,
+  "notImplementedTemplateCount": 24,
+  "excluded": "Chan shorts apps are outside this inventory and patch",
+  "rows": [
+    {
+      "id": "ali-abdaal-style",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/ali-abdaal-style/panel.tsx"
+    },
+    {
+      "id": "archive-vlog",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/archive-vlog/panel.tsx"
+    },
+    {
+      "id": "camera-shutter-dump",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/camera-shutter-dump/panel.tsx"
+    },
+    {
+      "id": "chris-williamson-style",
+      "phaseAgeView": true,
+      "coverage": "Existing TemplateRun status callback + relative age + nonterminal long-pause notice",
+      "source": "plugins/chris-williamson-style/panel.tsx"
+    },
+    {
+      "id": "cinema-vlog-studio",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/cinema-vlog-studio/panel.tsx"
+    },
+    {
+      "id": "city-weekend-vlog",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/city-weekend-vlog/panel.tsx"
+    },
+    {
+      "id": "daily-vlog-8",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/daily-vlog-8/panel.tsx"
+    },
+    {
+      "id": "depth-type-captions",
+      "phaseAgeView": true,
+      "coverage": "Existing TemplateRun status callback + relative age + nonterminal long-pause notice",
+      "source": "plugins/depth-type-captions/panel.tsx"
+    },
+    {
+      "id": "doac-style",
+      "phaseAgeView": true,
+      "coverage": "Existing TemplateRun status callback + relative age + nonterminal long-pause notice",
+      "source": "plugins/doac-style/panel.tsx"
+    },
+    {
+      "id": "fast-switching-stopmotion",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/fast-switching-stopmotion/panel.tsx"
+    },
+    {
+      "id": "four-photo-stop-motion",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/four-photo-stop-motion/panel.tsx"
+    },
+    {
+      "id": "gongju-gallery",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/gongju-gallery/panel.tsx"
+    },
+    {
+      "id": "jude-kinetic-style",
+      "phaseAgeView": true,
+      "coverage": "Existing TemplateRun status callback + relative age + nonterminal long-pause notice",
+      "source": "plugins/jude-kinetic-style/panel.tsx"
+    },
+    {
+      "id": "mini-vlog",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/mini-vlog/panel.tsx"
+    },
+    {
+      "id": "no14-still-video",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/no14-still-video/panel.tsx"
+    },
+    {
+      "id": "photo-gallery-no2",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/photo-gallery-no2/panel.tsx"
+    },
+    {
+      "id": "place-count",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/place-count/panel.tsx"
+    },
+    {
+      "id": "polaroid-photo-dump",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/polaroid-photo-dump/panel.tsx"
+    },
+    {
+      "id": "portrait-beat-montage",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/portrait-beat-montage/panel.tsx"
+    },
+    {
+      "id": "postcard-cutout-studio",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/postcard-cutout-studio/panel.tsx"
+    },
+    {
+      "id": "recap-2026",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/recap-2026/panel.tsx"
+    },
+    {
+      "id": "selfie-aesthetic",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/selfie-aesthetic/panel.tsx"
+    },
+    {
+      "id": "summer-trip",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/summer-trip/panel.tsx"
+    },
+    {
+      "id": "thank-you-recap",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/thank-you-recap/panel.tsx"
+    },
+    {
+      "id": "the-end-credits",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/the-end-credits/panel.tsx"
+    },
+    {
+      "id": "torn-paper-love",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/torn-paper-love/panel.tsx"
+    },
+    {
+      "id": "travel-beat-vlog",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/travel-beat-vlog/panel.tsx"
+    },
+    {
+      "id": "vlog-opening",
+      "phaseAgeView": false,
+      "coverage": "Not changed or claimed by this patch",
+      "source": "plugins/vlog-opening/panel.tsx"
+    }
+  ]
+}

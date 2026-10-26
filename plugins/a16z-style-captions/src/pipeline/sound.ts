@@ -1,7 +1,7 @@
 // Music and levels (spec 14). The house bed is a soft pad with no drums, entering at full level on the
 // first frame, sitting about 9 dB under the voice with no ducking, and stopping hard on the last frame.
 // The voice is levelled with clip gain only, to about -16 LUFS, so the mix lands near -15.5 LUFS.
-import { fs, hostFF, type Sdk } from "./host";
+import { isTerminalMediaFailure, fs, hostFF, type Sdk } from "./host";
 import { generate } from "./media";
 
 export const MUSIC_PROMPT =
@@ -33,7 +33,8 @@ export async function loudness(sdk: Sdk, path: string, from?: number, dur?: numb
     const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", ...win, "-i", path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"], 180000);
     const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(r.stderr + r.stdout) || [])[1]);
     return Number.isFinite(i) && i > -70 ? i : null;
-  } catch {
+  } catch (error) {
+    if (isTerminalMediaFailure(error)) throw error;
     return null;
   }
 }

@@ -1,0 +1,2269 @@
+{
+  "schemaVersion": 1,
+  "template": "mini-vlog",
+  "auditedBase": "2e730ab8658054fc94032ced649e4515c3df2973",
+  "includeAllShippedAssets": true,
+  "semanticReviewComplete": false,
+  "existingOwners": [
+    {
+      "id": "local-client",
+      "source": "shared/local-client.ts"
+    },
+    {
+      "id": "app-update-guard",
+      "source": "shared/app-update-guard.ts"
+    }
+  ],
+  "features": [
+    {
+      "id": "copy-and-package",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Names, localized copy, presets, media choices and distribution promises describe this template rather than reusable execution.",
+      "contract": {
+        "input": "Manifest, ten language dictionaries, cue/font metadata, package documents and licensed binary assets.",
+        "output": "Gallery metadata, text labels and declared template options.",
+        "identity": "Plugin mini-vlog; cue id, preset id and package-relative asset path are distinct domains.",
+        "dependencies": "English source copy plus translations; cue SHA-256/byte/duration records and font metric tables.",
+        "effects": "Repository/package reads only; installation and publication are separate external stages.",
+        "lifetime": "Package version lifetime; content snapshots used by a run belong to existing asset/workflow owners.",
+        "cleanup": "Do not delete installed assets when a run ends.",
+        "outcomes": "Missing assets or contradictory declared capabilities are review failures, not proof of a successful fallback.",
+        "retry": "Rebuild or reinstall only through an explicit package operation; no production mutation here.",
+        "distribution": "plugin.json, README, INSTALL, THIRD_PARTY, dictionaries, assets/cues and assets/fonts.",
+        "validation": "Existing public/package, cue/font/i18n tests; released-version/Windows acceptance and provenance remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/plugin.json",
+        "plugins/mini-vlog/README.md",
+        "plugins/mini-vlog/INSTALL.md",
+        "plugins/mini-vlog/assets/cues/manifest.json",
+        "plugins/mini-vlog/assets/fonts/presets.json"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "text-runtime",
+      "decision": "reuse",
+      "owner": "template-text",
+      "reason": "Seven identical language/translation/width runtimes now share canonical source. Dictionary contents remain template-specific; own-property admission prevents missing keys from reading Object.prototype.",
+      "contract": {
+        "input": "Template-local STRINGS dictionary, ten fixed locale codes, current context/browser locale, message key and string/number variables, text and field-width limit.",
+        "output": "Localized strings, plural form, display-width count and clipped title text.",
+        "identity": "Locale and dictionary belong to one template instance; message key is not a host SDK identifier.",
+        "dependencies": "Per-panel STRINGS binding, Intl.PluralRules/NumberFormat, browser navigator when available; no shared mutable dictionary.",
+        "effects": "Pure formatting; navigator/context language selection remains a caller environment adapter.",
+        "lifetime": "Synchronous formatting on each render; no shared mutable dictionary or cross-panel cache.",
+        "cleanup": "No resources allocated; renderer text-script classification can reuse a pure helper at build time.",
+        "outcomes": "Undefined keys and placeholders retain current fallback semantics; invalid table/locale admission needs TDD before extraction.",
+        "retry": "No IO retry or mutation.",
+        "distribution": "shared/template-text.ts embedded by the existing module generator into seven independently installed panels.",
+        "validation": "Actual-source RED/GREEN for inherited keys plus locale switching, interpolation/plurals, dictionary isolation, code-point width/clipping and original/current dictionary parity. Installed/full-template acceptance remains separate."
+      },
+      "evidence": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/mini-vlog/dev/i18n-check.cjs",
+        "plugins/mini-vlog/tests/i18n.test.cjs",
+        "shared/template-text.ts",
+        "tests/template_text.test.mjs"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "text-checker",
+      "decision": "extract",
+      "owner": "template-text",
+      "reason": "The copied developer checker validates the same text contract as the runtime; it belongs to that feature with a separate Node-only entry.",
+      "contract": {
+        "input": "Panel source STRINGS and t/tOr usage plus optional plugin.json.",
+        "output": "Errors, warnings and developer CLI exit status.",
+        "identity": "One inspected package path; locale/key sets stay specific to its input table.",
+        "dependencies": "Node fs/path/vm, CLDR form categories and public-source policy.",
+        "effects": "Reads supplied source and evaluates only the extracted literal dictionary in a bounded VM.",
+        "lifetime": "One developer command; dictionary VM timeout is 1000 ms.",
+        "cleanup": "No installed data is written or removed.",
+        "outcomes": "Malformed dictionary, missing forms or header/manifest mismatch reject validation.",
+        "retry": "Read-only check may rerun on changed source; never a production authoring call.",
+        "distribution": "Current shipped dev/i18n-check.cjs; planned shared source with generated compatibility copies.",
+        "validation": "Existing i18n test invokes this exact checker; extraction must retain CLI and usage behavior."
+      },
+      "evidence": [
+        "plugins/mini-vlog/dev/i18n-check.cjs",
+        "plugins/mini-vlog/tests/i18n.test.cjs"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "montage-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Mini role order, Groove holds, source reuse, photo share, fallback and section fitting are its authored editing policy; a shared transport or scorer must not choose them.",
+      "contract": {
+        "input": "Scene/local/photo candidates with Resource ids and source seconds; music BPM/onsets/section seconds, requested length, pace, 30-fps planning grid and seed.",
+        "output": "Picks, frame/second cut schedule, fitted counts, photo motions, progress data or a structured planning failure.",
+        "identity": "Resource reuse count and photo uniqueness; source seconds differ from Draft frame boundaries and music seconds.",
+        "dependencies": "MV role/fallback tables, tempo limits, shot minimum/tail, photo share/run limits, Groove and snap constants.",
+        "effects": "Synchronous data planning only; actual source placement and persistence are separate owners.",
+        "lifetime": "One complete plan calculation; bounded filler/candidate loops and deterministic seed are part of its contract.",
+        "cleanup": "No native/worker resources; input mutation and extreme-input budgets remain separate semantic review gates.",
+        "outcomes": "ok plan, retryable/terminal reason and shortened attempts; do not infer visual quality from allocation tests.",
+        "retry": "Re-plan with explicit new seed only; never re-dispatch an uncertain assembly.",
+        "distribution": "planner.js and its verbatim panel block, plus selected montage UI projections.",
+        "validation": "Existing allocate/planner/punch/photo-motion tests and source/clock gates; full policy-input audit and rendered quality remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/planner.js",
+        "plugins/mini-vlog/tests/planner.test.cjs",
+        "plugins/mini-vlog/tests/allocate.test.cjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "candidate-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Role scaling, local-window projection and motion bonus express Mini shot choice while underlying frame measurements already have a common owner.",
+      "contract": {
+        "input": "Scene results, local score windows/cuts, durations, beat-punch choice and role query strings.",
+        "output": "Planner candidates, motion bonuses and punch frame positions.",
+        "identity": "Candidate center is source seconds; punch positions are clip-local/Draft frames with explicit origin.",
+        "dependencies": "MV roles, score percentiles, local-window size/spacing and motion reach/bonus limits.",
+        "effects": "Pure data projection; no search or decode starts in this feature.",
+        "lifetime": "One Build or preview-plan projection.",
+        "cleanup": "No allocated resource; source-bound score ownership remains with clip-analysis.",
+        "outcomes": "Invalid/incomplete candidates and cross-query score interpretation require the remaining scene protocol review.",
+        "retry": "New plans may use confirmed cached observations; no mutation replay.",
+        "distribution": "mv-hook/mv-local blocks and template-specific query/selection helpers.",
+        "validation": "Existing no-analysis, quick-score, punch and source-bound actual-entry tests; search response contract remains open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/mini-vlog/tests/no-analysis.test.cjs",
+        "plugins/mini-vlog/tests/punch.test.cjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "title-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Lockup variants, font metrics, Hangul fallback, decorations and exact glyph placement are Mini design policy. Do not move them into SDK state verification.",
+      "contract": {
+        "input": "Preset/fields, font metric records and base64 faces, colors, title position/size/shadow/sparkles and canvas dimensions.",
+        "output": "Layout items, rendered title/preview and editable MotionGraphic parameters.",
+        "identity": "Field key and font role are local design identities; dimensions are canvas pixels and normalized positions.",
+        "dependencies": "Mini font tables, Apple Korean compensation, React/Remotion rendering and four bundled font files.",
+        "effects": "Renderer DOM/font use only; saved program writes belong to native-image-authoring and template-run.",
+        "lifetime": "Per render/frame; font load/render gates release on success and error.",
+        "cleanup": "Preview registration belongs to panel lifetime; document font lifetime needs full installed verification.",
+        "outcomes": "Unknown preset/font or impossible layout can fall back in preview, while creation must preserve the frozen program source.",
+        "retry": "Render can repeat; uncertain saved effects cannot be replayed based on label.",
+        "distribution": "assets/title-lockup.tsx and its verbatim mv-lockup panel copy.",
+        "validation": "Existing title/font tests and saved program content verification; full runtime raster/visual acceptance remains open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/assets/title-lockup.tsx",
+        "plugins/mini-vlog/tests/title.test.cjs",
+        "plugins/mini-vlog/tests/fonts.test.cjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "effect-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Soft look, photo movement and punch curves are the visual identity of this template; their generated programs use existing shared authoring verification.",
+      "contract": {
+        "input": "Soft strength 0..1; photo motion/strength 0..2/direction/axis/cover/hold seconds; punch strength/push/clip-local frames/beat frames/source origin/duration.",
+        "output": "CSS/filter layers and per-frame scale, percent position and degree rotation transforms.",
+        "identity": "A program targets one authored clip occurrence; Resource id alone does not define a timeline occurrence.",
+        "dependencies": "React/Remotion frame clock, Mini easing/grade constants and cover scale.",
+        "effects": "Rendering only; no host file/process or Project mutation.",
+        "lifetime": "Each rendered frame; source-time and clip-local time must remain distinct. Source lifetime and RGB coverage are delegated to render-color-surface.",
+        "cleanup": "No producer staging; renderer resources are owned by Remotion.",
+        "outcomes": "Invalid numeric parameters clamp/default under current policy; host/program compatibility is a separate gate.",
+        "retry": "Frame renders repeat freely; program installation stays with durable owner.",
+        "distribution": "assets/soft-look.tsx, photo-motion.tsx and beat-punch.tsx.",
+        "validation": "Existing look/motion/punch tests and program equality checks; complete audio/video playback and export remain open. Shared surface: source toggle, alpha and opaque-color behavior verified separately; full-template acceptance remains open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/assets/soft-look.tsx",
+        "plugins/mini-vlog/assets/photo-motion.tsx",
+        "plugins/mini-vlog/assets/beat-punch.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "host-bootstrap",
+      "decision": "extend",
+      "owner": "local-client",
+      "reason": "Legacy host wrappers still duplicate paths, text reads and root discovery. Extend the existing captured client/bootstrap owner rather than create another filesystem module.",
+      "contract": {
+        "input": "SDK instance, plugin id, package-relative text/font/script paths and host environment.",
+        "output": "Bound files/media facade, plugin/data roots and decoded asset text/bytes.",
+        "identity": "Host-native absolute path and one captured SDK realm; plugin install root differs from run data directory.",
+        "dependencies": "Existing private local-client, environment, TextDecoder and declared install roots. Identical file/capability/path facade now comes from host-files; bounded media adapters stay local.",
+        "effects": "Reads installed assets and can mkdir plugin-data; legacy global hostSdk and fallback roots remain incomplete migration work.",
+        "lifetime": "Mount/startup or one asset load; every await must retain its original SDK and mounted generation.",
+        "cleanup": "Preserve installed sources/profiles; temporary output belongs to bundled-assets, not hostRemove best-effort cleanup.",
+        "outcomes": "Unsupported host, missing root and unknown source must remain distinct. Current hard-coded root versus INSTALL promise is an open verified mismatch.",
+        "retry": "Read-only retries may be bounded; mkdir failure does not grant file ownership or authorize guessed roots.",
+        "distribution": "Current av-host, readText/mvFolders/locateRoots and font reader adapters; canonical local-client is unchanged by this classification.",
+        "validation": "Existing local-client/bootstrap and captured-client tests; exact installed custom-root discovery and remaining wrappers are open."
+      },
+      "evidence": [
+        "shared/local-client.ts",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/mini-vlog/INSTALL.md",
+        "tests/template_bootstrap.test.mjs"
+      ],
+      "implementation": "partial"
+    },
+    {
+      "id": "local-sdk",
+      "decision": "reuse",
+      "owner": "local-client",
+      "reason": "The complete async file/media bridge already has one canonical source; its embedded functions are managed compatibility delivery, not new module candidates.",
+      "contract": {
+        "input": "Bound SDK runScript/call, host-native file paths, bounded file chunks/media argv and AbortSignal.",
+        "output": "Typed file facts, content fingerprints, native media output or structured transport/lifetime errors.",
+        "identity": "Captured client, exact job id and exact source/output paths; cancellation acknowledgement is not exit.",
+        "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets.",
+        "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
+        "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
+        "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
+        "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
+        "retry": "No media start replay; late identity can cancel that original job once.",
+        "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
+        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+      },
+      "evidence": [
+        "shared/local-client.ts",
+        "tests/canonical_local_client.test.mjs",
+        "tests/local_media_settlement.test.mjs"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "audio-beat-engine",
+      "decision": "reuse",
+      "owner": "audio-beat-analysis",
+      "reason": "Mini, Archive, Selfie and City carry byte-identical beat engines. Audio signal/beat estimation is a distinct responsibility from Worker lifetime and video frame scoring.",
+      "contract": {
+        "input": "Mono Float32 samples, sample rate in Hz and engine policy constants. The development CLI accepts a raw float32 PCM path, sample rate and optional JSON output path.",
+        "output": "BPM, accepted/approximate/none grid, firstBeat/duration seconds, beat energy, peaks and band onset data.",
+        "identity": "Sample clock is file-relative, not Draft frames or a Resource id; file provenance must be supplied by the caller/asset owner.",
+        "dependencies": "FFT/onset/confidence/consistency thresholds; caller OWN_RATE 22050 Hz, own-music maximum 240 seconds and worker protocol. CLI-only process is explicitly required from node:process; browser guards stay inactive. Numerical parity, CLI stdout/file/error behavior and zero browser Node IO are regression-tested.",
+        "effects": "analyze is numerical work. The require.main CLI reads raw float32 PCM, emits JSON, and can write the explicitly supplied output path. The browser worker supplies inert require so that CLI branch cannot run.",
+        "lifetime": "One worker request; time/cancel/resources belong to analysis-worker, not the engine.",
+        "cleanup": "No original source deletion. CLI output follows its explicit development command; PCM/native staging in the panel belongs to bundled-assets.",
+        "outcomes": "Accepted and approximate grids differ from no usable grid; invalid/silent/short/time-varying input behavior needs preserved parity.",
+        "retry": "Deterministic analysis may rerun only on confirmed input; no host mutation.",
+        "distribution": "Canonical shared/audio-beat-analysis.cjs; registry fileTargets generate four independent beat-detect.cjs copies. Existing raw Float32 CLI and browser Worker contracts are retained.",
+        "validation": "Canonical/copy numerical parity, inert Worker VM and raw PCM CLI guards; each affected consumer beat suite. Native Mini decoder/Worker proof is recorded separately from installed/full-template acceptance."
+      },
+      "evidence": [
+        "plugins/mini-vlog/beat-detect.cjs",
+        "plugins/archive-vlog/beat-detect.cjs",
+        "plugins/selfie-aesthetic/beat-detect.cjs",
+        "plugins/city-weekend-vlog/beat-detect.cjs",
+        "plugins/mini-vlog/tests/beat-detect.test.cjs",
+        "shared/audio-beat-analysis.cjs",
+        "shared/panel-modules.json",
+        "tests/audio_beat_engine.test.mjs"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "worker-owner",
+      "decision": "reuse",
+      "owner": "analysis-worker",
+      "reason": "Worker/timer/Blob URL/message-subscription ownership has already been extracted. The beat algorithm and caller fallback do not belong in that lifetime owner.",
+      "contract": {
+        "input": "Worker source, serializable samples/rate payload, deadline, AbortSignal, isCurrent and transfer options.",
+        "output": "One observed reply or structured start/message/timeout/stop/cleanup error.",
+        "identity": "One transient Worker instance and one mounted caller generation.",
+        "dependencies": "Browser Worker/Blob/URL/timer primitives and explicit caller protocol.",
+        "effects": "Creates/terminates Worker, object URL, event and timer subscriptions; no Project changes.",
+        "lifetime": "One request through confirmed cleanup, bounded by deadline/current owner.",
+        "cleanup": "Release only its Worker/URL/timers/listeners, and report unknown cleanup as terminal.",
+        "outcomes": "Late success cannot revive an ended scope; payload reply semantics remain caller/engine policy.",
+        "retry": "No replay inside the owner.",
+        "distribution": "shared/analysis-worker.js and checked mirrored blocks.",
+        "validation": "Actual adapter RED/GREEN, existing consumer tests and real Chromium proofs; remaining consumer migrations are open."
+      },
+      "evidence": [
+        "shared/analysis-worker.js",
+        "tests/analysis_worker.test.mjs"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "music-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Music selection, section preview, own-track fallback and user-visible state compose common owners but are Mini UI/workflow policy.",
+      "contract": {
+        "input": "Chosen cue or own-music path, verified source digest/size, selected section seconds, max duration, Worker source and captured Project/run generation.",
+        "output": "Source-bound ownGrid state, section choices, preview Audio, status, and content/path observations carried into assembly and saved-look continuation.",
+        "identity": "Music source path, imported Audio id, preview token and own-job generation are distinct.",
+        "dependencies": "bundled-assets PCM/preview lifetimes, analysis-worker, beat engine, cue manifest and shared private client.",
+        "effects": "Starts owned decode/probe/preview work and Audio playback; creation/import/save is delegated.",
+        "lifetime": "Cancel on new music, Project switch and unmount; one captured client and current own-job token.",
+        "cleanup": "Existing asset owner removes only owned staging after confirmed settlement; terminal/preserve failures stop selection and retain unknown native workspaces. Ordinary failed analysis is not cached.",
+        "outcomes": "Accepted/approximate/no-grid analysis differs from a transient fixed-timing fallback with confirmed duration. Changed/missing/unknown originals or Project links stop Build/recovery; restored original input resumes the same saved workflow.",
+        "retry": "Repeat read/analysis only under current generation; do not replay unknown save or decode start.",
+        "distribution": "Mini cueGrid/analyseBeat/prepareMiniCue/prepareMiniOwnMusic/admitMiniMusic plus own-track and preview handlers; byte and cache owners remain existing modules.",
+        "validation": "Valid 30s 120/100 BPM WAV source replacement, missing/unknown source, native probe flags, PCM/Worker, cancellation, import-duration and actual saved-Audio restoration fixtures. Installed panel/playback/export/Windows acceptance remains open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/panel.tsx",
+        "tests/mini_media_scope.test.mjs",
+        "tests/analysis_worker.test.mjs",
+        "tests/mini_own_music_sources.test.mjs",
+        "tests/mini_own_music_analysis.test.mjs",
+        "tests/mini_own_music_recovery.test.mjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "asset-owner",
+      "decision": "extend",
+      "owner": "bundled-assets",
+      "reason": "One existing owner already controls verified assets, publication, exclusive reservations, derived results and native PCM/preview lifetimes. Selected Audio adoption now has this same canonical owner rather than a second copied import/readback procedure. The source-bound beat-analysis JSON procedure is also canonical here; Mini and Archive retain decoder/fallback and Worker adapters while file identity, verified snapshots/cache, result admission and cleanup reuse this owner.",
+      "contract": {
+        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response. Beat-analysis derivation receives source hashing, decode/analyze/probe adapters, a Worker revision and sampling policy. Browser preview additionally accepts a captured local client, original path/current predicate, AbortSignal, absolute source section, fade and deadline policy.",
+        "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome. Beat grids carry independently observed source contents; transient fixed-timing fallback is never cached. Browser preparation returns a case-preserving local URL only after independent reverse mapping; playback settles once with its owned Audio fully detached or explicit cleanup uncertainty.",
+        "identity": "Content digest, exact path, exclusive owner token and native job identity.",
+        "dependencies": "Existing private client, SDK read/write/CAS/media primitives and explicit policy budgets.",
+        "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets. Browser preview streams the original through the existing local protocol without a whole-track renderer Blob or preview-file publication.",
+        "lifetime": "One captured invocation; actual native exit is required before releasing output. Browser Audio readiness, seek, play and no-progress waits are bounded; cancellation settles pending waits and the parent retains single-flight until finalization.",
+        "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces. Browser subscriptions, timers and src belong to one Audio; failure attempts all release steps, retains the media diagnostic and blocks replacement in the caller.",
+        "outcomes": "Known success/failure differs from unresolved creation/publication/cleanup; nested diagnostics remain private. Opt-in complete-catalog reads distinguish unavailable source/Resource facts from confirmed absence before any import.",
+        "retry": "Never replay unknown mutation; readback can recover exact outcomes.",
+        "distribution": "shared/bundled-assets.js, registered panel copies and Mini/Archive generated ensure-audio operations; legacy asset-reader callers retain their default contract.",
+        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite. Actual Mini/Archive caller fixtures cover source/Worker changes, original uncertainty, invalid cache, decoder/Worker fallback and terminal/preserve propagation. Archive actual-callback preview regressions and final-source native sandbox/Audio replay cover normal completion, Stop and retained cleanup failure; Mini/legacy preview callers are unchanged."
+      },
+      "evidence": [
+        "shared/bundled-assets.js",
+        "tests/bundled_assets.test.mjs",
+        "tests/media_unconfirmed_workspace.test.mjs",
+        "tests/project_audio.test.mjs",
+        "plugins/mini-vlog/scripts/ensure-audio.js",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "tests/mini_own_music_analysis.test.mjs",
+        "tests/archive_own_music_analysis.test.mjs"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "source-input",
+      "decision": "extend",
+      "owner": "native-image-input",
+      "reason": "The existing input owner now also normalizes handed video/photo records and optionally confirms current Project kinds. Mini retains legacy alias-only behavior; Archive owns its two-video requirement.",
+      "contract": {
+        "input": "Selected original ids/kinds, projectId, expected paths/content snapshots and private unsaved probe options.",
+        "output": "Confirmed SDK aliases, original dimensions/clocks, exact source links and full-content observations.",
+        "identity": "Original external id versus Project short id; source timebase versus Draft frames; physical file path/digest.",
+        "dependencies": "Current SDK files.fingerprint/sourceFiles/resources and nonpersistent insertion probes.",
+        "effects": "Read-only observations and private unsaved Draft probes; no saved Draft or original file rewrite.",
+        "lifetime": "Bounded batches/deadlines/current caller; exact observations repeated around assembly and look recovery.",
+        "cleanup": "Do not delete user originals or infer absence from a failed placement.",
+        "outcomes": "Missing, changed, unsupported and unknown sources are explicit; data presence is not server-index provenance.",
+        "retry": "Read-only checks may retry; unknown private placement is observed without replay.",
+        "distribution": "shared/native-image-input.mjs, panel block and generated assembly/verifier helpers; confirmMiniSourceBindings is thin caller batching.",
+        "validation": "Both-entry source RED/GREEN, native-clock/path/content SDK reads and restoration of the same assembly; server-index provenance and post-observation changes remain open. Handed-input deduplication/bounds and opt-in kind observation are covered; existing consumers retain default result shapes and no added Resource read."
+      },
+      "evidence": [
+        "shared/native-image-input.mjs",
+        "tests/mini_video_sources.test.mjs",
+        "tests/source_file_bindings.test.mjs",
+        "tests/template_media_selection.test.mjs"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "catalog-read",
+      "decision": "reuse",
+      "owner": "media-inventory",
+      "reason": "Paged Project catalog aggregation/admission already has an owner; the inventory script supplies Mini-specific Video/Image projection and counters.",
+      "contract": {
+        "input": "SDK read runner, inventory script/config, selected ids, row/byte/time budgets and current Project generation.",
+        "output": "Reobserved catalog snapshot with resources/photos/counts/incomplete status and explicit admission.",
+        "identity": "Resource short id and exact snapshot object tied to the mounted Project.",
+        "dependencies": "SDK resources/sourceFiles, read-only probing and Mini projection predicates.",
+        "effects": "Read-only catalog/media facts; UI can keep old displayed rows without build permission.",
+        "lifetime": "One bounded observation plus scoped polling/retry at the caller.",
+        "cleanup": "Clear only its timers/waits; no source or Project cleanup.",
+        "outcomes": "Complete, incomplete, changed, invalid and stopped catalogs stay separate.",
+        "retry": "Bounded safe-read retry only; exact projected values are reobserved.",
+        "distribution": "shared/media-inventory.js, panel block, inventory.js and loadInventory adapter.",
+        "validation": "Existing catalog/selected-inventory/caller tests and native read scenarios; five other catalog consumers remain pending."
+      },
+      "evidence": [
+        "shared/media-inventory.js",
+        "plugins/mini-vlog/scripts/inventory.js",
+        "tests/media_inventory_observation.test.mjs"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "local-video-analysis",
+      "decision": "extend",
+      "owner": "clip-analysis",
+      "reason": "The existing source-bound evaluator now also admits results against optional caller snapshots for Archive. Mini retains its existing input, scoring, cache, fallback and lifetime behavior.",
+      "contract": {
+        "input": "Video rid/path/duration seconds, captured client/data root, sample/byte/time budgets and current caller.",
+        "output": "Source-bound gray-frame statistics, cuts/windows, cache/fallback flags and content observations.",
+        "identity": "Exact original content digest and evaluation policy version; source seconds rather than Draft frames.",
+        "dependencies": "Existing bundled-assets source snapshot/publication/media lifetime and numerical frame/cut evaluator.",
+        "effects": "Owned temporary decode/cache writes only; no Project edits.",
+        "lifetime": "One captured analysis scope, shared cancellation/deadline and observed producer cleanup.",
+        "cleanup": "Asset owner releases its reservations after exit; unknown lifetime retains files.",
+        "outcomes": "Known decode fallback differs from source uncertainty, stop, timeout and cleanup failure.",
+        "retry": "Only confirmed cache entries reuse; no unobserved original or replay of uncertain producer.",
+        "distribution": "shared/clip-analysis.js and generated Mini block; checkLocalClips only coordinates UI progress.",
+        "validation": "Real FFmpeg source-replacement/cache tests and actual native SDK cases; other legacy scorers and overall semantic quality remain open. Optional expected-source admission is checked without changing existing default return values."
+      },
+      "evidence": [
+        "shared/clip-analysis.js",
+        "tests/clip_analysis.test.mjs",
+        "tests/mini_analysis_inputs.test.mjs",
+        "tests/clip_analysis_sources.test.mjs"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "scene-observation",
+      "decision": "extend",
+      "owner": "media-inventory",
+      "reason": "Scene search is another bounded Project-media observation. Extend the existing observation owner for scope/result validation rather than invent a second generic pager.",
+      "contract": {
+        "input": "Analyzed selected rids, role queries, pageSize, concurrency/budget/retry policy and current Build.",
+        "output": "Candidate observations, failed selected ids and rate-limit/time statistics.",
+        "identity": "Each hit belongs to its requested Resource and source clock; role-query scores have local ranking semantics.",
+        "dependencies": "SDK searchScenes and existing safe-read runner; Mini query/role policy remains external.",
+        "effects": "Read-only backend queries; no analysis start or saved Project mutation.",
+        "lifetime": "Batched SDK calls under fixed host limit; ongoing cancellation and aggregate result budget need complete review.",
+        "cleanup": "No local file cleanup; in-flight safe reads must settle/stop observing on detachment.",
+        "outcomes": "Complete/partial/failed search and malformed/out-of-scope results must remain distinguishable; no semantic server-index attestation exists.",
+        "retry": "Only declared safe read failures may retry; never interpret missing results as successful authoring.",
+        "distribution": "Current search.js, findCandidates and selected-entry search closure; extension is planned, not implemented by this map.",
+        "validation": "Existing execution/current-run tests and source gates; query/result validation and complete search budget tests remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/scripts/search.js",
+        "plugins/mini-vlog/panel.tsx",
+        "tests/mini_execution_ownership.test.mjs"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "script-dispatch",
+      "decision": "extend",
+      "owner": "local-client",
+      "reason": "The existing client already owns SDK transport and captured request values. Consolidate duplicated read retry/deadline adapters there while durable owners retain mutation replay policy.",
+      "contract": {
+        "input": "Captured SDK, summary, frozen script or safe read-attempt factory, allowCommit and deadline/liveness/wait hooks.",
+        "output": "Exactly decoded result or classified read/session/timeout/unknown error.",
+        "identity": "One request attempt; read retries are not permission to replay a saved authoring operation.",
+        "dependencies": "SDK runScript and fixed transport byte/time limits; template error localization remains external.",
+        "effects": "Read-only calls may retry under budget; mutating calls must be single-dispatch and durable-owner mediated.",
+        "lifetime": "Mounted Project/run generation plus common deadline; retry waits must end on stop.",
+        "cleanup": "Release caller timers; no filesystem or native process cleanup belongs here.",
+        "outcomes": "Pre-start busy/read-session failures differ from unknown started mutation; typed/scoped result validation remains required.",
+        "retry": "No allowCommit replay from generic catch; retain current source string for any definitely safe retry.",
+        "distribution": "Current panel run/runTemplateStep/fill and selected-entry helpers; canonical extension is planned.",
+        "validation": "Existing inventory/execution/owned assembly tests; dedicated common transport migration/parity remains open."
+      },
+      "evidence": [
+        "shared/local-client.ts",
+        "plugins/mini-vlog/panel.tsx",
+        "tests/mini_execution_ownership.test.mjs"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "authoring-owner",
+      "decision": "extend",
+      "owner": "native-image-authoring",
+      "reason": "Occurrence binding, native transforms/Audio reads and actual program normalization/serialization are shared authoring mechanics, already extracted. The source-native frame-cover calculation now has this same owner and is reused by Mini and Archive without moving their cut/music-offset policies.",
+      "contract": {
+        "input": "Native Draft handles, intended placement/programs, frozen source clocks/dimensions and saved-state evidence. Native windows take explicit source/Draft fps, a chosen whole-frame destination interval, requested source start, optional duration and still-image policy.",
+        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus.",
+        "identity": "Opaque clip occurrence/track ids and source/draft timebases; labels alone are not content identity.",
+        "dependencies": "Current SDK Draft primitives and canonical program normalization/representability rules.",
+        "effects": "Private working Draft edits and independent saved readback as requested by durable owner.",
+        "lifetime": "One declared authoring/verification operation before/after save.",
+        "cleanup": "No user source cleanup; unconfirmed mutations remain with durable owner.",
+        "outcomes": "Known mismatch differs from unavailable verification; no acknowledgement-only success.",
+        "retry": "Do not replay unknown writes; verify original saved target.",
+        "distribution": "shared/native-image-authoring.js serialized into assembly/decorate operations.",
+        "validation": "Existing source-clock/placement/program/Audio receipt suites and actual SDK save/readback evidence; full playback/export remains open."
+      },
+      "evidence": [
+        "shared/native-image-authoring.js",
+        "tests/mini_assembly_intent.test.mjs",
+        "tests/mini_program_intent.test.mjs",
+        "tests/archive_assembly_intent.test.mjs",
+        "tests/archive_assembly_verification.test.mjs"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "workflow-owner",
+      "decision": "extend",
+      "owner": "template-run",
+      "reason": "Existing durable ownership is retained. Optional bounded request/continuation budgets separate large captured inputs from unchanged 48 KiB receipt envelopes and unchanged SDK transport limits.",
+      "contract": {
+        "input": "Plugin/project/run scope, frozen config/source/digest, captured files and liveness plus perform/verify callbacks. Optional requestLimit up to 128 KiB and continuation stateLimit up to 512 KiB; existing defaults and digest bytes preserved.",
+        "output": "Confirmed assembly/decorated result or durable pending/notSaved/mismatch/retired state.",
+        "identity": "Exact runId/request digest/owner token and saved sequence id; no guessed name lookup.",
+        "dependencies": "SDK file CAS/readback, native-image-authoring facts and template admission callbacks.",
+        "effects": "Own journal/receipt files and exactly scoped saved assembly/look mutations.",
+        "lifetime": "Through observed save/recovery across reload; terminal tombstones prevent replay.",
+        "cleanup": "Preserve unresolved/saved results; retire only definitely unstarted historical work under owner checks.",
+        "outcomes": "Known no-save, unknown save, confirmed save, target mismatch and verification unavailable stay distinct.",
+        "retry": "No unknown mutation replay; original frozen source is never substituted under the same digest.",
+        "distribution": "shared/template-run.js and checked generated panel block.",
+        "validation": "Existing claims/receipts/restart/look-state and historical recovery tests plus native save/reload proofs; full template acceptance is separate."
+      },
+      "evidence": [
+        "shared/template-run.js",
+        "tests/mini_assembly_receipts.test.mjs",
+        "tests/mini_frozen_recovery.test.mjs",
+        "tests/template_run_budget.test.mjs"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "assembly-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "30-fps planning to native insertion clocks, Mini cover/trim/music alignment and exact saved cut admission are template policy on top of shared mechanics.",
+      "contract": {
+        "input": "Frozen picks/boundaries/crops/music/audio policy, current native source clocks and shared placement functions.",
+        "output": "Intended exact working Draft and verification facts or refusal before commit.",
+        "identity": "Source seconds/native source frames versus planned and actual Draft frames; per-occurrence target identity.",
+        "dependencies": "Existing input/authoring owners, Mini 1920x1080 canvas and music fade/tail rules.",
+        "effects": "Private timing probes and declared working Draft insert/transform/Audio changes; commit only after exact rechecks.",
+        "lifetime": "One frozen assembly operation with source admission at entry and precommit.",
+        "cleanup": "Do not replace original source or modify an unrelated saved Draft.",
+        "outcomes": "Invalid plan, source change, unsupported representation, known failure and unknown saved outcome stay distinct.",
+        "retry": "Mutation dispatch is solely through template-run; no script-level blind retry.",
+        "distribution": "dev/assembly-policy.js, assemble/verify templates and generated scripts.",
+        "validation": "Existing native clock, source binding, plan and read-only saved-verifier tests; installed AV and later external source changes remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/dev/assembly-policy.js",
+        "plugins/mini-vlog/dev/assemble.template.js",
+        "plugins/mini-vlog/dev/verify-assembly.template.js",
+        "tests/mini_assembly_verification.test.mjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "program-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Title variant, Soft look, photo motion, Beat punch, mute and naming choices are Mini decoration policy; equality/lifetime/save are common owners.",
+      "contract": {
+        "input": "Frozen title/effect source/fonts/fields, assembly clocks and plan, selected style options and language.",
+        "output": "Exact decoration config/editable parameters and expected finish title, consumed by shared program/durable owners.",
+        "identity": "Original saved assembly sequence and immutable finish recipe; font/preset keys are local design ids.",
+        "dependencies": "Preset/fonts/assets snapshots, Mini style constants, actual placed origins and native-image-authoring normalization.",
+        "effects": "Snapshot reads and declared target decoration; no new assembly when finishing the same saved run.",
+        "lifetime": "Frozen at first Build through confirmed look save; UI may change without altering that recipe.",
+        "cleanup": "Keep result-owned source/font data; only owned transient effects belong to current operation.",
+        "outcomes": "Style source mismatch/unavailable readback must stop; label matches cannot imply success.",
+        "retry": "Finish retries use the durable original recipe and saved-state checks.",
+        "distribution": "snapshotMiniFinishAssets, prepareMiniDecoration, decorate template and generated script.",
+        "validation": "Existing exact/minified/historical program checks and saved-look state tests; installation-update font/source binding and full render remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/dev/decorate.template.js",
+        "plugins/mini-vlog/panel.tsx",
+        "tests/mini_look_phase.test.mjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "workflow-policy",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "The Mini coordinator chooses steps, freeze points, photo/music/planning options and historical semantic admission; common owners execute their respective lifetimes.",
+      "contract": {
+        "input": "Mounted Project, UI or handed-template inputs, frozen options/assets, inventory/current generation and saved continuation.",
+        "output": "Progress/result/status and one confirmed assembled/decorated Draft or actionable pending failure.",
+        "identity": "One Project/run generation and original saved target; UI state is not a durable receipt.",
+        "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
+        "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
+        "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
+        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
+        "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
+        "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
+        "validation": "Both-entry and generation/receipt/source/restoration tests; complete installed one-click journey and full ownership review remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/panel.tsx",
+        "tests/mini_execution_ownership.test.mjs",
+        "tests/mini_video_sources.test.mjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "panel-ui",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "React inputs, canvases, selection lists and lifecycle listeners are Mini presentation/composition, not a filesystem or durable module.",
+      "contract": {
+        "input": "SDK/context, current language/project, user selections, peaks/grid and status/results from owners.",
+        "output": "Visible controls, previews, selection options and button admission.",
+        "identity": "Mounted React instance, Project generation, preview/own-track tokens and document font registrations.",
+        "dependencies": "React/browser canvas/Audio/FontFace and template policy; context can change after awaits.",
+        "effects": "UI state, pointer/window/document listeners, timers, preview playback/font registration and confirmed-result navigation.",
+        "lifetime": "Mount/Project effect scopes; cancel work on switch/unmount and detach listeners/timers.",
+        "cleanup": "Revoke owned Audio URLs, stop preview/analysis and prevent late state updates; document font lifetime needs runtime confirmation.",
+        "outcomes": "Preview failure can degrade display; creation permission needs independently admitted inputs/results.",
+        "retry": "UI render/retry does not authorize save replay or cleanup of prior results.",
+        "distribution": "Panel/MiniVlogPanel/TemplateRun, SectionSlider and their nested anonymous callbacks.",
+        "validation": "Existing i18n/panel/interaction ownership tests; full installed DOM, keyboard, Audio and navigation acceptance remain open."
+      },
+      "evidence": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/mini-vlog/tests/panel.test.cjs",
+        "tests/mini_execution_ownership.test.mjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "app-guard",
+      "decision": "reuse",
+      "owner": "app-update-guard",
+      "reason": "The standardized app lock/guard is already generated from a shared owner and policy file; do not fork its code in a template.",
+      "contract": {
+        "input": "Current SDK app-run ownership context and template-specific allowed state refs.",
+        "output": "Read-only/update guard state and guarded callback wrappers.",
+        "identity": "Calling app run/instance; mounted Project alone is insufficient.",
+        "dependencies": "shared/app-update-guard.ts and app-update-guard-policies.json generation.",
+        "effects": "Allows/refuses template actions under host-provided ownership; no filesystem cleanup.",
+        "lifetime": "Bound to current host app-run scope; stale callbacks cannot regain permission.",
+        "cleanup": "Generator/host owns subscription lifetime; preserve unrelated app runs.",
+        "outcomes": "Locked, own-run and unrecognized states remain distinct; installed contract still needs runtime acceptance.",
+        "retry": "No bypass/retry of protected mutation based on a stale guard.",
+        "distribution": "Generated app-update-guard block and withPanelLocalClient wrapper.",
+        "validation": "Existing app_update_guards tests and sync tool; no new guard behavior in this review."
+      },
+      "evidence": [
+        "shared/app-update-guard.ts",
+        "shared/app-update-guard-policies.json",
+        "tools/sync_app_update_guards.py"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "build-delivery",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Build scripts bind canonical shared mechanics to Mini local operation/style templates; they are reproducible package generation rather than another runtime module.",
+      "contract": {
+        "input": "Canonical input/authoring/asset sources and Mini operation templates/policy.",
+        "output": "Self-contained ensure-audio, assembly, read-only verifier and decoration scripts.",
+        "identity": "Exact source bytes and generated installed path; generated file is not a second hand-edited owner.",
+        "dependencies": "operation-builder.mjs, shared source functions and explicit serialization dependency list.",
+        "effects": "Repository generated-file writes only in build mode; --check reads and compares.",
+        "lifetime": "One developer build/check invocation.",
+        "cleanup": "Never removes user libraries/media or launches a Panel/Electron.",
+        "outcomes": "Missing dependency/source or drift rejects generation/check.",
+        "retry": "Rebuild after relevant canonical/local changes; do not edit installed generated functions as canonical code.",
+        "distribution": "operation-builder.mjs and generated scripts; registry records build-time dependencies.",
+        "validation": "Existing operation --check, scripts-read/edit/types and consumer sync tests."
+      },
+      "evidence": [
+        "plugins/mini-vlog/operation-builder.mjs",
+        "shared/panel-modules.json"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "test-harness",
+      "decision": "keep-template-specific",
+      "owner": "mini-vlog",
+      "reason": "Mini reference cases and mocks encode its own promises. Common-owner tests remain at repository level; shipped regression scripts are not application features.",
+      "contract": {
+        "input": "Mini planner/render/script sources, numerical fixtures, declared SDK types and test doubles.",
+        "output": "Assertions, developer diagnostics and test exit status.",
+        "identity": "Disposable fixture/client/VM scopes; no production Project identities.",
+        "dependencies": "Node built-ins, FFmpeg, TypeScript and explicit fixture ownership.",
+        "effects": "Local test-only processes/temporary files and VM evaluation; some scripts deliberately inspect package bytes.",
+        "lifetime": "One test process; fixture cleanup belongs to test harness.",
+        "cleanup": "Remove only owned fixture paths after producers exit; never treat a failed assertion as permission to delete user data.",
+        "outcomes": "Pass/failure/skip are scoped evidence, not full runtime quality or module completion.",
+        "retry": "Repeat only after affected changes/new failure evidence.",
+        "distribution": "tests/*.test.cjs and dev checker references; repository-level source/owner tests are separate.",
+        "validation": "Existing sixteen Mini script checks and current focused/related evidence; no tests are inferred from their mere presence."
+      },
+      "evidence": [
+        "plugins/mini-vlog/tests/panel.test.cjs",
+        "plugins/mini-vlog/tests/scripts-types.test.cjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "render-color-surface",
+      "decision": "reuse",
+      "owner": "render-color-filter",
+      "implementation": "implemented",
+      "reason": "Archive, Mini and THE END repeat stable source/coverage responsibilities with different color designs. Font/file/worker/saved-run owners have different lifetimes; reuse the dedicated synchronous RGB surface.",
+      "contract": {
+        "input": "React hooks, AbsoluteFill, stable Source/children, template id prefix, enabled flag and a synchronous SVG callback from colorInput to colorOutput. Caller owns numeric defaults and RGB design.",
+        "output": "A stable source tree; optional sRGB pointwise RGB grade with original coverage.",
+        "identity": "One stable per-mounted-instance document filter identity, independent of settings or independently compiled program copies. React useId, with crypto.getRandomValues per-mount fallback for older React callers.",
+        "dependencies": "React createElement and Remotion AbsoluteFill; browser Filter Effects color-matrix, transfer and compositing semantics. No SDK/IPC. React useId/useMemo and browser crypto.getRandomValues on the older-React fallback.",
+        "effects": "DOM and SVG rendering only, no files, network, timers or global mutable state.",
+        "lifetime": "The source stays in the same inner container across enabled/disabled edits; the color graph can change synchronously.",
+        "cleanup": "React removes the source once when the real owner unmounts/replaces it. No media, installed assets or foreign runtime cleanup.",
+        "outcomes": "Every source alpha is retained and the RGB grade is independent of translucency. Color-only contract excludes grain/leak/blur/intentional coverage-changing overlays.",
+        "retry": "Render changes are repeatable. Deliberate Source replacement still retires the previous component; persistence remains under the existing authoring/run owner.",
+        "distribution": "Canonical shared/render-color-filter.js is generated into explicitly shipped Archive, Mini and THE END TSX assets via panel-modules.json.",
+        "validation": "34 actual component/SVG checks: lifetime, distinct/stable ids with/without useId, frozen original Chromium opaque baseline, 256 alphas and eight colors. Final real Electron evidence is in docs/template-repair/render-color-filter.md. Whole-template acceptance remains open."
+      },
+      "evidence": [
+        "shared/render-color-filter.js",
+        "tests/render_color_filter.test.mjs",
+        "docs/template-repair/render-color-filter.md",
+        "tests/color_filter_opaque.json"
+      ]
+    },
+    {
+      "id": "host-file-facade",
+      "decision": "reuse",
+      "owner": "host-files",
+      "implementation": "implemented",
+      "reason": "Eleven identical panel-private host binding/capability/file/path helpers are shared by Archive, Mini and the Medical compatibility consumer. Media adapters remain with their existing distinct owners.",
+      "contract": {
+        "input": "Initialized panel-local SDK composition, host platform/native path strings, byte/text file results and explicit plugin marker/id or removal path.",
+        "output": "Existing capability errors, native paths, byte views/text and plugin/data roots; unavailable data directory remains null.",
+        "identity": "One lexical binding per independently installed panel, never a cross-plugin host singleton. File paths and plugin ids retain their original domains.",
+        "dependencies": "Existing panelLocalClient composition and public async files/environment services. No new public SDK/IPC or transport.",
+        "effects": "Explicit async reads, existence/mkdir and best-effort removal; no automatic process, staging, Worker or render gate allocation.",
+        "lifetime": "Caller-owned panel SDK binding and async file operations. Critical captured-client media execution stays with bundled-assets.",
+        "cleanup": "hostRemove attempts only the supplied path and preserves its current best-effort policy. Caller owns that path; stronger media staging cleanup is not delegated here.",
+        "outcomes": "Missing capability, invalid byte shape, missing plugin marker and unavailable data root retain original distinctions; facade reads are not claimed newly bounded.",
+        "retry": "No hidden retries or imports. Existing application/run policy owns persistence and replay decisions.",
+        "distribution": "Canonical shared/host-files.js nested within av-host in Archive/Mini; Medical is explicitly compatibilityTargets outside the template collection.",
+        "validation": "88 affected JavaScript cases, 19 Medical Python checks; original merged-tree and missing-canonical RED. Full emitted JavaScript for all three panels is identical before/after. Installed full-template acceptance remains open."
+      },
+      "evidence": [
+        "shared/host-files.js",
+        "shared/host-files.md",
+        "tests/host_files_adapter.test.mjs",
+        "tests/test_windows_medical_explainer.py",
+        "docs/template-repair/host-adapter-boundary.md"
+      ]
+    },
+    {
+      "id": "file-observation",
+      "decision": "extract",
+      "owner": "file-observation",
+      "reason": "Share existing-capability observation without broadening the app SDK. Preserve source uncertainty and saved identity.",
+      "implementation": "shared",
+      "contract": {
+        "input": "Existing SDK stat/readRange and an original file path.",
+        "output": "Full byte size and streaming SHA-256, or explicit unconfirmed failure.",
+        "identity": "Exact selected file path and complete bytes; size/mtime/inode bracket the read.",
+        "dependencies": "Existing SDK file primitives and bundled MIT @noble/hashes SHA-256.",
+        "effects": "Read-only; no SDK, host capability, user database, file content or Draft mutation.",
+        "lifetime": "One bounded observation; callers compare separate observations at execution boundaries.",
+        "cleanup": "No process or workspace allocation; no source or saved user data deletion.",
+        "outcomes": "Unknown reads, unsupported schemas, malformed bytes or changed observations fail confirmation. Retain known saved Draft identity.",
+        "retry": "Never replay an uncertain commit; repeat only read-only inspection of the same saved result.",
+        "distribution": "Canonical shared module embedded in seven panel artifacts by existing generators; SDK unchanged.",
+        "validation": "Dedicated boundary tests, SDK-free generated-script typing and affected consumer regressions. Installed app/Windows/playback/export unverified."
+      },
+      "evidence": [
+        "shared/file-observation.js",
+        "plugins/mini-vlog/panel.tsx"
+      ]
+    },
+    {
+      "id": "draft-observation",
+      "decision": "extract",
+      "owner": "draft-observation",
+      "reason": "Share existing-capability observation without broadening the app SDK. Preserve source uncertainty and saved identity.",
+      "implementation": "shared",
+      "contract": {
+        "input": "Existing Panel saved-Draft read methods, Project/Draft/library identity and actual saved JSON.",
+        "output": "Actual saved clip source windows, placement, numeric speed and bounded revision witness.",
+        "identity": "Saved owner, clip+track identity, frame grid and source interval; working copies are excluded.",
+        "dependencies": "Existing getDraftCore; getDraftMediaSnapshot when supported; strict Clip.1/Clip.2 parser and Panel Web Crypto.",
+        "effects": "Read-only; no SDK, host capability, user database, file content or Draft mutation.",
+        "lifetime": "One bounded observation; callers compare separate observations at execution boundaries.",
+        "cleanup": "No process or workspace allocation; no source or saved user data deletion.",
+        "outcomes": "Unknown reads, unsupported schemas, malformed bytes or changed observations fail confirmation. Retain known saved Draft identity.",
+        "retry": "Never replay an uncertain commit; repeat only read-only inspection of the same saved result.",
+        "distribution": "Canonical shared module embedded in seven panel artifacts by existing generators; SDK unchanged.",
+        "validation": "Dedicated boundary tests, SDK-free generated-script typing and affected consumer regressions. Installed app/Windows/playback/export unverified."
+      },
+      "evidence": [
+        "shared/draft-observation.js",
+        "plugins/mini-vlog/panel.tsx"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "plugins/mini-vlog/beat-detect.cjs",
+      "sha256": "8b1a651b2084d6acd05f7c457d6d381022e7d1954f15a0b629cc18a84b66e94e",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 2,
+          "endLine": 447,
+          "feature": "audio-beat-engine"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/panel.tsx",
+      "sha256": "22b203a94e0d5f296f5bce7f578fef7f98aac9594e3ff3be626ade3156d9844a",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 7748,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 17,
+          "endLine": 1800,
+          "feature": "copy-and-package"
+        },
+        {
+          "startLine": 1857,
+          "endLine": 1866,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 1869,
+          "endLine": 1943,
+          "feature": "copy-and-package"
+        },
+        {
+          "startLine": 1944,
+          "endLine": 2691,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 2692,
+          "endLine": 2855,
+          "feature": "candidate-policy"
+        },
+        {
+          "startLine": 3106,
+          "endLine": 3502,
+          "feature": "title-policy"
+        },
+        {
+          "startLine": 3503,
+          "endLine": 3598,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 3599,
+          "endLine": 3612,
+          "feature": "audio-beat-engine"
+        },
+        {
+          "startLine": 3613,
+          "endLine": 3627,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 3628,
+          "endLine": 3635,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 3705,
+          "endLine": 3727,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 3728,
+          "endLine": 3740,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 3741,
+          "endLine": 3803,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 3804,
+          "endLine": 3817,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 3818,
+          "endLine": 3967,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 3968,
+          "endLine": 3976,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5207,
+          "endLine": 5226,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5250,
+          "endLine": 5256,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 5257,
+          "endLine": 5267,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5286,
+          "endLine": 5316,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5317,
+          "endLine": 5385,
+          "feature": "program-policy"
+        },
+        {
+          "startLine": 5386,
+          "endLine": 6450,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 6451,
+          "endLine": 6500,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 6949,
+          "endLine": 6967,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6968,
+          "endLine": 7137,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 7138,
+          "endLine": 7180,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 7297,
+          "endLine": 7700,
+          "feature": "local-sdk"
+        },
+        {
+          "startLine": 7701,
+          "endLine": 7747,
+          "feature": "app-guard"
+        },
+        {
+          "startLine": 7747,
+          "endLine": 7747,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 5461,
+          "endLine": 5484,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5485,
+          "endLine": 5492,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5756,
+          "endLine": 5850,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5853,
+          "endLine": 5871,
+          "feature": "scene-observation"
+        },
+        {
+          "startLine": 5912,
+          "endLine": 6138,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6175,
+          "endLine": 6179,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 5229,
+          "endLine": 5249,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 3977,
+          "endLine": 4513,
+          "feature": "asset-owner"
+        },
+        {
+          "startLine": 6699,
+          "endLine": 6948,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 4515,
+          "endLine": 5206,
+          "feature": "workflow-owner"
+        },
+        {
+          "startLine": 3636,
+          "endLine": 3704,
+          "feature": "worker-owner"
+        },
+        {
+          "startLine": 7181,
+          "endLine": 7295,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 2857,
+          "endLine": 3104,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 3516,
+          "endLine": 3577,
+          "feature": "host-file-facade"
+        },
+        {
+          "startLine": 1803,
+          "endLine": 1855,
+          "feature": "text-runtime"
+        },
+        {
+          "startLine": 6501,
+          "endLine": 6603,
+          "feature": "file-observation"
+        },
+        {
+          "startLine": 6604,
+          "endLine": 6698,
+          "feature": "draft-observation"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/planner.js",
+      "sha256": "1f3187150558fea71cc8ff0f810d9378c673e59bde7b40b6d6d8d000d1d7bf4e",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 747,
+          "feature": "montage-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/i18n-check.cjs",
+      "sha256": "88b11e2320b68a942261192cd9206c0e1dd50c5c5c95f4c6e3788a70bc51369d",
+      "role": "validation-tool",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 167,
+          "feature": "text-checker"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/beat-punch.tsx",
+      "sha256": "ac29e8d28ee25a85a47a6cadb25e65bfd76d38c7e9dafa1869d4da81dbcb7f71",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 72,
+          "feature": "effect-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/photo-motion.tsx",
+      "sha256": "d7b5bef44caf396b2e2537459ebf942daf58a8c5752a4758f89bde559595793d",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 53,
+          "feature": "effect-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/title-lockup.tsx",
+      "sha256": "eaa5c63fe56293555936644b3a98dd4eef255755e91e12ed2126d538edebe54b",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 451,
+          "feature": "title-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/soft-look.tsx",
+      "sha256": "87514a3c267397797bc99ca926750583cfb962aae82b9a90a849e134ddf99a07",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 118,
+          "feature": "effect-policy"
+        },
+        {
+          "startLine": 7,
+          "endLine": 34,
+          "feature": "render-color-surface"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/scripts/assemble.js",
+      "sha256": "fdb773a59c580c3d2c7ec4db9f233a3eaf5dbe8c4ad41b3c0939fdf6b16c3aae",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 482,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 271,
+          "endLine": 350,
+          "feature": "authoring-owner"
+        },
+        {
+          "startLine": 351,
+          "endLine": 482,
+          "feature": "assembly-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/scripts/verify-assembly.js",
+      "sha256": "afe44c72129897d047ffe090eca80ed7e9707606e58fdd94f63a59dd5ba44ba0",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 236,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 111,
+          "endLine": 156,
+          "feature": "authoring-owner"
+        },
+        {
+          "startLine": 157,
+          "endLine": 236,
+          "feature": "assembly-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/scripts/decorate.js",
+      "sha256": "a5ba7cce85549c0b126e2c11bc2ae05322bf6b67163cb7215bbb3f7f11775922",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 214,
+          "feature": "authoring-owner"
+        },
+        {
+          "startLine": 145,
+          "endLine": 214,
+          "feature": "program-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/scripts/ensure-audio.js",
+      "sha256": "5416997986129bfbae977b18c5edad4d8efe5d28cd2702e7d546e680d5459ce9",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 69,
+          "feature": "asset-owner"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/scripts/inventory.js",
+      "sha256": "e03c0041ddec5e45250a3c297f36d8adc9e949fdf3cbb4968585004eb85c173c",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 63,
+          "feature": "catalog-read"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/scripts/search.js",
+      "sha256": "1207d50f567c6289b5ed73599ef4f2ff371274eb58ebe85060fdcb3d096e7c82",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 80,
+          "feature": "scene-observation"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/allocate.test.cjs",
+      "sha256": "c4e682bc24be07d61aee72a6ca28b40625fecbc0768c972349dac8d0db71d0e3",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 497,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/beat-detect.test.cjs",
+      "sha256": "390d28523964c535cdd11684780b5e86a664234b70c47ac40aa53a7e51909f2c",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 275,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/cues.test.cjs",
+      "sha256": "bea328b861c1d77cd3601ec98696532c514704127da5c69cfe8ac1fd0f93a60e",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 153,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/fonts.test.cjs",
+      "sha256": "e0e34c9927626fa47eac7228d2265138806dff85f616354a76c8d91b5097238d",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 152,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/i18n.test.cjs",
+      "sha256": "ae94ba8942bf084ce9d7624a0d8c147233c5a296fef1a2be86a596dd74d942cf",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 22,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/look.test.cjs",
+      "sha256": "8689b576167b5d6c9c8b3b4dabf26d0cdfc5a7dc0b687ec44987683d9dbda99d",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 56,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/motion.test.cjs",
+      "sha256": "87e312f711f8c4c917c5d0e832c7184cc86aab031cdd996f40ffb606d742fed1",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 104,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/no-analysis.test.cjs",
+      "sha256": "85077b940644e49374fe29f14c318e9d171a75b2679b92e8eb3ed17815e8c3fb",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 186,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/panel.test.cjs",
+      "sha256": "c48d98aaca17b5dcde290e4ca57a7ae997a2de957af744753ed54caf5ff64df4",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 645,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/planner.test.cjs",
+      "sha256": "657de2c80a53114dafa7d60c3641eeb621246a6c426c99bd206cee97b90984ce",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 490,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/punch.test.cjs",
+      "sha256": "a7ea6b595f79089f30c7979c25601b74f7f7b20d6630506cc2d120f3fb85cb97",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 86,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/quick-score.test.cjs",
+      "sha256": "29cd0a66ef4adf006b76cf52297bdf98cbbf3dda373967f6b47c86bfd5a226d2",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 140,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/scripts-edit.test.cjs",
+      "sha256": "8834476bec34ebf82d4d1b1db3182581f3ea6bb27d5adc648339d2c721dd0549",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 421,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/scripts-read.test.cjs",
+      "sha256": "d5970d76198f643c122bddf2280fb1610af75d238e565aab1a947a1e540cc7cb",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 230,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/scripts-types.test.cjs",
+      "sha256": "e12bb933e6af31b5ff734b9539fd7ea99be300d942c726df177b8221f004cd54",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 52,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/tests/title.test.cjs",
+      "sha256": "1e54c5cbd694e304c21013e198080fbcefbeb209167065728e8b66e705ffe948",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 382,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/operation-builder.mjs",
+      "sha256": "9846900f28b28496a855833fa3d5f62eb293602702da98bbbe5c5b2ce4f50d69",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 42,
+          "feature": "build-delivery"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/assembly-policy.js",
+      "sha256": "e51a68a960c802806c33b50c80892277fc5893ff1c3ddb9b32a3eb30b4d8b464",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 35,
+          "feature": "assembly-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/assemble.template.js",
+      "sha256": "a576ad37b9bafb5c00045c8790b897f5697ed756a9d1538236b99c1eba3ab535",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 97,
+          "feature": "assembly-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/verify-assembly.template.js",
+      "sha256": "9eee011e754692a521885f2588779f6406808c38ac9967b4e21aea05f6ba966d",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 45,
+          "feature": "assembly-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/decorate.template.js",
+      "sha256": "b73c4a66bc5d5a38afaeef49e73b317e9157f3f7ea47cd956319d9b8b3b4aa3b",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 70,
+          "feature": "program-policy"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "tools/repro_mini_own_music.mjs",
+      "sha256": "8977d1ae351efafac258cd63272f04ef1714d5de50e7124fa1326dd205b12a17",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 60,
+          "feature": "test-harness"
+        }
+      ],
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/ensure-audio.template.js",
+      "sha256": "6692cab0ae5460f78899300651a835f3a2f9423f25e756e1ece4d78574bb0643",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 2,
+          "feature": "music-policy"
+        }
+      ]
+    },
+    {
+      "path": "shared/audio-beat-analysis.cjs",
+      "sha256": "8b1a651b2084d6acd05f7c457d6d381022e7d1954f15a0b629cc18a84b66e94e",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 447,
+          "feature": "audio-beat-engine"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_own_music_sources.test.mjs",
+      "sha256": "6fb3061d60f94187159c9abc01ea1deddee0486b6b0b8c9cd1d124994d6d0501",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 47,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_own_music_analysis.test.mjs",
+      "sha256": "30238639e0b3ee240e293612ca2f7b09fdcc4bce4f41e16293123212d5c8e4d0",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 67,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_own_music_recovery.test.mjs",
+      "sha256": "04a75061a002fa1c3307b9fbffc1d91bd967f3f09f4b0e295b238a9943e6c906",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 39,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/audio_beat_engine.test.mjs",
+      "sha256": "edb17220cd2e0e04f3ecc9a7deaccdaeb3b37d123dfeeb7e9cbcdefd164a534a",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 32,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/bundled-assets.js",
+      "sha256": "96c3859e85676419fba660e13c8e7e2efafde328bf208d2eb4cabbfb0a188f07",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 536,
+          "feature": "asset-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/project_audio.test.mjs",
+      "sha256": "418c56406d93e8935b9318c086b39463a2dd62ec572e0437f60694649fc614dc",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 30,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/native-image-authoring.js",
+      "role": "build-source",
+      "sha256": "f19be1565f6afebcf9fc457bfe6010322a181633f3c29691bf2726bb56978bf2",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 302,
+          "feature": "authoring-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_assembly_intent_fixture.mjs",
+      "role": "validation",
+      "sha256": "4938ea93dfa955cc7293b144015f805cc64b74ff2cb7fff47c22a5a0bf7f8a81",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 41,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_look_fixture.mjs",
+      "role": "validation",
+      "sha256": "268453ee6322ca1b7ff158ed5911202b6da54d94ce96f612a8f01d6596a9429f",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 42,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/template-run.js",
+      "role": "build-source",
+      "sha256": "c1c95c0db1c972d35608945c12ca61d6d43ac922813b6cf1fa6545b8aedde254",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 691,
+          "feature": "workflow-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_run_budget.test.mjs",
+      "role": "validation",
+      "sha256": "b995c600748ccd524435ac99c466a396502cf634cdc786de169453e62e6b7928",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 30,
+          "feature": "workflow-owner"
+        }
+      ]
+    },
+    {
+      "path": "shared/native-image-input.mjs",
+      "role": "build-source",
+      "hashMode": "lf-text",
+      "sha256": "2ddf652faac31bc554d0e932097bb7527b49868a28be20e076b1e680739044af",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 250,
+          "feature": "source-input"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_media_selection.test.mjs",
+      "role": "validation",
+      "hashMode": "lf-text",
+      "sha256": "1f67b2ee0395bc9427d02168c27797d0030f2804094a6ad6236a596b8dc6c9b5",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 47,
+          "feature": "source-input"
+        }
+      ]
+    },
+    {
+      "path": "tests/clip_analysis_sources.test.mjs",
+      "role": "validation",
+      "hashMode": "lf-text",
+      "sha256": "81e6c5664be381916671673d4822748398ab5f5e1a923a1b3dc48dc001b79a17",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 9,
+          "feature": "local-video-analysis"
+        }
+      ]
+    },
+    {
+      "path": "shared/clip-analysis.js",
+      "role": "build-source",
+      "hashMode": "lf-text",
+      "sha256": "572d132c96ca7aa303e21f30ef924a95f5d66ca8561d8a0c8bbb191d7311522c",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 247,
+          "feature": "local-video-analysis"
+        }
+      ]
+    },
+    {
+      "path": "shared/render-color-filter.js",
+      "sha256": "4e664c9e3196af6b5dee0ae4ac47965242bdcfaa11401921de600fd6e2afd902",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 27,
+          "feature": "render-color-surface"
+        }
+      ]
+    },
+    {
+      "path": "tests/render_color_filter.test.mjs",
+      "sha256": "93f31c6b52cec436aab1ca66859a84394f0a0e27b945bc2e0de526bc32620bf2",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 110,
+          "feature": "render-color-surface"
+        }
+      ]
+    },
+    {
+      "path": "shared/host-files.js",
+      "sha256": "1ecabda0d39ce8561a0ef18151df4e19f2ac4ed712beae75dbaa9874d046ce27",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 61,
+          "feature": "host-file-facade"
+        }
+      ]
+    },
+    {
+      "path": "tests/host_files_adapter.test.mjs",
+      "sha256": "feee771e7c3a14755a205c003021245866b35635f780604efd4bd11f394e9026",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 78,
+          "feature": "host-file-facade"
+        }
+      ]
+    },
+    {
+      "path": "shared/template-text.ts",
+      "sha256": "047146d51a220183eb4f6ee099dacf75556f3a612796d51e49b1efb654545055",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 52,
+          "feature": "text-runtime"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_text.test.mjs",
+      "sha256": "5570efab2703aa38b40b0267c89f5831b42c2e512375187f85d44c4a2fbbd813",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 60,
+          "feature": "text-runtime"
+        }
+      ]
+    },
+    {
+      "path": "shared/file-observation.js",
+      "sha256": "3792578ca5dcdbdaa9efbb3bbb54deb688cb582d78a9bc90df6cfd6c141e341d",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 102,
+          "feature": "file-observation"
+        }
+      ]
+    },
+    {
+      "path": "shared/draft-observation.js",
+      "sha256": "a10d33209d1a9de6a7ed735b24751735ec99b91cd5431308d78807cb63a6bbd9",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 96,
+          "feature": "draft-observation"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "path": "plugins/mini-vlog/README.md",
+      "sha256": "e4aff9a2fa18b538868304a723b7d628e5f3b4a31fceb8abd80b34b94fa0db57",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/INSTALL.md",
+      "sha256": "0b2e997c78fef5a316af55c3cb3848cded1bc264b85c801b730f9b0605ce24a0",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/THIRD_PARTY.md",
+      "sha256": "669cc97db3dd5c51dbc5e6a8056c2f3525b4db7a68c9c6a6c1cb4932fd5add62",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/acoustic-pop-104.mp3",
+      "sha256": "a7b6ed90622cefa3017c36b1f4895a60c86e054d94a00b42eb664c71d4ff7da5",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/buant-hook.mp3",
+      "sha256": "f957e94d626373b19a93390dbfaeb262ecef84be1a77ab7874318ff05f293519",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/bedroom-pop-108.mp3",
+      "sha256": "1c6566e4fdda2150e2209df6ab4bdf25fe14ac52e5fef35b387a82485a08d57f",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/easy-sunday-lofi.mp3",
+      "sha256": "a38721232cc6b4f250e8877892b3ad74ed495035750552fdfda52e3be4cf9c5c",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/golden-hour-disco.mp3",
+      "sha256": "df1cdd3ddf8b58fe7223edd3d1b3417c863eeb35036f561df9b80ea6320c3f59",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/manifest.json",
+      "sha256": "981596c717acf490c9c99add880c87089c56b160e539c733a553f55882f10092",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/sunny-soul-strut.mp3",
+      "sha256": "abee1f9623fcf470cad940f0c702841b9730311c162d943db50bc7e42aa2cca4",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/cues/weekend-indie-pop.mp3",
+      "sha256": "a1d2fe77f1b53d13f303995ab57c3c5e00e845ef40fb09fb6931397892a478f9",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "bytes"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/dm-mono.woff2.b64",
+      "sha256": "ed99117e32d3e91d99099359952980cde067ebdf257ce617f421038999d92f6c",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/dm-serif-display.woff2.b64",
+      "sha256": "5a7af8f5f7c23205c0d5e3a864ae2744a6559a82f0492b49a45a35cec4de63e9",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/instrument-serif-italic.woff2.b64",
+      "sha256": "dc05b3cabdfc202d0d2ec9247d7f74d85e9db2bfd35dbcc3daf408aa91b2bc30",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/licenses/dmmono-OFL.txt",
+      "sha256": "febfd2b42308d5327ade2884aed777da3d2decd2c53d574c43e603443d70c5b2",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/licenses/dmserifdisplay-OFL.txt",
+      "sha256": "aa49c876a28d8c0b0a3027d6c25b9c607eee8c0fb96165011d42a6ace1408fe1",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/licenses/instrumentserif-OFL.txt",
+      "sha256": "129ed7618959716959f2941fdd5b49e0ad6e6c1d78726761786a00253d865521",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/licenses/quicksand-OFL.txt",
+      "sha256": "14d28541780d90f6577bb7abcc6f005bf6969614294e75c82abb8758a696ad46",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/mv-rounded-bold.woff2.b64",
+      "sha256": "7b2294e1672a4fbef40693688938edcb871bfd9f0ae5c67e20181614e5427aae",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/assets/fonts/presets.json",
+      "sha256": "4e7ba2273ecb94293004f9eedf1419d6b290c9e042775e6cf838c86f65a72a52",
+      "feature": "copy-and-package",
+      "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
+      "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/plugin.json",
+      "sha256": "69a9c61a9e986e75f0eac94b5223dffc3bc1c9d12f85aac4ff3728cd516276be",
+      "feature": "copy-and-package",
+      "reason": "Declared package inputs/compatibility/options and release metadata.",
+      "hashMode": "lf-text"
+    }
+  ],
+  "embeddedPrograms": [
+    {
+      "file": "plugins/mini-vlog/panel.tsx",
+      "feature": "audio-beat-engine",
+      "producer": "avBeatWorkerSource",
+      "description": "Builds a worker program around the exact installed beat-detect.cjs. Worker require is inert so CLI branches cannot run.",
+      "input": "One {samples:Float32Array,rate:Hz} message.",
+      "output": "{ok:analyze result} or {error:string}.",
+      "lifetime": "One Worker invocation; shared analysis-worker owns URL, events, timer and terminate.",
+      "sourceFiles": [
+        "plugins/mini-vlog/beat-detect.cjs"
+      ]
+    },
+    {
+      "file": "plugins/mini-vlog/panel.tsx",
+      "feature": "local-sdk",
+      "producer": "createPanelLocalClient",
+      "description": "Serializes file/media SDK bridge requests from the canonical private client, with captured environment and process identity.",
+      "input": "Validated file paths/chunks/media argv.",
+      "output": "Typed facts/media-job identity and status or classified errors.",
+      "lifetime": "Captured client, bounded requests and observed native settlement.",
+      "sourceFiles": [
+        "shared/local-client.ts"
+      ]
+    },
+    {
+      "file": "plugins/mini-vlog/panel.tsx",
+      "feature": "source-input",
+      "producer": "TEMPLATE_ALIAS_JS",
+      "description": "Serializes canonical original Resource resolution into an independent run_script body for handed template input.",
+      "input": "Project id plus selected original Resource ids/kinds.",
+      "output": "Observed aliases/native dimensions or explicit failed phases.",
+      "lifetime": "One bounded input call; scratch placement is private/unsaved, no unknown replay.",
+      "sourceFiles": [
+        "shared/native-image-input.mjs"
+      ]
+    },
+    {
+      "file": "plugins/mini-vlog/panel.tsx",
+      "feature": "workflow-owner",
+      "producer": "executeTemplateAssembly",
+      "description": "Canonical durable owner wraps frozen installed authoring source with exclusive receipt and saved-state observation.",
+      "input": "Immutable config/source/scope/digest and current owner.",
+      "output": "Confirmed saved assembly or durable unknown/no-save/mismatch state.",
+      "lifetime": "Original run/phase through recovery, including reload; no substituted source.",
+      "sourceFiles": [
+        "shared/template-run.js",
+        "plugins/mini-vlog/scripts/assemble.js",
+        "plugins/mini-vlog/scripts/decorate.js"
+      ]
+    }
+  ],
+  "openGates": [
+    "Source decision coverage does not establish semantic module completion or runtime acceptance.",
+    "Own-music content binding and terminal probe propagation pass feature fixtures and a development SDK checkpoint; installed import/save/playback/export remain open.",
+    "Configured installation-root compatibility needs reproduction and a versioned host contract; current host-source composition agrees with Mini lookup.",
+    "Server-index content provenance is not exposed by the SDK.",
+    "Planned text extraction and scene/transport owner extensions are not implemented; numerical audio engine delivery is implemented.",
+    "Whole installed Mini UI, source/Audio playback, export, Windows and every declared input permutation remain open."
+  ],
+  "findings": [
+    {
+      "id": "MINI-OWN-AUDIO-SOURCE",
+      "status": "fixed-fixture",
+      "feature": "music-policy",
+      "title": "An analyzed own track can change or disappear before another Build.",
+      "sources": [
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 5217
+        },
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 5932
+        },
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 5228
+        }
+      ],
+      "repairOwner": "mini-vlog",
+      "mechanism": "Own-grid state is retained by a path and UI generation, without a complete file identity carried into the assembly/recovery request. A valid 30-second 120-BPM WAV replaced by an equal-size/equal-mtime 100-BPM WAV still gives the second actual Build planner 119.99 BPM; removing the track also reaches the assembly dispatch boundary.",
+      "acceptance": "Use the existing asset/input owners to bind own-track analysis and persisted Audio to confirmed bytes through Build, commit and recovery. Preserve the same original plan or reject changed/missing/unknown input; test unchanged reuse, replacement, cancellation and saved-look restoration. Extract the identical numerical engine with parity rather than add another file/cache owner.",
+      "evidence": [
+        "tools/repro_mini_own_music.mjs",
+        "tests/mini_music_fixture.mjs",
+        "plugins/mini-vlog/beat-detect.cjs",
+        "tests/mini_own_music_sources.test.mjs",
+        "tests/mini_own_music_analysis.test.mjs",
+        "tests/mini_own_music_recovery.test.mjs",
+        "tests/audio_beat_engine.test.mjs"
+      ],
+      "reproducer": "tools/repro_mini_own_music.mjs",
+      "resolution": "Reuse existing source, asset, Worker and durable owners: analyze a verified snapshot, bind the grid to full original contents, recheck before import/dispatch/commit and on saved-look continuation, and validate the actual Audio path and planned minimum duration. The four identical engines now share one canonical CJS source.",
+      "validationLimits": "Source/real-media fixtures prove admission and saved-Audio restoration. Native decoder/Worker proof is a separate development checkpoint; installed UI, real Project save/playback/export, released builds and Windows remain open."
+    },
+    {
+      "id": "MINI-PROBE-UNCERTAINTY",
+      "status": "fixed-fixture",
+      "feature": "host-bootstrap",
+      "title": "The own-track duration fallback hides terminal native media uncertainty.",
+      "sources": [
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 3583
+        },
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 5223
+        }
+      ],
+      "repairOwner": "local-client",
+      "mechanism": "hostProbeSeconds catches every runAssetMediaTool error and returns null. Its fallback caller therefore cannot distinguish a known failed probe from an unconfirmed native process exit, even though the shared client now propagates that distinction.",
+      "acceptance": "Add an actual-adapter counterexample. Preserve ordinary optional probe fallback while propagating terminal/unknown lifetime into a state that cannot be treated as a usable music selection. Keep cancellation and current generation behavior.",
+      "evidence": [
+        "plugins/mini-vlog/panel.tsx",
+        "tests/mini_media_scope.test.mjs",
+        "tests/local_media_settlement.test.mjs",
+        "tests/mini_media_scope.test.mjs",
+        "tests/mini_own_music_analysis.test.mjs"
+      ],
+      "resolution": "The Mini native duration adapter propagates terminal and preserveTemporaryFiles failures. Ordinary optional probe failure remains null; the snapshot analysis adapter alone decides fallback and selection clears on source/lifetime uncertainty.",
+      "validationLimits": "Actual adapter terminal/preserve and ordinary-failure controls pass in fixtures; production/Windows proof remains open."
+    },
+    {
+      "id": "MINI-DECLARED-SOURCE-CAPABILITY",
+      "status": "fixed-source",
+      "feature": "copy-and-package",
+      "title": "Package preparation/compatibility text understates mandatory original-video checks.",
+      "sources": [
+        {
+          "file": "plugins/mini-vlog/plugin.json",
+          "line": 67
+        },
+        {
+          "file": "plugins/mini-vlog/INSTALL.md",
+          "line": 24
+        }
+      ],
+      "repairOwner": "mini-vlog",
+      "mechanism": "The manifest still describes native fingerprint as a local-unanalysed-video requirement and asks for analyzed videos. Current code admits every selected video through fingerprint and supports analysis-optional input. INSTALL still promises a broad fallback when host functions are missing.",
+      "acceptance": "Align declared inputs/capabilities with actual admission and distinguish missing source-confirmation capabilities from ordinary decoder fallback. Retain explicit unverified released-version/Windows status; do not infer compatibility from wording.",
+      "evidence": [
+        "plugins/mini-vlog/plugin.json",
+        "plugins/mini-vlog/INSTALL.md",
+        "tests/mini_video_sources.test.mjs"
+      ],
+      "resolution": "Manifest and INSTALL now require complete native identities for all selected video originals and music. Analysis is optional; decoder fallback never bypasses source confirmation. Storage/cache and unknown-workspace behavior are documented.",
+      "validationLimits": "Declared contract reconciled to the current source and regression behavior; this wording does not prove released-version, installed-root or Windows compatibility."
+    },
+    {
+      "id": "MINI-CONFIGURED-INSTALL-ROOT",
+      "status": "needs-reproduction",
+      "feature": "host-bootstrap",
+      "title": "Configured installation-root compatibility needs a reproduced host contract.",
+      "sources": [
+        {
+          "file": "plugins/mini-vlog/INSTALL.md",
+          "line": 4
+        },
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 3565
+        },
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 3618
+        }
+      ],
+      "repairOwner": "local-client",
+      "mechanism": "INSTALL describes environment-provided panels/skills roots while Mini derives them from the SDK host home. Additional tracing found that the current host installer derives those same paths and exports them to shell children; their scratch HOME is separate. Real-source in-memory composition agrees for macOS, Windows drive and UNC homes. An arbitrary-root override or actual failing installation was not established; this is not a confirmed source mismatch.",
+      "acceptance": "Identify a supported host/version with a reproducible installation-root mismatch before designing a change. Preserve current installer/SDK-home behavior; verify released/native Windows contracts separately. Do not introduce a roots API or change lookup solely to resolve an unproven defect.",
+      "evidence": [
+        "plugins/mini-vlog/INSTALL.md",
+        "plugins/mini-vlog/panel.tsx",
+        "shared/local-client.ts",
+        "tests/template_bootstrap.test.mjs"
+      ]
+    },
+    {
+      "id": "color-filter-coverage-and-source",
+      "status": "fixed-source",
+      "feature": "render-color-surface",
+      "title": "Color grades preserve original alpha and source lifetime across strength zero.",
+      "sources": [
+        {
+          "file": "shared/render-color-filter.js",
+          "line": 3
+        },
+        {
+          "file": "plugins/mini-vlog/assets/soft-look.tsx",
+          "line": 1
+        }
+      ],
+      "repairOwner": "render-color-filter",
+      "mechanism": "Arithmetic additions multiplied premultiplied alpha/RGB; the zero-strength branch moved Source to a different React tree position.",
+      "acceptance": "All source coverage retained, independent RGB grade, normal opaque samples unchanged, zero toggles retain the original and real owner unmount/replacement cleans once.",
+      "evidence": [
+        "tests/render_color_filter.test.mjs",
+        "docs/template-repair/render-color-filter.md"
+      ],
+      "remaining": "Installed full-app, saved Draft, whole-video/audio playback, encoded export and Windows acceptance remain open.",
+      "resolution": "The common useColorFilter keeps fixed source slots, opaque RGB input, final original-alpha coverage, and unique stable per-mount identities. The three template designs retain their original math.",
+      "validationLimits": "Unit/standard-model and isolated Chromium evidence only; installed app, whole-video/audio playback, encoded export, Windows and overall template acceptance remain open."
+    },
+    {
+      "id": "shared-host-source-coupling",
+      "status": "fixed-source",
+      "feature": "host-file-facade",
+      "title": "Shared file helpers have one source without conflating distinct media policies.",
+      "sources": [
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 3516
+        },
+        {
+          "file": "shared/host-files.js",
+          "line": 1
+        }
+      ],
+      "repairOwner": "host-files",
+      "mechanism": "A whole copied av-host equality check coupled another app to Archive media adapters despite different dependencies and execution policies.",
+      "acceptance": "Canonical shared helpers match across declared consumers; adapters retain behavior and complete emitted runtime stays unchanged.",
+      "resolution": "Extract common facade only, keep media owners, enforce strict canonical boundary checks and real adapter tests.",
+      "validationLimits": "Source/unit adapter compatibility; installed app, save/playback/export and Windows acceptance remain open.",
+      "evidence": [
+        "tests/host_files_adapter.test.mjs",
+        "tests/test_windows_medical_explainer.py",
+        "docs/template-repair/host-adapter-boundary.md"
+      ]
+    },
+    {
+      "id": "text-dictionary-prototype-keys",
+      "status": "fixed-fixture",
+      "feature": "text-runtime",
+      "title": "Missing translation keys inherited JavaScript prototype entries and returned empty labels.",
+      "sources": [
+        {
+          "file": "shared/template-text.ts",
+          "line": 18
+        }
+      ],
+      "repairOwner": "template-text",
+      "mechanism": "constructor, toString and __proto__ are absent from STRINGS but ordinary indexed lookup still reads their inherited values. t returns an empty message and tOr bypasses its supplied fallback. Missing interpolation variables could also read inherited constructor/toString values instead of preserving placeholders.",
+      "acceptance": "Only registered own dictionary messages resolve; missing keys preserve the key or caller fallback, while explicit own messages, existing translation forms and template isolation retain behavior.",
+      "resolution": "One canonical runtime checks own dictionary entries for both locale/English lookup and optional-key admission. All seven original implementations reproduce the failure.",
+      "validationLimits": "Actual-source translation calls and compiled runtime/legacy checks; no claimed installed UI symptom, full playback/export or Windows acceptance.",
+      "reproducer": "tests/template_text.test.mjs",
+      "evidence": [
+        "shared/template-text.ts",
+        "tests/template_text.test.mjs"
+      ]
+    }
+  ]
+}

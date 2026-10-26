@@ -6,9 +6,11 @@ Read [README.md](README.md) before setup. This is an experimental Panel plugin w
 
 A compatible Selects development build must provide:
 
-- Panel scripting, generated-media authoring, and `canAuthorGeneratedMedia`.
+- Panel scripting and public Draft authoring, including `addMotionGraphic` and
+  `rangeAtFrames` for editable titles. Assembly checks the actual Draft handle
+  before source edits or its first save; missing methods require an app update.
 - `getProjectDraftScaffold` and project-scoped native Draft operations.
-- Host `FileSystem`, `CutbackMediaPicker`, and `ProjectFileTree.listEnrichedFileTree` adapters.
+- Asynchronous SDK files, panel storage, and the public Project source inventory.
 - Browser media decoding and Web Crypto for contact-image caching.
 
 The runtime needs no separately installed Python, Pillow, FFmpeg, model, or provider key. React, Remotion, and the editing engine are supplied by Selects. Node.js is needed only for the included development tests.

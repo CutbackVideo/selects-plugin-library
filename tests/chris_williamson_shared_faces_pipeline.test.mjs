@@ -3,15 +3,45 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {stripTypeScriptTypes} from 'node:module';
+import path from 'node:path';
+import {createRequire,stripTypeScriptTypes} from 'node:module';
+import {loadPanelModule,disposePanelModule,panelModuleTimerState} from './panel_module_fixture.mjs';
 
 const panel = fs.readFileSync(new URL('../plugins/chris-williamson-style/src/panel.template.tsx', import.meta.url), 'utf8');
 const pipeline = fs.readFileSync(new URL('../plugins/chris-williamson-style/src/pipeline.ts', import.meta.url), 'utf8');
 const plain = value => JSON.parse(JSON.stringify(value));
-const panelRead = panel.slice(panel.indexOf('export async function readDraft('), panel.indexOf('/*SECTION_planning*/')).replace(/^export /m, '');
-const helpers = pipeline.slice(pipeline.indexOf('export function attachedPipelineEnv('), pipeline.indexOf('export async function runPipeline(')).replace(/^export /gm, '');
-const functions = vm.runInNewContext(stripTypeScriptTypes(panelRead + helpers) + ';({readDraft,attachedPipelineEnv,sourceClipSeconds,framingSamples,cameraCutFrames})', {AbortController});
+// Load the shipped module, not a list of copied helpers. New local dependencies
+// must resolve exactly as they do in the portable production package.
+const production = fs.readFileSync(process.env.CHRIS_UI_PANEL_SOURCE || new URL('../plugins/chris-williamson-style/panel.tsx', import.meta.url), 'utf8');
+const functions = loadPanelModule(production, {names:['readDraft','attachedPipelineEnv','sourceClipSeconds','framingSamples','cameraCutFrames']});
 const {readDraft,attachedPipelineEnv,sourceClipSeconds,framingSamples,cameraCutFrames} = functions;
+const app = process.env.SELECTS_DEV_REPO || (process.env.SBS_PANEL_TEST_MODULES ? path.dirname(process.env.SBS_PANEL_TEST_MODULES) : null);
+assert.ok(app, 'Set SELECTS_DEV_REPO or SBS_PANEL_TEST_MODULES to existing CI React test dependencies');
+const require = createRequire(path.join(app, 'package.json'));
+const React = require('react'), {JSDOM} = require('jsdom');
+const dom = new JSDOM('<!doctype html><html><body></body></html>', {url:'http://localhost'});
+Object.assign(globalThis, {window:dom.window, document:dom.window.document, HTMLElement:dom.window.HTMLElement, MutationObserver:dom.window.MutationObserver});
+Object.defineProperty(globalThis, 'navigator', {value:dom.window.navigator, configurable:true});
+const {render,cleanup,act,fireEvent} = require('@testing-library/react');
+const mountedRealms = new Set();
+const loadUiPanel = (...args) => { const bindings=loadPanelModule(...args); mountedRealms.add(bindings); return bindings; };
+test.afterEach(() => {
+  try {
+    cleanup();
+    for (const bindings of mountedRealms) assert.equal(panelModuleTimerState(bindings).intervals,0,
+      "React unmount must cancel the actual production progress interval");
+  }
+  finally { for (const bindings of mountedRealms) disposePanelModule(bindings); mountedRealms.clear(); }
+});
+test.after(() => { disposePanelModule(functions); dom.window.close(); });
+const tick = async action => act(async () => { await action?.(); await new Promise(resolve => setImmediate(resolve)); });
+const h = React.createElement;
+const ui = {
+  Section:({title,children})=>h('section',null,h('h3',null,title),children), Stack:({children})=>h('div',null,children),
+  Message:({children,tone})=>h('p',{'data-tone':tone},children), Progress:()=>h('span',null,'Progress'),
+  Button:({children,disabled,busy,busyLabel,onClick})=>h('button',{disabled:disabled||busy,onClick,'data-busy-label':busy?busyLabel:undefined},children),
+};
+const deferred = () => { let resolve,reject; const promise=new Promise((a,b)=>{resolve=a;reject=b}); return {promise,resolve,reject}; };
 
 function fixture({sourceFps = 24, draftFps = 30, rate = 1, sourceStartFrame = 720, sourceDuration = 60, summary = false, wordResourceId = 'r3'} = {}) {
   const core = {owner:{projectId:'project'}, sequenceJson:{id:'draft',tracks:{children:[{kind:'Main',children:[{id:7,mediaReferences:{defaultMedia:{id:'canonical-source'}}}]}]}}};
@@ -134,132 +164,171 @@ test('a pending face journal resumes before look commits; only a user click perm
   assert.doesNotMatch(template,/retryFaceFailures:true/);
 });
 
-test('template unmount detaches and prevents a late finishTemplate response',async()=>{
-  const template=panel.slice(panel.indexOf('function TemplateRun('),panel.indexOf('/** A template run (`context.template`)')).replace('  return <small>{status}</small>;','  return status;');
-  const effects=[];let release,env;const finished=[];
-  const exports=vm.runInNewContext(stripTypeScriptTypes(template)+';({TemplateRun})',{useAppUpdateGuard:()=>{},
-    AbortController,useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:fn=>effects.push(fn),
-    templateSpeaker:()=>({kind:'timeline',sequenceId:'draft'}),templatePaths:async()=>({}),
-    panelEnv:(_sdk,_paths,_status,signal)=>{env={signal};return env;},
-    runPipeline:async()=>new Promise(resolve=>{release=()=>resolve({draftId:'draft'});}),TEMPLATE_FAILED:'Failed',MUSIC:{levelDb:-5},
+// All UI fixtures mount the complete production component with real React.
+// Only filesystem/install lookup, public SDK calls and expensive pipeline/AI
+// operations are controlled; UI strings, target helpers, readState, panelEnv,
+// transcript polling, controller guards and JSX rendering remain production code.
+function templateHarness() {
+  const runs=[],finished=[];
+  const paths={data:'/data',plugin:'/plugin',ffmpeg:'ffmpeg'};
+  const {Panel,panelLocalClients}=loadUiPanel(production,{
+    names:['Panel','panelLocalClients'],React,
+    overrides:{resolvePaths:async()=>paths,runPipeline:async(env)=>{
+      const gate=deferred();runs.push({env,...gate});return gate.promise;
+    }},filename:'plugins/chris-williamson-style/panel.tsx',
   });
-  exports.TemplateRun({sdk:{finishTemplate:result=>finished.push(result)},context:{projectId:'project',template:{runId:'run'}}});
-  const cleanup=effects[0]();
-  for(let i=0;!release&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  assert.ok(release,JSON.stringify(finished));
-  cleanup();assert.equal(env.signal.aborted,true);release();
-  await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(finished,[]);
+  const sdk={finishTemplate:result=>finished.push(result)};
+  panelLocalClients.set(sdk,{files:{writeFile:async()=>{},join:(...parts)=>parts.join('/')}});
+  return {runs,finished,mount:strict=>render(h(strict?React.StrictMode:React.Fragment,null,
+    h(Panel,{sdk,context:{projectId:'project',template:{runId:'run',inputs:{speaker:[{kind:'timeline',sequenceId:'draft'}]}}}})))};
+}
+
+test('template unmount detaches and prevents a late finishTemplate response',async()=>{
+  const f=templateHarness(),view=f.mount(false);await tick();assert.equal(f.runs.length,1);
+  const run=f.runs[0];view.unmount();assert.equal(run.env.signal.aborted,true);
+  await tick(()=>run.resolve({draftId:'draft',jobDir:'/data/run'}));assert.deepEqual(f.finished,[]);
 });
 
 test('template effect cleanup/setup before async preparation does not strand a StrictMode run',async()=>{
-  const template=panel.slice(panel.indexOf('function TemplateRun('),panel.indexOf('/** A template run (`context.template`)')).replace('  return <small>{status}</small>;','  return status;');
-  const effects=[],finished=[];let calls=0;
-  const TemplateRun=vm.runInNewContext(stripTypeScriptTypes(template)+';TemplateRun',{useAppUpdateGuard:()=>{},
-    AbortController,useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:fn=>effects.push(fn),
-    templateSpeaker:()=>({kind:'timeline',sequenceId:'draft'}),templatePaths:async()=>({}),
-    panelEnv:(_sdk,_paths,_status,signal)=>({signal}),
-    runPipeline:async()=>{calls++;return {draftId:'draft'};},TEMPLATE_FAILED:'Failed',MUSIC:{levelDb:-5},
-  });
-  TemplateRun({sdk:{finishTemplate:result=>finished.push(result)},context:{projectId:'project',template:{runId:'run'}}});
-  effects[0]()();const cleanup=effects[0]();
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(calls,1);assert.deepEqual(plain(finished),[{sequenceId:'draft'}]);cleanup();
+  const f=templateHarness(),view=f.mount(true);await tick();assert.equal(f.runs.length,1);
+  assert.equal(f.runs[0].env.signal.aborted,false);
+  await tick(()=>f.runs[0].resolve({draftId:'draft',jobDir:'/data/run'}));
+  assert.deepEqual(plain(f.finished),[{sequenceId:'draft'}]);view.unmount();
 });
 
-function styleHarness({deferCancel=false,transcriptRead} = {}) {
-  const raw=panel.slice(panel.indexOf('function StylePanel('),panel.indexOf('// Clip highlights template run.'));
-  const source=raw.slice(0,raw.indexOf('  return <ui.Section'))+'  return {create,cancelFaces,actionLabel};\n}';
-  const states=[],refs=[],effects=[],cancelCalls=[],editorCalls=[],runs=[];
-  let stateIndex=0,refIndex=0,release,activeEnv,finishCancel;
+function styleHarness({deferCancel=false,transcriptRead,source=production} = {}) {
+  const cancelCalls=[],editorCalls=[],runs=[];let finishCancel,activeEnv;
   const paths={data:'/data',plugin:'/plugin',ffmpeg:'ffmpeg'};
-  const StylePanel=vm.runInNewContext(stripTypeScriptTypes(source)+';StylePanel',{useAppUpdateGuard:()=>{},
-    AbortController,MUSIC:{levelDb:-5},SUFFIX:' · Chris Williamson Style',faceUI:()=>['Resume styling','Cancel AI','Canceled','Canceling'],
-    useRef:value=>refs[refIndex++]??=( {current:value} ),
-    useState:value=>{const i=stateIndex++;if(!(i in states))states[i]=i===0?paths:value;return [states[i],next=>states[i]=next];},
-    useEffect:fn=>effects.push(fn),resolvePaths:async()=>paths,
-    readOpenDraft:transcriptRead|| (async()=>({name:'Draft · Chris Williamson Style',words:12,resource:{status:'analyzed'}})),
-    readState:async(_env,id)=>({pending:true,faceJournal:'/data/runs/'+(id==='draft'?'existing':id)+'/shared-faces.json'}),readText:async()=>'',
-    panelEnv:(_sdk,_paths,status,signal,onFaceStage)=>({status,signal,onFaceStage}),
-    runPipeline:async(env,_pid,sid,options)=>{if(env.signal.aborted)throw Object.assign(new Error('Detached'),{code:'CW_FACE_DETACHED'});activeEnv=env;assert.equal(options.retryFaceFailures,true);env.onFaceStage(true,'/data/runs/'+(sid==='draft'?'existing':sid)+'/shared-faces.json');return new Promise(resolve=>{release=()=>resolve({draftId:sid});runs.push({env,release});});},
-    cwCancelSharedFaces:async(env,pid,journal)=>{assert.equal(env.signal,undefined);assert.equal(activeEnv.signal.aborted,false);cancelCalls.push([pid,journal]);if(deferCancel)await new Promise(resolve=>finishCancel=resolve);return {canceled:1};},
+  const {Panel,panelLocalClients}=loadUiPanel(source,{
+    names:['Panel','panelLocalClients'],React,
+    overrides:{resolvePaths:async()=>paths,
+      runPipeline:async(env,pid,sid,options)=>{
+        if(env.signal.aborted)throw Object.assign(new Error('Detached'),{code:'CW_FACE_DETACHED'});
+        assert.equal(options.retryFaceFailures,true);activeEnv=env;
+        env.onFaceStage(true,'/data/runs/'+(sid==='draft'?'existing':sid)+'/shared-faces.json');
+        const gate=deferred();runs.push({env,pid,sid,...gate});return gate.promise;
+      },
+      cwCancelSharedFaces:async(env,pid,journal)=>{
+        assert.equal(env.signal,undefined);assert.equal(activeEnv.signal.aborted,false);
+        cancelCalls.push([pid,journal]);if(deferCancel)await new Promise(resolve=>finishCancel=resolve);
+        return {canceled:1};
+      },
+    },filename:'plugins/chris-williamson-style/panel.tsx',
   });
-  const props={sdk:{runScript:async args=>editorCalls.push(args)},context:{projectId:'project',sequenceId:'draft'},ui:{}};
-  const render=()=>{stateIndex=refIndex=0;return StylePanel(props);};
-  return {render,props,states,effects,cancelCalls,editorCalls,runs,get finishCancel(){return finishCancel;},get activeEnv(){return activeEnv;},get release(){return release;}};
+  let context={projectId:'project',sequenceId:'draft',language:'en'};
+  const sdk={
+    call:async(method,id)=>{assert.equal(method,'getDraftCore');return {owner:{projectId:context.projectId},sequenceJson:{id}};},
+    runScript:async request=>{
+      if(request.summary==='Open the Chris Williamson Style draft'){editorCalls.push(request);return {result:true};}
+      assert.ok(['Check draft transcript','Read draft transcript','Check transcript analysis'].includes(request.summary),'Only the observed public SDK boundary can run');
+      // Execute the real readOpenDraft script: the host metadata/media methods
+      // are the external boundary, not a replacement local helper or locale.
+      const pid=JSON.parse(/selects\.project\(("[^"]*")\)/.exec(request.script)[1]);
+      const sid=JSON.parse(/selects\.draft\(("[^"]*")\)/.exec(request.script)[1]);
+      const data=transcriptRead?await transcriptRead(sdk,pid,sid,request.summary):{name:'Draft · Chris Williamson Style',words:12,resource:{status:'analyzed'}};
+      const project={meta:async()=>({title:'Project '+pid}),resources:async()=>[{resourceId:'r3',...data.resource}],workflows:async()=>[]};
+      const draft={meta:async()=>({name:data.name}),words:async()=>Array.from({length:data.words||0},()=>({text:'word'})),clips:async()=>[{resourceId:data.sourceResourceId||'r3'}]};
+      return {result:await vm.runInNewContext(stripTypeScriptTypes('(async()=>{'+request.script+'})()'),{selects:{project:id=>{assert.equal(id,pid);return project;},draft:id=>{assert.equal(id,sid);return draft;}}})};
+    },
+  };
+  panelLocalClients.set(sdk,{files:{join:(...parts)=>parts.join('/'),readFile:async path=>{
+    const id=path.match(/states\/([^/]+)\.json$/)?.[1];assert.ok(id,'only durable run state is read');
+    return JSON.stringify({version:2,items:{},pending:true,faceJournal:'/data/runs/'+(id==='draft'?'existing':id)+'/shared-faces.json'});
+  }}});
+  const view=render(h(Panel,{sdk,context,ui}));
+  const update=async patch=>{context={...context,...patch};await tick(()=>view.rerender(h(Panel,{sdk,context,ui})));};
+  const click=async name=>tick(()=>fireEvent.click(view.getByRole('button',{name})));
+  return {view,click,update,cancelCalls,editorCalls,runs,get finishCancel(){return finishCancel;},get activeEnv(){return activeEnv;}};
 }
 
 test('reopening a pending styled Draft offers Resume; explicit AI cancel detaches after canceling the saved job',async()=>{
-  const h=styleHarness();h.render();const cleanup=h.effects[1]();
-  await new Promise(resolve=>setImmediate(resolve));const panel=h.render();
-  assert.equal(panel.actionLabel,'Resume styling');assert.equal(h.states[3],false,'a pending suffix Draft stays actionable');
-  const running=panel.create();
-  for(let i=0;!h.release&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  assert.ok(h.release);assert.equal(h.activeEnv.signal.aborted,false);
-  await panel.cancelFaces();assert.equal(h.activeEnv.signal.aborted,true);
-  assert.deepEqual(h.cancelCalls,[['project','/data/runs/existing/shared-faces.json']]);
-  h.release();await running;assert.deepEqual(h.editorCalls,[],'canceled observation cannot open a late result');
-  assert.equal(h.states[9],true);cleanup();
+  const f=styleHarness();await tick();
+  assert.equal(f.view.getByRole('button',{name:'Resume styling'}).disabled,false);
+  assert.match(f.view.container.textContent,/Project: Project project/);
+  assert.match(f.view.container.textContent,/Draft: Draft · Chris Williamson Style/);
+  await f.click('Resume styling');assert.equal(f.runs.length,1);
+  const run=f.runs[0];assert.equal(run.env.signal.aborted,false);
+  await f.click('Cancel AI job');assert.equal(run.env.signal.aborted,true);
+  assert.deepEqual(f.cancelCalls,[['project','/data/runs/existing/shared-faces.json']]);
+  await tick(()=>run.resolve({draftId:'draft'}));
+  assert.deepEqual(f.editorCalls,[],'canceled observation cannot open a late result');
+  assert.equal(f.view.getByRole('button',{name:'Resume styling'}).disabled,false);
 });
 
 test('normal panel unmount detaches without calling cancel and ignores late completion',async()=>{
-  const h=styleHarness();const panel=h.render();const cleanup=h.effects[1]();
-  await new Promise(resolve=>setImmediate(resolve));const running=panel.create();
-  for(let i=0;!h.release&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  assert.ok(h.release);cleanup();assert.equal(h.activeEnv.signal.aborted,true);
-  h.release();await running;assert.deepEqual(h.cancelCalls,[]);assert.deepEqual(h.editorCalls,[]);
+  const f=styleHarness();await tick();await f.click('Resume styling');assert.equal(f.runs.length,1);
+  const run=f.runs[0];f.view.unmount();assert.equal(run.env.signal.aborted,true);
+  await tick(()=>run.resolve({draftId:'draft'}));assert.deepEqual(f.cancelCalls,[]);assert.deepEqual(f.editorCalls,[]);
 });
 
-
 test('a late face-stage callback from the old Draft cannot overwrite the new cancellation target',async()=>{
-  const h=styleHarness();h.render();const cleanup=h.effects[1]();
-  await new Promise(resolve=>setImmediate(resolve));const first=h.render().create();
-  for(let i=0;h.runs.length<1&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  const old=h.runs[0];assert.ok(old);cleanup();
-  h.props.context={projectId:'next-project',sequenceId:'next-draft'};
-  h.render();const nextCleanup=h.effects.at(-1)();
-  await new Promise(resolve=>setImmediate(resolve));const nextPanel=h.render();const second=nextPanel.create();
-  for(let i=0;h.runs.length<2&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  const current=h.runs[1];assert.ok(current);
-  old.env.onFaceStage(false,'/data/runs/existing/shared-faces.json');
-  assert.equal(h.states[10],true,'the old finally cannot hide the new AI stage');
-  await h.render().cancelFaces();
-  assert.deepEqual(h.cancelCalls,[['next-project','/data/runs/next-draft/shared-faces.json']]);
-  assert.equal(current.env.signal.aborted,true);old.release();current.release();
-  await Promise.all([first,second]);nextCleanup();
+  const f=styleHarness();await tick();await f.click('Resume styling');const old=f.runs[0];assert.ok(old);
+  await f.update({projectId:'next-project',sequenceId:'next-draft'});
+  await f.click('Resume styling');const current=f.runs[1];assert.ok(current);
+  await tick(()=>old.env.onFaceStage(false,'/data/runs/existing/shared-faces.json'));
+  assert.ok(f.view.getByRole('button',{name:'Cancel AI job'}),'old finally cannot hide new AI stage');
+  await f.click('Cancel AI job');
+  assert.deepEqual(f.cancelCalls,[['next-project','/data/runs/next-draft/shared-faces.json']]);
+  assert.equal(current.env.signal.aborted,true);
+  await tick(()=>{old.resolve({draftId:'draft'});current.resolve({draftId:'next-draft'});});
 });
 
 test('old cancellation completion cannot detach a newly opened Draft or overwrite its status',async()=>{
-  const h=styleHarness({deferCancel:true});h.render();const cleanup=h.effects[1]();
-  await new Promise(resolve=>setImmediate(resolve));const first=h.render().create();
-  for(let i=0;h.runs.length<1&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  const old=h.runs[0];assert.ok(old);const cancel=h.render().cancelFaces();
-  assert.equal(h.states[11],true);cleanup();
-  h.props.context={projectId:'next-project',sequenceId:'next-draft'};
-  h.render();const nextCleanup=h.effects.at(-1)();
-  await new Promise(resolve=>setImmediate(resolve));assert.equal(h.states[11],false,'new context is not canceling');
-  const second=h.render().create();
-  for(let i=0;h.runs.length<2&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  const current=h.runs[1];assert.ok(current);current.env.status('New job running');
-  h.finishCancel();await cancel;
-  assert.equal(current.env.signal.aborted,false,'previous cancel only detaches its own controller');
-  assert.equal(h.states[6],'New job running');assert.equal(h.states[10],true);
-  old.release();current.release();await Promise.all([first,second]);nextCleanup();
+  const f=styleHarness({deferCancel:true});await tick();await f.click('Resume styling');const old=f.runs[0];assert.ok(old);
+  await f.click('Cancel AI job');assert.equal(f.view.getByRole('button',{name:'Cancel AI job'}).disabled,true);
+  await f.update({projectId:'next-project',sequenceId:'next-draft'});await f.click('Resume styling');
+  const current=f.runs[1];assert.ok(current);
+  await tick(()=>current.env.status('New job running'));
+  await tick(()=>f.finishCancel());assert.equal(current.env.signal.aborted,false,'previous cancel only detaches its own controller');
+  assert.ok(f.view.getByText('New job running'));assert.equal(f.view.getByRole('button',{name:'Cancel AI job'}).disabled,false);
+  await tick(()=>{old.resolve({draftId:'draft'});current.resolve({draftId:'next-draft'});});
 });
-
 
 test('a late transcript observation cannot mark the newly opened Draft ready',async()=>{
   let releaseTranscript;
-  const h=styleHarness({transcriptRead:async(_sdk,_pid,sid,summary)=>{
+  const f=styleHarness({transcriptRead:async(_sdk,_pid,sid,summary)=>{
     if(sid==='draft'&&summary==='Check transcript analysis')return await new Promise(resolve=>releaseTranscript=()=>resolve({words:12,resource:{status:'analyzed'}}));
     return {name:'Unfinished Draft',words:0,sourceResourceId:'r3',resource:{status:'analyzing'}};
   }});
-  h.render();const cleanup=h.effects[1]();await new Promise(resolve=>setImmediate(resolve));
-  const first=h.render().create();
-  for(let i=0;!releaseTranscript&&i<10;i++)await new Promise(resolve=>setImmediate(resolve));
-  assert.ok(releaseTranscript);cleanup();
-  h.props.context={projectId:'next-project',sequenceId:'next-draft'};
-  h.render();const nextCleanup=h.effects.at(-1)();await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(h.states[4],'analyzing');releaseTranscript();await first;
-  assert.equal(h.states[4],'analyzing','old ready result must not replace the current transcript state');
-  assert.equal(h.states[6],'');assert.equal(h.runs.length,0);assert.deepEqual(h.editorCalls,[]);nextCleanup();
+  await tick();await f.click('Resume styling');assert.ok(releaseTranscript);
+  await f.update({projectId:'next-project',sequenceId:'next-draft'});
+  assert.ok(f.view.getByText(/Project: Project next-project/));
+  await tick(()=>releaseTranscript());
+  assert.ok(f.view.getByText(/no transcript yet|One click turns/));
+  assert.equal(f.runs.length,0);assert.deepEqual(f.editorCalls,[]);
+  // The actual current analysis state must still choose the transcript busy
+  // label, rather than the styling label implied by the stale ready response.
+  await f.click('Resume styling');
+  const button=f.view.getByRole('button',{name:'Resume styling'});assert.ok(button.disabled);
+  assert.equal(button.getAttribute('data-busy-label'),'Analyzing transcript…');
+  assert.ok(f.view.getByText(/Analyzing the transcript/));f.view.unmount();
+});
+
+
+test('a new local target dependency resolves through the complete module without a helper list',async()=>{
+  const expression='TARGET_UI[String(context?.language||"en").toLowerCase().split("-")[0]]||TARGET_UI.en';
+  assert.ok(production.includes(expression));
+  const expanded=production.replace(expression,'newTargetDependency(context)')+
+    '\nfunction newTargetDependency(context) { return TARGET_UI[String(context?.language||"en").toLowerCase().split("-")[0]]||TARGET_UI.en; }\n';
+  const f=styleHarness({source:expanded});await tick();
+  assert.match(f.view.container.textContent,/Project: Project project/);
+  assert.match(f.view.container.textContent,/Draft: Draft · Chris Williamson Style/);
+  assert.equal(f.view.getByRole('button',{name:'Resume styling'}).disabled,false);
+});
+
+test('a delayed old target read cannot replace the current rendered Project and Draft',async()=>{
+  const oldReads=[];
+  const f=styleHarness({transcriptRead:async(_sdk,_pid,sid,summary)=>{
+    if(sid==='draft'&&summary==='Check draft transcript'){
+      const gate=deferred();oldReads.push(gate);return gate.promise;
+    }
+    return {name:'Current target',words:12,resource:{status:'analyzed'}};
+  }});
+  await tick();assert.ok(oldReads.length);
+  await f.update({projectId:'next-project',sequenceId:'next-draft'});
+  assert.match(f.view.container.textContent,/Project: Project next-project/);
+  assert.match(f.view.container.textContent,/Draft: Current target/);
+  await tick(()=>oldReads.forEach(gate=>gate.resolve({name:'Stale target',words:12,resource:{status:'analyzed'}})));
+  assert.doesNotMatch(f.view.container.textContent,/Stale target|Project: Project project/);
+  assert.equal(f.view.container.querySelector('[data-draft-id]').getAttribute('data-draft-id'),'next-draft');
 });

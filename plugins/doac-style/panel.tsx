@@ -388,6 +388,16 @@ export function captionFit(frame){
 // panel and the headless template run. `onStatus` reports progress; `persist`
 // records each job checkpoint (the panel keeps them so an interrupted save can
 // resume; a template run keeps them in memory only).
+// Atlas bounds use the renderer's 540×960 working canvas. Ordinary 52px
+// reference text ends around y=739 (baseline 1460 in 1080×1920); 740 keeps
+// that established lower edge while taller blocks grow upward.
+export function stableCaptionPayload(data){
+ if(!Number.isFinite(data?.y)||!Number.isFinite(data?.h)||data.h<=0)throw Error('The caption bounds are unavailable.');
+ return {...data,y:740-data.h};
+}
+function doacPortraitScript(pid,sid){
+ return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});if((await d.motionGraphics()).length)throw Error('This draft already contains generated graphics. Open the original draft without captions.');await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}});}await d.commitAll('Frame DOAC Style template to portrait');return true;`;
+}
 function captionSteps({sdk,currentProject,onStatus,persist}){
  hostUseSdk(sdk);
  function fs(){const f=hostSdk.files;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdir||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
@@ -518,7 +528,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  sameProject(j);onStatus(`Adding captions · ${i+1} / ${j.manifest.scenes.length}`);
  let committing=false;
  try{
- const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));await persist({...j,uncertain:true});
+ const scene=j.manifest.scenes[i],data=stableCaptionPayload(JSON.parse(await read(scene.payload)));await persist({...j,uncertain:true});
  committing=true;
  // Every saved scene adds one video clip, so the expected count is the base plus the scenes saved so far.
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const all=await d.clips({trackScope:'all'});if(all.filter(c=>c.trackKind==='video').length!==${j.baseCount+j.clipIds.length})throw Error('The result draft changed. Saving stopped to avoid duplicate captions.');const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+scene.template+' · '+scene.text)},within:await d.rangeAtFrames(${scene.start},${scene.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});${place}await d.commitAll('Add approved caption scene');return {clipId:r.clipId};`,'Save approved caption scene',true);
@@ -530,7 +540,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  onStatus('Your captioned draft is ready.');if(open)await run(`return await selects.editor.openDraft(${JSON.stringify(j.targetId)});`,'Open DOAC Style draft');
  return {job:j,failed};
  }
- return {fs,read,run,sameProject,compile,createFromClip,prepare,create};
+ return {fs,read,run,sameProject,compile,createFromClip,prepare,create,framePortrait:(pid,sid)=>run(doacPortraitScript(pid,sid),'Frame DOAC Style template to portrait',true)};
 }
 const TEMPLATE_ERRORS={
  'no-project':'Open a project, then try again.',
@@ -572,13 +582,15 @@ async function runCaptionTemplate({sdk,context,currentProject,onStatus,onJob=()=
    await persist({projectId:pid,sourceId:made.id,resourceId:source.resourceId,uncertain:false});
   }else await persist({projectId:pid,sourceId:source.sequenceId,uncertain:false});
  }
- const prepared=job.manifest?job:await steps.prepare({projectId:pid,sourceId:job.sourceId,anyAspect:true,resume:job,
+ if(!job.manifest&&!job.portrait){await persist({...job,uncertain:true});await steps.framePortrait(pid,job.sourceId);await persist({...job,portrait:true,uncertain:false});}
+ const prepared=job.manifest?job:await steps.prepare({projectId:pid,sourceId:job.sourceId,anyAspect:false,resume:job,
   cacheKey:source.kind==='video'?'video-'+String(source.resourceId).replace(/[^\w-]/g,'_'):job.sourceId});
- return await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
+ return await steps.create(prepared,{open:false,fit:false,skipFailedScenes:true,inPlace:true});
 }
 function TemplateRun({sdk,context}){
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
  const [status,setStatus]=useState('Starting DOAC Style…');
+ const [finishedRun,setFinishedRun]=useState(null);
  const started=useRef(new Set()),live=useRef(null),project=useRef(context.projectId),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  project.current=context.projectId;
@@ -588,7 +600,7 @@ function TemplateRun({sdk,context}){
   started.current.add(runId);
   let done=false,job=null;
   // A superseded run stays quiet: the runtime reports under the current run id.
-  const finish=result=>{if(done)return;done=true;if(live.current===runId)sdk.finishTemplate(result);};
+  const finish=result=>{if(done)return;done=true;if(live.current===runId){setStatus('sequenceId' in result?'Done.':result.error);setFinishedRun(runId);sdk.finishTemplate(result);}};
   (async()=>{
    try{
     const result=await runCaptionTemplate({sdk,context,currentProject:()=>project.current,onStatus:setStatus,onJob:j=>{job=j;},isCurrent:()=>mounted.current&&live.current===runId});
@@ -600,14 +612,30 @@ function TemplateRun({sdk,context}){
    }
   })().catch(()=>finish({error:TEMPLATE_FALLBACK}));
  },[runId]);
- return <small>{status}</small>;
+ return <TemplateProgressView runId={runId} status={status} terminal={finishedRun===runId}/>;
 }
 function Panel(props){
   hostUseSdk(props.sdk);return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
 function CaptionPanel({sdk,context,ui}) {
+ const DOAC_TARGET_LABELS={"en":{"heading":"Caption target","project":"Project","current":"Current draft","source":"Caption source draft","result":"Caption result draft","noProject":"Open a project to begin.","noDraft":"Open a draft to begin.","loading":"Reading target\u2026","unavailable":"Name unavailable.","unnamedProject":"Untitled project"},"ko":{"heading":"\uc790\ub9c9 \uc791\uc5c5 \ub300\uc0c1","project":"\ud504\ub85c\uc81d\ud2b8","current":"\ud604\uc7ac Draft","source":"\uc790\ub9c9 \uc6d0\ubcf8 Draft","result":"\uc790\ub9c9 \uacb0\uacfc Draft","noProject":"\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","noDraft":"Draft\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","loading":"\ub300\uc0c1\uc744 \ud655\uc778\ud558\ub294 \uc911\u2026","unavailable":"\uc774\ub984\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.","unnamedProject":"\uc81c\ubaa9 \uc5c6\ub294 \ud504\ub85c\uc81d\ud2b8"}};
   useAppUpdateGuard(sdk, context?.language, () => !!(busy || lock.current || !!pendingSave.current || editing || storageLoading || !!job?.uncertain));
- const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[job,setJob]=useState(null),[index,setIndex]=useState(0),[text,setText]=useState(''),[preview,setPreview]=useState(''),[editing,setEditing]=useState(false),[sourceName,setSourceName]=useState(''),[pendingPlan,setPendingPlan]=useState(false);
- useEffect(()=>{let live=true;if(!context.sequenceId){setSourceName('');return;}sdk.runScript({script:`return await selects.draft(${JSON.stringify(context.sequenceId)}).meta();`,summary:'Read current draft'}).then(r=>{if(live)setSourceName(r.result?.name||'');}).catch(()=>{});return()=>{live=false;};},[context.sequenceId]);
+ const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[job,setJob]=useState(null),[index,setIndex]=useState(0),[text,setText]=useState(''),[preview,setPreview]=useState(''),[editing,setEditing]=useState(false),[targetInfo,setTargetInfo]=useState(null),[pendingPlan,setPendingPlan]=useState(false);
+ const targetScope={projectId:context.projectId||null,currentId:context.sequenceId||null,sourceId:job?.projectId===context.projectId?job.sourceId||null:null,resultId:job?.projectId===context.projectId?job.targetId||null:null};
+ const targetKey=JSON.stringify(targetScope),targetCurrent=useRef(targetKey);targetCurrent.current=targetKey;
+ useEffect(()=>{
+  let live=true;const captured={...targetScope},key=targetKey;
+  const publish=value=>{if(live&&targetCurrent.current===key)setTargetInfo({key,...value});};
+  publish({status:captured.projectId?'loading':'empty'});
+  if(captured.projectId){
+   sdk.runScript({script:`const p=await selects.project(${JSON.stringify(captured.projectId)}).meta();const names={};for(const id of ${JSON.stringify([...new Set([captured.currentId,captured.sourceId,captured.resultId].filter(Boolean))])}){names[id]=p.draftIds.includes(id)?(await selects.draft(id).meta()).name:null;}return {projectName:p.title,names};`,summary:'Read caption target names',allowCommit:false})
+    .then(r=>{if(r.isError||!r.result||!r.result.names)throw Error('Target metadata unavailable');publish({status:'ready',projectName:r.result.projectName,names:r.result.names});})
+    .catch(()=>publish({status:'failed'}));
+  }
+  return()=>{live=false;};
+ },[sdk,targetKey]);
+ const targetLabels=DOAC_TARGET_LABELS[String(context.language||'').toLowerCase().startsWith('ko')?'ko':'en'];
+ const displayedTarget=targetInfo?.key===targetKey?targetInfo:null;
+ const targetName=id=>!id?targetLabels.noDraft:displayedTarget?.status==='ready'?(displayedTarget.names[id]||targetLabels.unavailable):displayedTarget?.status==='failed'?targetLabels.unavailable:targetLabels.loading;
  const lock=useRef(false),project=useRef(context.projectId);project.current=context.projectId;
  const key='doac-style-'+PLAN_VERSION+'-'+context.projectId;
  const [restoredKey,setRestoredKey]=useState(null),readyKey=useRef(null),pendingSave=useRef(null),latestJob=useRef(null),activeKey=useRef(key);activeKey.current=key;
@@ -640,6 +668,12 @@ function CaptionPanel({sdk,context,ui}) {
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
  const complete=job?.targetId&&job.next===job.editorial.length;
  return <ui.Section title="DOAC Style"><ui.Stack>
+ <div aria-label={targetLabels.heading}>
+ <p><strong>{targetLabels.project}</strong>: {!targetScope.projectId?targetLabels.noProject:displayedTarget?.status==='ready'?(displayedTarget.projectName||targetLabels.unnamedProject):displayedTarget?.status==='failed'?targetLabels.unavailable:targetLabels.loading}</p>
+ <p><strong>{targetLabels.current}</strong>: {targetName(targetScope.currentId)}</p>
+ {targetScope.sourceId&&<p><strong>{targetLabels.source}</strong>: {targetName(targetScope.sourceId)}</p>}
+ {targetScope.resultId&&<p><strong>{targetLabels.result}</strong>: {targetName(targetScope.resultId)}</p>}
+ </div>
  {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English and Korean talking-head videos.</small>
  <ui.Button onClick={()=>load()} disabled={storageLoading||busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
@@ -972,3 +1006,50 @@ function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: 
   }, [sdk?.updates]);
 }
 // app-update-guard:end
+
+// template-progress-adapter:start
+const sharedTemplateProgress=(()=>{const module={exports:{}};
+// template-progress:start
+// Read-only progress presentation. Existing consumer callbacks remain the only
+// source of stage information; clock ticks never imply work or completion.
+function createTemplateProgressView(React, timing = {}) {
+  const now = timing.now || (() => typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const schedule = timing.schedule || ((fn, ms) => setInterval(fn, ms));
+  const cancel = timing.cancel || (id => clearInterval(id));
+  const thresholdSeconds = 120;
+  return function TemplateProgressView({runId, status, busy = true, terminal = false}) {
+    const message = typeof status === 'string' && status.trim() ? status.trim() : 'Waiting for the first step…';
+    const snapshot = React.useRef(null);
+    const [, tick] = React.useState(0);
+    const stamp = now();
+    if (!snapshot.current || snapshot.current.runId !== runId) {
+      snapshot.current = {runId, message, changedAt: stamp, terminal: false};
+    }
+    const current = snapshot.current;
+    if (!current.terminal) {
+      if (current.message !== message) { current.message = message; current.changedAt = stamp; }
+      if (terminal || !busy) current.terminal = true;
+    }
+    const running = !current.terminal;
+    React.useEffect(() => {
+      if (!running) return;
+      let attached = true;
+      const timer = schedule(() => { if (attached) tick(value => value + 1); }, 1000);
+      return () => { attached = false; cancel(timer); };
+    }, [runId, running]);
+    const seconds = Math.floor(Math.max(0, stamp - current.changedAt) / 1000);
+    const h = React.createElement;
+    return h('section', {'aria-label': 'Template run progress', style: {display: 'grid', gap: 4, padding: '8px 0'}},
+      h('small', {role: 'status'}, running ? 'Current step: ' + current.message : current.message),
+      running && h('small', {'data-progress-age': true}, 'Last step change: ' + seconds + ' s ago.'),
+      running && seconds >= thresholdSeconds && h('p', {role: 'status', style: {margin: 0}},
+        'No new step update for ' + seconds + ' s. Completion has not been confirmed.'),
+      !running && h('small', null, 'Run finished.'),
+    );
+  };
+}
+module.exports = {createTemplateProgressView};
+// template-progress:end
+return module.exports;})();
+const TemplateProgressView=sharedTemplateProgress.createTemplateProgressView(React);
+// template-progress-adapter:end

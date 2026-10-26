@@ -135,69 +135,66 @@ for (const plugin of ['card-news-maker', 'shortform-cloner']) {
   });
 }
 
-function depthFunction(name, endMarker, globals) {
-  // Component excerpts exclude the shared hook; full guard behavior has separate React tests.
-  globals = {useAppUpdateGuard:()=>{}, ...globals};
+async function depthModule(sdk, React = {}) {
+  const {loadPanelModule} = await import('./panel_module_fixture.mjs');
   const source = fs.readFileSync(path.join(root, 'plugins/depth-type-captions/panel.tsx'), 'utf8');
-  const start = source.indexOf(`function ${name}(`);
-  const functionStart = source.slice(start - 6, start) === 'async ' ? start - 6 : start;
-  const code = source.slice(functionStart, source.indexOf(endMarker, start));
-  return new Function(...Object.keys(globals), `${code}; return ${name};`)(...Object.values(globals));
+  const api = loadPanelModule(source, {React, names: [
+    'createPanelLocalClient', 'panelLocalClients', 'hostUseSdk',
+    'DepthTemplateRun', 'depthMakeCaptions', 'DEPTH_DEFAULTS',
+  ]});
+  const local = await api.createPanelLocalClient(sdk);
+  api.panelLocalClients.set(sdk, {...sdk, ...local});
+  api.hostUseSdk(sdk);
+  return api;
 }
 
 test('depth template: cancellation during a pending checkpoint prevents Draft creation', async () => {
-  const checkpoint = defer();
-  const checkpointStarted = defer();
-  let cleanup;
+  const checkpoint = defer(), checkpointStarted = defer(), effects = [];
   let commits = 0;
   const sdk = {
-    runScript: async () => { commits++; return {result: {id: 'should-not-exist'}}; },
-    finishTemplate: () => {},
-  };
-  const Template = depthFunction('DepthTemplateRun', '\nfunction DepthVideo(', {
-    useRef: value => ({current: value}), useState: value => [value, () => {}],
-    useEffect: effect => { cleanup = effect(); }, h: () => null,
-    depthStorage: () => ({getItem: async () => null}),
-    depthSave: async (_key, record) => {
-      if (record.status === 'pending') { checkpointStarted.resolve(); await checkpoint.promise; }
+    storage: {getItem: async () => null, setItem: async (_key, value) => {
+      if (JSON.parse(value).status === 'pending') { checkpointStarted.resolve(); await checkpoint.promise; }
+    }},
+    runScript: async input => {
+      if (input.script.includes('selects.files.environment(')) return {result: {platform:'darwin',homedir:'/qa',version:'2.0.671'}};
+      if (input.allowCommit) commits++;
+      throw Error('Cancellation must prevent the Draft boundary');
     },
-    depthHostProblem: () => false, DEPTH_CLOUD_MASKS: true,
-    DEPTH_TAG: 'depth-type-captions-v1', DEPTH_TEMPLATE_FAILED: 'failed', DEPTH_TEMPLATE_ERRORS: {},
-    depthClipBaseName: name => name, depthClipDraftScript: () => 'create',
-    depthTemplateError: code => new Error(code), console,
+    finishTemplate: () => assert.fail('A detached run cannot finish'),
+  };
+  const api = await depthModule(sdk, {
+    useRef: value => ({current: value}), useState: value => [value, () => {}],
+    useEffect: effect => effects.push(effect), createElement: () => null,
   });
-  Template({sdk, context: {projectId: 'P', template: {runId: 'R', libraryId: 'L', inputs: {speaker: [{kind: 'video', resourceId: 'V', name: 'Video'}]}}}});
+  api.DepthTemplateRun({sdk, context: {projectId: 'P', template: {runId: 'R', libraryId: 'L', inputs: {speaker: [{kind: 'video', resourceId: 'V', name: 'Video'}]}}}});
+  const cleanups = effects.map(effect => effect()).filter(value => typeof value === 'function');
   await checkpointStarted.promise;
-  cleanup();
+  cleanups.forEach(cleanup => cleanup());
   checkpoint.resolve();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(commits, 0, 'A released persistence checkpoint cannot resurrect a canceled template');
 });
 
 test('depth captions: cancellation during cutaway restoration prevents applying captions', async () => {
-  const cutawayRead = defer();
-  const cutawayStarted = defer();
-  let reads = 0;
-  let commits = 0;
+  const cutawayRead = defer(), cutawayStarted = defer();
+  let reads = 0, commits = 0;
   const control = {canceled: false};
-  const Make = depthFunction('depthMakeCaptions', '\n// --- Template run:', {
-    DEPTH_TAG: 'depth-type-captions-v1', depthStorage: () => ({getItem: async () => null}),
-    depthSave: async () => {}, depthReadScript: () => 'read',
-    depthComposeFromWords: () => [{start: 0, end: 1}],
-    depthCutawayRefs: async () => {
-      if (++reads === 2) { cutawayStarted.resolve(); return cutawayRead.promise; }
-      return [];
+  const sdk = {
+    storage: {getItem: async key => {
+      if (key.includes(':broll:') && ++reads === 2) { cutawayStarted.resolve(); return cutawayRead.promise; }
+      return null;
+    }, setItem: async () => {}},
+    runScript: async input => {
+      if (input.script.includes('selects.files.environment(')) return {result: {platform:'darwin',homedir:'/qa',version:'2.0.671'}};
+      if (input.allowCommit) commits++;
+      return {result: {fps:30,width:1080,height:1920,duration:2,words:['This','is','one','complete','spoken','sentence'].map((text,i)=>({text,s:i*10,e:(i+1)*10}))}};
     },
-    depthFallbackPlacement: async row => row, depthCleanPlan: rows => rows,
-    depthApplyScript: () => ({script: 'apply'}),
-  });
-  const operation = Make({
-    sdk: {runScript: async args => { if (args.allowCommit) commits++; return {result: {owned: {clipId: 'C'}}}; }},
-    pid: 'P', sid: 'D', settings: {depth: false}, control, progress: () => {},
-  });
+  };
+  const api = await depthModule(sdk);
+  const operation = api.depthMakeCaptions({sdk, pid:'P', sid:'D', settings:{...api.DEPTH_DEFAULTS,depth:false}, control, progress:()=>{}});
   await cutawayStarted.promise;
   control.canceled = true;
-  cutawayRead.resolve([]);
+  cutawayRead.resolve(null);
   await assert.rejects(operation, /Canceled/);
   assert.equal(commits, 0);
 });

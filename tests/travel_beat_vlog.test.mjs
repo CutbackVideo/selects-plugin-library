@@ -171,7 +171,7 @@ test('both photo panels bundle the current shared journal and canonical resource
   const source=fs.readFileSync(path.resolve(dir,'..',id,'panel.tsx'),'utf8');
   for(const [marker,binding,file]of [['jobs','sharedAiJobs','ai-job-client.cjs'],['resources','sharedAiResources','ai-resources.cjs']]){
    const start='//shared-ai-'+marker+':start',end='//shared-ai-'+marker+':end';
-   const expected=start+'\nconst '+binding+' = (()=>{const module={exports:{}};\n'+fs.readFileSync(path.resolve(dir,'../../shared',file),'utf8')+'\nreturn module.exports;})();\n'+end;
+   const expected=start+'\nconst '+binding+' = (()=>{const module={exports:{}};\n'+(marker==='jobs'?'// ai-job-client:start\n':'')+fs.readFileSync(path.resolve(dir,'../../shared',file),'utf8').trimEnd()+(marker==='jobs'?'\n// ai-job-client:end\n':'\n')+'\nreturn module.exports;})();\n'+end;
    assert.equal(source.slice(source.indexOf(start),source.indexOf(end)+end.length),expected,id+' '+marker);
   }
  }

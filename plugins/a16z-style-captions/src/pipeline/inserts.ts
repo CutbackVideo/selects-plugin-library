@@ -1,7 +1,7 @@
 // B-roll inserts (spec 9): full-bleed literal footage over the speaker for a phrase at a time. A run
 // starts on a word onset, lasts 2-5.5 s and holds 1-4 shots of about 1.4 s; the first run waits for
 // the opening line, the last 1.5 s stay on the speaker, and coverage stays under 60%.
-import { fs, hostFF, sleep, type Sdk } from "./host";
+import { isTerminalMediaFailure, fs, hostFF, sleep, type Sdk } from "./host";
 import { searchCandidates, cutCandidate, stockSearchAvailable, probeDuration, type StockClip, type Candidate } from "./stock";
 import type { Word, Span } from "../captions/types";
 
@@ -141,11 +141,11 @@ export async function fetchInserts(
   // black gives way to the next one
   const cut = async (cand: Candidate, s: InsertShot) => {
     onTick("Cutting footage " + (out.length + 1));
-    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
+    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch((error) => { if (isTerminalMediaFailure(error)) throw error; return null; });
     if (!clip) return null;
-    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
+    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch((error) => { if (isTerminalMediaFailure(error)) throw error; return null; });
     if (whole != null && whole < 28) return null;
-    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null) };
+    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch((error) => { if (isTerminalMediaFailure(error)) throw error; return null; }) };
   };
   for (let r = 0; r < todo.length; r += 1) {
     const run = todo[r];

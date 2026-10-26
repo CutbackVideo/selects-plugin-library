@@ -1,0 +1,13 @@
+# Recap manual focus source evidence
+
+Manual `focusX` / `focusY` already uses the same cover geometry as automatic focus. It does not depend on a face job, a face journal, or a sampled source clock. Previously the preparation step excluded manual slots from its AI ranges and consequently never collected their original-file evidence. A later batch rejected a manual-only source with `Face analysis source evidence missing`; the intro instead silently skipped this check. An unavailable AI capability or storage also discarded otherwise valid manual coordinates.
+
+The consumer now fingerprints sources used by manual placements through the existing public file observations, separately from face jobs. Both manual and automatic evidence contains the persistent resource ID and original path. Before authoring, current aliases and Project paths must still match that evidence; each authoring script retains its existing size/SHA check. A focused intro now requires evidence as the batches already did. A mismatched analysis frame grid still removes automatic transforms; manual geometry remains independent of that grid.
+
+No fit mode, controls, music, source windows, cut plan, public SDK, app, shared module, or storage namespace changed. These separate read operations cannot provide an atomic cross-call Project snapshot; mismatches observed before authoring are rejected rather than silently reconnected.
+
+`tests/recap_manual_source_guard.test.mjs` compiles the entire production panel. Real `buildRecap`, beat planning, preparation, generated intro/batch/finish scripts, hashing, alias resolution and job client execute. Only external files, media measurement, SDK/AI and Draft methods are fixtures. It covers all-manual and manual-only mixed resources, missing AI/storage/source fps, differing actual fps, byte/path/persistent-ID changes, alias rebinding after the intro, evidence omission, preserved automatic behavior, and unchanged source ranges/music/title commits. The existing intro grid fixture now supplies actual bytes and their SHA instead of omitting the newly mandatory evidence.
+
+Before the product patch, the first whole-flow suite had 8 failures and 1 automatic-path pass. The final focused suite has 64 passes, no skips, including existing Recap input/preview/identity/type-check coverage and Gallery/Recap job budget/source-guard coverage. Test logs remain in the task evidence directory under `round4/photo/recap-manual-source-guard/`.
+
+These are offline whole-module fixtures. Actual application execution, persisted Draft readback, playback and export remain separate verification steps.

@@ -142,9 +142,6 @@ const STRINGS = {
     beatFailed: "beat detection failed",
     beatTimeout: "beat detection took too long",
     previewFailed: "Could not play a preview: {detail}.",
-    noAudio: "no audio came back",
-    draftNoId: "The Draft \"{name}\" may have been saved, but Selects did not report its id. Open it from the Drafts list, or build again.",
-    draftEmpty: "The Draft \"{name}\" has no clips. Build again.",
     finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
     openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
@@ -158,6 +155,8 @@ const STRINGS = {
     unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
     createsDraft: "Creates a new 16:9 Draft",
     finishTitle: "Finish title and look",
+    finishUnconfirmed: "The Draft exists, but its title and look could not be confirmed. Inspect the Draft before starting another run.",
+    confirmDraft: "Check saved Draft",
     anotherVersion: "Try other shots",
     build: "Build",
     building: "Building",
@@ -191,15 +190,12 @@ const STRINGS = {
     "tpl.files": "Reading the chosen files",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Done",
-    "tpl.noFootage": "Choose videos or photos for the footage, then try again.",
+    "tpl.noFootage": "Choose at least 2 different video clips and up to 50 files in total. Photos are optional.",
     "tpl.noMusic": "Archive Vlog's music is missing. Reinstall the plugin and try again.",
     "tpl.noStyles": "Archive Vlog's title styles are missing. Reinstall the plugin and try again.",
-    "tpl.notFound": "None of the chosen files could be found in this Project. Choose them again, then try again.",
     "tpl.notFoundDetail": "Selects said: {detail}",
     "tpl.notLocal": "These clips' original files aren't on this computer. Import them here or download the originals, then try again.",
     "tpl.notAnalysed": { one: "{count} video is still being added to the Project, so it could not be used.", other: "{count} videos are still being added to the Project, so they could not be used." },
-    "tpl.noTitle": "The Draft \"{name}\" may have been saved without its title. Open it from the Drafts list, or try again.",
-    "tpl.finishFailed": "The Draft was made, but its title and look could not be added. Try again.",
     "tpl.stoppedAt": "Archive Vlog stopped at this step: {step}. Try again.",
     "tpl.stopped": "Archive Vlog stopped before the Draft was ready. Try again.",
   },
@@ -328,9 +324,6 @@ const STRINGS = {
     beatFailed: "Beat-Erkennung fehlgeschlagen",
     beatTimeout: "Beat-Erkennung hat zu lange gedauert",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
-    noAudio: "es kam kein Audio zurück",
-    draftNoId: "Der Draft „{name}“ wurde möglicherweise gespeichert, aber Selects hat seine ID nicht gemeldet. Öffne ihn aus der Draft-Liste oder erstelle ihn erneut.",
-    draftEmpty: "Der Draft „{name}“ enthält keine Clips. Erstelle ihn erneut.",
     finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
     openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
     draftCreated: "Draft erstellt. Wähle den Titel oder den Credit, um Wörter, Farben, Größe oder Entschlüsselungstempo zu bearbeiten, einen Clip, um Zuschnitt, Look oder Bewegung anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
@@ -344,6 +337,8 @@ const STRINGS = {
     unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es nochmals zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um sie nochmals zu versuchen." },
     createsDraft: "Erstellt einen neuen 16:9-Draft",
     finishTitle: "Titel und Look fertigstellen",
+    finishUnconfirmed: "Der Draft ist vorhanden, aber Titel und Look konnten nicht bestätigt werden. Prüfe den Draft, bevor du einen weiteren Durchlauf startest.",
+    confirmDraft: "Gespeicherten Entwurf prüfen",
     anotherVersion: "Andere Aufnahmen probieren",
     build: "Erstellen",
     building: "Wird erstellt",
@@ -377,15 +372,12 @@ const STRINGS = {
     "tpl.files": "Ausgewählte Dateien lesen",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Fertig",
-    "tpl.noFootage": "Wähle Videos oder Fotos als Material aus und versuche es dann erneut.",
+    "tpl.noFootage": "W\u00e4hle mindestens 2 verschiedene Videoclips und insgesamt h\u00f6chstens 50 Dateien. Fotos sind optional.",
     "tpl.noMusic": "Die Musik von Archive Vlog fehlt. Installiere das Plugin neu und versuche es erneut.",
     "tpl.noStyles": "Die Titelstile von Archive Vlog fehlen. Installiere das Plugin neu und versuche es erneut.",
-    "tpl.notFound": "Keine der ausgewählten Dateien wurde in diesem Projekt gefunden. Wähle sie erneut aus und versuche es dann noch einmal.",
     "tpl.notFoundDetail": "Selects meldet: {detail}",
     "tpl.notLocal": "Die Originaldateien dieser Clips sind nicht auf diesem Computer. Importiere sie hier oder lade die Originale herunter und versuche es dann noch einmal.",
     "tpl.notAnalysed": { one: "{count} Video wird noch zum Projekt hinzugefügt und konnte daher nicht verwendet werden.", other: "{count} Videos werden noch zum Projekt hinzugefügt und konnten daher nicht verwendet werden." },
-    "tpl.noTitle": "Der Draft „{name}“ wurde möglicherweise ohne Titel gespeichert. Öffne ihn aus der Draft-Liste oder versuche es erneut.",
-    "tpl.finishFailed": "Der Draft wurde erstellt, aber Titel und Look konnten nicht hinzugefügt werden. Versuche es erneut.",
     "tpl.stoppedAt": "Archive Vlog wurde bei diesem Schritt abgebrochen: {step}. Versuche es erneut.",
     "tpl.stopped": "Archive Vlog wurde abgebrochen, bevor der Draft fertig war. Versuche es erneut.",
   },
@@ -514,9 +506,6 @@ const STRINGS = {
     beatFailed: "falló la detección del ritmo",
     beatTimeout: "la detección del ritmo tardó demasiado",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
-    noAudio: "no se recibió audio",
-    draftNoId: "Es posible que el Draft «{name}» se haya guardado, pero Selects no informó de su ID. Ábrelo desde la lista de Drafts o vuelve a crearlo.",
-    draftEmpty: "El Draft «{name}» no tiene clips. Vuelve a crearlo.",
     finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
     openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
     draftCreated: "Draft creado. Selecciona el título o el crédito para editar sus palabras, colores, tamaño o velocidad de descifrado; un clip para ajustar su encuadre, look o movimiento; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
@@ -530,6 +519,8 @@ const STRINGS = {
     unchecked: { one: "No se pudo comprobar {count} vídeo; se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; se omitieron. Vuelve a crear para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; se omitieron. Vuelve a crear para reintentarlos." },
     createsDraft: "Crea un nuevo Draft 16:9",
     finishTitle: "Terminar título y look",
+    finishUnconfirmed: "El Draft existe, pero no se pudieron confirmar el título y el look. Revisa el Draft antes de iniciar otra ejecución.",
+    confirmDraft: "Comprobar borrador guardado",
     anotherVersion: "Probar otros planos",
     build: "Crear",
     building: "Creando",
@@ -563,15 +554,12 @@ const STRINGS = {
     "tpl.files": "Leyendo los archivos elegidos",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Listo",
-    "tpl.noFootage": "Elige vídeos o fotos como material y vuelve a intentarlo.",
+    "tpl.noFootage": "Elige al menos 2 v\u00eddeos distintos y un m\u00e1ximo de 50 archivos en total. Las fotos son opcionales.",
     "tpl.noMusic": "Falta la música de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
     "tpl.noStyles": "Faltan los estilos de título de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
-    "tpl.notFound": "No se encontró ninguno de los archivos elegidos en este proyecto. Vuelve a elegirlos e inténtalo de nuevo.",
     "tpl.notFoundDetail": "Selects indica: {detail}",
     "tpl.notLocal": "Los archivos originales de estos clips no están en este ordenador. Impórtalos aquí o descarga los originales e inténtalo de nuevo.",
     "tpl.notAnalysed": { one: "{count} vídeo aún se está añadiendo al proyecto, así que no se pudo usar.", many: "{count} de vídeos aún se están añadiendo al proyecto, así que no se pudieron usar.", other: "{count} vídeos aún se están añadiendo al proyecto, así que no se pudieron usar." },
-    "tpl.noTitle": "Es posible que el Draft «{name}» se haya guardado sin su título. Ábrelo desde la lista de Drafts o vuelve a intentarlo.",
-    "tpl.finishFailed": "El Draft se creó, pero no se pudieron añadir el título y el look. Vuelve a intentarlo.",
     "tpl.stoppedAt": "Archive Vlog se detuvo en este paso: {step}. Vuelve a intentarlo.",
     "tpl.stopped": "Archive Vlog se detuvo antes de que el Draft estuviera listo. Vuelve a intentarlo.",
   },
@@ -700,9 +688,6 @@ const STRINGS = {
     beatFailed: "la détection du rythme a échoué",
     beatTimeout: "la détection du rythme a pris trop de temps",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
-    noAudio: "aucun son n'a été renvoyé",
-    draftNoId: "Le Draft « {name} » a peut-être été enregistré, mais Selects n'a pas indiqué son identifiant. Ouvrez-le depuis la liste des Drafts ou relancez la création.",
-    draftEmpty: "Le Draft « {name} » ne contient aucun clip. Relancez la création.",
     finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
     openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
     draftCreated: "Draft créé. Sélectionnez le titre ou le crédit pour modifier leurs mots, leurs couleurs, leur taille ou leur vitesse de déchiffrage, un clip pour ajuster son cadrage, son look ou son mouvement, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
@@ -716,6 +701,8 @@ const STRINGS = {
     unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
     createsDraft: "Crée un nouveau Draft 16:9",
     finishTitle: "Terminer le titre et le look",
+    finishUnconfirmed: "Le Draft existe, mais le titre et le look n’ont pas pu être confirmés. Vérifiez le Draft avant de lancer une autre exécution.",
+    confirmDraft: "Vérifier le montage enregistré",
     anotherVersion: "Essayer d'autres plans",
     build: "Créer",
     building: "Création",
@@ -749,15 +736,12 @@ const STRINGS = {
     "tpl.files": "Lecture des fichiers choisis",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Terminé",
-    "tpl.noFootage": "Choisissez des vidéos ou des photos comme images, puis réessayez.",
+    "tpl.noFootage": "Choisissez au moins 2 vid\u00e9os diff\u00e9rentes et 50 fichiers au maximum au total. Les photos sont facultatives.",
     "tpl.noMusic": "La musique d'Archive Vlog est introuvable. Réinstallez le plugin, puis réessayez.",
     "tpl.noStyles": "Les styles de titre d'Archive Vlog sont introuvables. Réinstallez le plugin, puis réessayez.",
-    "tpl.notFound": "Aucun des fichiers choisis n'a été trouvé dans ce projet. Choisissez-les à nouveau, puis réessayez.",
     "tpl.notFoundDetail": "Selects indique : {detail}",
     "tpl.notLocal": "Les fichiers originaux de ces clips ne sont pas sur cet ordinateur. Importez-les ici ou téléchargez les originaux, puis réessayez.",
     "tpl.notAnalysed": { one: "{count} vidéo est encore en cours d'ajout au projet et n'a donc pas pu être utilisée.", many: "{count} de vidéos sont encore en cours d'ajout au projet et n'ont donc pas pu être utilisées.", other: "{count} vidéos sont encore en cours d'ajout au projet et n'ont donc pas pu être utilisées." },
-    "tpl.noTitle": "Le Draft « {name} » a peut-être été enregistré sans son titre. Ouvrez-le depuis la liste des Drafts ou réessayez.",
-    "tpl.finishFailed": "Le Draft a été créé, mais le titre et le look n'ont pas pu être ajoutés. Réessayez.",
     "tpl.stoppedAt": "Archive Vlog s'est arrêté à cette étape : {step}. Réessayez.",
     "tpl.stopped": "Archive Vlog s'est arrêté avant que le Draft soit prêt. Réessayez.",
   },
@@ -886,9 +870,6 @@ const STRINGS = {
     beatFailed: "rilevamento del ritmo non riuscito",
     beatTimeout: "il rilevamento del ritmo ha richiesto troppo tempo",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
-    noAudio: "non è stato restituito alcun audio",
-    draftNoId: "Il Draft «{name}» potrebbe essere stato salvato, ma Selects non ne ha comunicato l'ID. Aprilo dall'elenco dei Draft o crealo di nuovo.",
-    draftEmpty: "Il Draft «{name}» non contiene clip. Crealo di nuovo.",
     finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
     openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
     draftCreated: "Draft creato. Seleziona il titolo o il credito per modificarne parole, colori, dimensione o velocità di decifrazione, una clip per regolarne inquadratura, look o movimento, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
@@ -902,6 +883,8 @@ const STRINGS = {
     unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
     createsDraft: "Crea un nuovo Draft 16:9",
     finishTitle: "Completa titolo e look",
+    finishUnconfirmed: "Il Draft esiste, ma titolo e look non sono stati confermati. Controlla il Draft prima di avviare una nuova esecuzione.",
+    confirmDraft: "Verifica bozza salvata",
     anotherVersion: "Prova altre inquadrature",
     build: "Crea",
     building: "Creazione",
@@ -935,15 +918,12 @@ const STRINGS = {
     "tpl.files": "Lettura dei file scelti",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Fatto",
-    "tpl.noFootage": "Scegli video o foto come materiale, poi riprova.",
+    "tpl.noFootage": "Scegli almeno 2 video diversi e non pi\u00f9 di 50 file in totale. Le foto sono facoltative.",
     "tpl.noMusic": "Manca la musica di Archive Vlog. Reinstalla il plugin e riprova.",
     "tpl.noStyles": "Mancano gli stili del titolo di Archive Vlog. Reinstalla il plugin e riprova.",
-    "tpl.notFound": "Nessuno dei file scelti è stato trovato in questo progetto. Sceglili di nuovo, poi riprova.",
     "tpl.notFoundDetail": "Selects segnala: {detail}",
     "tpl.notLocal": "I file originali di queste clip non sono su questo computer. Importale qui o scarica gli originali, poi riprova.",
     "tpl.notAnalysed": { one: "{count} video è ancora in fase di aggiunta al progetto, quindi non è stato possibile usarlo.", many: "{count} di video sono ancora in fase di aggiunta al progetto, quindi non è stato possibile usarli.", other: "{count} video sono ancora in fase di aggiunta al progetto, quindi non è stato possibile usarli." },
-    "tpl.noTitle": "Il Draft «{name}» potrebbe essere stato salvato senza titolo. Aprilo dall'elenco dei Draft o riprova.",
-    "tpl.finishFailed": "Il Draft è stato creato, ma non è stato possibile aggiungere titolo e look. Riprova.",
     "tpl.stoppedAt": "Archive Vlog si è fermato a questo passaggio: {step}. Riprova.",
     "tpl.stopped": "Archive Vlog si è fermato prima che il Draft fosse pronto. Riprova.",
   },
@@ -1072,9 +1052,6 @@ const STRINGS = {
     beatFailed: "ビートの検出に失敗しました",
     beatTimeout: "ビートの検出に時間がかかりすぎました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
-    noAudio: "音声が返されませんでした",
-    draftNoId: "Draft「{name}」は保存された可能性がありますが、Selects から ID が返されませんでした。Draft の一覧から開くか、もう一度作成してください。",
-    draftEmpty: "Draft「{name}」にクリップがありません。もう一度作成してください。",
     finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
     openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
     draftCreated: "Draft を作成しました。タイトルやクレジットを選ぶと文字・色・サイズ・デコード速度を、クリップを選ぶと切り抜き・ルック・モーションを、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
@@ -1088,6 +1065,8 @@ const STRINGS = {
     unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
     createsDraft: "16:9 の新しい Draft を作成します",
     finishTitle: "タイトルとルックを仕上げる",
+    finishUnconfirmed: "Draft は存在しますが、タイトルとルックを確認できませんでした。次の実行を始める前に Draft を確認してください。",
+    confirmDraft: "保存したドラフトを確認",
     anotherVersion: "別のショットで作成",
     build: "作成",
     building: "作成中",
@@ -1121,15 +1100,12 @@ const STRINGS = {
     "tpl.files": "選んだファイルを読み込み",
     "tpl.stepDetail": "{name}（{detail}）",
     "tpl.done": "完了",
-    "tpl.noFootage": "素材にする動画または写真を選んでから、もう一度お試しください。",
+    "tpl.noFootage": "\u7570\u306a\u308b\u52d5\u753b\u30922\u672c\u4ee5\u4e0a\u3001\u5408\u8a0850\u30d5\u30a1\u30a4\u30eb\u4ee5\u5185\u3067\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u5199\u771f\u306e\u8ffd\u52a0\u306f\u4efb\u610f\u3067\u3059\u3002",
     "tpl.noMusic": "Archive Vlog の音楽が見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
     "tpl.noStyles": "Archive Vlog のタイトルスタイルが見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
-    "tpl.notFound": "選んだファイルがこのプロジェクトに見つかりませんでした。選び直してから、もう一度お試しください。",
     "tpl.notFoundDetail": "Selects からの理由: {detail}",
     "tpl.notLocal": "これらのクリップの元ファイルはこのコンピュータにありません。ここで読み込むか元ファイルをダウンロードしてから、もう一度お試しください。",
     "tpl.notAnalysed": { other: "{count} 本の動画はまだプロジェクトに追加中のため、使用できませんでした。" },
-    "tpl.noTitle": "Draft「{name}」はタイトルなしで保存された可能性があります。Draft の一覧から開くか、もう一度お試しください。",
-    "tpl.finishFailed": "Draft は作成されましたが、タイトルとルックを追加できませんでした。もう一度お試しください。",
     "tpl.stoppedAt": "Archive Vlog は次のステップで停止しました: {step}。もう一度お試しください。",
     "tpl.stopped": "Draft の準備ができる前に Archive Vlog が停止しました。もう一度お試しください。",
   },
@@ -1258,9 +1234,6 @@ const STRINGS = {
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
     beatTimeout: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2dc\uac04\uc774 \ub108\ubb34 \uc624\ub798 \uac78\ub838\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
-    noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
-    draftNoId: "Draft ‘{name}’\uc774(\uac00) \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc9c0\ub9cc Selects\uac00 ID\ub97c \uc54c\ub824 \uc8fc\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
-    draftEmpty: "Draft ‘{name}’\uc5d0 \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
     finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc774\ub098 \ud06c\ub808\ub527\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \ub514\ucf54\ub529 \uc18d\ub3c4\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \uc0c9\uac10, \ubaa8\uc158\uc744, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
@@ -1274,6 +1247,8 @@ const STRINGS = {
     unchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     createsDraft: "\uc0c8 16:9 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
+    finishUnconfirmed: "Draft\ub294 \uc788\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc758 \uc800\uc7a5 \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uae30 \uc804\uc5d0 Draft\ub97c \ud655\uc778\ud558\uc138\uc694.",
+    confirmDraft: "\uc800\uc7a5\ub41c Draft \ud655\uc778",
     anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
@@ -1307,15 +1282,12 @@ const STRINGS = {
     "tpl.files": "\uc120\ud0dd\ud55c \ud30c\uc77c \uc77d\uae30",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "\uc644\ub8cc",
-    "tpl.noFootage": "\uc601\uc0c1\uc73c\ub85c \uc4f8 \ub3d9\uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \uc120\ud0dd\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.noFootage": "\uc11c\ub85c \ub2e4\ub978 \uc601\uc0c1 2\uac1c \uc774\uc0c1\uc744 \uc120\ud0dd\ud574\uc8fc\uc138\uc694. \uc0ac\uc9c4\uc740 \uc120\ud0dd \uc0ac\ud56d\uc774\uba70 \uc804\uccb4 \ud30c\uc77c\uc740 \ucd5c\ub300 50\uac1c\uc785\ub2c8\ub2e4.",
     "tpl.noMusic": "Archive Vlog\uc758 \uc74c\uc545\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.noStyles": "Archive Vlog\uc758 \ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
-    "tpl.notFound": "\uc120\ud0dd\ud55c \ud30c\uc77c\uc744 \uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \ud558\ub098\ub3c4 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc120\ud0dd\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notFoundDetail": "Selects \uba54\uc2dc\uc9c0: {detail}",
     "tpl.notLocal": "\uc774 \ud074\ub9bd\ub4e4\uc758 \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc5c6\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uac00\uc838\uc624\uac70\ub098 \uc6d0\ubcf8\uc744 \ub0b4\ub824\ubc1b\uc740 \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notAnalysed": { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\uac00 \uc544\uc9c1 \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ub418\ub294 \uc911\uc774\ub77c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5c8\uc2b5\ub2c8\ub2e4." },
-    "tpl.noTitle": "Draft ‘{name}’\uc774(\uac00) \ud0c0\uc774\ud2c0 \uc5c6\uc774 \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
-    "tpl.finishFailed": "Draft\ub294 \ub9cc\ub4e4\uc5b4\uc84c\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.stoppedAt": "Archive Vlog\uac00 \uc774 \ub2e8\uacc4\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {step}. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.stopped": "Draft\uac00 \uc900\ube44\ub418\uae30 \uc804\uc5d0 Archive Vlog\uac00 \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
   },
@@ -1444,9 +1416,6 @@ const STRINGS = {
     beatFailed: "a detecção da batida falhou",
     beatTimeout: "a detecção da batida demorou demais",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
-    noAudio: "nenhum áudio foi retornado",
-    draftNoId: "O Draft “{name}” pode ter sido salvo, mas o Selects não informou o ID dele. Abra-o na lista de Drafts ou crie de novo.",
-    draftEmpty: "O Draft “{name}” não tem clipes. Crie de novo.",
     finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
     openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
     draftCreated: "Draft criado. Selecione o título ou o crédito para editar as palavras, as cores, o tamanho ou a velocidade de decifração; um clipe para ajustar o enquadramento, o look ou o movimento; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
@@ -1460,6 +1429,8 @@ const STRINGS = {
     unchecked: { one: "Não foi possível verificar {count} vídeo; ele foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos; eles foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos; eles foram ignorados. Crie de novo para tentar outra vez." },
     createsDraft: "Cria um novo Draft 16:9",
     finishTitle: "Concluir título e look",
+    finishUnconfirmed: "O Draft existe, mas não foi possível confirmar o título e o look. Confira o Draft antes de iniciar outra execução.",
+    confirmDraft: "Verificar rascunho salvo",
     anotherVersion: "Testar outros planos",
     build: "Criar",
     building: "Criando",
@@ -1493,15 +1464,12 @@ const STRINGS = {
     "tpl.files": "Lendo os arquivos escolhidos",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Pronto",
-    "tpl.noFootage": "Escolha vídeos ou fotos como material e tente de novo.",
+    "tpl.noFootage": "Escolha pelo menos 2 v\u00eddeos diferentes e no m\u00e1ximo 50 arquivos no total. As fotos s\u00e3o opcionais.",
     "tpl.noMusic": "A música do Archive Vlog está faltando. Reinstale o plugin e tente de novo.",
     "tpl.noStyles": "Os estilos de título do Archive Vlog estão faltando. Reinstale o plugin e tente de novo.",
-    "tpl.notFound": "Nenhum dos arquivos escolhidos foi encontrado neste projeto. Escolha-os de novo e tente outra vez.",
     "tpl.notFoundDetail": "O Selects informou: {detail}",
     "tpl.notLocal": "Os arquivos originais destes clipes não estão neste computador. Importe-os aqui ou baixe os originais e tente de novo.",
     "tpl.notAnalysed": { one: "{count} vídeo ainda está sendo adicionado ao projeto, então não pôde ser usado.", many: "{count} de vídeos ainda estão sendo adicionados ao projeto, então não puderam ser usados.", other: "{count} vídeos ainda estão sendo adicionados ao projeto, então não puderam ser usados." },
-    "tpl.noTitle": "O Draft “{name}” pode ter sido salvo sem o título. Abra-o na lista de Drafts ou tente de novo.",
-    "tpl.finishFailed": "O Draft foi criado, mas não foi possível adicionar o título e o look. Tente de novo.",
     "tpl.stoppedAt": "O Archive Vlog parou nesta etapa: {step}. Tente de novo.",
     "tpl.stopped": "O Archive Vlog parou antes de o Draft ficar pronto. Tente de novo.",
   },
@@ -1630,9 +1598,6 @@ const STRINGS = {
     beatFailed: "ritim algılama başarısız oldu",
     beatTimeout: "ritim algılama çok uzun sürdü",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
-    noAudio: "ses geri gelmedi",
-    draftNoId: "“{name}” Draft'ı kaydedilmiş olabilir ama Selects kimliğini bildirmedi. Draft listesinden açın veya yeniden oluşturun.",
-    draftEmpty: "“{name}” Draft'ında hiç klip yok. Yeniden oluşturun.",
     finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
     openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
     draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya çözülme hızını düzenlemek için başlığı ya da jeneriği; kırpmasını, görünümünü veya hareketini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
@@ -1646,6 +1611,8 @@ const STRINGS = {
     unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
     createsDraft: "Yeni bir 16:9 Draft oluşturur",
     finishTitle: "Başlığı ve görünümü tamamla",
+    finishUnconfirmed: "Draft mevcut ancak başlık ve görünüm doğrulanamadı. Yeni bir çalıştırma başlatmadan önce Draft’ı inceleyin.",
+    confirmDraft: "Kaydedilen taslağı kontrol et",
     anotherVersion: "Başka çekimler dene",
     build: "Oluştur",
     building: "Oluşturuluyor",
@@ -1679,15 +1646,12 @@ const STRINGS = {
     "tpl.files": "Seçilen dosyalar okunuyor",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Tamamlandı",
-    "tpl.noFootage": "Görüntü olarak video veya fotoğraf seçin, ardından yeniden deneyin.",
+    "tpl.noFootage": "En az 2 farkl\u0131 video ve toplamda en fazla 50 dosya se\u00e7in. Foto\u011fraflar iste\u011fe ba\u011fl\u0131d\u0131r.",
     "tpl.noMusic": "Archive Vlog'un müziği eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
     "tpl.noStyles": "Archive Vlog'un başlık stilleri eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
-    "tpl.notFound": "Seçilen dosyaların hiçbiri bu projede bulunamadı. Onları yeniden seçip tekrar deneyin.",
     "tpl.notFoundDetail": "Selects şunu bildirdi: {detail}",
     "tpl.notLocal": "Bu kliplerin orijinal dosyaları bu bilgisayarda değil. Onları buraya aktarın veya orijinalleri indirin, sonra tekrar deneyin.",
     "tpl.notAnalysed": { one: "{count} video hâlâ projeye ekleniyor, bu yüzden kullanılamadı.", other: "{count} video hâlâ projeye ekleniyor, bu yüzden kullanılamadı." },
-    "tpl.noTitle": "“{name}” Draft'ı başlığı olmadan kaydedilmiş olabilir. Draft listesinden açın veya yeniden deneyin.",
-    "tpl.finishFailed": "Draft oluşturuldu ancak başlık ve görünüm eklenemedi. Yeniden deneyin.",
     "tpl.stoppedAt": "Archive Vlog şu adımda durdu: {step}. Yeniden deneyin.",
     "tpl.stopped": "Archive Vlog, Draft hazır olmadan durdu. Yeniden deneyin.",
   },
@@ -1816,9 +1780,6 @@ const STRINGS = {
     beatFailed: "节拍识别失败",
     beatTimeout: "节拍识别耗时过长",
     previewFailed: "无法播放试听：{detail}。",
-    noAudio: "没有返回音频",
-    draftNoId: "Draft“{name}”可能已保存，但 Selects 没有返回它的 ID。请从 Draft 列表中打开，或重新生成。",
-    draftEmpty: "Draft“{name}”中没有片段。请重新生成。",
     finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
     openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
     draftCreated: "Draft 已创建。选中标题或署名可编辑文字、颜色、大小或解码速度；选中片段可调整裁切、色调或运动；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
@@ -1832,6 +1793,8 @@ const STRINGS = {
     unchecked: { other: "有 {count} 个视频无法检查，已跳过。重新生成即可重试。" },
     createsDraft: "创建一个新的 16:9 Draft",
     finishTitle: "完成标题和色调",
+    finishUnconfirmed: "Draft 已存在，但无法确认标题和色调的保存结果。开始新的运行前，请检查 Draft。",
+    confirmDraft: "检查已保存的草稿",
     anotherVersion: "换一组镜头",
     build: "生成",
     building: "正在生成",
@@ -1865,22 +1828,21 @@ const STRINGS = {
     "tpl.files": "读取所选文件",
     "tpl.stepDetail": "{name}（{detail}）",
     "tpl.done": "完成",
-    "tpl.noFootage": "请选择用作素材的视频或照片，然后重试。",
+    "tpl.noFootage": "\u8bf7\u9009\u62e9\u81f3\u5c11 2 \u4e2a\u4e0d\u540c\u7684\u89c6\u9891\u7247\u6bb5\uff0c\u603b\u6587\u4ef6\u6570\u4e0d\u8d85\u8fc7 50 \u4e2a\u3002\u7167\u7247\u53ef\u9009\u3002",
     "tpl.noMusic": "缺少 Archive Vlog 的音乐。请重新安装插件后重试。",
     "tpl.noStyles": "缺少 Archive Vlog 的标题样式。请重新安装插件后重试。",
-    "tpl.notFound": "在此项目中找不到所选的任何文件。请重新选择后重试。",
     "tpl.notFoundDetail": "Selects 提示：{detail}",
     "tpl.notLocal": "这些片段的原始文件不在这台电脑上。请在这里导入，或下载原始文件，然后再试一次。",
     "tpl.notAnalysed": { other: "有 {count} 个视频仍在添加到项目中，因此无法使用。" },
-    "tpl.noTitle": "Draft“{name}”可能已在没有标题的情况下保存。请从 Draft 列表中打开，或重试。",
-    "tpl.finishFailed": "Draft 已创建，但无法添加标题和色调。请重试。",
     "tpl.stoppedAt": "Archive Vlog 在此步骤停止：{step}。请重试。",
     "tpl.stopped": "Archive Vlog 在 Draft 准备好之前停止了。请重试。",
   },
 };
 // STRINGS:END
 
-// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.
+// Generated text mechanics from shared/template-text.ts; STRINGS stays template-specific.
+// template-text:start
+// Template text mechanics; STRINGS remains the independently installed panel dictionary.
 const LANGS = ["de", "en", "es", "fr", "it", "ja", "ko", "pt", "tr", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 type Msg = string | { [category: string]: string };
@@ -1897,22 +1859,25 @@ function uiLang(context?: { language?: string | null } | null): Lang {
   return normLang(context?.language) ?? normLang(nav) ?? "en";
 }
 // Plural messages pick their form from vars.count; numbers are formatted for the language.
+function textMessage(table: Record<string, Msg> | undefined, key: string): Msg | undefined {
+  return table && Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
 function t(lang: Lang, key: string, vars: Vars = {}): string {
-  let msg: Msg | undefined = I18N_TABLE[lang]?.[key] ?? I18N_TABLE.en[key];
+  let msg: Msg | undefined = textMessage(I18N_TABLE[lang], key) ?? textMessage(I18N_TABLE.en, key);
   if (msg === undefined) return key;
   if (typeof msg !== "string") {
-    const n = Number(vars.count);
+    const n = Number(Object.prototype.hasOwnProperty.call(vars, "count") ? vars.count : undefined);
     msg = msg[new Intl.PluralRules(lang).select(Number.isFinite(n) ? n : 0)] ?? msg.other ?? "";
   }
   const nf = new Intl.NumberFormat(lang);
   return msg.replace(/\{(\w+)\}/g, (whole: string, name: string) => {
-    const v = vars[name];
+    const v = Object.prototype.hasOwnProperty.call(vars, name) ? vars[name] : undefined;
     return v === undefined ? whole : typeof v === "number" ? nf.format(v) : v;
   });
 }
 // Optional keys (preset/look labels by id): the English label from the JSON is the fallback.
 function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {
-  return I18N_TABLE.en[key] === undefined ? fallback : t(lang, key, vars);
+  return textMessage(I18N_TABLE.en, key) === undefined ? fallback : t(lang, key, vars);
 }
 // Field limits count Hangul, kana, CJK and fullwidth characters as 2.
 const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
@@ -1921,6 +1886,14 @@ function fieldLen(text: string): number {
   for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1;
   return n;
 }
+
+// Field clipping uses the same wide-character units as fieldLen.
+function fieldClip(text: string, max: number) {
+  let out = "", n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
+// template-text:end
 
 // A message that follows the UI language: state keeps the function and every render calls it with the current language.
 type Say = (lang: Lang) => string;
@@ -1938,15 +1911,11 @@ function sayError(lang: Lang, e: any): string {
 function errorSay(e: any, wrap: (lang: Lang, detail: string) => string): Say {
   return e?.code === "host-missing" ? (l) => t(l, "hostTooOld") : (l) => wrap(l, sayError(l, e));
 }
-// A text field's value cut to its limit, counted like the counter next to it (fieldLen: Hangul counts 2).
-function fieldClip(text: string, max: number) {
-  let out = "", n = 0;
-  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
-  return out;
-}
+// Template-specific configuration.
+
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.6";
+const PLUGIN_VERSION = "0.1.0-alpha.26";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -1971,13 +1940,13 @@ const INCOMPLETE_POLL_MAX = 6;
 // to the panel still re-read.
 const WAITING_POLL_MAX = 30;
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
-const DRAFT_LOOKUP_MAX = 50;
 // Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate, and
 // the CLI's ffmpeg command), which keeps the worker near 150 MB and a few seconds.
 const OWN_MAX_SECONDS = 240;
 const OWN_RATE = 22050;
 // The section preview fades out over its last PREVIEW_FADE seconds, then stops.
 const PREVIEW_FADE = 0.4;
+const PREVIEW_TIMEOUT_MS = 60000;
 
 // av-planner:start
 // Archive Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
@@ -2587,6 +2556,12 @@ function avAllocate(opts) {
 // the montage asked for (the ladder's top), musicShots: the montage the music fits (avFitShots), slots: all slots,
 // fittedByMusic, pace, montageBeats, finalBeats, tempo, beatSeconds, gridded, approxBpm (the approximate tempo the
 // fixed timing used, else null), fillerShots, photoShots, attempt, notes ([], kept for the panel) }.
+// Opening, credit and final shots share this template-owned video requirement.
+// Count identities rather than repeated handed entries or aliases.
+function avVideoRequirement(videoRids) {
+  const count = new Set(videoRids).size;
+  return count < 2 ? count ? 'one-video' : 'no-video' : null;
+}
 function avPlanBuild(opts) {
   const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
   // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
@@ -2605,8 +2580,8 @@ function avPlanBuild(opts) {
     else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) videos[c.rid] = Math.max(videos[c.rid] || 0, c.sourceDuration);
   }
   const videoRids = Object.keys(videos);
-  if (!videoRids.length) return fail('no-video');
-  if (videoRids.length < 2) return fail('one-video');
+  const videoRequirement = avVideoRequirement(videoRids);
+  if (videoRequirement) return fail(videoRequirement);
   const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
   const scheduleOf = tpl => avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
   // Bookend preflight: a video source must hold the opening and the final shot whole (avAllocate's own test).
@@ -2970,12 +2945,12 @@ function avVisibleFraction(size) {
   return Math.round(Math.min(1, (size.width / size.height) / (AV_W / AV_H)) * 1e4) / 1e4;
 }
 // assemble.js cfg. o: { projectId, draftName, plan, inventory (resources and photos with their sizes), music
-// ({ resourceId } from ensure-audio.js, or null), sectionStart, clipSound }.
+// ({ resourceId } from the verified cue or own-track operation, or null), sectionStart, clipSound }.
 function avAssembleConfig(o) {
   const crops = avSizesOf(o.inventory);
   return { projectId: o.projectId, draftName: o.draftName, picks: o.plan.picks, boundaries: o.plan.schedule.cuts, crops, clipSound: o.clipSound,
     ambientDb: AMBIENT_DB, music: o.music ? { resourceId: o.music.resourceId, sectionStart: o.sectionStart == null ? 0 : o.sectionStart } : null,
-    musicFadeOut: MUSIC_FADE_OUT };
+    musicFadeOut: MUSIC_FADE_OUT, ...(o.analysisSources?.length ? { analysisSources: o.analysisSources, sourceBindings: o.sourceBindings } : {}) };
 }
 // decorate.js cfg. o: { sequenceId, videoEnd, fps (assemble's), plan, presets (presets.json), tsx: { title, credit,
 // letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, openingSize (the opening
@@ -3570,7 +3545,8 @@ function avBeatWorkerSource(beatDetectText) {
 //       (0-1), sharp = mean absolute Laplacian (0-1), luma = mean luma (0-1), clipped = share of pixels near black or
 //       white. When ffmpeg is missing or fails (or the budget runs out) it never throws for that: it returns evenly
 //       spaced, unflagged windows from QS_HEAD on with `fallback: true`, so a build still goes ahead. It throws only
-//       when `signal` aborts.
+//       when `signal` aborts or the native owner reports terminal execution uncertainty.
+//       Unknown producer exits retain their temporary output instead of racing cleanup.
 //   quickScoreAll(resources, { concurrency, budgetMs, signal, onProgress, ... }) -> Map rid -> result. Bounded
 //       concurrency; onProgress({ done, total, rid }) after each clip; the budget is shared (clips not started in time get
 //       the fallback).
@@ -3580,9 +3556,12 @@ function avBeatWorkerSource(beatDetectText) {
 //       black, fade or flash frames, or a scene cut inside, are left out while any other window fits; blur, dark and
 //       bright windows rank lower. score is 0-1 (comparable across clips and roles).
 //   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
-// Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
-// QS_VERSION, so a rebuild does not decode the same clip twice.
-var QS_VERSION = 2;
+// Persistent reuse belongs to the shared source-bound evaluator below. Old mtime-only
+// cache files are not reused or deleted.
+// clip-analysis:start
+// Source-bound local clip evaluation. File snapshots, cache publication,
+// media jobs and transient cleanup belong to bundled-assets. No Project is edited.
+var QS_VERSION = 3;
 // One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
 // 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
 var QS_FPS = 8;
@@ -3597,36 +3576,6 @@ var QS_BUDGET_MS = 30000;
 // Frame thresholds (luma 0-1).
 var QS_BLACK = 0.07, QS_DARK = 0.16, QS_CLIP_LO = 16 / 255, QS_CLIP_HI = 240 / 255, QS_BRIGHT_SHARE = 0.45;
 var QS_FLASH_JUMP = 0.25, QS_CUT_DIFF = 0.12, QS_CUT_RATIO = 4;
-
-function qsTag(x) { return Object.prototype.toString.call(x); }
-function qsBytes(v) {
-  if (qsTag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
-  if (v && typeof v.byteLength === "number" && v.buffer && qsTag(v.buffer) === "[object ArrayBuffer]") return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
-  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
-  return null;
-}
-// The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
-// mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
-function qsHostIO() {
-  var rt = hostSdk?.media, fs = hostSdk?.files;
-  var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
-  return {
-    runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
-    readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
-    remove: fs ? async function (p) {
-      var tries = ["removeFile"];
-      for (var i = 0; i < tries.length; i++) {
-        if (!fn(fs, tries[i])) continue;
-        try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
-      }
-    } : null,
-    join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
-    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
-    readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
-    writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
-  };
-}
 
 // Pure: per-frame statistics of QS_W x QS_H grey frames packed in `bytes`.
 function qsFrameStats(bytes, w, h) {
@@ -3720,81 +3669,71 @@ function qsFallback(resource, ms, windows) {
 }
 function qsAbortError() { var e = new Error("cancelled"); e.name = "AbortError"; return e; }
 
-async function quickScore(resource, opts) {
-  opts = opts || {};
-  var t0 = Date.now(), io = opts.io || qsHostIO(), signal = opts.signal, fps = opts.fps || QS_FPS;
-  var dur = Number(resource.durationSeconds) || 0;
-  var deadline = t0 + (opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs);
-  if (signal && signal.aborted) throw qsAbortError();
-  var dataDir = opts.dataDir || null;
-  if (!(dur > 0) || !resource.path || !io.runFFmpeg || !io.readBytes || !io.join || !dataDir) return qsFallback(resource, Date.now() - t0, opts.windows);
-  // The decoded span: the given windows, else QS_HEAD .. QS_HEAD + QS_SPAN.
-  var ws = opts.windows && opts.windows.length ? opts.windows : null;
-  var a = ws ? Math.max(0, Math.min.apply(null, ws.map(function (x) { return x.start; }))) : Math.min(QS_HEAD, Math.max(0, dur - QS_BIN));
-  var b = ws ? Math.min(dur, Math.max.apply(null, ws.map(function (x) { return x.end; }))) : Math.min(dur, a + QS_SPAN);
-  var dir = io.join(dataDir, "quick-score");
-  var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
-  var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
-  // path with different media is not served stale scores; Mini Vlog review).
-  var durKey = Number(resource.durationSeconds || 0).toFixed(3);
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
-  var cacheFile = io.join(dir, safe + ".json");
-  if (io.readText && !ws) {
-    try {
-      var c = JSON.parse(await io.readText(cacheFile));
-      if (c && c.key === key && c.result) return Object.assign({}, c.result, { cached: true, ms: Date.now() - t0 });
-    } catch (e) { /* no cache yet */ }
-  }
-  if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
-  var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
-  var controller = typeof AbortController === "undefined" ? null : new AbortController();
-  var relay = function () { if (controller) controller.abort(); };
-  var timer = controller ? setTimeout(relay, Math.max(1000, deadline - Date.now())) : null;
-  if (signal) signal.addEventListener("abort", relay);
-  try {
-    await io.runFFmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", resource.path,
-      "-an", "-vf", "fps=" + fps + ",scale=" + QS_W + ":" + QS_H + ",setsar=1,format=gray", "-f", "rawvideo", tmp], controller ? controller.signal : undefined);
-    var bytes = await io.readBytes(tmp);
-    if (!bytes || bytes.length < QS_W * QS_H) throw new Error("no frames");
-    var stats = qsFrameStats(bytes, QS_W, QS_H);
-    var cuts = qsSceneCuts(stats, fps, a);
-    var windows = qsWindowScores(stats, fps, a, ws || qsBins(dur, a, b - a), cuts);
-    var result = { rid: resource.rid, windows: windows, sceneCuts: cuts, ms: Date.now() - t0, fallback: false, cached: false, duration: dur };
-    if (io.writeText && !ws) { try { await io.writeText(cacheFile, JSON.stringify({ key: key, result: result })); } catch (e) { /* no cache, no harm */ } }
-    return result;
-  } catch (e) {
-    if (signal && signal.aborted) throw qsAbortError();
-    return qsFallback(resource, Date.now() - t0, opts.windows);
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    if (io.remove) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
-  }
-}
 
-async function quickScoreAll(resources, opts) {
-  opts = opts || {};
-  var results = new Map(), total = resources.length, done = 0, next = 0;
-  var conc = Math.max(1, Math.min(opts.concurrency || 3, total || 1));
-  var t0 = Date.now(), budget = opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs;
-  async function worker() {
-    while (next < total) {
-      var r = resources[next++];
-      if (opts.signal && opts.signal.aborted) throw qsAbortError();
-      var left = budget - (Date.now() - t0);
-      var res = left > 0 ? await quickScore(r, Object.assign({}, opts, { budgetMs: left, onProgress: null })) : qsFallback(r, 0, null);
-      results.set(r.rid, res);
-      done++;
-      if (opts.onProgress) { try { opts.onProgress({ done: done, total: total, rid: r.rid }); } catch (e) { /* the UI only */ } }
-    }
-  }
-  var workers = [];
-  for (var i = 0; i < conc; i++) workers.push(worker());
-  await Promise.all(workers);
-  return results;
+function clipAnalysisIssue(code,message,cause){return Object.assign(Error(message),{code:'CLIP_ANALYSIS_'+code,publicMessage:message,...cause?{cause}:{}});}
+function clipAnalysisResource(resource){
+ if(!resource||typeof resource.rid!=='string'||!resource.rid||resource.rid.length>1024||typeof resource.path!=='string'||!resource.path||resource.path.length>8192||resource.path.includes('\0')||!Number.isFinite(resource.durationSeconds)||resource.durationSeconds<=0)throw clipAnalysisIssue('INPUT','The local video analysis input is invalid.');
+ return {rid:resource.rid,path:resource.path,durationSeconds:resource.durationSeconds};
+}
+function clipAnalysisScope(opts){
+ if(!opts||typeof opts!=='object'||Array.isArray(opts)||typeof opts.dataDir!=='string'||!opts.dataDir||opts.dataDir.length>8192||opts.dataDir.includes('\0')||opts.onProgress!==undefined&&typeof opts.onProgress!=='function'||opts.isCurrent!==undefined&&typeof opts.isCurrent!=='function'||opts.budgetMs!==undefined&&(!Number.isFinite(opts.budgetMs)||opts.budgetMs<0||opts.budgetMs>300000)||opts.deadline!==undefined&&!Number.isFinite(opts.deadline))throw clipAnalysisIssue('INPUT','The local video analysis scope is invalid.');
+ const signal=opts.signal,isCurrent=opts.isCurrent||(()=>true);
+ if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw clipAnalysisIssue('INPUT','The local video analysis cancellation signal is invalid.');
+ return ()=>{if(signal?.aborted||!isCurrent())throw clipAnalysisIssue('STOPPED','Local video analysis ended before completion.');};
+}
+async function quickScore(resource,opts={}){
+ const current=clipAnalysisScope(opts),input=clipAnalysisResource(resource);opts={...opts};current();
+ const client=opts.client??(typeof hostSdk!=='undefined'?hostSdk:null),files=client?.files,media=client?.media,t0=Date.now(),fps=opts.fps??QS_FPS,dur=input.durationSeconds;
+ if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||typeof files?.fingerprint!=='function')throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
+ if(opts.windows!=null&&!Array.isArray(opts.windows))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
+ const ws=opts.windows==null?null:opts.windows.map(w=>({start:w?.start,end:w?.end}));
+ if(ws&&(!Array.isArray(opts.windows)||!ws.length||ws.length>256||ws.some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.start<0||w.end<=w.start||w.end>dur)))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
+ const a=ws?Math.min(...ws.map(w=>w.start)):Math.min(QS_HEAD,Math.max(0,dur-QS_BIN)),b=ws?Math.max(...ws.map(w=>w.end)):Math.min(dur,a+QS_SPAN);
+ if(b-a>QS_SPAN)throw clipAnalysisIssue('INPUT','The local video analysis span exceeds its limit.');
+ const windows=ws||qsBins(dur,a,b-a),deadline=Math.min(t0+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity);
+ const hashFile=async path=>{current();const row=await files.fingerprint(path);current();if(!row||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('SOURCE','The original video content could not be confirmed.');return row.sha256;};
+ const source=await readAssetFileIdentity(files,input.path,hashFile,current);current();
+ const observation={path:input.path,size:source.bytes,sha256:source.sha256};
+ const fallback=()=>({...qsFallback(input,Date.now()-t0,windows),sourceObservation:observation});
+ if(typeof media?.runFFmpeg!=='function'||Date.now()>=deadline)return fallback();
+ const policy=[QS_VERSION,fps,QS_W,QS_H,QS_HEAD,QS_BIN,QS_SPAN,QS_BLACK,QS_DARK,QS_CLIP_LO,QS_CLIP_HI,QS_BRIGHT_SHARE,QS_FLASH_JUMP,QS_CUT_DIFF,QS_CUT_RATIO];
+ const bytes=new TextEncoder().encode(JSON.stringify([input,source,policy,windows])),digest=await crypto.subtle.digest('SHA-256',bytes);current();
+ const key=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join(''),directory=files.join(opts.dataDir,'quick-score-v3');
+ const valid=result=>{
+  if(!result||result.rid!==input.rid||result.duration!==dur||result.fallback!==false||result.cached!==false||!Number.isFinite(result.ms)||result.ms<0||!Array.isArray(result.windows)||result.windows.length!==windows.length||!Array.isArray(result.sceneCuts)||result.sceneCuts.length>Math.ceil((b-a)*fps)||result.sceneCuts.some(t=>!Number.isFinite(t)||t<a||t>b))return false;
+  return result.windows.every((w,i)=>w&&w.start===windows[i].start&&w.end===windows[i].end&&['motion','sharp','luma','clipped'].every(k=>Number.isFinite(w[k])&&w[k]>=0&&w[k]<=1)&&w.flags&&Object.keys(w.flags).length===7&&['black','fade','flash','blur','dark','bright','cut'].every(k=>typeof w.flags[k]==='boolean')&&(w.empty===undefined||w.empty===true));
+ };
+ const read=async path=>{const bytes=await readBundledAssetBytes(files,path,262144,current);current();const result=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!valid(result))throw clipAnalysisIssue('CACHE','The local analysis result does not match its original input and policy.');return result;};
+ let result;
+ try{
+  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},hashFile,
+   produce:async(snapshot,target)=>{
+    const maximum=(Math.ceil((b-a)*fps)+2)*QS_W*QS_H;
+    const frames=await readTransientAsset(client,{directory,extension:'gray',maxBytes:maximum,deadline,timeoutMs:Math.max(1,deadline-Date.now()),signal:opts.signal,isCurrent:()=>{current();return true;},
+     produce:async({path,current:live})=>{live();await runAssetMediaTool(media,'runFFmpeg',['-hide_banner','-loglevel','error','-nostdin','-y','-ss',a.toFixed(3),'-t',(b-a).toFixed(3),'-i',snapshot,'-an','-vf','fps='+fps+',scale='+QS_W+':'+QS_H+',setsar=1,format=gray','-f','rawvideo',path],{signal:opts.signal,isCurrent:()=>{current();return true;},deadline,timeoutMs:Math.max(1,deadline-Date.now())});}});
+    current();if(frames.length<QS_W*QS_H||frames.length%(QS_W*QS_H))throw bundledAssetIssue('MEDIA','A complete video preview could not be decoded.');
+    const stats=qsFrameStats(frames,QS_W,QS_H),cuts=qsSceneCuts(stats,fps,a),score={rid:input.rid,windows:qsWindowScores(stats,fps,a,windows,cuts),sceneCuts:cuts,ms:0,fallback:false,cached:false,duration:dur};
+    if(!valid(score))throw clipAnalysisIssue('RESULT','The decoded analysis result is invalid.');current();await files.writeFile(target,JSON.stringify(score));current();
+   },verify:read});
+  current();result={...await read(prepared.path),cached:prepared.reused,ms:Date.now()-t0,sourceObservation:observation};
+ }catch(error){
+  current();
+  if(error?.terminal||!['BUNDLED_ASSET_MEDIA','BUNDLED_ASSET_PREPARE'].includes(error?.code))throw error;
+  const after=await readAssetFileIdentity(files,input.path,hashFile,current);if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
+  return fallback();
+ }
+ current();return result;
+}
+async function quickScoreAll(resources,opts={}){
+ const current=clipAnalysisScope(opts);opts={...opts};current();
+ if(!Array.isArray(resources)||resources.length>256||new Set(resources.map(r=>r?.rid)).size!==resources.length)throw clipAnalysisIssue('INPUT','The local analysis selection is invalid.');
+ if(opts.concurrency!==undefined&&(!Number.isSafeInteger(opts.concurrency)||opts.concurrency<1||opts.concurrency>3))throw clipAnalysisIssue('INPUT','The local analysis concurrency is invalid.');
+ const inputs=resources.map(clipAnalysisResource),results=new Map(),total=inputs.length,deadline=Math.min(Date.now()+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity),controller=new AbortController();
+ const onAbort=()=>controller.abort();opts.signal?.addEventListener('abort',onAbort,{once:true});
+ let next=0,done=0,failure;
+ const worker=async()=>{try{while(next<total){current();const input=inputs[next++],score=await quickScore(input,{...opts,signal:controller.signal,deadline,budgetMs:Math.max(0,deadline-Date.now())});current();results.set(input.rid,score);done++;try{opts.onProgress?.({done,total,rid:input.rid});}catch{}current();}}catch(error){failure??=error;controller.abort();}};
+ try{await Promise.all(Array.from({length:Math.min(3,Math.max(1,opts.concurrency??3),total||1)},worker));if(failure)throw failure;current();return results;}
+ finally{opts.signal?.removeEventListener('abort',onAbort);}
 }
 
 // Pure: windows of `durationNeeded` seconds for `role`, best first (see the API above).
@@ -3851,8 +3790,584 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
   }
   return out;
 }
+
+function clipAnalysisSources(results,expected=null){
+ if(!Array.isArray(results)||results.length>256)throw clipAnalysisIssue('RESULT','The local analysis source observations are incomplete.');
+ if(expected!==null&&(!Array.isArray(expected)||expected.some(row=>!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))||new Set(expected.map(row=>row.path)).size!==expected.length))throw clipAnalysisIssue('INPUT','The expected local analysis sources are invalid.');
+ const originals=expected===null?null:new Map(expected.map(row=>[row.path,row]));
+ const seen=new Map();
+ for(const result of results){
+  const row=result?.scores?.sourceObservation;
+  if(!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('RESULT','The local analysis source observation could not be confirmed.');
+  if(originals){const before=originals.get(row.path);if(!before||before.size!==row.size||before.sha256!==row.sha256)throw clipAnalysisIssue('SOURCE_CHANGED','The analysis result belongs to different original video contents.');}
+  const before=seen.get(row.path);if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed between analysis observations.');
+  seen.set(row.path,{path:row.path,size:row.size,sha256:row.sha256});
+ }
+ return [...seen.values()];
+}
+// clip-analysis:end
+
+// Archive keeps its aggregate time budget and UI progress; the shared evaluator
+// owns source snapshots, score validation, persistent reuse and settled cleanup.
+async function analyseArchiveClips(sdk, resources, dataDir, options = {}) {
+ if(!options||typeof options!=='object'||Array.isArray(options))throw clipAnalysisIssue('INPUT','The Archive analysis scope is invalid.');
+ const scope={budgetMs:AV_LOCAL_BUDGET_MS,concurrency:AV_LOCAL_CONCURRENCY,...options,dataDir,client:panelLocalClient(sdk)};
+ const current=clipAnalysisScope(scope);current();
+ if(!Array.isArray(resources)||new Set(resources.map(row=>row?.rid)).size!==resources.length)throw clipAnalysisIssue('INPUT','The Archive analysis selection is invalid.');
+ const inputs=resources.map(row=>clipAnalysisResource({rid:row?.rid,path:row?.path,durationSeconds:row?.duration}));
+ clipAnalysisSources([],scope.expectedSources??null);
+ const expected=scope.expectedSources==null?null:scope.expectedSources.map(row=>({path:row.path,size:row.size,sha256:row.sha256}));
+ const deadline=Math.min(Date.now()+scope.budgetMs,scope.deadline??Infinity),out=[];
+ for(let offset=0;offset<inputs.length;offset+=256){
+  current();
+  const batch=inputs.slice(offset,offset+256),scores=await quickScoreAll(batch,{...scope,deadline,budgetMs:Math.max(0,deadline-Date.now()),onProgress:p=>scope.onProgress?.(offset+p.done)});current();
+  const ordered=batch.map(row=>scores.get(row.rid));
+  clipAnalysisSources(ordered.map(scores=>({scores})),expected);
+  out.push(...ordered);
+ }
+ current();return out;
+}
 // quick-score:end
+// bundled-assets:start
+// Installed bytes -> verified owned data file -> one confirmed Project Resource.
+// File publication is delegated to the canonical asynchronous atomic client.
+function bundledAssetIssue(code,message,cause=undefined){
+ return Object.assign(Error(message),{code:'BUNDLED_ASSET_'+code,publicMessage:message,...cause?{cause}:{}});
+}
+async function readBundledAssetBytes(files,path,limit,current){
+ current();if(typeof files?.readRange!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+ const stat=await files.stat(path);current();
+ if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>limit)throw bundledAssetIssue('BYTES','The bundled file is missing, unreadable or exceeds its size limit.');
+ // Freeze the observation as a read budget. readFile would stat again and could
+ // allocate a larger, changed file before this feature gets to reject it.
+ const raw=await files.readRange(path,0,stat.size);current();
+ const after=await files.stat(path);current();
+ if(!ArrayBuffer.isView(raw)||raw.byteLength!==stat.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw bundledAssetIssue('CHANGED','The bundled file changed while reading. Start a new run.');
+ return Uint8Array.from(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
+}
+async function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false,requireComplete=false){
+ const project=selects.project(projectId),resources=new Map(),matches=[];
+ const rows=await project.resources();
+ if(requireComplete&&!Array.isArray(rows))throw Error('The Project Resource catalog is incomplete.');
+ for(const resource of rows){
+  if(requireComplete&&(!resource||typeof resource.resourceId!=='string'||!resource.resourceId||resources.has(resource.resourceId)))throw Error('The Project Resource catalog is contradictory.');
+  resources.set(resource.resourceId,resource);
+ }
+ const key=value=>{const text=normalizeUnicode?String(value).normalize('NFC'):String(value);return platform==='win32'?text.replace(/\\/g,'/').toLowerCase():text;};
+ const visit=items=>{
+  if(requireComplete&&!Array.isArray(items))throw Error('The Project file tree is incomplete.');
+  for(const n of items||[]){
+   if(matches.length>=2)return;
+   if(requireComplete&&(!n||typeof n!=='object'))throw Error('The Project file tree is incomplete.');
+   if(n.type==='dir')visit(n.children);
+   else if(n.path&&key(n.path)===key(path)){
+    if(requireComplete&&!resources.has(n.resourceId))throw Error('The selected Project file has no Resource metadata.');
+    if(resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,path:n.path,type:r.type,durationSeconds:r.durationSeconds,...r.type==='Image'?{frameSize:n.frameSize}:{}});}
+   }
+  }
+ };
+ const tree=await project.sourceFiles();
+ if('fileTree' in tree)visit(tree.fileTree);
+ else{
+  if(requireComplete&&(!Array.isArray(tree.folders)||!tree.folders.length&&tree.fileCount!==0))throw Error('The Project file overview is incomplete.');
+  const seen=new Set();
+  for(const folder of tree.folders||[]){
+   if(matches.length>=2)break;
+   if(requireComplete&&(!folder||typeof folder.name!=='string'||!folder.name||seen.has(folder.name)))throw Error('The Project folder overview is contradictory.');
+   seen.add(folder.name);const detail=await project.sourceFiles({folder:folder.name});
+   if('fileTree' in detail)visit(detail.fileTree);
+   else if(requireComplete)throw Error('The Project folder detail is incomplete.');
+  }
+ }
+ return {matches};
+}
+// Selected Audio adoption owns one import attempt and its Project readback.
+// Physical content and run lifetime remain the caller's input/run contracts.
+async function ensureProjectAudio(selects,cfg){
+ const minimumSeconds=cfg?.minimumSeconds??0,path=cfg?.path;
+ const win=typeof path==='string'&&(/^[a-z]:[\\/]/i.test(path)||path.startsWith('\\\\'));
+ if(!cfg||typeof cfg.projectId!=='string'||!cfg.projectId||typeof path!=='string'||!path||!win&&!path.startsWith('/')||!Number.isFinite(minimumSeconds)||minimumSeconds<0||cfg.withPath!==undefined&&typeof cfg.withPath!=='boolean')throw bundledAssetIssue('INPUT','The music import requirements are invalid.');
+ const p=selects.project(cfg.projectId),result=(row,imported)=>({resourceId:row.resourceId,imported,...cfg.withPath?{path:row.path,durationSeconds:row.durationSeconds}:{}});
+ const read=async()=>{
+  let result;
+  try{result=await readBundledAssetResource(selects,cfg.projectId,path,win?'win32':'darwin',true,true);}
+  catch(cause){throw bundledAssetIssue('READ','The selected music in this Project could not be confirmed. Check the Project files.',cause);}
+  if(!result||!Array.isArray(result.matches)||result.matches.length>1)throw bundledAssetIssue('READ','The selected music in this Project could not be uniquely confirmed. Check the Project files.');
+  const row=result.matches[0];
+  if(row&&(typeof row.resourceId!=='string'||!row.resourceId||typeof row.path!=='string'||!row.path||row.type!=='Audio'||!Number.isFinite(row.durationSeconds)||row.durationSeconds<=0||row.durationSeconds<minimumSeconds))throw bundledAssetIssue('METADATA','The selected file could not be confirmed as Audio. Check the Project files.');
+  return row;
+ };
+ const existing=await read();if(existing)return result(existing,false);
+ let imported,importFailure;
+ try{imported=await p.importFiles({paths:[path]});}catch(cause){importFailure=cause;}
+ // The SDK invalidates read snapshots on a dispatched write, including a lost
+ // reply. Observe the actual Resource/path after that one attempt; never resend.
+ const row=await read(),ids=imported?.addedResourceIds;
+ if(row){
+  if(Array.isArray(ids)&&ids.length&&(ids.length!==1||ids[0]!==row.resourceId))throw bundledAssetIssue('IMPORT_UNKNOWN','The selected music import could not be confirmed. Inspect the Project before starting again.');
+  return result(row,true);
+ }
+ if(Array.isArray(ids)&&!ids.length)throw bundledAssetIssue('SKIPPED','The music file was not imported.');
+ throw bundledAssetIssue('IMPORT_UNKNOWN','The selected music import could not be confirmed. Inspect the Project before starting again.',importFailure);
+}
+async function prepareBundledAsset(sdk,files,options){
+ const {projectId,pluginId,sourcePath,type,extension,encoding='binary',expectedBytes,expectedSha256,frameSize,platform='darwin',normalizeUnicode=false,minimumSeconds=0,label='asset',isCurrent=()=>true}=options??{};
+ let importStarted=false;
+ const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED',importStarted?'The template run ended after an asset import was requested. Check the Project files.':'The template run ended before importing the bundled asset.');};
+ try{
+  const pinned=expectedBytes!==undefined||expectedSha256!==undefined;
+  if(typeof projectId!=='string'||!projectId||projectId!==projectId.trim()||typeof pluginId!=='string'||pluginId.length>63||!/^[a-z0-9][a-z0-9-]*$/.test(pluginId)||typeof sourcePath!=='string'||!sourcePath||!['Image','Audio'].includes(type)||!(type==='Image'?extension==='png':['mp3','m4a','wav'].includes(extension))||!['binary','base64'].includes(encoding)||!['asset','frame','music'].includes(label)||!Number.isFinite(minimumSeconds)||minimumSeconds<0||type==='Image'&&minimumSeconds!==0||encoding==='base64'&&!pinned||pinned&&(!Number.isSafeInteger(expectedBytes)||expectedBytes<1||expectedBytes>32*1024*1024||typeof expectedSha256!=='string'||!/^[0-9a-f]{64}$/.test(expectedSha256)))throw bundledAssetIssue('INPUT','The bundled asset request is invalid.');
+  if(typeof normalizeUnicode!=='boolean'||typeof isCurrent!=='function'||frameSize&&(type!=='Image'||!Number.isSafeInteger(frameSize.width)||frameSize.width<1||!Number.isSafeInteger(frameSize.height)||frameSize.height<1))throw bundledAssetIssue('INPUT','The bundled asset comparison or Image dimensions are invalid.');
+  const subtle=globalThis.crypto?.subtle;
+  if(!subtle||encoding==='base64'&&typeof globalThis.atob!=='function'||['stat','readRange','writeFile','exists','mkdir','join','homedir'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+  const hash=async bytes=>{current();const digest=await subtle.digest('SHA-256',bytes);current();return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');};
+  const installed=async()=>{
+   // Base64 permits ordinary line wrapping, with bounded whitespace overhead.
+   const limit=encoding==='binary'?32*1024*1024:4*Math.ceil(expectedBytes/3)+Math.max(4096,Math.ceil(expectedBytes*.1));
+   const bytes=await readBundledAssetBytes(files,sourcePath,limit,current);
+   let decoded=bytes;
+   if(encoding==='base64'){
+    const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/\s/g,'');
+    if(text.length!==4*Math.ceil(expectedBytes/3)||!/^[A-Za-z0-9+/]*={0,2}$/.test(text))throw bundledAssetIssue('ENCODING','The encoded bundled asset is invalid.');
+    const binary=globalThis.atob(text);current();decoded=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)decoded[i]=binary.charCodeAt(i);
+   }
+   if(pinned&&decoded.length!==expectedBytes)throw bundledAssetIssue('BYTES','The bundled asset byte count does not match its manifest.');
+   const digest=await hash(decoded);
+   if(pinned&&digest!==expectedSha256)throw bundledAssetIssue('HASH','The bundled asset does not match its manifest. Check the installed template files before starting again.');
+   return {bytes:decoded,digest};
+  };
+  current();const original=await installed();current();const home=await files.homedir();current();
+  const directory=files.join(home,'.selects','plugin-data',pluginId,'assets'),path=files.join(directory,original.digest+'.'+extension);
+  current();await files.mkdir(directory,{recursive:true});current();const exists=await files.exists(path);current();const stored=exists?await files.stat(path):null;current();
+  const have=stored?.isDirectory===false&&stored.size===original.bytes.length?await readBundledAssetBytes(files,path,32*1024*1024,current):null;
+  if(!have||await hash(have)!==original.digest){current();await files.writeFile(path,original.bytes);current();}
+  if(await hash(await readBundledAssetBytes(files,path,32*1024*1024,current))!==original.digest)throw bundledAssetIssue('COPY','The bundled asset data copy could not be confirmed.');
+  if((await installed()).digest!==original.digest)throw bundledAssetIssue('CHANGED','The installed asset changed during preparation. Start a new run.');
+  const read=async()=>{
+   current();const reply=await sdk.runScript({summary:'Find bundled '+label+' Resource',allowCommit:false,script:`return await (${readBundledAssetResource.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(path)},${JSON.stringify(platform)},${JSON.stringify(normalizeUnicode)});`});current();
+   if(reply?.isError||!Array.isArray(reply?.result?.matches)||reply.result.matches.length>1)throw bundledAssetIssue('READ','The bundled asset in this Project could not be uniquely confirmed. Check the Project files.');
+   return reply.result.matches[0]??null;
+  };
+  const ready=row=>{
+   if(!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.path!=='string'||!row.path||row.type!==type)throw bundledAssetIssue('METADATA','The bundled Resource type, path or identity could not be confirmed. Check the Project files.');
+   if(type==='Audio'&&(!Number.isFinite(row.durationSeconds)||row.durationSeconds<=0||row.durationSeconds<minimumSeconds))throw bundledAssetIssue('METADATA','The bundled file could not be confirmed as full-length Audio. Check the Project files.');
+   const size=row.frameSize;
+   if(type==='Image'&&(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1||frameSize&&(size.width!==frameSize.width||size.height!==frameSize.height)))throw bundledAssetIssue('METADATA','The bundled Image dimensions could not be confirmed. Check the Project files.');
+   return {resourceId:row.resourceId,path:row.path,...type==='Image'?{width:size.width,height:size.height}:{durationSeconds:row.durationSeconds}};
+  };
+  const existing=await read();if(existing)return ready(existing);
+  current();let imported,importFailure;importStarted=true;
+  try{imported=await sdk.runScript({summary:'Import bundled '+label,allowCommit:true,script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify([path])}});`});}catch(error){importFailure=error;}
+  const ids=imported?.result?.addedResourceIds,row=await read();
+  if(row){if(Array.isArray(ids)&&ids.length&&(ids.length!==1||ids[0]!==row.resourceId))throw bundledAssetIssue('IMPORT_UNKNOWN','The added asset could not be confirmed. Check the Project files.');return ready(row);}
+  if(!imported?.isError&&Array.isArray(ids)&&!ids.length)throw bundledAssetIssue('SKIPPED','Selects did not add the bundled asset. Check the Project import result before starting again.');
+  throw bundledAssetIssue('IMPORT_UNKNOWN','The asset import outcome could not be confirmed. Inspect the Project before starting again.',importFailure);
+ }catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))throw error;throw bundledAssetIssue('PREPARE','The bundled asset could not be prepared. Check the installed files and Project resources.',error);}
+}
+// Compatibility API: existing MP3 consumers retain IDs, summaries and codes.
+async function readBundledAudioResource(selects,projectId,path,platform){return readBundledAssetResource(selects,projectId,path,platform);}
+async function prepareBundledAudio(sdk,files,options){
+ try{const result=await prepareBundledAsset(sdk,files,{...options,type:'Audio',extension:'mp3',normalizeUnicode:false,label:'music'});return {resourceId:result.resourceId};}
+ catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))error.code=error.code.replace('BUNDLED_ASSET_','BUNDLED_AUDIO_');throw error;}
+}
+
+// Whole-file hashing is supplied by the host media tool, so large source Videos
+// are streamed without allocating their bytes in the browser. Stat is a change
+// observation; the content digest, not size/mtime, is the source identity.
+async function readAssetFileIdentity(files,path,hashFile,current){
+ try{
+ current();const before=await files.stat(path);current();
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media file is missing or unreadable.');
+ const sha256=await hashFile(path);current();const after=await files.stat(path);current();
+ if(typeof sha256!=='string'||!/^[0-9a-f]{64}$/.test(sha256)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media file changed while its contents were checked. Start a new run.');
+ return {sha256,bytes:before.size};
+ }catch(error){
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('SOURCE','The media file could not be read. Check the selected source and file access.',error);
+ }
+}
+
+// One derived file from a frozen private source copy. Media objects are complete
+// and content addressed before an atomic, bounded index points at them. Concurrent
+// writers may publish different valid generations; neither mixes media/metadata.
+// Reservation ownership is shared by persistent derived media and temporary
+// analysis files. A filename or a lost write response never proves ownership.
+function reserveAssetFiles(files,current,owner){
+ const owned=new Set(),tokens=new Set();
+ const reservationUnknown=cause=>Object.assign(bundledAssetIssue('RESERVATION_UNKNOWN','The media file reservation could not be confirmed. Inspect the preparation workspace before starting again.',cause),{terminal:true});
+ // Ownership observations are bounded and can run after cancellation so only
+ // positively identified reservations enter cleanup. A filename alone is not proof.
+ const observe=async path=>{
+  try{
+   const before=await files.stat(path);
+   if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||before.size>1024)return null;
+   const bytes=await files.readRange(path,0,before.size),after=await files.stat(path);
+   if(!(bytes instanceof Uint8Array)||bytes.length!==before.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))return null;
+   return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+  }catch{return null;}
+ };
+ const reserve=async(path,role)=>{
+  current();const token=crypto.randomUUID();
+  if(typeof token!=='string'||!/^[0-9a-f-]{36}$/i.test(token)||token===owner||tokens.has(token))throw bundledAssetIssue('UNSUPPORTED','The media reservation owner could not be created.');
+  tokens.add(token);const marker=JSON.stringify({version:1,kind:'derived-reservation',owner,token,role});let creationFailure;
+  try{await files.writeFile(path,marker,{flag:'wx'});}catch(error){creationFailure=error;}
+  if(await observe(path)!==marker)throw reservationUnknown(creationFailure);
+  owned.add(path);current();
+  // Consume exactly this marker to retain the established empty-output contract.
+  // During an unobserved replacement, cleanup must not race a late rename.
+  owned.delete(path);let replaced,clearFailure;
+  try{replaced=await files.compareAndReplace(path,marker,'');}catch(error){clearFailure=error;}
+  const cleared=await observe(path);
+  if(replaced===false){if(cleared===marker)owned.add(path);throw reservationUnknown(clearFailure);}
+  if(cleared!=='')throw reservationUnknown(clearFailure);
+  owned.add(path);current();
+ };
+ return {reserve,paths:()=>[...owned],cleanup:async({observeFailure=false}={})=>{
+  const failures=[];
+  for(const path of owned){
+   try{await files.removeFile({filePath:path});}
+   catch(cause){
+    // A lost deletion reply is observed once, never replayed. Existing derived
+    // callers retain best-effort cleanup; transient readers require a verdict.
+    if(observeFailure){try{if(await files.stat(path)===null)continue;}catch{}}
+    failures.push({path,cause});
+   }
+  }
+  return failures;
+ }};
+}
+
+// A host job with an unknown exit may still read/write these reservations. Keep
+// them for inspection; neither an abort acknowledgement nor a cleanup attempt
+// proves that the producer has settled. Preserve diagnostics without mutating
+// the thrown object supplied by a different owner.
+function retainUnconfirmedAssetFiles(error,reservations){
+ return Object.assign(bundledAssetIssue('WORKSPACE_UNKNOWN','The media job exit could not be confirmed. Its temporary workspace is retained for inspection.',error),{
+  terminal:true,preserveTemporaryFiles:true,
+  ...(typeof (error?.unconfirmedJobId??error?.jobId)==='string'?{unconfirmedJobId:error.unconfirmedJobId??error.jobId}:{}),
+  retainedTemporaryFiles:[...new Set([...(Array.isArray(error?.retainedTemporaryFiles)?error.retainedTemporaryFiles:[]),...reservations.paths()])]
+ });
+}
+
+async function prepareDerivedAsset(files,options){
+ const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
+ if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
+ if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The derived media cancellation signal is invalid.');
+ const current=()=>{if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before media preparation completed.');};
+ const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
+ const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
+ const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
+ current();
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(['join','stat','readFile','readRange','exists','mkdir','writeFile','compareAndReplace','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
+ const cached=async()=>{
+  current();let candidate;
+  try{
+   if(!await files.exists(indexPath)){current();return null;}
+   // A different live writer may atomically replace a complete index between
+   // our stat/read/stat observations. Reobserve only this read; never replay
+   // publication or treat an unconfirmed, changing index as a cache miss.
+   let bytes;
+   for(let attempt=0;attempt<3;attempt++){
+    current();
+    try{bytes=await readBundledAssetBytes(files,indexPath,49152,current);break;}
+    catch(error){
+     current();if(error?.code!=='BUNDLED_ASSET_CHANGED')throw error;
+     if(attempt===2)throw Object.assign(bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.',error),{terminal:true});
+    }
+   }
+   const row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+   if(row?.version!==1||row.key!==key||!same(row.source,source)||!valid(row.output))return null;
+   const path=files.join(objectDirectory,row.output.sha256+'.'+extension);
+   if(!same(await readAssetFileIdentity(files,path,hashFile,current),row.output))return null;
+   await verify(path);current();candidate={path,output:row.output,reused:true};
+  }catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;return null;}
+  await freshSource();return candidate;
+ };
+ const previous=await cached();current();if(previous)return previous;
+ if(typeof globalThis.crypto?.randomUUID!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ const owner=crypto.randomUUID();
+ if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
+ current();await files.mkdir(directory,{recursive:true});current();
+ const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
+ let result,preparationFailure;const reservations=reserveAssetFiles(files,current,owner);
+
+ try{
+  // Reserve each private path exclusively before copying/encoding over it.
+  await reservations.reserve(snapshot,'source');await reservations.reserve(temporary,'output');
+  await files.copyFile(sourcePath,snapshot);current();
+  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
+  await produce(snapshot,temporary);current();await freshSource();
+  await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
+  current();await files.mkdir(objectDirectory,{recursive:true});current();
+  const path=files.join(objectDirectory,output.sha256+'.'+extension);
+  let have=false;
+  try{have=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch{current();}
+  if(!have){
+   // A lost rename reply is observed, never retried or implemented as delete+move.
+   try{current();await files.rename(temporary,path);}catch{}
+   current();let confirmed=false;
+   try{confirmed=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;}
+   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media publication could not be confirmed. Inspect the cache before starting again.');
+  }
+  await freshSource();current();await files.mkdir(indexDirectory,{recursive:true});current();
+  const text=JSON.stringify({version:1,key,source,output});
+  try{await files.writeFile(indexPath,text);}catch{/* Observe an acknowledged or concurrent complete index below. */}
+  current();const confirmed=await cached();
+  if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
+  result={...confirmed,reused:false};
+ }catch(error){
+  preparationFailure=error;
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
+ }finally{
+  // Only this invocation's reserved staging paths are disposable. Published
+  // objects/indexes may already be referenced by a different run or old Draft.
+  if(preparationFailure?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(preparationFailure,reservations);
+  const cleanupFailures=await reservations.cleanup({observeFailure:cleanupRequired});
+  if(cleanupRequired&&cleanupFailures.length)throw Object.assign(bundledAssetIssue('CLEANUP','Analysis workspace cleanup could not be confirmed. Inspect the preparation workspace before starting again.',preparationFailure),{terminal:true,cleanupFailures});
+ }
+ // Cleanup is asynchronous too: a detached owner must not receive a late success.
+ current();return result;
+}
+
+// A derived beat grid is reusable only for these exact source bytes, algorithm
+// and sampling policy. File publication/cleanup remains in prepareDerivedAsset;
+// decoding and Worker execution are supplied by the existing runtime owners.
+function validateAudioBeatGrid(value,maxSeconds){
+ const number=(v,max=Number.MAX_VALUE)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
+ const vector=(v,max)=>Array.isArray(v)&&v.length<=max&&v.every(x=>number(x));
+ if(!value||typeof value!=='object'||!number(value.durationSeconds,maxSeconds)||value.durationSeconds<=0||!number(value.bpm,600)||value.bpm<=0||
+  !number(value.firstBeat,value.durationSeconds)||!number(value.lastOnsetSeconds,value.durationSeconds+.1)||!number(value.hitRate,1)||
+  !(value.residualMedianMs===null||number(value.residualMedianMs))||!(value.sixteenthRatio===null||number(value.sixteenthRatio))||
+  !['accepted','approximate','none'].includes(value.grid)||value.accepted!==(value.grid==='accepted')||
+  !vector(value.peaks,400)||!vector(value.beatEnergy,2400)||!Array.isArray(value.onsets)||value.onsets.length>40000||
+  value.onsets.some(row=>!Array.isArray(row)||row.length!==3||!number(row[0],value.durationSeconds+.1)||!['l','m','h'].includes(row[1])||!number(row[2]))||
+  !['l','m','h'].every(key=>number(value.onsetThresholds?.[key])))throw bundledAssetIssue('ANALYSIS_RESULT','The music analysis result could not be confirmed. Select the music again.');
+ return Object.fromEntries(['durationSeconds','bpm','firstBeat','lastOnsetSeconds','hitRate','residualMedianMs','sixteenthRatio','grid','accepted','peaks','beatEnergy','onsets','onsetThresholds'].map(key=>[key,value[key]]));
+}
+async function prepareAudioBeatAnalysis(client,options){
+ const {path,directory,worker,rate,maxSeconds,namespace,signal,isCurrent=()=>true,hashFile,decode,analyze,probe}=options??{};
+ if(typeof path!=='string'||!path||typeof directory!=='string'||!directory||typeof worker!=='string'||!worker||
+  new TextEncoder().encode(worker).length>1024*1024||typeof namespace!=='string'||!namespace||
+  !Number.isSafeInteger(rate)||rate<1||rate>192000||!Number.isFinite(maxSeconds)||maxSeconds<=0||maxSeconds>240||
+  [isCurrent,hashFile,decode,analyze,probe].some(fn=>typeof fn!=='function')||!signal||typeof signal.aborted!=='boolean')throw bundledAssetIssue('INPUT','The music analysis inputs are incomplete.');
+ const deadline=Date.now()+240000,files=client?.files;
+ const current=()=>{if(signal.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','Music analysis ended before completion.');if(Date.now()>=deadline)throw bundledAssetIssue('TIMEOUT','Music analysis timed out. Select the music again.');};
+ const hash=async file=>{current();const digest=await hashFile(file);current();return digest;};
+ current();const source=await readAssetFileIdentity(files,path,hash,current);
+ const keyBytes=new TextEncoder().encode(JSON.stringify([namespace,source,worker,rate,maxSeconds]));
+ const key=[...new Uint8Array(await crypto.subtle.digest('SHA-256',keyBytes))].map(v=>v.toString(16).padStart(2,'0')).join('');current();
+ let grid,fallback,fallbackFailure;
+ const verify=async file=>{const bytes=await readBundledAssetBytes(files,file,4*1024*1024,current);grid=validateAudioBeatGrid(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)),maxSeconds);current();};
+ try{
+  await prepareDerivedAsset(files,{directory:files.join(directory,'own-music'),key,sourcePath:path,source,extension:'json',cleanupRequired:true,signal,isCurrent:()=>{current();return true;},hashFile:hash,verify,
+   produce:async(snapshot,target)=>{
+    let samples=null;
+    try{
+     samples=await decode(snapshot,current);current();
+     grid=validateAudioBeatGrid(await analyze(worker,samples,current),maxSeconds);current();
+     if(Math.abs(grid.durationSeconds-samples.length/rate)>.001)throw bundledAssetIssue('ANALYSIS_RESULT','The music analysis duration does not match its samples.');
+    }catch(error){
+     current();if(error?.terminal||error?.preserveTemporaryFiles||error?.code==='host-missing')throw error;
+     const duration=samples?.length?samples.length/rate:await probe(snapshot);current();
+     if(!Number.isFinite(duration)||duration<=0)throw error;
+     fallback={accepted:false,grid:'none',failed:true,durationSeconds:Math.min(duration,maxSeconds),peaks:[]};
+     fallbackFailure=bundledAssetIssue('ANALYSIS_FALLBACK','Music analysis is unavailable; use fixed timing.',error);throw fallbackFailure;
+    }
+    current();await files.writeFile(target,JSON.stringify(grid));current();
+   }});
+ }catch(error){current();if(error!==fallbackFailure)throw error;grid=fallback;}
+ const after=await readAssetFileIdentity(files,path,hash,current);current();
+ if(after.bytes!==source.bytes||after.sha256!==source.sha256)throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');
+ return {...grid,sourceObservation:{path,size:source.bytes,sha256:source.sha256}};
+}
+
+// An ephemeral output belongs to one invocation and one captured file/media
+// client. Producer policy stays with the caller; the owner never publishes a
+// cache or imports a Project Resource. Cleanup waits for producer settlement.
+async function readTransientAsset(client,options){
+ const {directory,extension,maxBytes,produce,signal,timeoutMs=120000,deadline:requestedDeadline,isCurrent=()=>true}=options??{};
+ const files=client?.files,media=client?.media;
+ if(typeof directory!=='string'||!directory||!['f32','mp3','gray'].includes(extension)||!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>32*1024*1024||typeof produce!=='function'||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||requestedDeadline!==undefined&&!Number.isFinite(requestedDeadline)||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The temporary media request is invalid.');
+ const deadline=Math.min(Date.now()+timeoutMs,requestedDeadline??Infinity);
+ const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
+ const current=()=>{if(!live())throw bundledAssetIssue('STOPPED','Media preparation ended before completion.');if(Date.now()>=deadline)throw bundledAssetIssue('TIMEOUT','Media preparation timed out.');};
+ current();
+ if(['join','stat','readRange','writeFile','compareAndReplace','removeFile','mkdir'].some(name=>typeof files?.[name]!=='function')||typeof globalThis.crypto?.randomUUID!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare temporary media safely.');
+ const owner=crypto.randomUUID();if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
+ const path=files.join(directory,'.media-'+owner+'.'+extension),reservations=reserveAssetFiles(files,current,owner);let bytes,failure,cleanupFailures;
+ try{
+  await files.mkdir(directory,{recursive:true});current();await reservations.reserve(path,'output');
+  await produce({path,files,media,current,deadline});current();
+  bytes=await readBundledAssetBytes(files,path,maxBytes,current);current();
+ }catch(error){
+  failure=error?.terminal||/^BUNDLED_ASSET_/.test(error?.code??'')?error:bundledAssetIssue('PREPARE','Media could not be prepared. Check the source file and media tools.',error);
+ }finally{
+  if(failure?.preserveTemporaryFiles){failure=retainUnconfirmedAssetFiles(failure,reservations);cleanupFailures=[];}
+  else cleanupFailures=await reservations.cleanup({observeFailure:true});
+ }
+ if(failure){
+  if(cleanupFailures.length){
+   // Keep the primary failure/cause, but do not allow a decoder fallback to
+   // conceal an unconfirmed workspace cleanup. Copy, never mutate thrown data.
+   failure=Object.assign(bundledAssetIssue(/^BUNDLED_ASSET_/.test(failure.code??'')?failure.code.slice('BUNDLED_ASSET_'.length):'PREPARE',failure.publicMessage??failure.message,/^BUNDLED_ASSET_/.test(failure.code??'')?failure.cause:failure),{terminal:true,cleanupFailures});
+  }
+  throw failure;
+ }
+ if(cleanupFailures.length)throw Object.assign(bundledAssetIssue('CLEANUP','Temporary media cleanup could not be confirmed. Inspect the preparation workspace before starting again.',cleanupFailures),{terminal:true});
+ current();return bytes;
+}
+
+// A bounded mono PCM recipe. Rate/time are caller policy. Returned samples are
+// independent little-endian values; malformed or non-finite output is rejected.
+async function decodeAssetPcm(client,options){
+ const {path,directory,rate,maxSeconds,signal,timeoutMs=120000,isCurrent=()=>true}=options??{};
+ if(typeof path!=='string'||!path||!Number.isSafeInteger(rate)||rate<1||!Number.isFinite(maxSeconds)||maxSeconds<=0||typeof client?.media?.runFFmpeg!=='function')throw bundledAssetIssue('INPUT','The audio sample request is invalid.');
+ const maxBytes=Math.ceil(rate*maxSeconds)*4;
+ if(!Number.isSafeInteger(maxBytes)||maxBytes<4||maxBytes>32*1024*1024)throw bundledAssetIssue('INPUT','The requested audio sample budget is invalid.');
+ const deadline=Date.now()+timeoutMs;
+ const bytes=await readTransientAsset(client,{directory,extension:'f32',maxBytes,signal,timeoutMs,deadline,isCurrent,
+  produce:({path:target,media,deadline})=>runAssetMediaTool(media,'runFFmpeg',['-nostdin','-v','error','-y','-t',String(maxSeconds),'-i',path,'-vn','-ac','1','-ar',String(rate),'-f','f32le',target],{isCurrent,signal,timeoutMs,deadline})});
+ if(bytes.length%4!==0)throw bundledAssetIssue('PCM','The decoded audio sample length is invalid.');
+ const samples=new Float32Array(bytes.length/4),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ for(let i=0;i<samples.length;i++){samples[i]=view.getFloat32(i*4,true);if(!Number.isFinite(samples[i]))throw bundledAssetIssue('PCM','The decoded audio contains an invalid sample.');}
+ if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','Audio preparation ended before completion.');
+ if(Date.now()>=deadline)throw bundledAssetIssue('TIMEOUT','Audio preparation timed out.');
+ return samples;
+}
+
+// A media process belongs to one captured client and one live invocation. Abort
+// requests stop useful work; await host settlement before callers clean staging
+// files. A late successful response never turns an ended invocation into success.
+async function runAssetMediaTool(media,kind,args,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw bundledAssetIssue('INPUT','The media process options are invalid.');
+ const {isCurrent=()=>true,signal,timeoutMs=120000,deadline}=options;
+ if(!['runFFmpeg','runFFprobe'].includes(kind)||!Array.isArray(args)||args.some(arg=>typeof arg!=='string')||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||deadline!==undefined&&!Number.isFinite(deadline)||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The media process request or scope is invalid.');
+ if(typeof media?.[kind]!=='function'||typeof AbortController!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to run and cancel media preparation safely.');
+ const controller=new AbortController();let stopped=false,timedOut=false,watch,timer;
+ const stop=()=>{stopped=true;controller.abort();};
+ const live=()=>{try{return isCurrent()&&!signal?.aborted;}catch{return false;}};
+ const check=()=>{if(!live())stop();else watch=setTimeout(check,50);};
+ const expiresAt=Math.min(Date.now()+timeoutMs,deadline===undefined?Infinity:deadline),remaining=expiresAt-Date.now();
+ signal?.addEventListener('abort',stop,{once:true});check();
+ if(remaining<=0){timedOut=true;controller.abort();}
+ else timer=setTimeout(()=>{timedOut=true;controller.abort();},remaining);
+ try{
+  if(stopped||timedOut)throw Error('The media process was not dispatched.');
+  const result=await media[kind](args,true,controller.signal);
+  if(!live())stop();
+  if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
+  if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
+  return result;
+ }catch(cause){
+  if(cause?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(cause,{paths:()=>[]});
+  if(!live())stop();
+  if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
+  if(stopped)throw Object.assign(bundledAssetIssue('STOPPED','The template run ended before media preparation completed.',cause),{terminal:true});
+  if(timedOut)throw Object.assign(bundledAssetIssue('TIMEOUT','Media preparation timed out.',cause),{terminal:true});
+  if(cause?.terminal||cause?.code==='host-missing')throw cause;
+  throw bundledAssetIssue('MEDIA','Media preparation could not be completed. Check the source file and media tools.',cause);
+ }finally{clearTimeout(timer);clearTimeout(watch);signal?.removeEventListener('abort',stop);}
+}
+
+// A host local URL names the original without transferring it into a renderer
+// Blob. Older POSIX hosts leave literal #/? in that path; encode those delimiters
+// and independently confirm the host's reverse mapping before a browser uses it.
+async function readAssetPlaybackURL(client,path,current){
+ const files=client?.files,platform=client?.environment?.platform;
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof current!=='function')throw bundledAssetIssue('INPUT','The media preview source is invalid.');
+ if(['stat','pathToLocalURL','localURLToPath'].some(key=>typeof files?.[key]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to preview local media.');
+ const key=value=>{const normalized=typeof files.normalize==='function'?files.normalize(value):value;return platform==='win32'?normalized.replace(/\\/g,'/').toLowerCase():normalized;};
+ current();const before=await files.stat(path);current();
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media preview source is unavailable.');
+ const raw=await files.pathToLocalURL(path);current();
+ if(typeof raw!=='string'||!raw.startsWith('local://'))throw bundledAssetIssue('SOURCE','The local media preview URL could not be confirmed.');
+ // Electron's standard custom-scheme parser otherwise makes the first POSIX
+ // directory a lower-cased host. A dot authority preserves path case, and the
+ // existing host reverse mapping normalizes that dot out independently below.
+ const addressed=platform!=='win32'&&raw.startsWith('local:///')?'local://.'+raw.slice('local://'.length):raw;
+ const url=addressed.replace(/[?#]/g,char=>encodeURIComponent(char)),observed=await files.localURLToPath(url);current();
+ const after=await files.stat(path);current();
+ if(typeof observed!=='string'||key(observed)!==key(path)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media preview source changed while preparing playback.');
+ return url;
+}
+
+// One browser media request, its readiness/seek/play waits and its subscriptions.
+// The caller supplies source admission and section/fade policy. No originals,
+// native producers, installed assets or local URLs are removed by this owner.
+async function playAssetAudioPreview(options){
+ const {prepare,startSeconds,durationSeconds,fadeSeconds=0,timeoutMs=60000,signal,isCurrent=()=>true,onPlaying=()=>{},createMedia=()=>new Audio()}=options??{};
+ if(typeof prepare!=='function'||typeof createMedia!=='function'||typeof isCurrent!=='function'||typeof onPlaying!=='function'||
+  !Number.isFinite(startSeconds)||startSeconds<0||!Number.isFinite(durationSeconds)||durationSeconds<=0||!Number.isFinite(startSeconds+durationSeconds)||
+  !Number.isFinite(fadeSeconds)||fadeSeconds<0||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||
+  !signal||typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function')throw bundledAssetIssue('INPUT','The media preview request is invalid.');
+ const expires=Date.now()+timeoutMs,end=startSeconds+durationSeconds;
+ const volumeAt=at=>fadeSeconds>0?Math.max(0,Math.min(1,(end-at)/fadeSeconds)):1;
+ let media,closed=false,playing=false,timer,watch,lastAt=startSeconds,lastProgress=Date.now(),playStarted=0;
+ const pending=new Set(),subscriptions=[];
+ const live=()=>{try{return !signal.aborted&&isCurrent();}catch{return false;}};
+ const current=()=>{if(closed||!live())throw bundledAssetIssue('STOPPED','The media preview ended.');if(!playing&&Date.now()>=expires)throw bundledAssetIssue('TIMEOUT','The media preview timed out.');};
+ return new Promise((resolve,reject)=>{
+  const close=(failure=null)=>{
+   if(closed)return;closed=true;const cleanup=[];
+   for(const id of [timer,watch])try{clearTimeout(id);}catch(error){cleanup.push(error);}
+   try{signal.removeEventListener('abort',abort);}catch(error){cleanup.push(error);}
+   for(const finish of [...pending])try{finish(failure||bundledAssetIssue('STOPPED','The media preview ended.'));}catch(error){cleanup.push(error);}
+   for(const [name,fn] of subscriptions)try{media.removeEventListener(name,fn);}catch(error){cleanup.push(error);}
+   if(media)for(const release of [()=>media.pause(),()=>media.removeAttribute('src'),()=>media.load()])try{release();}catch(error){cleanup.push(error);}
+   if(cleanup.length){failure=Object.assign(bundledAssetIssue('CLEANUP','Media preview cleanup could not be confirmed. Close and reopen the panel before previewing again.',failure||cleanup[0]),{terminal:true,cleanupFailures:cleanup,ownedMedia:media});}
+   failure?reject(failure):resolve(undefined);
+  };
+  const abort=()=>close(bundledAssetIssue('STOPPED','The media preview ended.'));
+  const listen=(name,fn)=>{media.addEventListener(name,fn);subscriptions.push([name,fn]);};
+  const waitFor=(name,action,ready)=>new Promise((ok,fail)=>{
+   let done=false;
+   const finish=error=>{if(done)return;done=true;pending.delete(finish);try{media.removeEventListener(name,heard);}catch(cause){error=Object.assign(bundledAssetIssue('CLEANUP','Media preview cleanup could not be confirmed.',error||cause),{terminal:true});}error?fail(error):ok(undefined);};
+   const heard=()=>{try{current();if(ready())finish();}catch(error){finish(error);}};
+   pending.add(finish);listen(name,heard);
+   try{current();action();heard();}catch(error){finish(error);}
+  });
+  const tick=()=>{
+   try{
+    current();
+    if(playing){
+     const at=media.currentTime,now=Date.now();
+     if(!Number.isFinite(at)||at<startSeconds-.05)throw bundledAssetIssue('PLAYBACK','The media preview position is invalid.');
+     if(at>=end){close();return;}
+     if(at>lastAt+.001){lastAt=at;lastProgress=now;}
+     if(now-lastProgress>=timeoutMs||now-playStarted>=durationSeconds*1000+timeoutMs)throw bundledAssetIssue('TIMEOUT','The media preview stopped making progress.');
+     media.volume=volumeAt(at);
+    }
+    watch=setTimeout(tick,40);
+   }catch(error){close(error);}
+  };
+  signal.addEventListener('abort',abort,{once:true});
+  timer=setTimeout(()=>close(bundledAssetIssue('TIMEOUT','The media preview timed out.')),Math.max(0,expires-Date.now()));
+  tick();
+  const run=async()=>{
+   current();const source=await prepare(current);current();
+   if(!source||typeof source.url!=='string'||!source.url||source.verify!==undefined&&typeof source.verify!=='function')throw bundledAssetIssue('SOURCE','The media preview source could not be confirmed.');
+   media=createMedia();current();
+   if(!media||['addEventListener','removeEventListener','play','pause','removeAttribute','load'].some(key=>typeof media[key]!=='function'))throw bundledAssetIssue('UNSUPPORTED','This browser cannot preview the media.');
+   listen('error',()=>close(bundledAssetIssue('PLAYBACK','The selected media could not be played.')));
+   listen('ended',()=>playing&&media.currentTime>=end-.05?close():close(bundledAssetIssue('PLAYBACK','The media preview ended before the selected section.')));
+   media.preload='metadata';
+   await waitFor('loadedmetadata',()=>{media.src=source.url;media.load();},()=>media.readyState>=1);
+   current();if(!Number.isFinite(media.duration)||media.duration<=0||end>media.duration+.05)throw bundledAssetIssue('SOURCE','The selected preview section is outside the media duration.');
+   if(Math.abs(media.currentTime-startSeconds)>.001)await waitFor('seeked',()=>{media.currentTime=startSeconds;},()=>!media.seeking&&Math.abs(media.currentTime-startSeconds)<=.05);
+   current();if(source.verify)await source.verify(current);current();
+   media.volume=volumeAt(media.currentTime);await media.play();if(closed){media.pause();return;}current();
+   playing=true;clearTimeout(timer);lastAt=media.currentTime;lastProgress=playStarted=Date.now();onPlaying(media);current();
+  };
+  run().catch(error=>{if(!closed)close(/^BUNDLED_ASSET_/.test(error?.code||'')?error:bundledAssetIssue('PLAYBACK','The selected media could not be played.',error));});
+ });
+}
+// bundled-assets:end
+
 // av-host:start
+// host-files:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
 function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
@@ -3913,39 +4428,23 @@ async function hostRoots(sdk, id, marker) {
   try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
+// host-files:end
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
 // temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
 // throws when ffmpeg fails or `signal` (optional) aborts it.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
-  const rt = hostApi("Runtime", "runFFmpeg");
-  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
-  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
-  const controller = typeof AbortController === "undefined" ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const relay = () => { if (controller) controller.abort(); };
-  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
-  try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
-    const bytes = await hostReadBytes(tmp);
-    // A copy, so the samples sit on a 4-byte boundary.
-    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
-    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
-    return samples;
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    await hostRemove(tmp);
-  }
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000, client = hostSdk) {
+  if (!client?.media || typeof client.media.runFFmpeg !== "function" || !dataDir || typeof client?.files?.readFile !== "function") return null;
+  return decodeAssetPcm(client, { path, directory: dataDir, rate, maxSeconds, signal, timeoutMs });
 }
 // An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path) {
+async function hostProbeSeconds(path, client = hostSdk, signal) {
   try {
-    const rt = hostApi("Runtime", "runFFprobe");
-    if (!rt) return null;
-    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
-    const v = parseFloat(String(r?.stdout || "").trim());
-    return v > 0 ? v : null;
-  } catch { return null; }
+    const rt = client?.media;
+    if (typeof rt?.runFFprobe !== "function") return null;
+    const r = await runAssetMediaTool(rt, "runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], { signal, timeoutMs: 30000 });
+    const v = Number(String(r?.stdout || "").trim());
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch (error) { if (error?.terminal || error?.preserveTemporaryFiles) throw error; return null; }
 }
 // av-host:end
 
@@ -3957,16 +4456,17 @@ const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");
 
 // ---- Your own music --------------------------------------------------------------------------------------------
 // Mono samples at OWN_RATE, at most OWN_MAX_SECONDS: the host's ffmpeg when it has one (hostDecodePcm); without it, or
-// when it fails, the panel decodes the file's bytes with WebAudio (whatever Chromium decodes: mp3, m4a/aac, wav, flac,
+// on an ordinary decode failure, the panel decodes the file's bytes with WebAudio (whatever Chromium decodes: mp3, m4a/aac, wav, flac,
 // ogg) and averages the channels, as ffmpeg's mono downmix does.
-async function decodeOwnMusic(path: string, dataDir: string | null, signal: AbortSignal): Promise<Float32Array> {
+async function decodeOwnMusic(path: string, dataDir: string | null, signal: AbortSignal, client: any = hostSdk): Promise<Float32Array> {
   let first: any = null;
-  try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal); if (s) return s; } catch (e) { first = e; }
+  try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client); if (s) return s; } catch (e) { first = e; }
   if (signal.aborted) throw new Error("cancelled");
+  if (first?.terminal || first?.preserveTemporaryFiles) throw first;
   try {
     const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
     if (!Ctx) throw new Error("this panel cannot decode audio");
-    const bytes = await readBytes(path);
+    const bytes = hostBytes(await client.files.readFile(path));
     if (signal.aborted) throw new Error("cancelled");
     const ctx = new Ctx(1, 1, OWN_RATE);
     const buf: AudioBuffer = await ctx.decodeAudioData(bytes.slice().buffer);
@@ -3981,41 +4481,883 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
     return out;
   } catch (e) { throw signal.aborted ? new Error("cancelled") : first || e; }
 }
+async function prepareArchiveOwnMusic(client: any, path: string, data: string, worker: string, signal: AbortSignal, isCurrent: () => boolean) {
+  return prepareAudioBeatAnalysis(client, { path, directory: data, worker, rate: OWN_RATE, maxSeconds: OWN_MAX_SECONDS, namespace: "archive-own-music-v1", signal, isCurrent,
+    hashFile: async (file: string) => (await observeSourceFiles(client.files, [file]))[0].sha256,
+    decode: (snapshot: string) => decodeOwnMusic(snapshot, data, signal, client),
+    analyze: (source: string, samples: Float32Array, current: () => void) => analyseBeat(source, samples, signal, BEAT_TIMEOUT_MS, () => { current(); return true; }),
+    probe: (snapshot: string) => hostProbeSeconds(snapshot, client, signal),
+  });
+}
 // beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
 // CSP allows blob: workers (cutback-client panelSandbox.ts: worker-src * data: blob:). A host that refuses the worker
 // rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()); so does
 // `timeoutMs` (BEAT_TIMEOUT_MS): a worker that never answers rejects with code "beat-timeout" (fixed timing then).
 const BEAT_TIMEOUT_MS = 60000;
-function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let worker: Worker | null = null, url: string | null = null, done = false;
-    let timer: any = null;
-    const finish = (fn: () => void) => {
-      if (done) return;
-      done = true;
-      if (timer) clearTimeout(timer);
-      try { worker?.terminate(); } catch { /* gone */ }
-      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
-      signal?.removeEventListener("abort", onAbort);
-      fn();
-    };
-    const onAbort = () => finish(() => reject(new Error("cancelled")));
-    if (signal?.aborted) { reject(new Error("cancelled")); return; }
-    signal?.addEventListener("abort", onAbort);
-    try {
-      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-      worker = new Worker(url);
-    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
-    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
-    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
-    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
-    worker.postMessage({ samples, rate: OWN_RATE });
-  });
+// analysis-worker:start
+// One browser Worker invocation. Algorithm, payload units and result protocol
+// belong to the caller; no Project, media process or persistent file is touched.
+function panelWorkerIssue(code,message,cause=undefined){
+ return Object.assign(Error(message),{code:'PANEL_WORKER_'+code,publicMessage:message,...cause?{cause}:{}});
+}
+async function runPanelWorker(source,payload,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw panelWorkerIssue('INPUT','The analysis worker scope is invalid.');
+ const {signal,isCurrent=()=>true,timeoutMs=60000,transfer}=options;
+ if(typeof source!=='string'||!source||new TextEncoder().encode(source).length>1024*1024||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw panelWorkerIssue('INPUT','The analysis worker request is invalid.');
+ if(transfer!==undefined&&!Array.isArray(transfer))throw panelWorkerIssue('INPUT','The analysis worker transfer list is invalid.');
+ const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
+ const stopped=cause=>panelWorkerIssue('STOPPED','Background analysis ended before completion.',cause);
+ const timeout=cause=>panelWorkerIssue('TIMEOUT','Background analysis timed out.',cause);
+ const deadline=Date.now()+timeoutMs;
+ if(!live())throw stopped();
+ if(typeof Worker!=='function'||typeof Blob!=='function'||typeof globalThis.URL?.createObjectURL!=='function'||typeof globalThis.URL?.revokeObjectURL!=='function')throw panelWorkerIssue('UNSUPPORTED','This environment cannot run background analysis.');
+ return new Promise((resolve,reject)=>{
+  let worker,url,timer,watch,done=false,phase='START';
+  const finish=(value,failure)=>{
+   if(done)return;done=true;
+   const cleanupFailures=[],attempt=action=>{try{action();}catch(error){cleanupFailures.push(error);}};
+   if(timer!==undefined)attempt(()=>clearTimeout(timer));
+   if(watch!==undefined)attempt(()=>clearTimeout(watch));
+   attempt(()=>signal?.removeEventListener('abort',onAbort));
+   if(worker){
+    attempt(()=>{worker.onmessage=null;worker.onerror=null;worker.onmessageerror=null;});
+    attempt(()=>worker.terminate());
+   }
+   if(url!==undefined)attempt(()=>URL.revokeObjectURL(url));
+   // Cleanup can itself detach the owner or cross the deadline. Never hand a
+   // late result back merely because its message arrived before cleanup began.
+   if(!live())failure=stopped(failure);
+   else if(Date.now()>=deadline)failure=timeout(failure);
+   if(cleanupFailures.length){
+    failure=Object.assign(panelWorkerIssue(failure?.code?.replace(/^PANEL_WORKER_/,'')??'CLEANUP',failure?.publicMessage??'Analysis worker cleanup could not be confirmed.',failure??cleanupFailures[0]),{terminal:true,cleanupFailures});
+   }
+   if(failure)reject(failure);else resolve(value);
+  };
+  const onAbort=()=>finish(undefined,stopped());
+  const current=()=>{
+   if(done)return false;
+   if(!live()){finish(undefined,stopped());return false;}
+   if(Date.now()>=deadline){finish(undefined,timeout());return false;}
+   return true;
+  };
+  const observe=()=>{if(current())watch=setTimeout(observe,50);};
+  try{
+   url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+   if(!current())return;
+   worker=new Worker(url);
+   worker.onmessage=event=>finish(event.data);
+   worker.onerror=event=>{try{event?.preventDefault?.();}catch{}finish(undefined,panelWorkerIssue('ERROR','Background analysis could not be completed.',event));};
+   worker.onmessageerror=event=>finish(undefined,panelWorkerIssue('MESSAGE','The background analysis response could not be read.',event));
+   // Subscribe after construction: cancellation inside a constructor must not
+   // finish before the newly created Worker reference becomes owned.
+   signal?.addEventListener('abort',onAbort,{once:true});
+   if(!current())return;
+   timer=setTimeout(()=>finish(undefined,timeout()),Math.max(0,deadline-Date.now()));
+   watch=setTimeout(observe,50);
+   phase='DISPATCH';
+   // Clone by default. Only callers that already relinquish their buffer opt
+   // into transfer; selection/copying and fallback remain caller policy.
+   if(transfer===undefined)worker.postMessage(payload);
+   else worker.postMessage(payload,transfer);
+  }catch(cause){finish(undefined,panelWorkerIssue(phase,phase==='START'?'The analysis worker could not start.':'The analysis worker request could not be sent.',cause));}
+ });
+}
+// analysis-worker:end
+async function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS, isCurrent: () => boolean = () => true): Promise<any> {
+  let reply: any;
+  try { reply = await runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent }); }
+  catch (cause: any) {
+    const timedOut = cause?.code === "PANEL_WORKER_TIMEOUT", stopped = cause?.code === "PANEL_WORKER_STOPPED";
+    const starting = cause?.code === "PANEL_WORKER_START" || cause?.code === "PANEL_WORKER_UNSUPPORTED";
+    const err: any = new Error(timedOut ? "the beat detection took too long" : stopped ? "cancelled" : starting ? "the beat detector could not start" : "the beat detector stopped");
+    if (timedOut) err.code = "beat-timeout";
+    err.cause = cause;
+    if (cause?.terminal) err.terminal = true;
+    if (cause?.preserveTemporaryFiles) err.preserveTemporaryFiles = true;
+    throw err;
+  }
+  if (reply?.error) throw new Error(String(reply.error));
+  return reply?.ok;
 }
 // A browser-playable type for a music file, by its extension ("" lets the browser sniff).
 function audioType(path: string) {
   const ext = (String(path).split(/[\\/]/).pop() || "").split(".").pop()!.toLowerCase();
   return ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg" } as any)[ext] || "";
+}
+
+// template-run:start
+// Durable ownership of one app-supplied template run. Original source is embedded
+// into its declared consumers; no cross-plugin runtime import is required.
+function templateRunJSON(value,limit=49152) {
+ // Request data may opt in to a larger budget. Receipt envelopes and their
+ // exclusive/CAS writes retain the original 48 KiB default and exact bytes.
+ if(!Number.isSafeInteger(limit)||limit<49152||limit>131072)throw Error('Invalid template request limit.');
+ const text=JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('The template run receipt exceeds the local file limit.');
+ return text;
+}
+// SDK scripts have no browser/Node encoding globals. The JSON above is ASCII.
+function templateRunBase64(text) {
+ const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';let out='';
+ for(let i=0;i<text.length;i+=3){
+  const a=text.charCodeAt(i),b=text.charCodeAt(i+1),c=text.charCodeAt(i+2);
+  out+=alphabet[a>>2]+alphabet[((a&3)<<4)|(Number.isNaN(b)?0:b>>4)]+(Number.isNaN(b)?'=':alphabet[((b&15)<<2)|(Number.isNaN(c)?0:c>>6)])+(Number.isNaN(c)?'=':alphabet[c&63]);
+ }
+ return out;
+}
+function templateRunIssue(code,message) {
+ return Object.assign(Error(message),{code,publicMessage:message});
+}
+// A canonical, bounded JSON value for snapshots/recipes. Unlike the small run
+// envelope, state can include fonts/programs; it is stored in chunked files.
+function templateStateJSON(value,limit=8388608){
+ const text=JSON.stringify(value,(_key,item)=>{
+  if(typeof item==='number'&&!Number.isFinite(item)||['function','symbol','bigint'].includes(typeof item))throw Error('Template state contains an unsupported value.');
+  return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item;
+ }).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
+}
+// SDK-safe state of every exposed timeline row. Read-only targets never cross
+// edits or script calls. Working copies have no source-window read capability:
+// null is explicitly pending, never a source window inferred from the recipe.
+async function readTemplateSavedState(draft,sources=null,observeSource=null){
+ const meta=await draft.meta(),graphics=await draft.motionGraphics(),rows=await draft.clips({trackScope:'all'});
+ if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.durationFrames)||meta.durationFrames<1||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows)||rows.length>1024||new Set(rows.map(r=>r.clipId)).size!==rows.length||!Array.isArray(graphics))throw Error('The Draft state is incomplete.');
+ const clips=[];
+ for(const row of rows){
+  if(!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string'||!row.trackId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)throw Error('The Draft row is incomplete.');
+  const graphic=graphics.find(g=>g.clip.clipId===row.clipId&&g.clip.trackId===row.trackId),media=row.resourceId!=null&&['main','video','audio'].includes(row.trackKind),visual=['main','video'].includes(row.trackKind)&&(media||!!graphic);
+  const effects=[];
+  if(visual)for(const effect of await draft.videoEffects(row))effects.push({effectIndex:effect.effectIndex,name:effect.name,effectName:effect.effectName,enabled:effect.enabled,program:await draft.videoEffectProgram(effect)});
+  clips.push({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId??null,startFrame:row.startFrame,endFrame:row.endFrame,videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,color:row.color??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,text:row.text??null,
+   source:media&&sources!==null?observeSource(sources,row):null,audio:media?await draft.clipAudio(row):null,transform:visual?await draft.clipTransform(row):null,effects,graphic:graphic?{name:graphic.name,program:await draft.motionGraphicProgram(row)}:null});
+ }
+ clips.sort((a,b)=>a.clipId-b.clipId);
+ return {fps:meta.fps,durationFrames:meta.durationFrames,frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips,...sources===null?{sourcesPending:true}:{}};
+}
+// SDK-safe immutable snapshot publication and comparison. Compare actual bytes
+// in bounded chunks as well as their fresh fingerprint; no SDK encoding global
+// or handwritten hash implementation is required.
+async function templateStateFile(selects,path,text,encode,expected=null,fingerprint=null){
+ const files=selects.files;
+ if(!files||!['readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof fingerprint!=='function'||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');
+ if(!expected){
+  for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}
+  const observed=await fingerprint(files,path);
+  if(!observed||observed.size!==text.length||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('Template state file could not be fingerprinted.');
+  expected={path,...observed};
+ }
+ if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');
+ const before=await fingerprint(files,path);
+ if(!before||before.size!==expected.size||before.sha256!==expected.sha256)throw Error('The template state file has changed.');
+ for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.readRange({path,offset,length:chunk.length});if(reply?.bytesRead!==chunk.length||reply.base64!==encode(chunk))throw Error('The saved Draft differs from its owned state.');}
+ const after=await fingerprint(files,path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');
+ return expected;
+}
+function validateTemplateRun(row,scope,digest,recordPath=null) {
+ const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
+ if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
+  typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown','retired'].includes(row.status))throw invalid();
+ if(row.savedDraftId!==undefined&&(row.status!=='outcomeUnknown'||typeof row.savedDraftId!=='string'||!row.savedDraftId||row.savedDraftId.length>1024||row.savedDraftId.includes('\0')))throw invalid();
+ if(row.status==='saved'){
+  const r=row.result;
+  if(!r||typeof r.draftId!=='string'||!r.draftId||!Number.isFinite(r.fps)||r.fps<=0||!Number.isSafeInteger(r.durationFrames)||r.durationFrames<1||
+   !Number.isSafeInteger(r.frameSize?.width)||r.frameSize.width<1||!Number.isSafeInteger(r.frameSize?.height)||r.frameSize.height<1||!Array.isArray(r.clips)||!r.clips.length||r.clips.length>256||
+   r.clips.some(c=>!c||!Number.isSafeInteger(c.clipId)||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame||c.endFrame>r.durationFrames))throw invalid();
+  if(new Set(r.clips.map(c=>c.clipId)).size!==r.clips.length)throw invalid();
+  if(r.stateFile!==undefined){const file=r.stateFile;if(!file||Object.keys(file).length!==3||typeof file.path!=='string'||!recordPath||file.path!==recordPath+'.state-'+row.owner+'.json'||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256)||!Number.isSafeInteger(file.size)||file.size<1||file.size>8388608)throw invalid();}
+  if(r.sourceGuard!==undefined){
+   const g=r.sourceGuard;if(!g||typeof g!=='object'||Array.isArray(g))throw invalid();
+   if(g.version===1){
+    if(g.owner!==row.owner||!recordPath||g.path!==recordPath+'.sources-'+row.owner+'.json'||!Array.isArray(g.intent)||!g.intent.length||g.intent.length>1000)throw invalid();
+   }else if(g.version===2){
+    if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!recordPath||g.path!==recordPath+'.gallery-sources-'+row.owner+'.json'||!Number.isSafeInteger(g.size)||g.size<1||g.size>8388608||typeof g.sha256!=='string'||!/^[a-f0-9]{64}$/.test(g.sha256))throw invalid();
+   }else{
+    // Gallery guards source metadata/files; Vlog's versioned guard binds saved
+    // clip windows to a separately retained planner intent. Keep both contracts.
+    const text=(value,max)=>typeof value==='string'&&value.length>0&&value.length<=max&&!value.includes('\0');
+    const identity=item=>item&&text(item.resourceId,1024)&&text(item.path,4096);
+    if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!Array.isArray(g.media)||!g.media.length||g.media.length>21||!Array.isArray(g.files)||!g.files.length||g.files.length>22||!text(g.signature,32768))throw invalid();
+    for(const item of g.media)if(!identity(item)||!['image','video'].includes(item.kind)||!Number.isSafeInteger(item.width)||item.width<1||!Number.isSafeInteger(item.height)||item.height<1||item.kind==='video'&&(!Number.isFinite(item.durationSeconds)||item.durationSeconds<=0)||['focusX','focusY'].some(key=>item[key]!==undefined&&(!Number.isFinite(item[key])||item[key]<0||item[key]>1)))throw invalid();
+    if(g.music!==null&&(!identity(g.music)||!Number.isFinite(g.music.durationSeconds)||g.music.durationSeconds<=0||g.music.startFrame!==undefined&&(!Number.isSafeInteger(g.music.startFrame)||g.music.startFrame<0)))throw invalid();
+    if(new Set(g.files.map(file=>file?.path)).size!==g.files.length||g.files.some(file=>!file||Object.keys(file).length!==3||!text(file.path,4096)||!Number.isSafeInteger(file.size)||file.size<1||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256))||[...g.media,...g.music?[g.music]:[]].some(item=>!g.files.some(file=>file.path===item.path)))throw invalid();
+    const signature=JSON.stringify({media:g.media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,item.kind==='video'?item.durationSeconds:null]),music:g.music?[g.music.resourceId,g.music.path,g.music.durationSeconds]:null});
+    if(signature!==g.signature)throw invalid();
+   }
+  }
+  if(r.graphics!==undefined){
+   if(!Array.isArray(r.graphics)||r.graphics.length>256||r.graphics.some(g=>!g||!Number.isSafeInteger(g.clipId)||g.clipId<0||typeof g.trackId!=='string'||!g.trackId||!Number.isSafeInteger(g.startFrame)||!Number.isSafeInteger(g.endFrame)||g.startFrame<0||g.endFrame<=g.startFrame||g.endFrame>r.durationFrames||!g.parameters||typeof g.parameters!=='object'||Array.isArray(g.parameters)||'tsxCode' in g))throw invalid();
+   if(new Set(r.graphics.map(g=>g.clipId)).size!==r.graphics.length||r.graphics.some(g=>r.clips.some(c=>c.clipId===g.clipId)))throw invalid();
+  }
+  if(r.transforms!==undefined){
+   const visual=[...r.clips,...(r.graphics??[])],point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
+   if(!Array.isArray(r.transforms)||r.transforms.length!==visual.length||new Set(r.transforms.map(t=>t?.clipId)).size!==r.transforms.length)throw invalid();
+   for(const row of r.transforms){
+    const t=row?.transform;
+    if(!row||!visual.some(c=>c.clipId===row.clipId&&c.trackId===row.trackId)||Object.keys(row).length!==3||!t||Object.keys(t).length!==10||typeof t.enabled!=='boolean'||typeof t.flipHorizontal!=='boolean'||typeof t.flipVertical!=='boolean'||!point(t.position)||!point(t.scale)||t.scale.x<=0||t.scale.y<=0||!point(t.anchor)||!Number.isFinite(t.rotation))throw invalid();
+    for(const key of ['positionKeys','scaleKeys','rotationKeys'])if(!Array.isArray(t[key])||t[key].length>256||t[key].some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||(key==='positionKeys'?!point(k):!Number.isFinite(k[key==='scaleKeys'?'scale':'rotation']))))throw invalid();
+   }
+  }
+  if(r.audio!==undefined){
+   if(!Array.isArray(r.audio)||r.audio.length>256||new Set(r.audio.map(a=>a?.clipId)).size!==r.audio.length)throw invalid();
+   const db=value=>Number.isFinite(value)&&value>=-60&&value<=12,visual=[...r.clips,...(r.graphics??[])];
+   for(const a of r.audio){
+    const s=a?.settings;
+    if(!a||Object.keys(a).length!==(a.source===undefined?8:9)||!Number.isSafeInteger(a.clipId)||a.clipId<0||typeof a.trackId!=='string'||!a.trackId||!['main','audio'].includes(a.trackKind)||typeof a.resourceId!=='string'||!a.resourceId||!Number.isSafeInteger(a.startFrame)||!Number.isSafeInteger(a.endFrame)||a.startFrame<0||a.endFrame<=a.startFrame||a.endFrame>r.durationFrames||visual.some(c=>c.clipId===a.clipId)||!s||Object.keys(s).length!==4)throw invalid();
+    if(a.source!==undefined){
+     const t=a.source,rate=t?.playbackSpeed;
+     if(!t||Object.keys(t).length!==4||!Number.isFinite(t.startSeconds)||t.startSeconds<0||!Number.isFinite(t.endSeconds)||t.endSeconds<=t.startSeconds||!rate||Object.keys(rate).length!==2||!Number.isSafeInteger(rate.numerator)||rate.numerator<1||!Number.isSafeInteger(rate.denominator)||rate.denominator<1||rate.numerator/rate.denominator<.01||rate.numerator/rate.denominator>100||typeof t.preserveAudioPitch!=='boolean')throw invalid();
+    }
+    if(a.audioSourceIndexes!==null&&(!Array.isArray(a.audioSourceIndexes)||a.audioSourceIndexes.length>256||new Set(a.audioSourceIndexes).size!==a.audioSourceIndexes.length||a.audioSourceIndexes.some(i=>!Number.isSafeInteger(i)||i<0)))throw invalid();
+    const duration=(a.endFrame-a.startFrame)/r.fps;
+    if(!Array.isArray(s.volumeKeys)||s.volumeKeys.length>256||(s.volumeKeys.length?s.volumeDb!==null:!db(s.volumeDb))||s.volumeKeys.some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||k.atSeconds>duration||!db(k.volumeDb))||!Number.isFinite(s.fadeInSeconds)||s.fadeInSeconds<0||s.fadeInSeconds>duration||!Number.isFinite(s.fadeOutSeconds)||s.fadeOutSeconds<0||s.fadeOutSeconds>duration)throw invalid();
+   }
+  }
+  if(r.programs!==undefined){
+   const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   const entry=(e,effect)=>{
+    if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
+    if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();
+    used.add(e.source);
+   };
+   for(const c of p.clips){
+    if(!c||Object.keys(c).length!==4||!visual.some(v=>v.clipId===c.clipId&&v.trackId===c.trackId)||!Array.isArray(c.effects)||c.effects.length>64)throw invalid();
+    c.effects.forEach(e=>entry(e,true));
+    const graphic=(r.graphics??[]).some(g=>g.clipId===c.clipId);
+    if(graphic)entry(c.graphic,false);else if(c.graphic!==null)throw invalid();
+   }
+   if(used.size!==p.sources.length)throw invalid();
+  }
+ }
+ return row;
+}
+// Called inside the SAME Main SDK invocation after authoring, before the reply.
+// Only the exclusive claim's owner can publish this receipt; no save is retried.
+async function writeTemplateRunResult(selects,claim,result,json,encode) {
+ try{
+  const row=JSON.parse(claim.expectedText),status=result.status;
+  if(row.status!=='claimed'||!['saved','notSaved','outcomeUnknown'].includes(status))throw Error('Invalid run receipt state');
+  let saved;
+  if(status==='saved'){
+   if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{},...'sourceGuard' in result?{sourceGuard:result.sourceGuard}:{}};
+  }
+  const savedDraftId=status==='outcomeUnknown'?result.draftId:null;
+  if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\0')))throw Error('Invalid saved Draft identity');
+  const next=json({...row,status,...saved?{result:saved}:{},...savedDraftId?{savedDraftId}:{}});
+  const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});
+  return {...result,runReceiptSaved:reply?.replaced===true};
+ }catch{return {...result,runReceiptSaved:false};}
+}
+async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,verify,options={}) {
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!options||['existingOnly','retryNotSaved','retireUnstarted'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean')||options.existingOnly&&(options.retryNotSaved||options.retireUnstarted)||options.retryNotSaved&&options.retireUnstarted)fail('TEMPLATE_RUN_INVALID','Invalid run recovery options.');
+ if(!scope||!['pluginId','libraryId','projectId','runId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=1024)||!/^[a-z0-9-]+$/.test(scope.pluginId))fail('TEMPLATE_RUN_INVALID','The template run target is incomplete. Start again from the Project.');
+ scope={pluginId:scope.pluginId,libraryId:scope.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const targetCheck=async()=>{
+  const target=await sdk.call('getProjectDraftScaffold',scope.projectId);
+  if(target?.owner?.libraryId!==scope.libraryId||target.owner.projectId!==scope.projectId)fail('TEMPLATE_RUN_TARGET','The template run belongs to a different Project or library. Start again from the intended Project.');
+  check();
+ };
+ await targetCheck();
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','compareAndReplace','mkdir'].every(key=>typeof files[key]==='function'))fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const digest=async(value,limit=49152)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value,limit)))),n=>n.toString(16).padStart(2,'0')).join('');
+ const key=await digest(scope),requestDigest=await digest(request,options.requestLimit??49152);
+ const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
+ let lastReadText=null;
+ const read=async()=>{
+  if(!await files.exists(path))return null;
+  let row;
+  try{
+   for(let attempt=0;attempt<3;attempt++){
+   const stat=await files.stat(path);if(stat?.isDirectory===false&&stat.size===0)continue;
+   if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
+   const bytes=await files.readRange(path,0,stat.size),after=await files.stat(path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]')throw Error('Invalid run record bytes');
+   // A legitimate Main-side receipt may replace the claim between these reads.
+   // Retry bounded observations; never parse a mixture or retry authoring.
+   if(!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))continue;
+   if(bytes.byteLength!==stat.size)throw Error('Invalid run record bytes');
+   lastReadText=new TextDecoder().decode(bytes);row=JSON.parse(lastReadText);break;
+   }
+   if(row===undefined)fail('TEMPLATE_RUN_PENDING','The run record is changing. Check its saved result again.');
+  }catch(error){if(error?.code==='TEMPLATE_RUN_PENDING')throw error;fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
+  return validateTemplateRun(row,scope,requestDigest,path);
+ };
+ const recover=async row=>{
+  if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
+  if(row.status==='retired')throw Object.assign(templateRunIssue('TEMPLATE_RUN_RETIRED','This old operation was retired before saving. Start a new template run with the updated version.'),{outcome:'notSaved'});
+  if(row.status==='notSaved')fail('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.');
+  if(row.status==='outcomeUnknown'&&row.savedDraftId)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The saved Draft '+row.savedDraftId+' could not be confirmed. Inspect it before starting another run.'),{draftId:row.savedDraftId});
+  fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
+ };
+ const existing=await read(),retryText=lastReadText;
+ if(existing&&!((options.retryNotSaved||options.retireUnstarted)&&existing.status==='notSaved'))return recover(existing);
+ if(options.existingOnly)fail('TEMPLATE_RUN_MISSING','The owned assembly record is missing. Inspect the Project before starting another run.');
+ if(typeof globalThis.crypto?.randomUUID!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&typeof selects.files?.compareAndReplace==='function'&&typeof selects.files?.writeChunk==='function'};"});
+ if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ await files.mkdir(directory,{recursive:true});check();
+ const owner=crypto.randomUUID(),expectedText=templateRunJSON({version:1,scope,requestDigest,owner,status:'claimed'}),claim={path,expectedText};
+ // Exclusive creation is a filesystem operation, including across app windows.
+ // compareAndReplace alone serializes only one renderer bridge's own writes.
+ if(existing){
+  // Only a positive no-save is eligible. The exclusive generation lock covers
+  // other renderer bridges too; a CAS alone does not provide that guarantee.
+  const lock=path+'.retry-'+existing.owner;
+  try{await files.writeFile(lock,owner,{flag:'wx'});}catch(cause){
+   const stat=await files.stat(lock),bytes=stat?.size===owner.length?await files.readRange(lock,0,stat.size):null;
+   if(!bytes||new TextDecoder().decode(bytes)!==owner)fail('TEMPLATE_RUN_PENDING','A retry of this known no-save run is awaiting confirmation.');
+  }
+  try{
+   const replaced=await files.compareAndReplace(path,retryText,expectedText);
+   if(!replaced){const row=await read();if(row?.owner!==owner)return recover(row);}
+  }catch(cause){const row=await read();if(row?.owner!==owner)throw cause;}
+ }else try{await files.writeFile(path,expectedText,{flag:'wx'});}catch(cause){
+  const row=await read();
+  if(!row)fail('TEMPLATE_RUN_STORAGE','The run could not be recorded. Nothing was dispatched. Check local file access and start a new run.');
+  if(row.owner!==owner)return recover(row);
+  // A lost claim ACK is safe to recover here: authoring has not been dispatched.
+ }
+ if(options.retireUnstarted){
+  // An exclusive claim excludes older windows too. A distinct terminal state
+  // cannot be mistaken for their retryable pre-save failure.
+  const retired=templateRunJSON({...JSON.parse(expectedText),status:'retired'});
+  try{await files.compareAndReplace(path,expectedText,retired);}catch{}
+  const row=await read();if(row?.status==='retired')return recover(row);
+  fail('TEMPLATE_RUN_PENDING','Retirement of this old operation could not be confirmed. Check the same run again.');
+ }
+ let dispatched=false;
+ try{
+  check();
+  return await perform(claim,async()=>{await targetCheck();dispatched=true;});
+ }catch(cause){
+  if(!dispatched){
+   // No authoring was dispatched. Never overwrite a later Main-side receipt.
+   await files.compareAndReplace(path,expectedText,templateRunJSON({...JSON.parse(expectedText),status:'notSaved'})).catch(()=>{});
+   if(cause&&typeof cause==='object')Object.assign(cause,{outcome:'notSaved'});
+  }else{
+   // Main may finish after the transport failed. Keep its expected claim intact
+   // so the late receipt can land. A positively saved receipt permits readback.
+   const row=await read();if(row?.status==='saved')return recover(row);
+   if(row?.status==='notSaved')throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.'),{cause});
+  }
+  throw cause;
+ }
+}
+
+// SDK-safe projection for an assembly receipt. Main media identity and frame
+// intervals, routing, source windows, transforms and Main audio are confirmed
+// here; this is not title/effect or other-track semantic approval.
+async function readTemplateAssemblyState(draft,sources=null,observeSource=null){
+ const meta=await draft.meta(),rows=await draft.clips({trackScope:'main'});
+ if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows))throw Error('The assembled Draft metadata is incomplete.');
+ const clips=[];
+ for(const row of rows.filter(row=>row.resourceId!=null))clips.push({clipId:row.clipId,trackId:row.trackId,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,
+  videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,
+  source:sources!==null?observeSource(sources,row):null,transform:await draft.clipTransform(row),audio:await draft.clipAudio(row)});
+ clips.sort((a,b)=>a.clipId-b.clipId);
+ if(!clips.length||clips.length>256||new Set(clips.map(c=>c.clipId)).size!==clips.length||clips.some(c=>!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame))throw Error('The assembled Draft clips could not be confirmed.');
+ const state={fps:meta.fps,durationFrames:Math.max(...clips.map(c=>c.endFrame)),frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips,...sources===null?{sourcesPending:true}:{}};
+ JSON.stringify(state,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['bigint','function','symbol'].includes(typeof value))throw Error('The assembly returned an invalid nonfinite or unsupported value.');return value;});
+ return state;
+}
+
+async function readTemplateAssemblyFacts(selects,projectId,draftId,readState,sources=null,observeSource=null){
+ if(typeof draftId!=='string'||!draftId)throw Error('The assembly returned no Draft identity.');
+ const ids=(await selects.project(projectId).meta()).draftIds;
+ if(!Array.isArray(ids)||!ids.includes(draftId))throw Error('The assembled Draft is not in its Project.');
+ return {draftId,...await readState(selects.draft(draftId),sources,observeSource)};
+}
+
+// The pending working snapshot stays immutable. Its source fields cannot be
+// treated as observations; the new, owner-bound guard records actual saved
+// sources only after they match the planner's separately named intent.
+function templatePendingSourceState(state){
+ return {...state,clips:state.clips.map(row=>({...row,source:null})),sourcesPending:true};
+}
+function templateSourceIntentState(intent,sources,observeSource){
+ if(!Array.isArray(intent)||!intent.length||intent.length>1000||!Array.isArray(sources?.clips)||sources.clips.length!==intent.length||typeof observeSource!=='function')throw Error('The planned source guard is incomplete.');
+ const ids=new Set(),clips=[];
+ const same=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
+ for(const row of intent){
+  const key=JSON.stringify([row?.trackId,row?.clipId]),want=row?.source;
+  if(ids.has(key)||!Number.isSafeInteger(row?.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||!['main','video','audio'].includes(row.trackKind)||typeof row.resourceId!=='string'||!row.resourceId||!Number.isSafeInteger(row.startFrame)||!Number.isSafeInteger(row.endFrame)||row.startFrame<0||row.endFrame<=row.startFrame||want?.clipId!==row.clipId||!Number.isFinite(want.startSeconds)||want.startSeconds<0||!Number.isFinite(want.endSeconds)||want.endSeconds<=want.startSeconds)throw Error('The planned source intent is invalid.');
+  ids.add(key);
+  const actual=observeSource(sources,row),observed=sources.clips.find(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+  if(!same(actual.startSeconds,want.startSeconds)||!same(actual.endSeconds,want.endSeconds)||observed.playbackSpeed!==1)throw Error('The saved source differs from the original planned source window.');
+  clips.push({...row,source:actual,playbackSpeed:observed.playbackSpeed});
+ }
+ return clips;
+}
+// SDK-safe exclusive publication/readback. Existence alone proves nothing;
+// every caller compares all canonical bytes with a fresh file observation.
+async function templateSourceGuardFile(selects,guard,clips,stateFile,stateJSON,encode,fingerprint){
+ if(guard?.version!==1||typeof guard.owner!=='string'||typeof guard.path!=='string')throw Error('The source guard owner is invalid.');
+ const text=stateJSON({version:1,owner:guard.owner,clips});
+ if(!await selects.files.exists(guard.path)){
+  try{return await stateFile(selects,guard.path,text,encode,null,fingerprint);}
+  catch(error){if(!await selects.files.exists(guard.path))throw error;}
+ }
+ const observed=await fingerprint(selects.files,guard.path);
+ if(!observed)throw Error('The source guard file could not be observed.');
+ return stateFile(selects,guard.path,text,encode,{path:guard.path,...observed},fingerprint);
+}
+// Only a known historical read-only verifier receives this local adapter. It
+// shadows one saved target's missing source reader from an independent saved
+// observation; the SDK and private unsaved timing probes remain unchanged.
+function templateLegacySavedDraft(selects,draftId,sources,observeSource){
+ const reads=new Set(['meta','clips','motionGraphics','motionGraphicProgram','videoEffects','videoEffectProgram','clipTransform','clipAudio']);
+ return new Proxy(selects,{get(target,key){
+  if(key==='draft')return id=>{
+   const draft=target.draft(id);if(id!==draftId)return draft;
+   return new Proxy(draft,{has(handle,method){return method==='clipSourceWindow'||Reflect.has(handle,method);},get(handle,method){
+    if(method==='clipSourceWindow')return async row=>observeSource(sources,row);
+    if(!reads.has(method))throw Error('Historical source verification is read-only.');
+    const value=Reflect.get(handle,method,handle);return typeof value==='function'?value.bind(handle):value;
+   }});
+  };
+  const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
+ }});
+}
+function templateObservationScript(source=null,sources=null,draftId=null){
+ const helpers=`const templateObservedSource=${templateObservedSource.toString()};const fingerprintTemplateFile=${fingerprintTemplateFile.toString()};`;
+ if(source===null&&sources===null&&draftId===null)return helpers;
+ if(typeof source!=='string'||!source||!Array.isArray(sources?.clips)||typeof sources.revision!=='string'||!sources.revision||typeof draftId!=='string'||!draftId)throw Error('Historical verification requires an independently observed saved target.');
+ return `${helpers}return await(async(selects)=>{${source}\n})((${templateLegacySavedDraft.toString()})(selects,${JSON.stringify(draftId)},${templateStateJSON(sources)},templateObservedSource));`;
+}
+async function templateStableSavedRead(sdk,projectId,draftId,libraryId,check,read){
+ check();const before=await readTemplateDraftSources(sdk,projectId,draftId,libraryId);check();
+ const result=await read(before);check();
+ const after=await readTemplateDraftSources(sdk,projectId,draftId,libraryId);check();
+ if(before.revision!==after.revision)throw templateRunIssue('TEMPLATE_RUN_INVALID','The saved Draft changed during source verification. Inspect it before retrying.');
+ return result;
+}
+
+// Extend the existing durable run owner for templates whose assembly script
+// commits before a separate title/look step. A name never proves ownership.
+async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,options={}){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ if(typeof isCurrent!=='function'||!scope||typeof scope.projectId!=='string'||!scope.projectId||typeof scope.runId!=='string'||!scope.runId||!config||config.projectId!==scope.projectId||typeof source!=='string'||source.split('__CONFIG__').length!==2||!source.startsWith('// @template-assembly 1\n'))fail('TEMPLATE_RUN_INVALID','The assembly request is incomplete.');
+ if(typeof globalThis.TextEncoder!=='function'||typeof sdk?.call!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(new TextEncoder().encode(source).length>131072)fail('TEMPLATE_RUN_INVALID','The assembly script exceeds its input limit.');
+ scope={pluginId:scope.pluginId,projectId:scope.projectId,runId:scope.runId,libraryId:scope.libraryId};
+ const requestLimit=options.requestLimit??49152;
+ const frozen=JSON.parse(templateRunJSON(config,requestLimit));
+ // A display label can be regenerated on remount; it is never run identity.
+ const {draftName:displayName,...contentConfig}=frozen;
+ const request={config:contentConfig,source};templateRunJSON(request,requestLimit);
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
+ const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
+ if(target?.owner?.projectId!==scope.projectId||typeof target.owner.libraryId!=='string'||!target.owner.libraryId||scope.libraryId!=null&&scope.libraryId!==target.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
+ scope={pluginId:scope.pluginId,libraryId:target.owner.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const query=async(script,allowCommit=false,summary='Confirm owned assembly Draft')=>{check();const reply=await sdk.runScript({summary,allowCommit,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
+ const verify=async receipt=>{
+  if(options.receiptOnly)return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,stateFile:receipt.stateFile??null,sourceGuard:receipt.sourceGuard??null,assemblyConfirmed:false};
+  check();const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
+  if(target?.owner?.projectId!==scope.projectId||target.owner.libraryId!==scope.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
+  return templateStableSavedRead(sdk,scope.projectId,receipt.draftId,scope.libraryId,check,async sources=>{
+   const observed=await query(`${templateObservationScript()}return await (${readTemplateAssemblyFacts.toString()})(selects,${JSON.stringify(scope.projectId)},${JSON.stringify(receipt.draftId)},${readTemplateAssemblyState.toString()},${templateStateJSON(sources)},templateObservedSource);`);
+   const expected={draftId:receipt.draftId,fps:receipt.fps,durationFrames:receipt.durationFrames,frameSize:receipt.frameSize,clips:receipt.clips,...receipt.sourceGuard?{sourcesPending:true}:{}};
+   let sourceClips;
+   if(receipt.sourceGuard){try{sourceClips=templateSourceIntentState(receipt.sourceGuard.intent,sources,templateObservedSource);}catch(cause){throw Object.assign(templateRunIssue('TEMPLATE_RUN_INVALID','The saved assembly source differs from its original plan.'),{cause});}}
+   if(templateRunJSON(receipt.sourceGuard?templatePendingSourceState(observed):observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
+   if(options.captureState&&!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','This assembly has no complete state receipt. Inspect it before finishing.');
+   if(receipt.stateFile)await query(`${templateObservationScript()}const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(${receipt.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)},fingerprintTemplateFile);return {verified:true};`);
+   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`,true,'Publish owned assembly source guard');
+   return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true,...receipt.stateFile?{stateFile:receipt.stateFile}:{},...receipt.sourceGuard?{sourceGuard:receipt.sourceGuard}:{}};
+  });
+ };
+ return executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
+  const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
+  check();if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to confirm saved assembly state before retrying.');
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen,requestLimit))}),{__beforeCommit:__templateBeforeCommit})`);
+  const script=`return await(async(assemble,readFacts,readState,publish,json,encode,readFull,stateJSON,stateFile,fingerprint)=>{
+   let result,preparedState,preparedFull,snapshot,sourceGuard,maySave=false;
+   try{
+    result=await assemble(async(draft,sourceIntent)=>{
+     if(maySave)throw Error('The assembly pre-save hook ran more than once.');
+     preparedState=await readState(draft);
+     if(!Array.isArray(sourceIntent)||!sourceIntent.length||sourceIntent.length>1000)throw Error('The assembly did not retain its planned source intent.');
+     const owner=JSON.parse(${templateRunJSON(claim)}.expectedText).owner;
+     sourceGuard={version:1,owner,path:${JSON.stringify(claim.path)}+'.sources-'+owner+'.json',intent:JSON.parse(json(sourceIntent))};
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,sourceGuard}});
+     if(${options.captureState===true}){
+      preparedFull=stateJSON(await readFull(draft));
+      const path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
+      json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,sourceGuard,stateFile:{path,size:preparedFull.length,sha256:'x'.repeat(64)}}});
+      snapshot=await stateFile(selects,path,preparedFull,encode,null,fingerprint);
+     }
+     maySave=true;
+    });
+    if(!maySave)throw Error('The assembly skipped its pre-save confirmation.');
+    const facts=await readFacts(selects,${JSON.stringify(scope.projectId)},result?.sequenceId,readState);
+    const {draftId,...savedState}=facts;
+    if(json(savedState)!==json(preparedState))throw Error('The saved Draft disagrees with its prepared state.');
+    if(facts.fps!==result.fps||facts.durationFrames!==result.totalFrames)throw Error('The assembly result disagrees with its saved Draft.');
+    if(snapshot)await stateFile(selects,snapshot.path,stateJSON(await readFull(selects.draft(facts.draftId))),encode,snapshot,fingerprint);
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts,sourceGuard,...snapshot?{stateFile:snapshot}:{}},json,encode);
+    if(receipt.runReceiptSaved!==true)throw Error('The assembly receipt could not be confirmed.');
+    return {assembly:result,facts:{...facts,sourceGuard,...snapshot?{stateFile:snapshot}:{}}};
+   }catch(error){
+    if(typeof result?.sequenceId==='string'&&result.sequenceId)await publish(selects,${templateRunJSON(claim)},{status:'outcomeUnknown',draftId:result.sequenceId},json,encode);
+    else if(!maySave)await publish(selects,${templateRunJSON(claim)},{status:'notSaved'},json,encode);
+    throw error;
+   }
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${fingerprintTemplateFile.toString()});`;
+  if(new TextEncoder().encode(script).length>256*1024)fail('TEMPLATE_RUN_INVALID','The assembly request exceeds the SDK transport limit.');
+  await onDispatch();const reply=await sdk.runScript({summary:'Assemble template with owned receipt',allowCommit:true,script});
+  if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
+  const confirmed=await verify(reply.result.facts);
+  return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
+ },verify,{existingOnly:options.receiptOnly===true,retireUnstarted:options.retireUnstarted===true,requestLimit});
+}
+
+// The base assembly record proves which Draft belongs to this workflow. A phase
+// receipt supersedes its earlier state for recovery; unknown outcomes never save
+// again. Only positively recorded pre-save failures permit a new phase attempt.
+async function executeTemplateDecoration(sdk,files,pending,config,source,isCurrent,options={}){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
+ if(!pending?.scope||!config||config.projectId!==pending.scope.projectId||typeof config.sequenceId!=='string'||!config.sequenceId||typeof source!=='string'||!source.startsWith('// @template-decoration 1\n')||source.split('__CONFIG__').length!==2)fail('TEMPLATE_RUN_INVALID','The title/look request is incomplete.');
+ const stateLimit=options.stateLimit??262144;
+ if(!Number.isSafeInteger(stateLimit)||stateLimit<262144||stateLimit>524288)fail('TEMPLATE_RUN_INVALID','Invalid continuation state limit.');
+ templateStateJSON(pending,stateLimit);
+ pending=JSON.parse(JSON.stringify(pending));
+ const frozen=JSON.parse(templateStateJSON(config,262144)),recipe=templateStateJSON({config:frozen,source},262144);
+ const base=await executeTemplateAssembly(sdk,files,pending.scope,pending.config,pending.source,isCurrent,{receiptOnly:true,requestLimit:options.requestLimit});check();
+ if(base.sequenceId!==frozen.sequenceId||!base.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look target has no complete owned assembly receipt.');
+ const target=await sdk.call('getProjectDraftScaffold',pending.scope.projectId);check();
+ if(target?.owner?.projectId!==pending.scope.projectId||typeof target.owner.libraryId!=='string')fail('TEMPLATE_RUN_TARGET','The title/look target belongs to a different Project.');
+ const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');
+ const rootScope={pluginId:pending.scope.pluginId,libraryId:target.owner.libraryId,projectId:pending.scope.projectId,runId:pending.scope.runId};
+ const scope={...rootScope,runId:'look-'+await digest(templateRunJSON(rootScope))},request={phase:'decoration',draftId:base.sequenceId,recipeDigest:await digest(recipe),assemblyState:base.stateFile};
+ const query=async(script,summary,allowCommit=false)=>{check();const reply=await sdk.runScript({summary,allowCommit,script});check();if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');return reply.result;};
+ const verify=async receipt=>{
+  check();if(receipt.draftId!==frozen.sequenceId||!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look receipt could not be verified.');
+  return templateStableSavedRead(sdk,scope.projectId,receipt.draftId,scope.libraryId,check,async sources=>{
+   let sourceClips;
+   if(receipt.sourceGuard){try{sourceClips=templateSourceIntentState(receipt.sourceGuard.intent,sources,templateObservedSource);}catch(cause){throw Object.assign(templateRunIssue('TEMPLATE_RUN_INVALID','The saved title/look source differs from the original assembly.'),{cause});}}
+   await query(`${templateObservationScript()}const p=selects.project(${JSON.stringify(scope.projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(receipt.draftId)}))throw Error('The title/look Draft is not in its Project.');const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(${receipt.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)},fingerprintTemplateFile);return {verified:true};`,'Confirm owned title and look');
+   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`,'Publish owned title/look source guard',true);
+   return {sequenceId:receipt.draftId,fps:base.fps,totalFrames:base.totalFrames,decorationConfirmed:true};
+  });
+ };
+ const work=executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
+  // Bind the saved base before opening its working copy. This observation is
+  // not used as an observation of the later unsaved decoration.
+  let sources;try{sources=await templateStableSavedRead(sdk,scope.projectId,base.sequenceId,scope.libraryId,check,async sources=>{
+   if(base.sourceGuard)templateSourceIntentState(base.sourceGuard.intent,sources,templateObservedSource);
+   await query(`${templateObservationScript()}const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(base.sequenceId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(base.stateFile.path)},(${templateStateJSON.toString()})(${base.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(base.stateFile)},fingerprintTemplateFile);return {verified:true};`,'Confirm original assembly before title and look');
+   return sources;
+  });}catch(cause){
+   if(cause?.code==='TEMPLATE_RUN_DETACHED')throw cause;
+   throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','The original assembly changed or could not be read before title and look.'),{cause});
+  }
+  const phaseIntent=base.sourceGuard?.intent??sources.clips.map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:row.source}));
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateStateJSON(frozen,262144))}),{__sources:${templateStateJSON(sources)},__beforeCommit:__templateBeforeCommit})`);
+  const script=`${templateObservationScript()}return await(async(decorate,readFull,stateJSON,stateFile,publish,json,encode,fingerprint)=>{
+   let prepared,snapshot,sourceGuard,maySave=false,preparedOnce=false;
+   try{
+    const original=selects.draft(${JSON.stringify(frozen.sequenceId)});
+    if(!(await selects.project(${JSON.stringify(scope.projectId)}).meta()).draftIds.includes(${JSON.stringify(frozen.sequenceId)}))throw Error('The title/look target is not in its Project.');
+    await stateFile(selects,${JSON.stringify(base.stateFile.path)},stateJSON(${base.sourceGuard?'await readFull(original)':`await readFull(original,${templateStateJSON(sources)},templateObservedSource)`}),encode,${JSON.stringify(base.stateFile)},fingerprint);
+    const result=await decorate(async(draft,committing)=>{
+     if(preparedOnce)throw Error('The title/look pre-save hook ran more than once.');preparedOnce=true;
+     prepared=await readFull(draft);const text=stateJSON(prepared),path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
+     snapshot=await stateFile(selects,path,text,encode,null,fingerprint);
+     const owner=JSON.parse(${templateRunJSON(claim)}.expectedText).owner;sourceGuard={version:1,owner,path:${JSON.stringify(claim.path)}+'.sources-'+owner+'.json',intent:${templateStateJSON(phaseIntent)}};
+     const clips=prepared.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:${JSON.stringify(frozen.sequenceId)},fps:prepared.fps,durationFrames:prepared.durationFrames,frameSize:prepared.frameSize,clips,stateFile:snapshot,sourceGuard}});
+     maySave=committing===true;
+    });
+    if(!preparedOnce)throw Error('The title/look operation skipped its pre-save hook.');
+    const observed=await readFull(selects.draft(${JSON.stringify(frozen.sequenceId)}));
+    await stateFile(selects,snapshot.path,stateJSON(observed),encode,snapshot,fingerprint);
+    const clips=observed.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
+    const facts={draftId:${JSON.stringify(frozen.sequenceId)},fps:observed.fps,durationFrames:observed.durationFrames,frameSize:observed.frameSize,clips,stateFile:snapshot,sourceGuard};
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts},json,encode);if(!receipt.runReceiptSaved)throw Error('The title/look receipt could not be confirmed.');return {facts,result};
+   }catch(error){await publish(selects,${templateRunJSON(claim)},{status:maySave?'outcomeUnknown':'notSaved',...maySave?{draftId:${JSON.stringify(frozen.sequenceId)}}:{}},json,encode);throw error;}
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${fingerprintTemplateFile.toString()});`;
+  if(new TextEncoder().encode(script).length>262144)fail('TEMPLATE_RUN_INVALID','The title/look request exceeds the SDK transport limit.');
+  await onDispatch();const reply=await sdk.runScript({summary:'Decorate template with owned receipt',allowCommit:true,script});
+  if(reply.isError||!reply.result?.facts)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The title/look save is awaiting confirmation. Check the same run again.'),{draftId:frozen.sequenceId,cause:Error(String(reply.output||'No complete title/look result.'))});
+  return verify(reply.result.facts);
+ },verify,options.retireUnstarted?{retireUnstarted:true}:{retryNotSaved:true});
+ return work.catch(cause=>{
+  check();
+  const known=cause?.outcome==='notSaved'||cause?.code==='TEMPLATE_RUN_NOT_SAVED';
+  const message=cause?.code==='TEMPLATE_RUN_RETIRED'?cause.publicMessage:known?'The title/look attempt stopped before saving. Retry its original inputs.':cause?.publicMessage||'The title/look save is awaiting confirmation. Check the same run again.';
+  throw Object.assign(templateRunIssue(cause?.code||'TEMPLATE_RUN_PENDING',message),{phase:'decoration',draftId:base.sequenceId,cause,...known?{outcome:'notSaved'}:{}});
+ });
+}
+
+// Discover an uncertain standalone assembly after its renderer realm is gone.
+// Payloads are published before their small exclusive manifest. Completed run
+// tombstones prevent an old callback from republishing the same run identity.
+async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const requestLimit=target?.requestLimit??49152,stateLimit=target?.stateLimit??262144;
+ templateRunJSON(null,requestLimit);
+ if(!Number.isSafeInteger(stateLimit)||stateLimit<262144||stateLimit>524288)fail('TEMPLATE_RUN_INVALID','Invalid continuation state limit.');
+ const invalid=()=>fail('TEMPLATE_RUN_INVALID','The pending assembly record could not be verified. Inspect the Project before starting another run.');
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!target||typeof target.pluginId!=='string'||!/^[a-z0-9-]+$/.test(target.pluginId)||typeof target.projectId!=='string'||!target.projectId||target.projectId.length>1024)invalid();
+ target={pluginId:target.pluginId,projectId:target.projectId,libraryId:target.libraryId};
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','mkdir','readdir','rm'].every(key=>typeof files[key]==='function')||typeof sdk?.call!=='function'||typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to find pending template runs safely.');
+ const owner=await sdk.call('getProjectDraftScaffold',target.projectId);check();
+ if(owner?.owner?.projectId!==target.projectId||typeof owner.owner.libraryId!=='string'||!owner.owner.libraryId||target.libraryId!=null&&target.libraryId!==owner.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The pending assembly belongs to a different Project or library.');
+ target={pluginId:target.pluginId,projectId:target.projectId,libraryId:owner.owner.libraryId};
+ const current=async()=>{check();const row=await sdk.call('getProjectDraftScaffold',target.projectId);check();if(row?.owner?.projectId!==target.projectId||row.owner.libraryId!==target.libraryId)fail('TEMPLATE_RUN_TARGET','The pending assembly belongs to a different Project or library.');};
+ const json=value=>{
+  let text;
+  try{text=JSON.stringify(value,(_key,item)=>{if(typeof item==='number'&&!Number.isFinite(item)||['bigint','function','symbol'].includes(typeof item))throw Error('Unsupported value');return item;}).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));}catch{invalid();}
+  if(text.length>stateLimit)fail('TEMPLATE_RUN_INVALID','The pending assembly exceeds its continuation input limit.');
+  return text;
+ };
+ const hash=async text=>{const result=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');check();return result;};
+ const directory=files.join(files.homedir(),'.selects','plugin-data',target.pluginId,'template-runs','assembly-pending',await hash(json(target)));
+ const completed=files.join(directory,'acknowledged');
+ const readText=async(path,limit)=>{
+  for(let attempt=0;attempt<3;attempt++){
+  check();const before=await files.stat(path);check();if(!before)return null;
+  if(before.isDirectory===false&&before.size===0)continue;
+  if(before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1||before.size>limit)invalid();
+  const bytes=await files.readRange(path,0,before.size);check();const after=await files.stat(path);check();
+  if(!after)return null;
+  if(['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))continue;
+  if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==before.size)invalid();
+  return new TextDecoder().decode(bytes);
+  }
+  fail('TEMPLATE_RUN_PENDING','The pending assembly record is changing. Check it again.');
+ };
+ const parse=text=>{try{return JSON.parse(text);}catch{invalid();}};
+ const manifest=async row=>{
+  if(!row||Object.keys(row).length!==3||row.version!==1||typeof row.digest!=='string'||!/^[a-f0-9]{64}$/.test(row.digest)||!row.scope||Object.keys(row.scope).length!==4||Object.keys(target).some(key=>row.scope[key]!==target[key])||typeof row.scope.runId!=='string'||!row.scope.runId||row.scope.runId.length>1024)invalid();
+  return await hash(json(row.scope));
+ };
+ const done=async(row,key)=>{
+  const text=await readText(files.join(completed,key+'.json'),49152);if(text===null)return false;
+  const end=parse(text);if(!end||!['saved','notSaved'].includes(end.status)||json(end.record)!==json(row))invalid();return true;
+ };
+ const validate=(value,row,kind='assembly')=>{
+  if(!value||json(value.scope)!==json(row.scope)||value.config?.projectId!==target.projectId||typeof value.source!=='string'||!value.source.startsWith(kind==='look'?'// @template-decoration 1\n':'// @template-assembly 1\n')||value.source.split('__CONFIG__').length!==2)invalid();
+  // Match the existing assembly adapter's request budget before any new save.
+  if(kind==='look'){
+   if(typeof value.config.sequenceId!=='string'||value.assembly?.sequenceId!==value.config.sequenceId)invalid();
+   templateStateJSON({config:value.config,source:value.source},262144);
+  }else{const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source},requestLimit);}
+  return value;
+ };
+ const load=async(row,key,kind='assembly')=>{
+  if(await manifest(row)!==key)invalid();
+  const name=key+(kind==='look'?'.look':'')+'-'+row.digest+'.data';
+  const text=await readText(files.join(directory,name),stateLimit)??await readText(files.join(completed,name),stateLimit);
+  if(text===null)invalid();if(await hash(text)!==row.digest)invalid();
+  return validate(parse(text),row,kind);
+ };
+ const recordOf=async(pending,kind='assembly')=>{
+  if(!pending?.scope||Object.keys(target).some(key=>key==='libraryId'?pending.scope[key]!=null&&pending.scope[key]!==target[key]:pending.scope[key]!==target[key]))invalid();
+  const scope={...target,runId:pending.scope.runId},text=json({...pending,scope}),row={version:1,scope,digest:await hash(text)},key=await manifest(row);
+  return {row,key,text,value:validate(parse(text),row,kind)};
+ };
+ const store=async(pending,kind='assembly',allowCompleted=false)=>{
+  pending=JSON.parse(json(pending));
+  await current();const item=await recordOf(pending,kind),{row,key,text}=item,name=key+(kind==='look'?'.look':'');
+  if(kind==='assembly'&&await done(row,key)){
+   if(allowCompleted)return load(row,key);
+   fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  }
+  await files.mkdir(directory,{recursive:true});check();
+  const file=files.join(directory,name+'.json'),expected=templateRunJSON(row),prior=await readText(file,49152);
+  if(prior!==null&&prior!==expected)invalid();
+  const dataPath=files.join(directory,name+'-'+row.digest+'.data');
+  if(await files.exists(dataPath)){if(await readText(dataPath,stateLimit)!==text)invalid();}
+  else{check();await files.writeFile(dataPath,text);check();}
+  try{check();await files.writeFile(file,expected,{flag:'wx'});}catch(error){
+   const actual=await readText(file,49152);if(actual===null)throw error;if(actual!==expected)invalid();
+  }
+  check();if(kind==='assembly'&&await done(row,key)){
+   if(allowCompleted)return load(row,key);
+   fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  }
+  try{return await load(row,key,kind);}catch(error){if(kind==='assembly'&&await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');throw error;}
+ };
+ const read=async(runId=null,includeCompleted=false)=>{
+  if(runId!==null){
+   await current();if(typeof runId!=='string'||!runId||runId.length>1024)invalid();
+   const key=await hash(json({...target,runId})),text=await readText(files.join(directory,key+'.json'),49152);
+   let row=text===null?null:parse(text);
+   if(!row&&includeCompleted){const end=await readText(files.join(completed,key+'.json'),49152);if(end!==null){const value=parse(end);if(!['saved','notSaved'].includes(value?.status))invalid();row=value.record;}}
+   if(!row)return null;if(await manifest(row)!==key)invalid();
+   if(!includeCompleted&&await done(row,key))return null;
+   return load(row,key);
+  }
+  await current();if(!await files.exists(directory)){check();return null;}
+  const names=await files.readdir(directory);check();
+  if(!Array.isArray(names)||names.length>4096||names.some(name=>typeof name!=='string'||name.includes('/')||name.includes('\\')))invalid();
+  const entries=names.filter(name=>/^[a-f0-9]{64}\.json$/.test(name));
+  if(entries.length>64)fail('TEMPLATE_RUN_PENDING','Too many pending assemblies need inspection before another run.');
+  const found=[];
+  for(const name of entries.sort()){
+   const text=await readText(files.join(directory,name),49152);if(text===null)continue;
+   const row=parse(text),key=await manifest(row);if(name!==key+'.json')invalid();
+   if(!await done(row,key)){
+    try{found.push(await load(row,key));}catch(error){if(!await done(row,key))throw error;}
+   }
+  }
+  if(found.length>1)fail('TEMPLATE_RUN_AMBIGUOUS','Several unfinished assemblies belong to this Project. Inspect their run records before starting another run.');
+  return found[0]??null;
+ };
+ const lookFor=async pending=>{
+  const {row:root,key}=await recordOf(pending);
+  const text=await readText(files.join(directory,key+'.look.json'),49152)??await readText(files.join(completed,key+'.look.json'),49152);
+  if(text===null)return null;const row=parse(text);if(await manifest(row)!==key||json(row.scope)!==json(root.scope))invalid();return load(row,key,'look');
+ };
+ const acknowledge=async(pending,status,retain=false)=>{
+  await current();const {row,key,text:rootText}=await recordOf(pending);
+  await files.mkdir(completed,{recursive:true});check();
+  let look=null,lookRow=null;
+  if(retain){
+   await files.writeFile(files.join(completed,key+'-'+row.digest+'.data'),rootText);check();
+   look=await lookFor(pending);
+   if(look){lookRow=await recordOf(look,'look');await files.writeFile(files.join(completed,key+'.look-'+lookRow.row.digest+'.data'),lookRow.text);check();await files.writeFile(files.join(completed,key+'.look.json'),templateRunJSON(lookRow.row));check();}
+  }
+  const path=files.join(completed,key+'.json'),text=templateRunJSON({record:row,status});
+  try{await files.writeFile(path,text,{flag:'wx'});}catch(error){if(await readText(path,49152)!==text)throw error;}
+  check();
+  // Only this immutable run's files are removed. Its tombstone is retained.
+  await files.rm(files.join(directory,key+'.json'),{force:true}).catch(()=>{});check();
+  await files.rm(files.join(directory,key+'-'+row.digest+'.data'),{force:true}).catch(()=>{});check();
+  if(lookRow){await files.rm(files.join(directory,key+'.look.json'),{force:true}).catch(()=>{});check();await files.rm(files.join(directory,key+'.look-'+lookRow.row.digest+'.data'),{force:true}).catch(()=>{});check();}
+ };
+ const resumeAssembly=async pending=>{
+  const value=await store(pending);
+  let result;
+  try{result=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{requestLimit});}
+  catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved');throw error;}
+  check();if(result?.assemblyConfirmed!==true)invalid();
+  await acknowledge(value,'saved');return result;
+ };
+ const workflow=async(pending,prepareLook,onAssembly=()=>{},options={})=>{
+  if(!options||typeof options!=='object'||options.retireUnstarted!==undefined&&typeof options.retireUnstarted!=='boolean'||options.verifyAssembly!==undefined&&typeof options.verifyAssembly!=='function')invalid();
+  options={retireUnstarted:options.retireUnstarted===true,verifyAssembly:options.verifyAssembly};
+ const value=await store(pending,'assembly',true);let look=await lookFor(value);
+  if(!look){
+   let assembly;
+   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true,retireUnstarted:options.retireUnstarted===true,requestLimit});}
+   catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved',true);throw error;}
+   check();let prepared;
+   try{prepared=await prepareLook(JSON.parse(json(value)),{...assembly});check();}catch(cause){check();throw Object.assign(templateRunIssue('TEMPLATE_LOOK_PREPARATION','The original title/look inputs could not be prepared. Check this run again.'),{phase:'decoration',draftId:assembly.sequenceId,cause});}
+   look=await store({...prepared,scope:value.scope,assembly},'look');
+  }
+  await onAssembly(JSON.parse(json(value)),{...look.assembly});check();
+  if(options.verifyAssembly){
+   try{await options.verifyAssembly(JSON.parse(json(value)),{...look.assembly},JSON.parse(json(look)));check();}
+   catch(cause){
+    check();
+    if(options.retireUnstarted&&cause?.code==='TEMPLATE_ASSEMBLY_MISMATCH'){
+     // Revoke an unstarted/retryable old look as well. A claimed/unknown or
+     // already-saved phase cannot be relabeled as a no-save.
+     try{await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{retireUnstarted:true,requestLimit,stateLimit});}
+     catch(error){throw Object.assign(error,{cause});}
+    }
+    throw cause;
+   }
+  }
+  const result=await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{requestLimit,stateLimit});check();
+  await acknowledge(value,'saved',true);
+  return {...look.assembly,...result};
+ };
+ return {read,store:pending=>store(pending),run:resumeAssembly,workflow};
+}
+// template-run:end
+
+// Archive owns cue selection/timing; the existing asset owner verifies, keeps
+// and imports the selected manifest generation independently of installation.
+async function prepareArchiveCue(sdk: any, projectId: string, plugin: string, cue: any, minimumSeconds: number, check: () => void) {
+  check();
+  if (!cue || typeof cue.file !== "string" || !/^[a-z0-9][a-z0-9-]*\.mp3$/.test(cue.file) ||
+      !Number.isSafeInteger(cue.bytes) || cue.bytes < 1 || cue.bytes > 32 * 1024 * 1024 ||
+      typeof cue.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(cue.sha256) || !Number.isFinite(cue.duration) || cue.duration <= 0)
+    throw bundledAssetIssue("INPUT", "The bundled music manifest is invalid. Check the installed template files.");
+  const client = panelLocalClient(sdk);
+  try {
+    return await prepareBundledAsset(sdk, client.files, { projectId, pluginId: PLUGIN_ID,
+      sourcePath: client.files.join(plugin, "assets", "cues", cue.file), type: "Audio", extension: "mp3", label: "music",
+      expectedBytes: cue.bytes, expectedSha256: cue.sha256, minimumSeconds, platform: client.environment.platform, normalizeUnicode: true,
+      isCurrent: () => { try { check(); return true; } catch { return false; } } });
+  } catch (error) { check(); throw error; }
+}
+
+async function snapshotArchiveFinishAssets(assets: any, language: Lang, readFont: (file: string) => Promise<string>, check: () => void) {
+  const scripts = assets?.scripts;
+  const validScript = (value: unknown, marker: string) => typeof value === "string" && value.startsWith(marker) && value.split("__CONFIG__").length === 2 && new TextEncoder().encode(value).length <= 131072;
+  if (!assets?.presets || !assets.tsx || ["title", "credit", "letterbox", "look", "fade", "motion"].some(key => typeof assets.tsx[key] !== "string" || !assets.tsx[key].trim()) ||
+      !validScript(scripts?.assembleJs, "// @template-assembly 1\n") || !validScript(scripts?.decorateJs, "// @template-decoration 1\n") ||
+      !validScript(scripts?.prepareJs, "// @template-decoration-config 1\n") || !validScript(scripts?.verifyAssemblyJs, "// @template-assembly-verification 1\n")) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive title/look inputs are incomplete. Reinstall the template.");
+  const fonts = Object.fromEntries(await Promise.all(fontFiles(assets.presets).map(async file => {
+    const value = (await readFont(file)).replace(/\s+/g, ""); check();
+    if (!value || value.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw templateRunIssue("TEMPLATE_RUN_INVALID", "An Archive title font is incomplete.");
+    return [file, value];
+  })));
+  check();
+  return JSON.parse(templateStateJSON({ presets: assets.presets, tsx: assets.tsx, scripts: { decorateJs: scripts.decorateJs, prepareJs: scripts.prepareJs }, fonts, language, version: PLUGIN_VERSION }, 262144));
+}
+async function prepareArchiveDecoration(sdk: any, pending: any, assembly: any, check: () => void) {
+  const assets = pending.finishAssets, f = pending.frozen;
+  if (!assets?.scripts?.prepareJs?.startsWith("// @template-decoration-config 1\n")) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive decoration builder is missing.");
+  const input = { sequenceId: assembly.sequenceId, videoEnd: assembly.totalFrames, fps: assembly.fps, plan: pending.plan, presets: assets.presets, tsx: assets.tsx, fonts: assets.fonts,
+    sizes: pending.photoSizes, openingSize: pending.openingSize || null, frozen: f,
+    provenance: { plugin: PLUGIN_ID, version: assets.version, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
+      pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } };
+  const config = await runTemplateStep(sdk, "Prepare original Archive title and look", fill(assets.scripts.prepareJs, input), false, { wanted: () => { check(); return true; }, deadline: Date.now() + 90000 });
+  check();
+  if (config?.sequenceId !== assembly.sequenceId || config.videoEnd !== assembly.totalFrames) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive decoration target could not be confirmed.");
+  return { source: assets.scripts.decorateJs, config: { ...config, projectId: f.pid } };
+}
+async function confirmArchiveSourceBindings(sdk: any, pid: string, bindings: any[], check: () => void) {
+  const rows = JSON.parse(templateStateJSON(bindings)), deadline = Date.now() + 90000;
+  if (!Array.isArray(rows) || rows.length > 16384) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Project bindings are invalid.");
+  for (let offset = 0; offset < rows.length;) {
+    check(); let batch: any[] = [];
+    while (offset < rows.length && batch.length < 64) {
+      const next = [...batch, rows[offset]];
+      if (new TextEncoder().encode(JSON.stringify(next)).length > 32768) { if (!batch.length) throw templateRunIssue("TEMPLATE_RUN_INVALID", "An original binding exceeds the read budget."); break; }
+      batch = next; offset++;
+    }
+    const source = "return (" + confirmProjectSourcePaths.toString() + ")(selects," + JSON.stringify(pid) + "," + JSON.stringify(batch) + ");";
+    const result = await runTemplateStep(sdk, "Verify original Archive source paths", source, false, { wanted: () => { check(); return true; }, deadline }); check();
+    if (result?.verified !== true) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The original Project paths could not be confirmed. Check this run again.");
+  }
+}
+function archiveRecoveryOptions(sdk: any, pending: any, check: () => void) {
+  return { verifyAssembly: async (value: any, assembly: any) => {
+    const config = value.config; check();
+    if (config.sourceBindings !== undefined) await confirmArchiveSourceBindings(sdk, config.projectId, config.sourceBindings, check);
+    if (config.analysisSources !== undefined) { await observeSourceFiles(panelLocalClient(sdk).files, Array.isArray(config.analysisSources) ? config.analysisSources.map(row => row.path) : null, config.analysisSources); check(); }
+    const source = value.verifyAssemblySource;
+    if (!source?.startsWith("// @template-assembly-verification 1\n") || source.split("__CONFIG__").length !== 2) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive assembly verifier is missing.");
+    const observation = await readTemplateDraftSources(sdk, config.projectId, assembly.sequenceId); check();
+    const filled = fill(source, { config, draftId: assembly.sequenceId, __sources: observation });
+    const script = source.includes(".clipSourceWindow(") ? templateObservationScript(filled, observation, assembly.sequenceId) : filled;
+    const result = await runTemplateStep(sdk, "Verify original Archive assembly plan", script, false, { wanted: () => { check(); return true; }, deadline: Date.now() + 90000 }); check();
+    const after = await readTemplateDraftSources(sdk, config.projectId, assembly.sequenceId, observation.owner.libraryId); check();
+    if (JSON.stringify(after) !== JSON.stringify(observation)) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The saved Archive Draft changed during verification. Check this run again.");
+    if (result?.verified === false && result.status === "mismatch") throw templateRunIssue("TEMPLATE_ASSEMBLY_MISMATCH", "The saved Archive assembly differs from its original plan. Inspect that Draft before another run.");
+    if (result?.verified !== true || result.draftId !== assembly.sequenceId || result.mainEnd !== assembly.totalFrames || result.fps !== assembly.fps) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The original Archive assembly could not be confirmed. Check this run again.");
+  } };
+}
+function archiveWorkflowResult(pending: any, assembly: any, decorated = false) {
+  const { frozen, photoSizes, plan, openingSize, unchecked } = pending;
+  const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: assembly.totalFrames / assembly.fps } : null;
+  return { sequenceId: assembly.sequenceId, videoEnd: assembly.totalFrames, fps: assembly.fps, decorated, frozen, photoSizes, plan, openingSize, unchecked,
+    notes: assembly.notes || [], link: null, shortened, recovered: false, pending, lookOutcome: decorated ? "saved" : "unknown" };
 }
 
 // ---- Panel helpers ---------------------------------------------------------------------------------------------
@@ -4033,12 +5375,12 @@ class BusyError extends Error {
 // Everything a build reads from the install folder, once.
 async function loadAssets(plugin: string) {
   const read = (...rel: string[]) => readText(plugin, ...rel);
-  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, title, credit, letterbox, look, fade, motion, beatDetect] = await Promise.all([
+  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, prepareJs, verifyAssemblyJs, title, credit, letterbox, look, fade, motion, beatDetect] = await Promise.all([
     read("assets", "cues", "manifest.json"), read("assets", "fonts", "presets.json"), read("scripts", "inventory.js"), read("scripts", "search.js"),
-    read("scripts", "ensure-audio.js"), read("scripts", "assemble.js"), read("scripts", "decorate.js"), read("assets", "decode-title.tsx"),
+    read("scripts", "ensure-audio.js"), read("scripts", "assemble.js"), read("scripts", "decorate.js"), read("scripts", "prepare-decoration.js"), read("scripts", "verify-assembly.js"), read("assets", "decode-title.tsx"),
     read("assets", "archived-credit.tsx"), read("assets", "letterbox-reveal.tsx"), read("assets", "cinematic-look.tsx"), read("assets", "fade-out.tsx"),
     read("assets", "photo-motion.tsx"), read("beat-detect.cjs")]);
-  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
+  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, prepareJs, verifyAssemblyJs },
     tsx: { title, credit, letterbox, look, fade, motion }, beatWorker: avBeatWorkerSource(beatDetect) };
 }
 // Every font file the presets use (four small files).
@@ -4395,29 +5737,37 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const advance = (id: string, fraction: number, detail?: Say) => { const p = { ...avProgress(id, fraction), detail }; progressRef.current = p; setProgress(p); };
   const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);
   const [result, setResult] = React.useState<any>(null);
+  const assemblyPendingRef = React.useRef<Record<string, any>>({});
+  const [assemblyDiscovery, setAssemblyDiscovery] = React.useState("loading");
   // The title preview's replay: the frame shown while the decode replays, null for the finished lockup.
   const [replayFrame, setReplayFrame] = React.useState<number | null>(null);
   const replayRef = React.useRef(0);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewTokenRef = React.useRef(0);
-  const previewUrlRef = React.useRef<string | null>(null);
-  const previewTimerRef = React.useRef<any>(null);
+  const previewAbortRef = React.useRef<AbortController | null>(null);
+  const previewCleanupRef = React.useRef<any>(null);
   const [playState, setPlayState] = React.useState<"idle" | "loading" | "playing">("idle");
   const [playingAudio, setPlayingAudio] = React.useState<HTMLAudioElement | null>(null);
 
   // `script` may depend on the attempt (0 first, then each retry), so a retry can ask for less work.
   // opts.wanted: a read retries only while this is true (the Project did not change, the panel is still open).
-  const run = async (summary: string, script: string | ((attempt: number) => string), allowCommit = false, opts: { wanted?: () => boolean } = {}) => {
+  const run = async (summary: string, script: string | ((attempt: number) => string), allowCommit = false, opts: { wanted?: () => boolean; deadline?: number; wait?(ms: number): Promise<void> } = {}) => {
     const scriptAt = (n: number) => (typeof script === "string" ? script : script(n));
-    const send = (attempt: number) => sdk.runScript(allowCommit ? { summary, script: scriptAt(0), allowCommit } : { summary, script: scriptAt(attempt), allowCommit, timeoutSeconds: READ_TIMEOUT_SECONDS });
+    const pause = (ms: number) => opts.wait ? opts.wait(ms) : new Promise<void>((done) => setTimeout(done, ms));
+    const send = (attempt: number) => {
+      if (!allowCommit && opts.wanted && !opts.wanted()) throw Object.assign(uiError((l) => t(l, "stepFailed")), { code: "MEDIA_INVENTORY_STOPPED" });
+      if (!allowCommit && opts.deadline !== undefined && Date.now() >= opts.deadline) throw Object.assign(uiError((l) => t(l, "stepFailed")), { code: "MEDIA_INVENTORY_TIMEOUT" });
+      return sdk.runScript(allowCommit ? { summary, script: scriptAt(0), allowCommit } : { summary, script: scriptAt(attempt), allowCommit,
+        timeoutSeconds: Math.max(1, Math.min(READ_TIMEOUT_SECONDS, Math.ceil(((opts.deadline ?? Infinity) - Date.now()) / 1000))) });
+    };
     let r = await send(0);
     // Only a lost session is resent, and never a committing call: its commit may already have landed.
-    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await send(0); }
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await pause(1500); r = await send(0); }
     // A busy app: a read is tried again after 5 s, then 15 s, one attempt at a time.
     let attempt = 0;
     while (r.isError && !allowCommit && isBusyError(String(r.output || "")) && attempt < BUSY_BACKOFF_MS.length) {
       attempt++;
-      await new Promise((d) => setTimeout(d, BUSY_BACKOFF_MS[attempt - 1]));
+      await pause(BUSY_BACKOFF_MS[attempt - 1]);
       if (opts.wanted && !opts.wanted()) break;
       r = await send(attempt);
     }
@@ -4463,10 +5813,10 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // Inventory bookkeeping: the inventory script, the last clip set seen and a load in flight.
   const inventoryJsRef = React.useRef<string | null>(null);
   const invSigRef = React.useRef<string | null>(null);
-  // Photo sizes measured by earlier inventory reads, passed back so a refresh does not measure them again.
-  const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
+  const inventorySnapshotRef = React.useRef<{ projectId: string; inventory: any } | null>(null);
+  const inventoryCurrent = () => isInventorySnapshotCurrent(inventorySnapshotRef.current, inventory, projectId, projectRef.current, invLoadingRef.current, mountedRef.current);
   // The last inventory read's failure (busy: Selects did not answer in time).
   const [invError, setInvError] = React.useState<{ busy?: boolean; say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
@@ -4484,22 +5834,24 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     // One read per Project at a time; a read for another Project never blocks this one.
     if (!pid || !script || busyRef.current || invLoadingRef.current === pid) return "skipped";
     const live = () => mountedRef.current && alive() && projectRef.current === pid;
+    if (!live()) return "skipped";
+    inventorySnapshotRef.current = null;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
-      const inv = await readInventoryPages(run, script, { projectId: pid, only: null, known: photoSizesRef.current, measureMs: INVENTORY_MEASURE_MS }, fill, live);
+      const inv = await readInventoryPages(run, script, { projectId: pid, only: null, measureMs: INVENTORY_MEASURE_MS }, fill, live);
       // A build that started meanwhile keeps the clip set it began with; the next refresh picks this up.
       if (!live() || busyRef.current) return "skipped";
       inv.resources = inv.resources || [];
       inv.photos = inv.photos || [];
-      for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
       // The clip set and which clips have analysis: a changed set, or a clip whose analysis finished, drops the cached
       // shot candidates so the next build searches (or checks) them again.
-      const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",");
+      const sig = JSON.stringify(inv.resources);
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }
       else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }
       if ((inv.skipped?.unanalysed || 0) > 0) { waitingReadsRef.current++; if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true); }
       else { waitingReadsRef.current = 0; setWaitingStalled(false); }
+      inventorySnapshotRef.current = { projectId: pid, inventory: inv };
       setInventory(inv); setInvError(null);
       return "ok";
     } catch (e: any) {
@@ -4517,10 +5869,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
+    setAssemblyDiscovery("loading");
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
-    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false); waitingReadsRef.current = 0; setWaitingStalled(false);
+    inventorySnapshotRef.current = null;
+    invSigRef.current = null; incompleteReadsRef.current = 0; setIncompleteStalled(false); waitingReadsRef.current = 0; setWaitingStalled(false);
     runEpochRef.current++;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
@@ -4530,6 +5884,10 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         const found = await locateRoots(sdk);
         if (!alive) return;
         setRoots(found);
+        const pending = await (await openAssemblyContinuations(projectId, () => { if (!alive) throw STALE; })).read();
+        if (!alive) return;
+        if (pending) assemblyPendingRef.current[projectId] = pending; else delete assemblyPendingRef.current[projectId];
+        setAssemblyDiscovery("ready");
         const loaded = await loadAssets(found.plugin);
         if (!alive) return;
         setAssets(loaded);
@@ -4541,7 +5899,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           if (alive && projectRef.current === projectId) { setInvError(null); await loadInventory(projectId, () => alive); }
         }
       } catch (e: any) {
-        if (alive) setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "startFailed", { detail })) });
+        if (alive) { setAssemblyDiscovery("failed"); setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "startFailed", { detail })) }); }
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared, and an own-music analysis (its
@@ -4754,90 +6112,65 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     if (busyRef.current || !roots || !assets) return;
     cancelOwnMusic();
     const job = ownJobRef.current, id = job.id, pid = projectRef.current, abort = new AbortController();
+    const client = panelLocalClient(sdk);
     job.abort = abort;
     const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;
     stopPreview();
     setOwnMusic(file); setOwnGrid(null); setListening(true); setStatus(null);
-    let samples: Float32Array | null = null;
     try {
-      samples = await decodeOwnMusic(file.path, roots.data, abort.signal);
+      const g = await prepareArchiveOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live);
       if (!live()) return;
-      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
-      if (!live()) return;
-      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
+      setStatus(g.failed ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: t(l, "beatFailed") }) } : null);
     } catch (e: any) {
       if (!live()) return;
-      // Any failure falls back to fixed timing (no grid); the track's real length still bounds the section.
-      let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
-      if (!duration) { const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
-      if (!live()) return;
-      setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
-      setStatus(duration
-        ? { tone: "info", say: errorSay(e, (l, detail) => t(l, "musicApprox", { detail })) }
-        : { tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
+      // Only the shared owner may admit a known-duration fallback. Uncertain
+      // originals or native exits leave no track available for Build.
+      setOwnMusic(null); setOwnGrid(null);
+      setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
     } finally {
-      // The decoded samples (up to about 21 MB) are dropped with this call.
-      samples = null;
       if (ownJobRef.current.id === id) { ownJobRef.current.abort = null; if (mountedRef.current) setListening(false); }
     }
   }
 
-  // Section preview: "idle" -> "loading" (reading the file) -> "playing". The whole track plays from a blob: URL of its
-  // bytes, seeked to the section start; it fades out over the section's last PREVIEW_FADE seconds and stops at its end.
-  // Every start or stop bumps the token, so a late result from a cancelled preparation is dropped.
+  // Original-file streaming keeps the playhead in absolute music seconds.
+  // The common owner settles metadata/seek/play waits and releases only its Audio.
   function stopPreview() {
     previewTokenRef.current++;
-    if (previewTimerRef.current) { clearInterval(previewTimerRef.current); previewTimerRef.current = null; }
-    const a = audioRef.current;
+    const abort = previewAbortRef.current;
+    abort?.abort();
     audioRef.current = null;
-    if (a) { a.onended = null; a.pause(); }
-    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* gone */ } previewUrlRef.current = null; }
     if (mountedRef.current) { setPlayState("idle"); setPlayingAudio(null); }
   }
 
   async function preview() {
-    if (playState !== "idle") { stopPreview(); return; }
+    // A ref also sees a second click before React publishes the loading state.
+    if (previewAbortRef.current || playState !== "idle") { stopPreview(); return; }
+    if (previewCleanupRef.current) { setStatus({ tone: "error", say: errorSay(previewCleanupRef.current, (l, detail) => t(l, "previewFailed", { detail })) }); return; }
     if ((!ownMusic && !cue) || !roots || start == null || musicKind === "none") return;
     stopPreview();
-    const token = previewTokenRef.current;
-    const live = () => previewTokenRef.current === token && mountedRef.current;
+    const token = previewTokenRef.current, pid = projectRef.current, abort = new AbortController();
+    const client = panelLocalClient(sdk);
+    const file = musicKind === "own" ? ownMusic!.path : client.files.join(roots.plugin, "assets", "cues", cue.file);
+    const expected = musicKind === "own" ? (ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null) : { path: file, size: cue.bytes, sha256: cue.sha256 };
+    previewAbortRef.current = abort;
+    const live = () => previewTokenRef.current === token && mountedRef.current && projectRef.current === pid && !abort.signal.aborted;
     setPlayState("loading");
     try {
-      const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);
-      const bytes = await readBytes(file);
-      if (!live()) return;
-      if (!bytes.byteLength) throw uiError((l) => t(l, "noAudio"));
-      const url = URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }));
-      previewUrlRef.current = url;
-      const audio = new Audio(url);
-      audio.preload = "auto";
-      audioRef.current = audio;
-      // Seek once the length is known, then play.
-      await new Promise<void>((ok, fail) => {
-        audio.onloadedmetadata = () => ok();
-        audio.onerror = () => fail(uiError((l) => t(l, "noAudio")));
+      await playAssetAudioPreview({
+        signal: abort.signal, isCurrent: live, timeoutMs: PREVIEW_TIMEOUT_MS,
+        startSeconds: start, durationSeconds: videoSeconds, fadeSeconds: PREVIEW_FADE,
+        prepare: async (current: () => void) => {
+          const observed = await observeSourceFiles(client.files, [file], expected ? [expected] : null); current();
+          const url = await readAssetPlaybackURL(client, file, current); current();
+          return { url, verify: async (check: () => void) => { await observeSourceFiles(client.files, [file], observed); check(); } };
+        },
+        onPlaying: (audio: HTMLAudioElement) => { if (live()) { audioRef.current = audio; setPlayState("playing"); setPlayingAudio(audio); } },
       });
-      if (!live() || audioRef.current !== audio) return;
-      const from = start, end = start + videoSeconds;
-      audio.currentTime = from;
-      audio.volume = 1;
-      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
-      await audio.play();
-      if (!live() || audioRef.current !== audio) { audio.pause(); return; }
-      // The fade and the stop at the section's end.
-      previewTimerRef.current = setInterval(() => {
-        if (audioRef.current !== audio) return;
-        const at = audio.currentTime;
-        if (at >= end) { stopPreview(); return; }
-        audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));
-      }, 40);
-      setPlayState("playing"); setPlayingAudio(audio);
     } catch (e: any) {
-      if (!live()) return;
-      stopPreview();
-      setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "previewFailed", { detail })) });
-    }
+      if (e?.code === "BUNDLED_ASSET_CLEANUP") previewCleanupRef.current = e;
+      if (live() || (e?.code === "BUNDLED_ASSET_CLEANUP" && mountedRef.current && projectRef.current === pid && previewAbortRef.current === abort)) setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "previewFailed", { detail })) });
+    } finally { if (previewAbortRef.current === abort) { stopPreview(); previewAbortRef.current = null; } }
   }
 
   // Scene search over the analysed videos. `onDone(n)` reports how many of them were searched so far.
@@ -4857,79 +6190,92 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
 
   // The quick local check of the videos Selects has not analysed (quick-score block): the host's ffmpeg decodes a small
   // grey preview of each and scores its windows, AV_LOCAL_CONCURRENCY at a time within AV_LOCAL_BUDGET_MS, cached in the
-  // data folder per clip and file time. Without ffmpeg or a data folder (an older Selects) every clip gets evenly spaced
-  // windows from 0.5 s on, and the build still runs. A newer build, a Project switch or closing the panel cancels it.
-  async function scoreLocal(res: any[], onDone: (done: number) => void) {
+  // data folder by complete original contents and scoring policy. Ordinary decoder unavailability gives evenly spaced
+  // windows; unconfirmed source contents, cancellation and cleanup uncertainty stop the build.
+  async function scoreLocal(res: any[], onDone: (done: number) => void, check: () => void = () => { if (!mountedRef.current || projectRef.current !== projectId) throw STALE; }, controller?: AbortController, expectedSources: any[] | null = null) {
     if (!res.length) return [];
     localAbortRef.current?.abort();
-    const ac = new AbortController();
+    const ac = controller || new AbortController();
     localAbortRef.current = ac;
     try {
-      const scores = await quickScoreAll(res.map((r: any) => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })),
-        { dataDir: roots?.data || null, concurrency: AV_LOCAL_CONCURRENCY, budgetMs: AV_LOCAL_BUDGET_MS, signal: ac.signal, onProgress: (p: any) => onDone(p.done) });
-      return res.map((r: any) => scores.get(r.rid)).filter(Boolean);
+      return await analyseArchiveClips(sdk, res, roots?.data || null,
+        { signal: ac.signal, isCurrent: () => { check(); return true; }, expectedSources, onProgress: onDone });
     } finally { if (localAbortRef.current === ac) localAbortRef.current = null; }
   }
 
-  // Looks for the Draft a lost assemble reply may have saved, by its frozen name. Read-only: nothing is committed.
-  // Uncommitted Drafts are never saved, so a Draft with this name holds a finished assembly. Only the
-  // DRAFT_LOOKUP_MAX most recent Drafts are read, newest first, stopping at the first match, so a Project with many
-  // Drafts stays inside the 30 s deadline. This assumes draftIds lists Drafts in creation order (newest last; DraftMeta
-  // has no creation time to sort by). If that ever fails the lookup finds nothing and the original error shows: the
-  // build is never duplicated.
-  async function findDraftByName(pid: string, name: string) {
-    const r = await run("Look for the new Draft", "const p = selects.project(" + JSON.stringify(pid) + ");\n"
-      + "const name = " + JSON.stringify(name) + ";\n"
-      + "const ids = ((await p.meta()).draftIds || []).slice(-" + DRAFT_LOOKUP_MAX + ").reverse();\n"
-      + "for (const id of ids) {\n"
-      + "  const d = selects.draft(id);\n"
-      + "  const m = await d.meta();\n"
-      + "  if (m.name !== name) continue;\n"
-      + "  const end = (await d.clips({ trackScope: 'main' })).reduce((a, c) => Math.max(a, c.endFrame), 0);\n"
-      + "  return { sequenceId: id, fps: m.fps, totalFrames: end };\n"
-      + "}\n"
-      + "return { sequenceId: null };", false, { wanted: () => projectRef.current === pid });
-    return r && r.sequenceId ? r : null;
+  async function openAssemblyContinuations(pid: string, check: () => void) {
+    return openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid, requestLimit: 131072, stateLimit: 524288 }, () => { check(); return true; });
+  }
+  async function finishAssembly(pending: any, check: () => void, continuations: any) {
+    await decorate({ pending }, check, continuations);
   }
 
   async function build(nextSeed: number) {
-    if (busyRef.current || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
-    // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
-    const gate = nextSeed === seed ? blockReason : anotherBlock;
-    if (gate) { setStatus({ tone: "error", say: gate }); return; }
+    if (busyRef.current || !projectId) return;
     const pid = projectId, epoch = ++runEpochRef.current;
     const check = () => { if (!runLive(pid, epoch)) throw STALE; };
-    // Every input as it is at Build. The build and a later "Finish title and look" read only this; the Inspector labels
-    // are written in the UI language of this moment and do not follow a later switch.
-    const frozen = Object.freeze({
-      pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
-      credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
-      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
-      // A bundled cue's length (manifest): ensure-audio.js takes a same-named Project file for the cue only at this length.
-      musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
-      sectionStart: musicStart, pace, length, requested: fit.requested,
-      labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
-      draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
-    });
-    busyRef.current = true;
-    stopPreview();
-    setBusy(true); setStatus(null); setResult(null);
-    advance("shots", 0);
+    busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
+    let attempt: any = null;
     try {
+      const continuations = await openAssemblyContinuations(pid, check);
+      const previous = await continuations.read(); check(); setAssemblyDiscovery("ready");
+      if (previous) {
+        attempt = previous; assemblyPendingRef.current[pid] = previous;
+        advance("draft", 0); await finishAssembly(previous, check, continuations); return;
+      }
+      delete assemblyPendingRef.current[pid];
+      if (!inventoryCurrent() || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
+      const gate = nextSeed === seed ? blockReason : anotherBlock;
+      if (gate) { setStatus({ tone: "error", say: gate }); return; }
+      const frozen = Object.freeze({
+        pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
+        credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
+        music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
+        musicObservation: musicKind === "own" && ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null,
+        // Keep the exact cue generation that supplied this build's timing grid.
+        musicCue: musicKind === "cue" ? JSON.parse(JSON.stringify(cue)) : null,
+        sectionStart: musicStart, pace, length, requested: fit.requested,
+        labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
+        draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
+      });
+      setResult(null);
+      const finishAssets = await snapshotArchiveFinishAssets(assets, L, file => fontB64(roots.plugin, file), check); check();
+      advance("shots", 0);
+      const analysisClient = panelLocalClient(sdk), analysisSources: any[] = [], sourceBindings: any[] = [];
+      if (frozen.music === "own") {
+        if (frozen.musicObservation?.path !== frozen.musicPath) throw bundledAssetIssue("SOURCE", "Select the music again to confirm its analyzed contents.");
+        await observeSourceFiles(analysisClient.files, [frozen.musicPath], [frozen.musicObservation]); check();
+        analysisSources.push(frozen.musicObservation);
+      }
+      const selectedPhotos = selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos)
+        .map((rid) => ({ resourceId: rid, name: (inventory.photos || []).find((photo: any) => photo.rid === rid)?.name || rid }));
+      const verified = selectedPhotos.length ? await prepareNativeImagesById(sdk, pid, selectedPhotos, { isCurrent: () => runLive(pid, epoch) }) : { sources: [] };
+      check();
+      const photoSizes = Object.freeze(Object.fromEntries(verified.sources.map((photo: any) => [photo.resourceId, Object.freeze({ width: photo.width, height: photo.height })])));
+      const verifiedInventory = { ...inventory, photos: (inventory.photos || []).map((photo: any) => photoSizes[photo.rid] ? { ...photo, ...photoSizes[photo.rid] } : photo) };
       // The shot candidates are cached per Project and clip selection: the scene search of the analysed videos and the
       // quick local check of the others (`local`, their quickScore results), run side by side.
       const key = pid + "|" + JSON.stringify(only);
       const chosenRes: any[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid));
+      const selectedBindings = chosenRes.map(row => ({ resourceId: row.rid, path: row.path })).concat(verified.sources.map((row: any) => ({ resourceId: row.resourceId, path: row.path })));
+      await confirmArchiveSourceBindings(sdk, pid, selectedBindings, check);
+      const observedSources = await observeSourceFiles(analysisClient.files, selectedBindings.map(row => row.path)); check();
+      for (const row of observedSources) if (!analysisSources.some(before => before.path === row.path)) analysisSources.push(row);
+      sourceBindings.push(...selectedBindings);
+
       const rids: string[] = chosenRes.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
       const localRes: any[] = chosenRes.filter((r: any) => r.analysed === false);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
-      const cached = candidates && candidates.key === key ? candidates : null;
+      const sceneResources = chosenRes.filter((r: any) => r.analysed !== false);
+      const scenePaths = new Set(sceneResources.map((r: any) => r.path));
+      const sceneInputs = { resources: sceneResources.map((r: any) => ({ rid: r.rid, path: r.path, duration: r.duration })), sources: observedSources.filter(row => scenePaths.has(row.path)) };
+      const cached = candidates && candidates.key === key && JSON.stringify(candidates.sceneInputs) === JSON.stringify(sceneInputs) ? candidates : null;
       let found = cached;
-      if (!cached || cached.failed.length) {
-        // Search everything the first time; afterwards retry only the clips whose search failed. The local check runs
-        // once per selection (its results never fail: a clip it cannot decode gets evenly spaced windows).
+      if (!cached || cached.failed.length || localRes.length) {
+        // Retry only failed scene requests while their original inputs still match.
+        // Local scores are confirmed on every Build through the source-bound disk cache.
         const todo: string[] = cached ? cached.failed : rids;
-        const toScore = cached ? [] : localRes;
+        const toScore = localRes;
         // Progress counts what each part counts: analysed videos searched, unanalysed videos checked.
         const counts = { searched: 0, scored: 0 };
         const tick = () => {
@@ -4938,22 +6284,28 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
             toScore.length ? t(l, "localChecked", { done: scored, count: toScore.length }) : ""].filter(Boolean).join(" · "));
         };
         tick();
-        const [fresh, local] = await Promise.all([
-          findCandidates(todo, pid, check, (n) => { counts.searched = n; tick(); }),
-          scoreLocal(toScore, (n) => { counts.scored = n; tick(); }),
-        ]).catch((e) => { localAbortRef.current?.abort(); throw e; });
+        const controller = new AbortController();
+        const current = () => { check(); if (controller.signal.aborted) throw STALE; };
+        const jobs = [
+          findCandidates(todo, pid, current, (n) => { counts.searched = n; tick(); }),
+          scoreLocal(toScore, (n) => { counts.scored = n; tick(); }, current, controller, analysisSources),
+        ];
+        let fresh: any, local: any;
+        try { [fresh, local] = await Promise.all(jobs); current(); }
+        catch (error) { controller.abort(); await Promise.allSettled(jobs); throw error; }
         check();
         const retried = new Set(todo);
-        found = { key, failed: fresh.failed, local: cached ? cached.local : local,
+        found = { key, sceneInputs, failed: fresh.failed, local,
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
         setCandidates(found);
       }
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
       advance("shots", 1);
       // Photos join as candidates without a search; with Use photos off there are none.
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion hits
       // become a tie-break bonus on the role candidates, and local windows join on the hits' scale (avShotCandidates).
-      const sizes = avSizesOf(inventory);
+      const sizes = avSizesOf(verifiedInventory);
       const shots = avShotCandidates(found.list, found.local, { bpm: tempo, pace, durations: dur });
       const plan: any = avPlanBuild({ candidates: shots.concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
         pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed), sizes });
@@ -4965,52 +6317,44 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));
       }
       advance("music", 0);
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+      const minimumSeconds = (frozen.sectionStart ?? 0) + plan.schedule.cuts.at(-1);
       const music = frozen.musicPath == null ? null
-        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration }), true);
+        : frozen.musicCue ? await prepareArchiveCue(sdk, pid, roots.plugin, frozen.musicCue, minimumSeconds, check)
+        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, minimumSeconds, withPath: true }), true);
       check();
+      if (music) {
+        const expected = frozen.musicObservation ?? { size: frozen.musicCue.bytes, sha256: frozen.musicCue.sha256 };
+        const [observed] = await observeSourceFiles(analysisClient.files, [music.path], [{ ...expected, path: music.path }]); check();
+        if (!analysisSources.some(row => row.path === observed.path)) analysisSources.push(observed);
+        sourceBindings.push({ resourceId: music.resourceId, path: music.path });
+      }
       advance("music", 1);
       advance("draft", 0);
-      let a: any = null, lost: any = null;
-      try {
-        a = await run("Assemble Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName: frozen.draftName, plan, inventory,
-          music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound })), true);
-      } catch (e) { lost = e; }
-      check();
-      if (!a || !a.sequenceId) {
-        // Never resend the commit: the reply may have been lost after the Draft was saved. Look for it by its name.
-        let saved: any = null;
-        try { saved = await findDraftByName(pid, frozen.draftName); } catch { saved = null; }
-        check();
-        if (!saved) throw lost || uiError((l) => t(l, "draftNoId", { name: frozen.draftName }));
-        a = { ...saved, notes: a?.notes || [], recovered: true };
-      }
-      if (!(a.totalFrames > 0)) throw uiError((l) => t(l, "draftEmpty", { name: frozen.draftName }));
-      // The planner drops montage shots when the footage cannot fill all the music fits (plan.musicShots); tell the user
-      // the real length at the Draft fps.
-      const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: a.totalFrames / a.fps } : null;
-      advance("draft", 1);
-      // The opening's frame size, as it was at Build (a later "Finish title and look" may meet another inventory).
-      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened,
-        unchecked: found.failed.length, openingSize: sizes[plan.picks[0]?.rid] || null, recovered: !!a.recovered };
-      setResult(res);
-      await decorate(res, check);
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+      const pending = JSON.parse(templateStateJSON({ scope: { pluginId: PLUGIN_ID, projectId: pid, runId: crypto.randomUUID() },
+        config: avAssembleConfig({ projectId: pid, draftName: frozen.draftName, plan, inventory: verifiedInventory, music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound, analysisSources, sourceBindings }),
+        source: assets.scripts.assembleJs, verifyAssemblySource: assets.scripts.verifyAssemblyJs, finishAssets, frozen, photoSizes, plan, unchecked: found.failed.length,
+        openingSize: sizes[plan.picks[0]?.rid] || null }, 524288));
+      attempt = pending; assemblyPendingRef.current[pid] = pending;
+      await finishAssembly(pending, check, continuations);
     } catch (e: any) {
+      if (attempt && e?.phase !== "decoration" && (e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED") && assemblyPendingRef.current[pid]?.scope.runId === attempt.scope.runId) delete assemblyPendingRef.current[pid];
       if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) });
     } finally { endRun(pid, epoch); }
   }
 
-  // Another version: same clips and cached scene search, a new seed. The previous result goes first, then the
-  // build shows its steps from the start, like Build.
+  // Another version delegates result ownership to Build after selecting a new seed.
   function buildAnother() {
-    if (busyRef.current) return;
-    setResult(null); setStatus(null);
+    if (busyRef.current || !inventoryCurrent() || assemblyPendingRef.current[projectId]) return;
+    // Build clears the previous result only after all admission checks pass.
     const s = seed + 1;
     setSeed(s);
     build(s);
   }
 
   async function finishTitle() {
-    if (busyRef.current || !result || !assets || !roots) return;
+    if (busyRef.current || !result?.pending) return;
     const pid = projectId;
     if (result.frozen.pid !== pid) return;
     const epoch = ++runEpochRef.current;
@@ -5021,27 +6365,26 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     finally { endRun(pid, epoch); }
   }
 
-  // Commit 2 (mute when Clip sound is Off, the decode title, the credit, the letterbox reveal, photo and shot motion,
-  // the fade out and the Cinematic look), then open the Draft. decorate.js skips what an earlier attempt already
-  // added, so a retry is safe.
-  async function decorate(res: any, check: () => void) {
-    advance("look", 0);
-    const f = res.frozen;
+  // The original assembly and Finish recipe remain one owned workflow.
+  // A repeated click confirms saved state before authoring another phase.
+  async function decorate(res: any, check: () => void, continuations: any = null) {
+    const pending = res.pending;
+    if (!pending) throw uiError(l => t(l, "finishUnconfirmed"));
+    const log = continuations || await openAssemblyContinuations(pending.scope.projectId, check);
+    const observed = (value: any, assembly: any) => { check(); setResult(archiveWorkflowResult(value, assembly)); advance("draft", 1); advance("look", 0); };
+    let completed: any;
     try {
-      const fonts = await allFonts(roots!.plugin, assets.presets);
-      check();
-      const cfg = avDecorateConfig({ sequenceId: res.sequenceId, videoEnd: res.videoEnd, fps: res.fps, plan: res.plan, presets: assets.presets, tsx: assets.tsx, fonts,
-        sizes: { ...photoSizesRef.current }, openingSize: res.openingSize || null, frozen: f,
-        provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
-          pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } });
-      await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
-      check();
+      completed = await log.workflow(pending, async (value: any, assembly: any) => {
+        observed(value, assembly); return prepareArchiveDecoration(sdk, value, assembly, check);
+      }, observed, archiveRecoveryOptions(sdk, pending, check)); check();
     } catch (e: any) {
-      if (e === STALE) throw e;
-      throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
+      check(); if (e?.phase !== "decoration") throw e;
+      const known = e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED";
+      setResult((current: any) => current?.pending?.scope.runId === pending.scope.runId ? { ...current, lookOutcome: known ? "notSaved" : "unknown" } : current);
+      throw Object.assign(uiError(l => known ? t(l, "finishFailed", { detail: sayError(l, e) }) : t(l, "finishUnconfirmed")), { code: e.code, phase: "decoration", draftId: e.draftId, cause: e });
     }
-    // The title is saved from here on, so a failed open must not offer the retry.
-    setResult((r: any) => ({ ...r, decorated: true }));
+    res = archiveWorkflowResult(pending, completed, true); setResult(res); advance("look", 1);
+    if (assemblyPendingRef.current[pending.scope.projectId]?.scope.runId === pending.scope.runId) delete assemblyPendingRef.current[pending.scope.projectId];
     advance("open", 0);
     try {
       const openScript = "const id = " + JSON.stringify(res.sequenceId) + ";\n"
@@ -5113,22 +6456,22 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     : musicKind === "own" && !ownDuration ? (l) => t(l, "musicLengthUnread")
     : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
     // The opening, credit and final shots are video only (planner preflight), so photos never make up for a video.
-    : selectedRids.length === 0 ? (l) => t(l, "fail.no-video")
-    : selectedRids.length === 1 ? (l) => t(l, "fail.one-video")
+    : avVideoRequirement(selectedRids) ? (l) => t(l, "fail." + avVideoRequirement(selectedRids))
     : null;
   const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason, plan) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
-  const ready = !!inventory && !!assets && !!roots;
-  const canBuild = ready && !blockReason;
-  const canBuildAnother = ready && !anotherBlock;
+  const ready = assemblyDiscovery === "ready" && inventoryCurrent() && !!assets && !!roots;
+  const pendingAssembly = projectId ? assemblyPendingRef.current[projectId] : null;
+  const canBuild = assemblyDiscovery === "failed" || (assemblyDiscovery === "ready" && !!pendingAssembly) || (ready && !blockReason);
+  const canBuildAnother = !pendingAssembly && ready && !anotherBlock;
 
   const facts = avFootageFacts(inventory, selectedRids);
   const clipCount = [
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
-  const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
+  const readiness = !inventoryCurrent() ? (invLoading ? t(L, "refreshing") : invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
     : inventory.resources.length === 0 ? (facts.waiting ? t(L, "stillAdding", { count: facts.waiting }) : t(L, "noFootage"))
@@ -5386,7 +6729,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{t(L, "finishTitle")}</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy || !canBuildAnother}>{t(L, "anotherVersion")}</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{t(L, "build")}</ui.Button>
+        <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{pendingAssembly || assemblyDiscovery === "failed" ? t(L, "confirmDraft") : t(L, "build")}</ui.Button>
       </ui.Actions>
     </ui.Stack>
     </div>
@@ -5426,62 +6769,498 @@ function templateIssue(message: string) { const e: any = new Error(message); e.f
 // Error text for the hidden frame's log (an Error logged as an object shows as {}).
 function errorText(e: any) { return String(e?.message || e); }
 
-// One panel script; a lost session is resent (never a committing call), and a read that comes back empty is read
-// again up to twice: an alias checkpoint ack can answer a pending read with undefined right after a script mints new
-// short ids, which a template run does for every handed file just before its inventory read.
+// Catalog reads additionally share their owner's deadline/liveness/retry wait.
+// Ordinary reads retain bounded session/empty-response retries. Private source
+// checks use the shared single-dispatch input runner below instead.
 const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
-async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+async function runTemplateStep(sdk: any, summary: string, script: string | ((attempt: number) => string), allowCommit = false, opts: { wanted?: () => boolean; deadline?: number; wait?(ms: number): Promise<void> } = {}) {
+  const scoped = !allowCommit && (opts.wanted || opts.deadline !== undefined || opts.wait);
+  const check = () => {
+    if (allowCommit) return;
+    if (opts.wanted && !opts.wanted()) throw Object.assign(uiError((l) => t(l, "stepFailed")), { code: "MEDIA_INVENTORY_STOPPED" });
+    if (opts.deadline !== undefined && Date.now() >= opts.deadline) throw Object.assign(uiError((l) => t(l, "stepFailed")), { code: "MEDIA_INVENTORY_TIMEOUT" });
+  };
+  const pause = (ms: number) => opts.wait ? opts.wait(ms) : new Promise<void>((done) => setTimeout(done, ms));
+  const send = async (attempt: number) => {
+    check();
+    const source = typeof script === "string" ? script : script(allowCommit ? 0 : attempt);
+    const reply = await sdk.runScript({ summary, script: source, allowCommit, ...(scoped ? {
+      timeoutSeconds: Math.max(1, Math.min(90, Math.ceil(((opts.deadline ?? Infinity) - Date.now()) / 1000)))
+    } : {}) });
+    check();
+    return reply;
+  };
   for (let attempt = 0; ; attempt++) {
-    let r = await sdk.runScript({ summary, script, allowCommit });
-    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    let r = await send(attempt);
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await pause(1500); r = await send(attempt); }
     if (!r.isError && r.result != null) return r.result as any;
     const text = String(r.output || "Selects could not complete this step.");
     if (allowCommit || attempt >= 2 || !(EMPTY_READ.test(text) || (r.result == null && !r.isError))) throw new Error(text);
     console.warn("[archive-vlog] " + summary + " came back empty, reading again:", text);
-    await new Promise((d) => setTimeout(d, 1500));
+    await pause(1500);
   }
 }
 
-// Handed files carry the app's own Resource ids, but resources() and a Draft's clips report the Project's short
-// aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
-// file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
-// own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
-const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
-const p = selects.project(cfg.projectId);
-const resolved = [];
-// Why a handed file could not be placed (the host's own message), so the run can say it instead of a bare "not found".
-const failed = [];
-let shared = null;
-for (const h of cfg.files) {
-  try {
-    const photo = h.kind === 'image';
-    const d = photo || !shared ? await p.createDraft({ name: 'Archive Vlog id check' }) : shared;
-    if (!photo) shared = d;
-    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
-    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
-    catch (e) { await d.insertResource({ resourceId: h.rid }); }
-    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
-    if (!clip) { failed.push({ rid: h.rid, error: 'inserted, but no clip appeared' }); continue; }
-    let size = null;
-    if (photo) {
-      const fs = (await d.meta()).frameSize;
-      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
-    }
-    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
-  } catch (e) { failed.push({ rid: h.rid, error: String((e && e.message) || e).slice(0, 300) }); }
+// Handed Resource UUIDs resolve through the shared original-media input feature.
+// Private alias placement remains single-dispatch and is never inventory verification.
+// file-observation:start
+// Generated by tools/build_file_observation.mjs; edit file-observation.source.js.
+async function fingerprintTemplateFile(files,path,check=()=>{}) {
+/* @noble/hashes 2.2.0; license retained inside serialized SDK copies.
+The MIT License (MIT)
+
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the “Software”), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+const __templateHashAny=value=>value;
+var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Object).defineProperty; var G = __templateHashAny(Object).getOwnPropertyDescriptor; var V = __templateHashAny(Object).getOwnPropertyNames; var O = __templateHashAny(__templateHashAny(Object).prototype).hasOwnProperty; var k = (t, e, r) => e in t ? __templateHashAny(w)(t, e, { enumerable: !0, configurable: !0, writable: !0, value: r }) : __templateHashAny(t)[e] = r; var R = (t, e) => { for (var r in e)
+    __templateHashAny(w)(t, r, { get: __templateHashAny(e)[r], enumerable: !0 }); }, $ = (t, e, r, o) => { if (e && typeof e == "object" || typeof e == "function")
+    for (let n of __templateHashAny(V)(e))
+        !__templateHashAny(O).call(t, n) && n !== r && __templateHashAny(w)(t, n, { get: () => __templateHashAny(e)[n], enumerable: !(o = __templateHashAny(G)(e, n)) || __templateHashAny(o).enumerable }); return t; }; var M = t => __templateHashAny($)(__templateHashAny(w)({}, "__esModule", { value: !0 }), t); var a = (t, e, r) => __templateHashAny(k)(t, typeof e != "symbol" ? e + "" : e, r); var N = {}; __templateHashAny(R)(N, { sha256: () => _ }); function j(t) { return t instanceof Uint8Array || __templateHashAny(ArrayBuffer).isView(t) && __templateHashAny(__templateHashAny(t).constructor).name === "Uint8Array" && "BYTES_PER_ELEMENT" in t && __templateHashAny(t).BYTES_PER_ELEMENT === 1; } function m(t, e, r = "") { let o = __templateHashAny(j)(t), n = __templateHashAny(t)?.length, f = e !== void 0; if (!o || f && n !== e) {
+    let s = r && `"${r}" `, x = f ? ` of length ${e}` : "", i = o ? `length=${n}` : `type=${typeof t}`, h = s + "expected Uint8Array" + x + ", got " + i;
+    throw o ? new (__templateHashAny(RangeError))(h) : new (__templateHashAny(TypeError))(h);
+} return t; } function L(t, e = !0) { if (__templateHashAny(t).destroyed)
+    throw new (__templateHashAny(Error))("Hash instance has been destroyed"); if (e && __templateHashAny(t).finished)
+    throw new (__templateHashAny(Error))("Hash#digest() has already been called"); } function C(t, e) { __templateHashAny(m)(t, void 0, "digestInto() output"); let r = __templateHashAny(e).outputLen; if (__templateHashAny(t).length < r)
+    throw new (__templateHashAny(RangeError))('"digestInto() output" expected to be of length >=' + r); } function y(...t) { for (let e = 0; e < __templateHashAny(t).length; e++)
+    __templateHashAny(__templateHashAny(t)[e]).fill(0); } function A(t) { return new (__templateHashAny(DataView))(__templateHashAny(t).buffer, __templateHashAny(t).byteOffset, __templateHashAny(t).byteLength); } function d(t, e) { return t << 32 - e | t >>> e; } function F(t, e = {}) { let r = (n, f) => __templateHashAny(__templateHashAny(__templateHashAny(t)(f)).update(n)).digest(), o = __templateHashAny(t)(void 0); return __templateHashAny(r).outputLen = __templateHashAny(o).outputLen, __templateHashAny(r).blockLen = __templateHashAny(o).blockLen, __templateHashAny(r).canXOF = __templateHashAny(o).canXOF, __templateHashAny(r).create = n => __templateHashAny(t)(n), __templateHashAny(Object).assign(r, e), __templateHashAny(Object).freeze(r); } var T = t => ({ oid: __templateHashAny(Uint8Array).from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, t]) }); function D(t, e, r) { return t & e ^ ~t & r; } function I(t, e, r) { return t & e ^ t & r ^ e & r; } var E = class {
+    constructor(e, r, o, n) { __templateHashAny(a)(__templateHashAny(this), "blockLen"); __templateHashAny(a)(__templateHashAny(this), "outputLen"); __templateHashAny(a)(__templateHashAny(this), "canXOF", !1); __templateHashAny(a)(__templateHashAny(this), "padOffset"); __templateHashAny(a)(__templateHashAny(this), "isLE"); __templateHashAny(a)(__templateHashAny(this), "buffer"); __templateHashAny(a)(__templateHashAny(this), "view"); __templateHashAny(a)(__templateHashAny(this), "finished", !1); __templateHashAny(a)(__templateHashAny(this), "length", 0); __templateHashAny(a)(__templateHashAny(this), "pos", 0); __templateHashAny(a)(__templateHashAny(this), "destroyed", !1); __templateHashAny(__templateHashAny(this)).blockLen = e, __templateHashAny(__templateHashAny(this)).outputLen = r, __templateHashAny(__templateHashAny(this)).padOffset = o, __templateHashAny(__templateHashAny(this)).isLE = n, __templateHashAny(__templateHashAny(this)).buffer = new (__templateHashAny(Uint8Array))(e), __templateHashAny(__templateHashAny(this)).view = __templateHashAny(A)(__templateHashAny(__templateHashAny(this)).buffer); }
+    update(e) { __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(m)(e); let { view: r, buffer: o, blockLen: n } = __templateHashAny(this), f = __templateHashAny(e).length; for (let s = 0; s < f;) {
+        let x = __templateHashAny(Math).min(n - __templateHashAny(__templateHashAny(this)).pos, f - s);
+        if (x === n) {
+            let i = __templateHashAny(A)(e);
+            for (; n <= f - s; s += n)
+                __templateHashAny(__templateHashAny(this)).process(i, s);
+            continue;
+        }
+        __templateHashAny(o).set(__templateHashAny(e).subarray(s, s + x), __templateHashAny(__templateHashAny(this)).pos), __templateHashAny(__templateHashAny(this)).pos += x, s += x, __templateHashAny(__templateHashAny(this)).pos === n && (__templateHashAny(__templateHashAny(this)).process(r, 0), __templateHashAny(__templateHashAny(this)).pos = 0);
+    } return __templateHashAny(__templateHashAny(this)).length += __templateHashAny(e).length, __templateHashAny(__templateHashAny(this)).roundClean(), __templateHashAny(this); }
+    digestInto(e) { __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(C)(e, __templateHashAny(this)), __templateHashAny(__templateHashAny(this)).finished = !0; let { buffer: r, view: o, blockLen: n, isLE: f } = __templateHashAny(this), { pos: s } = __templateHashAny(this); __templateHashAny(r)[s++] = 128, __templateHashAny(y)(__templateHashAny(__templateHashAny(__templateHashAny(this)).buffer).subarray(s)), __templateHashAny(__templateHashAny(this)).padOffset > n - s && (__templateHashAny(__templateHashAny(this)).process(o, 0), s = 0); for (let c = s; c < n; c++)
+        __templateHashAny(r)[c] = 0; __templateHashAny(o).setBigUint64(n - 8, __templateHashAny(BigInt)(__templateHashAny(__templateHashAny(this)).length * 8), f), __templateHashAny(__templateHashAny(this)).process(o, 0); let x = __templateHashAny(A)(e), i = __templateHashAny(__templateHashAny(this)).outputLen; if (i % 4)
+        throw new (__templateHashAny(Error))("_sha2: outputLen must be aligned to 32bit"); let h = i / 4, u = __templateHashAny(__templateHashAny(this)).get(); if (h > __templateHashAny(u).length)
+        throw new (__templateHashAny(Error))("_sha2: outputLen bigger than state"); for (let c = 0; c < h; c++)
+        __templateHashAny(x).setUint32(4 * c, __templateHashAny(u)[c], f); }
+    digest() { let { buffer: e, outputLen: r } = __templateHashAny(this); __templateHashAny(__templateHashAny(this)).digestInto(e); let o = __templateHashAny(e).slice(0, r); return __templateHashAny(__templateHashAny(this)).destroy(), o; }
+    _cloneInto(e) { e || (e = new (__templateHashAny((__templateHashAny(__templateHashAny(this)).constructor)))), __templateHashAny(e).set(...__templateHashAny(__templateHashAny(this)).get()); let { blockLen: r, buffer: o, length: n, finished: f, destroyed: s, pos: x } = __templateHashAny(this); return __templateHashAny(e).destroyed = s, __templateHashAny(e).finished = f, __templateHashAny(e).length = n, __templateHashAny(e).pos = x, n % r && __templateHashAny(__templateHashAny(e).buffer).set(o), e; }
+    clone() { return __templateHashAny(__templateHashAny(this))._cloneInto(); }
+}, b = __templateHashAny(Uint32Array).from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]); var W = __templateHashAny(Uint32Array).from([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]), l = new (__templateHashAny(Uint32Array))(64), B = class extends __templateHashAny(E) {
+    constructor(e) { super(64, e, 8, !1); }
+    get() { let { A: e, B: r, C: o, D: n, E: f, F: s, G: x, H: i } = __templateHashAny(this); return [e, r, o, n, f, s, x, i]; }
+    set(e, r, o, n, f, s, x, i) { __templateHashAny(__templateHashAny(this)).A = e | 0, __templateHashAny(__templateHashAny(this)).B = r | 0, __templateHashAny(__templateHashAny(this)).C = o | 0, __templateHashAny(__templateHashAny(this)).D = n | 0, __templateHashAny(__templateHashAny(this)).E = f | 0, __templateHashAny(__templateHashAny(this)).F = s | 0, __templateHashAny(__templateHashAny(this)).G = x | 0, __templateHashAny(__templateHashAny(this)).H = i | 0; }
+    process(e, r) { for (let c = 0; c < 16; c++, r += 4)
+        __templateHashAny(l)[c] = __templateHashAny(e).getUint32(r, !1); for (let c = 16; c < 64; c++) {
+        let g = __templateHashAny(l)[c - 15], p = __templateHashAny(l)[c - 2], S = __templateHashAny(d)(g, 7) ^ __templateHashAny(d)(g, 18) ^ g >>> 3, H = __templateHashAny(d)(p, 17) ^ __templateHashAny(d)(p, 19) ^ p >>> 10;
+        __templateHashAny(l)[c] = H + __templateHashAny(l)[c - 7] + S + __templateHashAny(l)[c - 16] | 0;
+    } let { A: o, B: n, C: f, D: s, E: x, F: i, G: h, H: u } = __templateHashAny(this); for (let c = 0; c < 64; c++) {
+        let g = __templateHashAny(d)(x, 6) ^ __templateHashAny(d)(x, 11) ^ __templateHashAny(d)(x, 25), p = u + g + __templateHashAny(D)(x, i, h) + __templateHashAny(W)[c] + __templateHashAny(l)[c] | 0, H = (__templateHashAny(d)(o, 2) ^ __templateHashAny(d)(o, 13) ^ __templateHashAny(d)(o, 22)) + __templateHashAny(I)(o, n, f) | 0;
+        u = h, h = i, i = x, x = s + p | 0, s = f, f = n, n = o, o = p + H | 0;
+    } o = o + __templateHashAny(__templateHashAny(this)).A | 0, n = n + __templateHashAny(__templateHashAny(this)).B | 0, f = f + __templateHashAny(__templateHashAny(this)).C | 0, s = s + __templateHashAny(__templateHashAny(this)).D | 0, x = x + __templateHashAny(__templateHashAny(this)).E | 0, i = i + __templateHashAny(__templateHashAny(this)).F | 0, h = h + __templateHashAny(__templateHashAny(this)).G | 0, u = u + __templateHashAny(__templateHashAny(this)).H | 0, __templateHashAny(__templateHashAny(this)).set(o, n, f, s, x, i, h, u); }
+    roundClean() { __templateHashAny(y)(l); }
+    destroy() { __templateHashAny(__templateHashAny(this)).destroyed = !0, __templateHashAny(__templateHashAny(this)).set(0, 0, 0, 0, 0, 0, 0, 0), __templateHashAny(y)(__templateHashAny(__templateHashAny(this)).buffer); }
+}, U = class extends __templateHashAny(B) {
+    constructor() { super(32); __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b)[0] | 0); __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b)[1] | 0); __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b)[2] | 0); __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b)[3] | 0); __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b)[4] | 0); __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b)[5] | 0); __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b)[6] | 0); __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b)[7] | 0); }
+}; var _ = __templateHashAny(F)(() => new (__templateHashAny(U)), __templateHashAny(T)(1)); return __templateHashAny(M)(N); }))();
+
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
+ const observe=async operation=>{check();const result=await operation();check();return result;};
+ const before=await observe(()=>files.stat(path));
+ if(before===null)return null;
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||!Number.isFinite(before.ino))throw Error("The file's size or identity could not be confirmed.");
+ const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+ for(let offset=0;offset<before.size;){
+  const length=Math.min(49152,before.size-offset);
+  const chunk=await observe(()=>files.readRange({path,offset,length}));
+  if(!chunk||chunk.bytesRead!==length||typeof chunk.base64!=='string'||chunk.base64.length!==4*Math.ceil(length/3)||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64))throw Error('The file read returned an incomplete or invalid binary chunk.');
+  const bytes=new Uint8Array(length);
+  let position=0;
+  for(let i=0;i<chunk.base64.length;i+=4){
+   const a=alphabet.indexOf(chunk.base64[i]),b=alphabet.indexOf(chunk.base64[i+1]),c=chunk.base64[i+2]==='='?0:alphabet.indexOf(chunk.base64[i+2]),d=chunk.base64[i+3]==='='?0:alphabet.indexOf(chunk.base64[i+3]);
+   if(chunk.base64[i+2]==='='&&(b&15)!==0||chunk.base64[i+3]==='='&&chunk.base64[i+2]!=='='&&(c&3)!==0)throw Error('The file read returned a noncanonical binary chunk.');
+   bytes[position++]=(a<<2)|(b>>4);
+   if(position<length)bytes[position++]=((b&15)<<4)|(c>>2);
+   if(position<length)bytes[position++]=((c&3)<<6)|d;
+  }
+  hash.update(bytes);check();offset+=length;
+ }
+ const after=await observe(()=>files.stat(path));
+ if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The file changed while its contents were read.');
+ const digest=hash.digest();check();
+ let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
+ return {size:before.size,sha256:hex};
 }
-return { resolved, failed };`;
+// file-observation:end
+// draft-observation:start
+// Plugin-private saved-state observation. Uses existing Panel read methods only.
+// A working copy inside run_script is deliberately not observable here.
+async function readTemplateDraftSources(sdk,projectId,draftId,libraryId=null){
+ const fail=message=>{throw Object.assign(Error(message),{code:'TEMPLATE_SOURCE_UNVERIFIED'});};
+ if(typeof sdk?.call!=='function'||typeof projectId!=='string'||!projectId||typeof draftId!=='string'||!draftId)fail('Saved Draft source target is invalid.');
+ const core=await sdk.call('getDraftCore',draftId),owner=core?.owner,sequence=core?.sequenceJson;
+ if(owner?.projectId!==projectId||typeof owner.libraryId!=='string'||!owner.libraryId||libraryId!==null&&owner.libraryId!==libraryId||sequence?.id!==draftId||sequence.libraryId!==undefined&&sequence.libraryId!==owner.libraryId||core.isEditedDraft===false)fail('Saved Draft source owner could not be confirmed.');
+ // The complete saved JSON also witnesses non-source edits across independent reads.
+ const witness=JSON.stringify(sequence);
+ if(typeof witness!=='string'||witness.length>8388608)fail('Saved Draft observation exceeds its input limit.');
+ let snapshot,missingMethod=false;
+ try{snapshot=await sdk.call('getDraftMediaSnapshot',projectId,draftId);}
+ catch(error){
+  // Compatibility only for an absent read method. Real read failures stay failures.
+  if(!/^(?:Panels cannot call ["']getDraftMediaSnapshot["']|No such method: getDraftMediaSnapshot|Unknown (?:method|read method):? getDraftMediaSnapshot)/.test(String(error?.message||error)))throw error;
+  missingMethod=true;
+ }
+ let clips=[],revision;
+ if(!missingMethod){
+  if(typeof snapshot?.revision!=='string'||!snapshot.revision||!Number.isFinite(snapshot.fps)||snapshot.fps<=0||!Array.isArray(snapshot.clips)||snapshot.clips.length>1000||snapshot.clips.some(row=>!row||typeof row!=='object'))fail('Saved Draft media observation is incomplete.');
+  clips=snapshot.clips.filter(row=>row?.resourceId!=null).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds,endSeconds:row.sourceEndSeconds},playbackSpeed:row.playbackSpeed}));
+  revision=JSON.stringify({core:witness,media:snapshot.revision,clips});
+ }else{
+  // getDraftCore is an existing public read. Interpret only documented persisted
+  // Clip.1 (frames) / Clip.2 (ticks) ranges, never application/user database files.
+  if(sequence.schema!=='Cutback.Timeline.1'||!Array.isArray(sequence.tracks?.children))fail('Saved Draft schema is unsupported.');
+  const fps=sequence.frameRate;
+  if(!Number.isFinite(fps)||fps<=0||fps>1000)fail('Saved Draft frame grid is invalid.');
+  const rate=sequence.frameRateRatio;
+  let tickFrame;
+  if(rate!==undefined){
+   if(!Number.isSafeInteger(rate?.numerator)||rate.numerator<=0||!Number.isSafeInteger(rate.denominator)||rate.denominator<=0||Math.abs(fps-rate.numerator/rate.denominator)>8*Number.EPSILON*Math.max(1,fps))fail('Saved Draft rational frame grid is invalid.');
+   tickFrame=Number((705600000n*BigInt(rate.denominator)+BigInt(Math.floor(rate.numerator/2)))/BigInt(rate.numerator));
+  }else tickFrame=Math.round(705600000/fps);
+  if(!Number.isSafeInteger(tickFrame)||tickFrame<1)fail('Saved Draft Tick grid is invalid.');
+  for(const track of sequence.tracks.children){
+   if(!track||typeof track.id!=='string'||!track.id||!Array.isArray(track.children))fail('Saved Draft track is invalid.');
+   const kind={Main:'main',Video:'video',Audio:'audio'}[track.kind];
+   if(!kind)continue;
+   let offset=0;
+   for(const row of track.children){
+    const current=row?.schema==='Cutback.Clip.2'||row?.schema==='Cutback.Gap.2',legacy=row?.schema==='Cutback.Clip.1'||row?.schema==='Cutback.Gap.1';
+    if(!current&&!legacy)fail('Saved Draft source schema is unsupported.');
+    const start=row.sourceRange?.startTime,duration=row.sourceRange?.duration;
+    if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(duration)||duration<0||row.cut!==undefined&&typeof row.cut!=='boolean')fail('Saved Draft source range is invalid.');
+    const frames=current?duration/tickFrame:duration;
+    if(!Number.isSafeInteger(frames)||frames<0)fail('Saved Draft source is not aligned to its frame grid.');
+    if(row.cut)continue;
+    const resourceId=row.mediaReferences?.defaultMedia?.id;
+    if(resourceId!=null){
+     if(!Number.isSafeInteger(row.id)||row.id<0||frames<1||typeof resourceId!=='string'||!resourceId)fail('Saved Draft source identity is invalid.');
+     const policy=row.timing??{playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true};
+     const n=policy.playbackSpeed?.numerator,d=policy.playbackSpeed?.denominator,r=policy.sourceTickRoundingRemainder??0;
+     if(!Number.isSafeInteger(n)||n<1||!Number.isSafeInteger(d)||d<1||!Number.isSafeInteger(r)||r<0||r>=d||typeof policy.preserveAudioPitch!=='boolean'||legacy&&(n!==1||d!==1||r!==0))fail('Saved Draft timing policy is unsupported.');
+     // Match ClipTiming's nonnegative round-half-up mapping, including its origin
+     // remainder. BigInt avoids losing a source Tick in large rational products.
+     const round=(a,b)=>(2n*a+b)/(2n*b);
+     const delta=current?Number(round(BigInt(r)+BigInt(n)*BigInt(duration),BigInt(d))-round(BigInt(r),BigInt(d))):duration;
+     if(!Number.isSafeInteger(delta)||!Number.isSafeInteger(start+delta))fail('Saved Draft source time exceeds its exact range.');
+     const unit=current?705600000:fps;
+     clips.push({clipId:row.id,trackId:track.id,trackKind:kind,resourceId,startFrame:offset,endFrame:offset+frames,source:{clipId:row.id,startSeconds:start/unit,endSeconds:(start+delta)/unit},playbackSpeed:n/d});
+    }
+    offset+=frames;
+    if(!Number.isSafeInteger(offset))fail('Saved Draft placement exceeds its exact range.');
+   }
+  }
+  revision=witness;
+ }
+ const ids=new Set();
+ if(clips.length>1000)fail('Saved Draft contains too many media clips.');
+ for(const row of clips){
+  const key=JSON.stringify([row.trackId,row.clipId]);
+  if(ids.has(key)||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||!['main','video','audio'].includes(row.trackKind)||typeof row.resourceId!=='string'||!row.resourceId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame||!Number.isFinite(row.source.startSeconds)||row.source.startSeconds<0||!Number.isFinite(row.source.endSeconds)||row.source.endSeconds<=row.source.startSeconds||!Number.isFinite(row.playbackSpeed)||row.playbackSpeed<=0)fail('Saved Draft source observation is invalid.');
+  ids.add(key);
+ }
+ // This function runs in the panel, where Web Crypto already backs durable run
+ // receipts. Keep the revision witness bounded when it is passed into scripts.
+ if(!globalThis.crypto?.subtle||typeof TextEncoder!=='function')fail('Saved Draft revision hashing is unavailable.');
+ revision=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(revision))),n=>n.toString(16).padStart(2,'0')).join('');
+ return {revision,owner:{projectId,libraryId:owner.libraryId},clips};
+}
+
+// SDK-safe projection of a caller-supplied *actual saved* observation. Resource
+// aliases are checked by the existing SDK structural verifier, not guessed here.
+function templateObservedSource(observation,row){
+ const invalid=()=>{throw Error('Saved source target could not be confirmed.');};
+ if(!Array.isArray(observation?.clips)||!row||!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string')invalid();
+ const found=observation.clips.filter(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+ if(found.length!==1)invalid();
+ const actual=found[0],source=actual.source;
+ if(actual.trackKind!==row.trackKind||actual.startFrame!==row.startFrame||actual.endFrame!==row.endFrame||source?.clipId!==row.clipId||!Number.isFinite(source.startSeconds)||source.startSeconds<0||!Number.isFinite(source.endSeconds)||source.endSeconds<=source.startSeconds)invalid();
+ return {clipId:row.clipId,startSeconds:source.startSeconds,endSeconds:source.endSeconds};
+}
+// draft-observation:end
+// native-image-input:start
+// Original source facts and private unsaved identity checks. Canonical input feature.
+// Normalize the app's handed Resource records without silently discarding malformed
+// inputs or allowing conflicting kinds for one identity. Template role/count policy
+// remains with the template; the public handoff supports at most 50 records.
+export function templateMediaSelection(inputs) {
+ const invalid=()=>{throw Object.assign(Error('The handed video/photo selection is invalid. Choose up to 50 valid Resources.'),{code:'template-input-invalid'});};
+ if(!Array.isArray(inputs)||inputs.length>50)invalid();
+ const selected=new Map();
+ for(const input of inputs){
+  const id=input?.resourceId,kind=input?.kind;
+  if(typeof id!=='string'||!id||id!==id.trim()||id.length>1024||id.includes('\0')||!['video','image'].includes(kind))invalid();
+  if(selected.has(id)&&selected.get(id).kind!==kind)invalid();
+  if(!selected.has(id))selected.set(id,{rid:id,kind});
+ }
+ return [...selected.values()];
+}
+export async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
+ const project=selects.project(projectId), resources=await project.resources(), nodes=[];
+ const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
+ const overview=await project.sourceFiles();
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ const sources=photos.map(photo=>{
+  const matches=nodes.filter(node=>node.path===photo.path&&(!matchById||node.resourceId===photo.resourceId)&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));
+  if(matches.length!==1||matches[0].resourceId!==photo.resourceId)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
+  const row=matches[0],size=row.frameSize;
+  if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('A selected Image has no verified native dimensions: '+photo.name);
+  return {resourceId:row.resourceId,path:row.path,name:photo.name,width:size.width,height:size.height};
+ });
+ const fail=(code,photo,message)=>{throw Object.assign(new Error(message+': '+photo.name),{code,resourceId:photo.resourceId});};
+ if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')throw Error('This Selects version does not support original photo file checks.');
+ const checked=new Set();
+ for(const photo of sources){
+  if(checked.has(photo.path))continue;
+  let before;
+  try{before=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file');}
+  if(before===null)fail('image-source-missing',photo,'The original photo file is missing');
+  if(!before||!Number.isSafeInteger(before.size)||before.size<0||typeof before.isDirectory!=='boolean')fail('image-source-unknown',photo,'Could not confirm the original photo file');
+  if(before.isDirectory||before.size===0)fail('image-source-unreadable',photo,'The original photo file is not readable');
+  let first;
+  try{first=await selects.files.readRange({path:photo.path,offset:0,length:1});}catch{fail('image-source-unreadable',photo,'Could not read the original photo file');}
+  if(!first||first.bytesRead!==1||typeof first.base64!=='string'||!/^[A-Za-z0-9+/]{2}==$/.test(first.base64))fail('image-source-unknown',photo,'Could not confirm reading the original photo file');
+  let after;
+  try{after=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file after reading');}
+  if(!after||after.isDirectory||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))fail('image-source-changed',photo,'The original photo file changed while reading');
+  checked.add(photo.path);
+ }
+ return sources;
+}
+// Alias discovery does not carry a path. Resolve it by exact SDK identity, then
+// keep the established native Image path/dimensions/file checks unchanged.
+export async function nativeImageSourcesById(selects,projectId,photos) {
+ const project=selects.project(projectId),nodes=[];
+ const visit=items=>{for(const item of items||[]){if(!item)continue;item.type==='dir'?visit(item.children):nodes.push(item);}};
+ const overview=await project.sourceFiles();
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ const selected=photos.map(photo=>{
+  const matches=nodes.filter(node=>node.resourceId===photo.resourceId&&typeof node.path==='string'&&node.path);
+  if(matches.length!==1)throw Error('The selected Image path is missing or ambiguous in the Project: '+photo.name);
+  return {...photo,path:matches[0].path};
+ });
+ return nativeImageSources(selects,projectId,selected,{matchById:true});
+}
+// A source step is dispatched once, independently of persistence permission.
+export async function nativeImageRun(sdk,script,summary,allowCommit=false,fallbackMessage='Image placement could not be confirmed. Inspect the Draft before retrying.',timeoutSeconds=120) {
+ const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds});
+ if(response.isError||response.result==null)throw Error(response.output||fallbackMessage);
+ return response.result;
+}
+export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null,byId=false,timeoutSeconds=120) {
+ if(typeof byId!=='boolean')throw Error('The Image source matching mode is invalid.');
+ if(byId&&(!Array.isArray(photos)||photos.some(photo=>!photo||typeof photo.resourceId!=='string'||!photo.resourceId||typeof photo.name!=='string')))throw Error('The selected Image identities are invalid.');
+ const reader=byId?nativeImageSourcesById:nativeImageSources;
+ const support=byId?nativeImageSources.toString()+'\n':'';
+ const result=await nativeImageRun(sdk,support+`try{return {sources:await (${reader.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)})};}catch(error){const issue=Object(error);return {sourceError:{code:typeof issue.code==='string'?issue.code:'image-source-invalid',message:String(issue.message||error),resourceId:issue.resourceId??null}};}`,'Verify original Project Images',false,undefined,timeoutSeconds);
+ if(result.sourceError){
+  const error=Object.assign(new Error(result.sourceError.message),result.sourceError);
+  if(['image-source-missing','image-source-unreadable','image-source-unknown','image-source-changed'].includes(error.code))error.publicMessage=error.message+'. Check the original file in the Project, then try again.';
+  throw error;
+ }
+ if(!Array.isArray(result.sources))throw Error('Original Image verification returned an incomplete result.');
+ if(byId&&(result.sources.length!==photos.length||result.sources.some((source,i)=>source?.resourceId!==photos[i].resourceId||source.name!==photos[i].name||typeof source.path!=='string'||!source.path||!Number.isSafeInteger(source.width)||source.width<1||!Number.isSafeInteger(source.height)||source.height<1)))throw Error('Original Image verification did not confirm the selected identities and dimensions.');
+ return {sdk,projectId,sources:result.sources};
+}
+// Standalone inventories already hold SDK aliases. Resolve their current native
+// facts by exact identity without guessing a source path or using a Draft canvas.
+export async function prepareNativeImagesById(sdk,projectId,photos,options={}) {
+ const {isCurrent=()=>true,timeoutMs=120000}=options??{};
+ if(!Array.isArray(photos)||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw Error('The selected Image request or scope is invalid.');
+ const deadline=Date.now()+timeoutMs,issue=(code,message)=>Object.assign(Error(message),{code,publicMessage:message});
+ const check=()=>{
+  let live=false;try{live=isCurrent();}catch{}
+  if(!live)throw issue('image-source-stopped','The template run ended before original Images were confirmed.');
+  if(Date.now()>=deadline)throw issue('image-source-timeout','Original Image verification timed out.');
+ };
+ check();const batches=[];let batch=[];
+ // A large candidate set must not become one clipped SDK request/result. Bound
+ // both the row count and serialized input before starting any read.
+ for(const photo of photos){
+  if(!photo||typeof photo.resourceId!=='string'||!photo.resourceId||typeof photo.name!=='string')throw Error('The selected Image identities are invalid.');
+  const row={resourceId:photo.resourceId,name:photo.name};
+  if(new TextEncoder().encode(JSON.stringify([row])).length>16384)throw Error('The selected Image input exceeds its 16 KiB selection budget.');
+  if(batch.length>=16||new TextEncoder().encode(JSON.stringify([...batch,row])).length>16384){batches.push(batch);batch=[];}
+  batch.push(row);
+ }
+ if(batch.length)batches.push(batch);
+ const sources=[];
+ for(const selected of batches){
+  check();const prepared=await prepareNativeImages(sdk,projectId,selected,null,true,Math.max(1,Math.ceil((deadline-Date.now())/1000)));
+  check();sources.push(...prepared.sources);
+ }
+ check();return {sdk,projectId,sources};
+}
+
+// File contents are observations, not a filesystem lock. Keep the existing
+// Image availability contract unchanged; templates opt into complete identity.
+export function requireSourceFileSupport(files) {
+ if(typeof files?.stat!=='function'||typeof files?.readRange!=='function'){
+  const message='Update Selects to verify complete source file contents before creating this template.';
+  throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
+ }
+}
+export async function observeSourceFiles(files,paths,expected=null) {
+ const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
+ if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
+ const selected=[...new Set(paths)];
+ const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
+ if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');
+ if(!selected.length)return [];
+ requireSourceFileSupport(files);
+ const observed=[];
+ for(const path of selected){
+  let fingerprint;
+  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
+  const row={...fingerprint,path};
+  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
+  const before=expected?.find(row=>row.path===path);
+  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
+  observed.push({path,size:row.size,sha256:row.sha256});
+ }
+ return observed;
+}
+
+// Bind a physical path to the exact current Project Resource, independently of
+// content hashing. A retained old file is not evidence of a current media link.
+export async function confirmProjectSourcePaths(selects,projectId,bindings) {
+ const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code:'source-path-'+code,publicMessage:message,cause});
+ const valid=value=>typeof value==='string'&&value.length>0&&value.length<=8192&&!value.includes('\0');
+ if(!valid(projectId)||!Array.isArray(bindings)||bindings.length>16384||bindings.some(row=>!row||!valid(row.resourceId)||!valid(row.path))||new Set(bindings.map(row=>row.resourceId)).size!==bindings.length)throw issue('input','The selected source bindings are invalid.');
+ const expected=bindings.map(row=>({resourceId:row.resourceId,path:row.path}));
+ if(!expected.length)return {verified:true};
+ const wanted=new Set(expected.map(row=>row.resourceId)),found=new Map(),deadline=Date.now()+25000;let nodes=0;
+ const check=()=>{if(Date.now()>=deadline)throw issue('unknown','The current Project source paths could not be confirmed in time.');};
+ const visit=(rows,depth=0)=>{
+  check();if(!Array.isArray(rows)||depth>24)throw issue('unknown','The Project source tree is incomplete or unsupported.');
+  for(const row of rows){
+   if(++nodes>16384||!row||typeof row!=='object')throw issue('unknown','The Project source tree exceeds its observation budget or is incomplete.');
+   if(row.type==='dir')visit(row.children,depth+1);
+   else if(wanted.has(row.resourceId)){
+    if(found.has(row.resourceId)||!valid(row.path))throw issue('changed','A selected source path is missing or ambiguous in the Project.');
+    found.set(row.resourceId,row.path);
+   }
+  }
+ };
+ try{
+  const project=selects.project(projectId),overview=await project.sourceFiles();check();
+  if(!overview||typeof overview!=='object')throw issue('unknown','The current Project source tree could not be confirmed.');
+  if('fileTree' in overview)visit(overview.fileTree);
+  else{
+   if(!Array.isArray(overview.folders)||overview.folders.length>512||overview.folders.some(row=>!row||!valid(row.name))||new Set(overview.folders.map(row=>row.name)).size!==overview.folders.length)throw issue('unknown','The Project source folder list is incomplete or unsupported.');
+   for(const folder of overview.folders){check();const detail=await project.sourceFiles({folder:folder.name});check();if(!detail||typeof detail!=='object'||!('fileTree' in detail))throw issue('unknown','A Project source folder did not return its complete file tree.');visit(detail.fileTree);}
+  }
+ }catch(cause){if(cause?.code?.startsWith('source-path-'))throw cause;throw issue('unknown','The current Project source paths could not be read.',cause);}
+ for(const row of expected)if(found.get(row.resourceId)!==row.path)throw issue('changed','A selected original has moved or changed its Project source link. Reload the Project inputs before trying again.');
+ check();return {verified:true};
+}
+
+// Persistent handed IDs -> SDK aliases, observed only on private unsaved Drafts.
+// Placement failures are not evidence that a source file is absent.
+export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions','includeKind'].includes(key))||['includeTiming','dimensions','includeKind'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
+ if(!Array.isArray(files)||!files.length||files.length>50||files.some(file=>!file||typeof file.rid!=='string'||!file.rid||!['video','image'].includes(file.kind))||new Set(files.map(file=>file.rid)).size!==files.length)throw Error('The selected template source request is invalid.');
+ const project=selects.project(projectId),resolved=[],failed=[];let shared=null,catalogRead=null;
+ const text=error=>String(Object(error).message||error||'Source preparation could not be confirmed.').slice(0,300);
+ const unknown=message=>Object.assign(Error(message),{code:'source-resolution-unknown'});
+ for(const file of files){
+  let phase='create',insertionError;
+  try{
+   const photo=file.kind==='image',draft=photo||Object(options).includeTiming||!shared?await project.createDraft({name:scratchName}):shared;
+   if(!photo)shared=draft;
+   phase='readback';const before=await draft.clips({trackScope:'main'});
+   if(!Array.isArray(before)||before.some(row=>!Number.isSafeInteger(row?.clipId))||new Set(before.map(row=>row.clipId)).size!==before.length)throw unknown('The private source check could not be observed before placement.');
+   const ids=new Set(before.map(row=>row.clipId));
+   const observe=async()=>{
+    const rows=await draft.clips({trackScope:'main'});
+    if(!Array.isArray(rows)||rows.some(row=>!Number.isSafeInteger(row?.clipId))||new Set(rows.map(row=>row.clipId)).size!==rows.length)throw unknown('The private source check returned invalid clips.');
+    const added=rows.filter(row=>!ids.has(row.clipId));
+    if(added.length>1||added.length===1&&(typeof added[0].resourceId!=='string'||!added[0].resourceId))throw unknown('The placed source alias could not be uniquely confirmed.');
+    return added[0]??null;
+   };
+   phase='insert';
+   try{await draft.insertResource({resourceId:file.rid,sourceRange:{startSeconds:0,endSeconds:0.5}});}catch(error){insertionError=error;}
+   phase='readback';let clip=await observe();
+   // Only the SDK's pre-mutation range validation authorizes the old short-file
+   // fallback. An empty observation after an arbitrary transport error does not.
+   if(!clip&&insertionError&&/^invalid_source_range(?::|$)/.test(text(insertionError))){
+    phase='insert';insertionError=null;
+    try{await draft.insertResource({resourceId:file.rid});}catch(error){insertionError=error;}
+    phase='readback';clip=await observe();
+   }
+   if(!clip){if(insertionError){phase='insert';throw insertionError;}throw unknown('Source placement returned no confirmed clip.');}
+   let kind=null;
+   if(Object(options).includeKind){
+    phase='kind';
+    const rows=await (catalogRead??=project.resources());
+    if(!Array.isArray(rows)||rows.some(row=>!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.type!=='string')||new Set(rows.map(row=>row.resourceId)).size!==rows.length)throw unknown('The current Project Resource kinds could not be confirmed.');
+    const row=rows.find(row=>row.resourceId===clip.resourceId);
+    if(!row)throw unknown('The placed source has no confirmed Project Resource kind.');
+    kind=row.type==='Video'?'video':row.type==='Image'?'image':null;
+    if(kind!==file.kind)throw Object.assign(Error('The selected source kind differs from the handed video/photo declaration.'),{code:'source-kind-mismatch'});
+   }
+   let size=null;
+   if(photo&&Object(options).dimensions!==false){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
+   let timing=null;
+   if(Object(options).includeTiming){phase='timing';const meta=await draft.meta();if(!Number.isFinite(meta.fps)||meta.fps<=0)throw unknown('The source frame grid could not be confirmed.');timing={insertionFps:meta.fps};}
+   resolved.push({rid:file.rid,alias:clip.resourceId,size,...kind?{kind}:{},...timing?{timing}:{}});
+  }catch(error){
+   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):['readback','kind'].includes(phase)?'source-resolution-unknown':'source-resolution-failed';
+   failed.push({rid:file.rid,phase,code,error:text(error),...insertionError&&insertionError!==error?{insertionError:text(insertionError)}:{}});
+  }
+ }
+ return {resolved,failed};
+}
+
+// A clipped or contradictory response cannot silently drop handed sources.
+export function validateTemplateMediaResult(result,files,options={}) {
+ const invalid=()=>{throw Object.assign(Error('The selected source resolution could not be confirmed. Check the Project inputs and try again.'),{code:'source-resolution-unknown'});};
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>key!=='includeKind')||options.includeKind!==undefined&&typeof options.includeKind!=='boolean')invalid();
+ if(!result||!Array.isArray(result.resolved)||!Array.isArray(result.failed))invalid();
+ const wanted=new Set(files.map(file=>file.rid)),rows=[...result.resolved,...result.failed];
+ if(rows.length!==wanted.size||new Set(rows.map(row=>row?.rid)).size!==wanted.size||rows.some(row=>!wanted.has(row?.rid)))invalid();
+ if(result.resolved.some(row=>typeof row.alias!=='string'||!row.alias||row.size!==null&&(!Number.isSafeInteger(row.size?.width)||row.size.width<1||!Number.isSafeInteger(row.size?.height)||row.size.height<1)))invalid();
+ if(options.includeKind&&result.resolved.some(row=>!['video','image'].includes(row.kind)||row.kind!==files.find(file=>file.rid===row.rid)?.kind))invalid();
+ if(result.failed.some(row=>typeof row.phase!=='string'||typeof row.code!=='string'||typeof row.error!=='string'||row.error.length>300))invalid();
+ return result;
+}
+// native-image-input:end
+const TEMPLATE_ALIAS_JS = `${nativeImageSources.toString()}
+${nativeImageSourcesById.toString()}
+${resolveTemplateMedia.toString()}
+const cfg = __CONFIG__;
+return await resolveTemplateMedia(selects, cfg.projectId, cfg.files, "Archive Vlog id check", {includeKind:true});`;
 
 // The handed videos and photos, each once, in the order they were picked.
 function templateFootage(context: any) {
-  const seen = new Set<string>();
-  const files: Array<{ rid: string; kind: string }> = [];
-  for (const input of context?.template?.inputs?.footage ?? []) {
-    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
-    seen.add(input.resourceId);
-    files.push({ rid: String(input.resourceId), kind: input.kind });
-  }
-  return files;
+  const handed = context?.template?.inputs?.footage;
+  return templateMediaSelection(handed === undefined ? [] : handed);
 }
 
 // A template run's step (its status line and the "stopped at" message): "files" (reading the chosen files) or a build
@@ -5495,8 +7274,19 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   const bl = uiLang(context);
   const pid: string | null = context?.projectId ?? null;
   if (!pid) throw templateIssue(t(bl, "openProject"));
-  const files = templateFootage(context);
-  if (!files.length) throw templateIssue(t(bl, "tpl.noFootage"));
+  const runId = context?.template?.runId;
+  if (typeof runId !== "string" || !runId) throw templateIssue(t(bl, "stepFailed"));
+  const continuations = await openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid, requestLimit: 131072, stateLimit: 524288 }, () => { check(); return true; });
+  const previous = await continuations.read(runId, true); check();
+  if (previous) {
+    const completed = await continuations.workflow(previous, (value: any, assembly: any) => prepareArchiveDecoration(sdk, value, assembly, check), () => { check(); }, archiveRecoveryOptions(sdk, previous, check));
+    check(); return { sequenceId: completed.sequenceId };
+  }
+  let files: Array<{ rid: string; kind: string }>;
+  try { files = templateFootage(context); }
+  catch (cause: any) { throw Object.assign(templateIssue(t(bl, "tpl.noFootage")), { code: cause.code || "template-input-invalid", cause }); }
+  const requirement = avVideoRequirement(files.filter(file => file.kind === "video").map(file => file.rid));
+  if (requirement) throw Object.assign(templateIssue(t(bl, "fail." + requirement)), { code: "archive-video-required", reason: requirement });
   const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
   const options = context?.template?.options || {};
 
@@ -5513,21 +7303,25 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   const chosen = avPreset(assets.presets, options.title);
   if (!chosen) throw templateIssue(t(bl, "tpl.noStyles"));
 
-  // Handed ids to the Project's aliases; the files the first pass skipped get one more.
-  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
-  // The host's reason per file that could not be placed (the last attempt's), for the message below.
+  // Private scratch placement is observed once; an unknown result does not authorize replay.
+  const resolved: Array<{ rid: string; alias: string; kind: string; size: { width: number; height: number } | null }> = [];
+  const resolutionFailures: Array<{ rid: string; phase: string; code: string; error: string }> = [];
+  // The observed SDK reason per file, for the message below.
   const failures = new Map<string, string>();
   const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
     for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
-      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
+      const batch = list.slice(i, i + TEMPLATE_ALIAS_BATCH);
+      const raw = await nativeImageRun(sdk, fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: batch }), "Find the chosen files", false, t(bl, "stepFailed"));
       check();
-      resolved.push(...(r.resolved || []));
+      const r = validateTemplateMediaResult(raw, batch, { includeKind: true });
+      resolved.push(...r.resolved);
+      resolutionFailures.push(...r.failed);
       for (const f of r.failed || []) if (f && f.rid) failures.set(String(f.rid), String(f.error || ""));
     }
   };
   await resolveFiles(files);
-  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
-  if (unresolved.length) await resolveFiles(unresolved);
+
+  if (resolutionFailures.some(row => row.code === "source-kind-mismatch")) throw Object.assign(templateIssue(t(bl, "tpl.noFootage")), { code: "source-kind-mismatch", failures: resolutionFailures });
   const aliases = [...new Set(resolved.map((r) => r.alias))];
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
@@ -5543,16 +7337,38 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     // host's own reason stays in the log above. A retry or a re-pick does not help, importing here does.
     const notLocal = /analyzed sequence not found|placement_source_unavailable|no local source timeline/i.test(reason);
     if (notLocal) throw templateIssue(t(bl, "tpl.notLocal"));
-    throw templateIssue(reason ? [t(bl, "tpl.notFound"), t(bl, "tpl.notFoundDetail", { detail: reason })].join(t(bl, "gap")) : t(bl, "tpl.notFound"));
+    throw Object.assign(templateIssue(reason ? [t(bl, "stepFailed"), t(bl, "tpl.notFoundDetail", { detail: reason })].join(t(bl, "gap")) : t(bl, "stepFailed")), { code: "source-resolution-failed", failures: resolutionFailures });
+  }
+  const observedRequirement = avVideoRequirement(resolved.filter(row => row.kind === "video").map(row => row.alias));
+  if (observedRequirement) {
+    if (resolutionFailures.length) throw Object.assign(templateIssue(t(bl, "stepFailed") + t(bl, "gap") + t(bl, "tpl.notFoundDetail", { detail: resolutionFailures[0].error })), { code: "source-resolution-failed", failures: resolutionFailures });
+    throw Object.assign(templateIssue(t(bl, "fail." + observedRequirement)), { code: "archive-video-required", reason: observedRequirement });
   }
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
-  const inventory = await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
+  // Selected-file builds use the same bounded, reobserved catalog as the panel.
+  // A display may retain a partial list; a new build requires complete facts.
+  let inventory: any;
+  try {
+    inventory = await readInventoryPages(
+      (summary, source, commit, scope) => runTemplateStep(sdk, summary, source, commit, scope),
+      assets.scripts.inventoryJs, { projectId: pid, only: aliases, measureMs: INVENTORY_MEASURE_MS }, fill,
+      () => { check(); return true; }, { requireComplete: true });
+  } catch (error: any) {
+    check();
+    throw Object.assign(templateIssue(t(bl, "stepFailed")), { code: error?.code || "MEDIA_INVENTORY_READ", cause: error });
+  }
   check();
   inventory.resources = inventory.resources || [];
   inventory.photos = inventory.photos || [];
   const sizes: Record<string, { width: number; height: number }> = { ...known };
   for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
   const unanalysed = inventory.skipped?.unanalysed || 0;
+  const analysisClient = panelLocalClient(sdk);
+  const sourceBindings = inventory.resources.concat(inventory.photos).map((row: any) => ({ resourceId: row.rid, path: row.path }));
+  await confirmArchiveSourceBindings(sdk, pid, sourceBindings, check);
+  const analysisSources = await observeSourceFiles(analysisClient.files, sourceBindings.map(row => row.path)); check();
+  const finishAssets = await snapshotArchiveFinishAssets(assets, bl, file => readText(roots.plugin, "assets", "fonts", file), check); check();
+
 
   // Music, length and pace as the panel works them out for a bundled track at its defaults (Cinematic pace, the
   // cue's soft-intro section).
@@ -5594,47 +7410,25 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     throw templateIssue([failText(bl, plan.reason, plan), unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap")));
   }
 
-  // Commit 1: the music, then the clips on a new Draft.
   say("music");
-  const music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file),
-    duration: typeof cue.duration === "number" ? cue.duration : null }), true);
-  check();
+  await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+  const music = await prepareArchiveCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1), check); check();
+  const [musicSource] = await observeSourceFiles(analysisClient.files, [music.path], [{ path: music.path, size: cue.bytes, sha256: cue.sha256 }]); check();
+  if (!analysisSources.some(row => row.path === musicSource.path)) analysisSources.push(musicSource);
+  sourceBindings.push({ resourceId: music.resourceId, path: music.path });
   say("draft");
   const fields: Record<string, string> = {};
   for (const fl of chosen.fields) fields[fl.key] = fieldClip(String(fl.initial ?? ""), fl.max);
   const draftName = draftNameOf(fields.title, chosen.label, new Date());
   const clipSound = DEFAULT_CLIP_SOUND;
-  // Never resent: the reply may be lost after the Draft was saved.
-  const a = await run("Assemble the Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound })), true);
-  check();
-  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue(t(bl, "tpl.noTitle", { name: draftName }));
-
-  // Commit 2: the title, credit, letterbox reveal, motion, fade and look, as the panel's Finish step adds them.
-  say("look");
-  const fonts = Object.fromEntries(await Promise.all(fontFiles(assets.presets).map(async (f) => [f, (await readText(roots.plugin, "assets", "fonts", f)).replace(/\s+/g, "")])));
-  check();
-  // No credit: nobody can type a name in a template run, and the preset's sample name ("YOURNAME") is never published.
-  const frozen = { seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: false, name: "" }, clipSound,
-    look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
-  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes,
-    openingSize: frames[plan.picks[0]?.rid] || null, frozen,
-    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length, seed: TEMPLATE_SEED, clipSound,
-      look: true, credit: false } });
-  const finish = () => run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
-  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
-  try {
-    await finish();
-  } catch (e) {
-    console.warn("[archive-vlog] Add title and look failed, trying again:", errorText(e));
-    check();
-    try { await finish(); } catch (e2) {
-      console.warn("[archive-vlog] Add title and look failed again:", errorText(e2));
-      throw templateIssue(t(bl, "tpl.finishFailed"));
-    }
-  }
-  check();
-  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
-  return { sequenceId: a.sequenceId };
+  const frozen = { pid, seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: false, name: "" }, clipSound, music: "cue", cueId: cue.id,
+    look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, pace, length, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
+  const pending = JSON.parse(templateStateJSON({ scope: { pluginId: PLUGIN_ID, projectId: pid, runId },
+    config: avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound, analysisSources, sourceBindings }),
+    source: assets.scripts.assembleJs, verifyAssemblySource: assets.scripts.verifyAssemblyJs, finishAssets, frozen, photoSizes: sizes, openingSize: frames[plan.picks[0]?.rid] || null, plan, unchecked: found.failed.length }, 524288));
+  await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+  const completed = await continuations.workflow(pending, (value: any, assembly: any) => { say("look"); return prepareArchiveDecoration(sdk, value, assembly, check); }, () => { check(); }, archiveRecoveryOptions(sdk, pending, check));
+  check(); return { sequenceId: completed.sequenceId };
 }
 
 // What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
@@ -5682,31 +7476,121 @@ function TemplateRun({ sdk, context }: any) {
   return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{runStatus}</div>;
 }
 
-// Page before measuring photos; preserve the total measurement budget and aggregate the original inventory shape.
-async function readInventoryPages(run, script, config, fill, wanted = () => true) {
-  let result, total, measureMs = config.measureMs ?? 8000, probeMs = config.probeMs ?? 4000, probeMax = config.probeMax ?? 200;
-  for (let offset = 0; ; offset += 32) {
-    if (!wanted()) throw new Error('Project changed while loading media.');
-    const batch = await run('Read footage', attempt => fill(script, { ...config, page: { offset, size: 32 }, measureMs: attempt ? 0 : measureMs, probeMs, probeMax }), false, { wanted });
-    const page = batch.page;
-    if (!page || (total !== undefined && total !== page.total)) throw new Error('Project media changed while loading. Try again.');
-    total = page.total;
-    measureMs = Math.max(0, measureMs - page.elapsedMs);
-    probeMs = Math.max(0, probeMs - page.elapsedMs);
-    probeMax = Math.max(0, probeMax - (page.probeCount || 0));
-    delete batch.page;
-    if (offset === 0) result = batch;
-    else {
-      result.resources.push(...batch.resources); result.photos.push(...batch.photos);
-      for (const key of ['skipped', 'counts', 'captureDates']) for (const [name, value] of Object.entries(batch[key] || {})) {
-        result[key][name] = typeof value === 'boolean' ? result[key][name] && value : result[key][name] + value;
-      }
-      if (batch.months) result.months = result.months.map((n, i) => n + batch.months[i]);
-      if ('incomplete' in batch) result.incomplete = result.incomplete || batch.incomplete;
-    }
-    if (offset + 32 >= total) return result;
+// media-inventory:start
+// Bounded, read-only inventory observations. This is not a Project snapshot lock.
+async function readInventoryPages(run, script, config, fill, wanted = () => true, options = {}) {
+ const issue=(code,message,cause=undefined)=>Object.assign(Error(message),{code:'MEDIA_INVENTORY_'+code,publicMessage:message,...cause===undefined?{}:{cause}});
+ const {timeoutMs=120000,requireComplete=false}=options??{};
+ if(typeof requireComplete!=='boolean'||typeof run!=='function'||typeof script!=='string'||!script||typeof fill!=='function'||typeof wanted!=='function'||!config||typeof config.projectId!=='string'||!config.projectId||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw issue('INPUT','The Project media observation request is invalid.');
+ const encode=value=>{
+  const seen=new Set();
+  const visit=(value,depth)=>{
+   if(depth>24)throw issue('INVALID','Project media returned an unsupported nested value.');
+   if(value===null||['string','boolean'].includes(typeof value))return JSON.stringify(value);
+   if(typeof value==='number'){if(!Number.isFinite(value))throw issue('INVALID','Project media returned an invalid number.');return JSON.stringify(value);}
+   if(value===undefined)return undefined;
+   if(typeof value!=='object'||seen.has(value)||!Array.isArray(value)&&Object.prototype.toString.call(value)!=='[object Object]')throw issue('INVALID','Project media returned an unsupported value.');
+   seen.add(value);let result;
+   if(Array.isArray(value))result='['+value.map(v=>visit(v,depth+1)??'null').join(',')+']';
+   else result='{'+Object.keys(value).sort().flatMap(key=>{const item=visit(value[key],depth+1);return item===undefined?[]:[JSON.stringify(key)+':'+item];}).join(',')+'}';
+   seen.delete(value);return result;
+  };
+  return visit(value,0);
+ };
+ const bytes=text=>new TextEncoder().encode(text).length;
+ const requestText=encode(config);
+ if(bytes(requestText)>65536||bytes(script)>131072)throw issue('BUDGET','The Project media input exceeds its observation budget.');
+ const request=JSON.parse(requestText),deadline=Date.now()+timeoutMs;let closed=false,timer,watch;const waits=new Set();
+ const stillWanted=()=>{try{return !!wanted();}catch{return false;}};
+ const live=()=>!closed&&stillWanted();
+ const check=()=>{if(!live())throw issue('STOPPED','The Project media read ended before completion.');if(Date.now()>=deadline)throw issue('TIMEOUT','The Project media observation timed out.');};
+ check();
+ const scope=new Promise((_,reject)=>{
+  timer=setTimeout(()=>reject(issue('TIMEOUT','The Project media observation timed out.')),Math.max(0,deadline-Date.now()));
+  const observe=()=>{try{check();watch=setTimeout(observe,50);}catch(error){reject(error);}};
+  watch=setTimeout(observe,50);
+ });
+ const pause=ms=>{
+  check();return new Promise((resolve,reject)=>{
+   let id,done=false;const finish=(error)=>{if(done)return;done=true;clearTimeout(id);waits.delete(id);error?reject(error):resolve();};
+   id=setTimeout(()=>{try{check();finish();}catch(error){finish(error);}},Math.min(ms,Math.max(0,deadline-Date.now())));waits.add(id);
+   scope.catch(error=>finish(error));
+  });
+ };
+ const read=async(offset,budget)=>{
+  check();
+  let batch;try{batch=await run('Read footage',attempt=>fill(script,{...request,page:{offset,size:32},measureMs:attempt?0:budget.measureMs,probeMs:budget.probeMs,probeMax:budget.probeMax}),false,{wanted:()=>live()&&Date.now()<deadline,deadline,wait:pause});}catch(error){check();throw error;}
+  check();const page=batch?.page;
+  if(!page||!Number.isSafeInteger(page.total)||page.total<0||!Number.isFinite(page.elapsedMs)||page.elapsedMs<0||!Number.isSafeInteger(page.probeCount??0)||(page.probeCount??0)<0||!Array.isArray(batch.resources)||!Array.isArray(batch.photos)||batch.resources.length+batch.photos.length>Math.max(0,Math.min(32,page.total-offset))||typeof batch.incomplete!=='boolean')throw issue('INVALID','Project media returned an invalid or incomplete page.');
+  if(page.total>16384)throw issue('BUDGET','The Project media list exceeds its observation row budget.');
+  if(batch.resources.some(row=>!row||typeof row.rid!=='string'||!row.rid||row.kind!=='video'||!Number.isFinite(row.duration)||row.duration<=0)||batch.photos.some(row=>!row||typeof row.rid!=='string'||!row.rid||row.kind!=='photo'))throw issue('INVALID','Project media returned an invalid source identity or duration.');
+  for(const key of ['skipped','counts','captureDates'])if(batch[key]!==undefined&&(!batch[key]||typeof batch[key]!=='object'||Array.isArray(batch[key])||Object.values(batch[key]).some(value=>typeof value!=='boolean'&&(!Number.isSafeInteger(value)||value<0||value>32))))throw issue('INVALID','Project media returned invalid counters.');
+  if(batch.months!==undefined&&(!Array.isArray(batch.months)||batch.months.length!==12||batch.months.some(n=>!Number.isSafeInteger(n)||n<0)))throw issue('INVALID','Project media returned invalid month counts.');
+  const {page:ignored,...data}=batch,snapshot=encode(data);
+  if(bytes(snapshot)>196608)throw issue('BUDGET','A Project media page exceeds its observation byte budget.');
+  return {page,snapshot,data:JSON.parse(snapshot)};
+ };
+ const work=async()=>{
+  const pages=[],identities=new Set();let total,used=0;
+  const budget={measureMs:request.measureMs??8000,probeMs:request.probeMs??4000,probeMax:request.probeMax??200};
+  if(Object.values(budget).some(n=>!Number.isFinite(n)||n<0)||!Number.isSafeInteger(budget.probeMax))throw issue('INPUT','The Project media read budget is invalid.');
+  for(let offset=0;;offset+=32){
+   const observed=await read(offset,budget);
+   if(total!==undefined&&observed.page.total!==total)throw issue('CHANGED','Project media changed while loading. Try again.');
+   total=observed.page.total;used+=bytes(observed.snapshot);
+   if(used>8388608)throw issue('BUDGET','The Project media result exceeds its observation byte budget.');
+   for(const row of [...observed.data.resources,...observed.data.photos]){if(identities.has(row.rid))throw issue('CHANGED','Project media changed or repeated an identity while loading. Try again.');identities.add(row.rid);}
+   pages.push(observed);
+   budget.measureMs=Math.max(0,budget.measureMs-observed.page.elapsedMs);budget.probeMs=Math.max(0,budget.probeMs-observed.page.elapsedMs);budget.probeMax=Math.max(0,budget.probeMax-(observed.page.probeCount??0));
+   if(offset+32>=total)break;
   }
+  // Reobserve the actual projected values, not a count-only or lossy hash token.
+  // This detects observed drift; it cannot lock the Project against later edits.
+  for(let index=0;index<pages.length;index++){
+   const verified=await read(index*32,{measureMs:0,probeMs:0,probeMax:0});
+   if(verified.page.total!==total||verified.snapshot!==pages[index].snapshot)throw issue('CHANGED','Project media changed while its pages were verified. Try again.');
+  }
+  const result=pages[0].data;
+  const keys=value=>Object.keys(value).sort().join('\0');
+  for(const {data} of pages.slice(1)){
+   if(keys(data)!==keys(result))throw issue('INVALID','Project media changed its result shape.');
+   for(const key of Object.keys(data))if(!['resources','photos','skipped','counts','captureDates','months','incomplete'].includes(key)&&encode(data[key])!==encode(result[key]))throw issue('CHANGED','Project media changed its shared metadata.');
+   result.resources.push(...data.resources);result.photos.push(...data.photos);
+   for(const key of ['skipped','counts','captureDates'])if(data[key]){
+    if(!result[key]||keys(result[key])!==keys(data[key]))throw issue('INVALID','Project media changed its counter shape.');
+    for(const [name,value] of Object.entries(data[key])){
+     if(typeof result[key][name]!==typeof value)throw issue('INVALID','Project media changed its counter shape.');
+     result[key][name]=typeof value==='boolean'?result[key][name]&&value:result[key][name]+value;
+    }
+   }
+   if(data.months){if(!result.months)throw issue('INVALID','Project media changed its month shape.');result.months=result.months.map((n,i)=>n+data.months[i]);}
+   result.incomplete=result.incomplete||data.incomplete;
+  }
+  if(requireComplete&&result.incomplete)throw issue('INCOMPLETE','The Project media observation is incomplete. Try again when its source metadata is available.');
+  check();return result;
+ };
+ let value,failure,failed=false;
+ try{value=await Promise.race([work(),scope]);}catch(error){failure=error;failed=true;}
+ closed=true;const cleanupFailures=[];
+ for(const id of new Set([timer,watch,...waits]))if(id!==undefined){try{clearTimeout(id);}catch(error){cleanupFailures.push(error);}}
+ // Promise delivery and cleanup can themselves outlive the final page check.
+ if(!stillWanted()){failure=issue('STOPPED','The Project media read ended before completion.',failure);failed=true;}
+ else if(Date.now()>=deadline){failure=issue('TIMEOUT','The Project media observation timed out.',failure);failed=true;}
+ if(cleanupFailures.length){
+  const code=failure?.code?.startsWith('MEDIA_INVENTORY_')?failure.code.slice('MEDIA_INVENTORY_'.length):'CLEANUP';
+  failure=Object.assign(issue(code,failure?.publicMessage??'Project media read cleanup could not be confirmed.',failed?failure:cleanupFailures[0]),{terminal:true,cleanupFailures});failed=true;
+ }
+ if(failed)throw failure;return value;
 }
+
+// Bind admission to the exact confirmed observation and its mounted Project.
+// Displayed old rows may survive a refresh failure; permission to build may not.
+function isInventorySnapshotCurrent(snapshot, inventory, projectId, currentProjectId, loadingProjectId, mounted) {
+ return mounted === true && typeof projectId === 'string' && projectId.length > 0
+  && currentProjectId === projectId && snapshot?.projectId === projectId
+  && !!inventory && snapshot.inventory === inventory && loadingProjectId !== projectId;
+}
+// media-inventory:end
 
 // local-sdk:start
 /** Pure host-platform path operations; no filesystem or renderer globals. */
@@ -5783,33 +7667,64 @@ function panelLocalPaths(platform: string) {
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
 async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    // Direct arguments keep object literals contextually typed by the SDK signature.
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script: string, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+      script,
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     // A clipped report has no result. Every read returning data rejects that case below.
     return response.result;
   };
+  // Direct arguments keep object literals contextually typed by the SDK signature.
+  const run = (method: string, args: unknown[], write = false) =>
+    runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
   const environment = await run("files.environment", []);
   if (!environment || typeof environment.platform !== "string" || !environment.homedir)
     throw new Error("Update Selects to use this plugin's local media workspace.");
   const paths = panelLocalPaths(environment.platform);
   const CHUNK_BYTES = 48 * 1024;
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // budget. The same script still awaits each canonical file operation in order.
+  const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
+    let count = Math.min(3, inputs.length), script = "";
+    while (count > 0) {
+      script = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script, method === "writeChunk") };
+  };
   const readRange = async (path: string, offset: number, length: number) => {
     const parts: Uint8Array[] = [];
     let total = 0;
     while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) =>
+        ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map(input => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes); total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
     }
     const output = new Uint8Array(total);
     let position = 0;
@@ -5822,8 +7737,13 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
+    // One script owns every read and its deadline; only the compact digest returns.
+    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
+    // SDK-shaped requests support the same shared observation in SDK scripts and
+    // the panel. Positional reads retain their existing byte/partial-EOF contract.
+    readRange: (path: string | {path: string; offset: number; length: number}, offset?: number, length?: number) =>
+      typeof path === "string" ? readRange(path, offset!, length!) : run("files.readRange", [path]),
     async readFile(path: string, encoding?: string) {
       const stat = await run("files.stat", [path]);
       if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
@@ -5845,18 +7765,31 @@ async function createPanelLocalClient(sdk: any) {
       const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
       let published = false;
       try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...(mode ? { mode } : {}) });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
       }
     },
     async compareAndReplace(path: string, expectedText: string | null, text: string) {
@@ -5872,51 +7805,113 @@ async function createPanelLocalClient(sdk: any) {
       return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from: string, to: string) => run("files.rename", [from, to], true),
     copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
     downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
     pathToLocalURL: (path: string) => run("files.localUrl", [path]),
     localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
   };
-  const activeJobs = new Set<string>();
+  const activeJobs = new Map<string, () => Promise<void>>();
   let disposed = false;
+  const SETTLEMENT_MS = 5000, OUTPUT_BYTES = 4 * 1024 * 1024;
+  const mediaIssue = (code: string, message: string, cause?: unknown, uncertain = false) =>
+    Object.assign(new Error(message), { code: "LOCAL_MEDIA_" + code, publicMessage: message, terminal: true, cause,
+      ...(uncertain ? { preserveTemporaryFiles: true } : {}) });
   const cancel = async (jobId: string) => {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
+  const observeMedia = (read: () => Promise<any>, deadline: number): Promise<any> => new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) { reject(mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
+    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+    Promise.resolve().then(read).then(
+      value => { clearTimeout(timer); resolve(value); },
+      cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
+  });
+  const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
   const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
+      signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
+    let started: any;
+    const starting = runSource(startSource, true);
+    try { started = await observeMedia(() => starting, Date.now() + SETTLEMENT_MS); }
+    catch (cause) {
+      // A late start identity can only stop that original job. Never start again
+      // or authorize cleanup from this background cancellation acknowledgement.
+      void starting.then(value => validJob(value) ? cancel(value.jobId) : undefined, () => {}).catch(() => {});
+      throw mediaIssue("START_UNKNOWN", "The media job start could not be confirmed. Its temporary workspace is retained for inspection.", cause, true);
+    }
+    if (!validJob(started))
+      throw mediaIssue("START_UNKNOWN", "The media job identity could not be confirmed. Its temporary workspace is retained for inspection.", undefined, true);
     const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    let cancellation: Promise<void> | null = null, cancellationDeadline: number | null = null, settled = false;
+    const requestCancel = () => {
+      if (!cancellation) {
+        cancellationDeadline = Date.now() + SETTLEMENT_MS;
+        cancellation = cancel(jobId);
+        void cancellation.catch(() => {});
+      }
+      return cancellation;
+    };
+    const abort = () => { void requestCancel(); };
+    activeJobs.set(jobId, requestCancel);
     signal?.addEventListener("abort", abort, { once: true });
     if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
+    let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
+    const knownState = (status: any) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
+    // Read-only observations may time out; a late reply cannot authorize cleanup.
+    const statusAt = (deadline: number) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const settleAfterFailure = async (cause: unknown) => {
+      requestCancel();
+      const deadline = cancellationDeadline!;
+      while (Date.now() < deadline) {
+        try {
+          const status = await statusAt(deadline);
+          if (knownState(status) && status.state !== "running") { settled = true; return; }
+        } catch { /* Only independent status reads may recover an unknown reply. */ }
+        if (Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+      }
+      throw Object.assign(mediaIssue("SETTLEMENT_UNKNOWN", "The media job exit could not be confirmed. Its temporary workspace is retained for inspection.", cause, true), { jobId });
+    };
     try {
       while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
+          throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
+        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
+        settled = status.state !== "running";
+        if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
+          throw mediaIssue("STATUS", "The media job returned an incomplete status.");
+        if (status.truncated) throw mediaIssue("OUTPUT", "Media output was truncated; no incomplete result was accepted.");
+        let position = cursor;
         for (const event of status.events) {
+          if (!event || !["stdout", "stderr"].includes(event.stream) || typeof event.text !== "string" || event.text.length > 4096 || !Number.isSafeInteger(event.cursor) || event.cursor !== position + 1 || event.cursor > status.nextCursor)
+            throw mediaIssue("OUTPUT", "The media job returned incomplete output.");
+          outputBytes += new TextEncoder().encode(event.text).byteLength;
+          if (outputBytes > OUTPUT_BYTES) throw mediaIssue("OUTPUT_LIMIT", "The media output exceeds its 4 MiB byte budget.");
+          position = event.cursor;
           if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
           else { stderr += event.text; onStderr?.(event.text); }
         }
+        if (position !== status.nextCursor) throw mediaIssue("OUTPUT", "The media job returned an incomplete output cursor.");
         cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (settled && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted || disposed) throw new DOMException("Aborted", "AbortError");
           if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
           return { stdout, stderr };
         }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+        if (!settled) await new Promise(resolve => setTimeout(resolve, 150));
       }
     } catch (error) {
-      await cancel(jobId).catch(() => {});
+      if (!settled) await settleAfterFailure(error);
       throw error;
     } finally {
       signal?.removeEventListener("abort", abort);
@@ -5935,7 +7930,7 @@ async function createPanelLocalClient(sdk: any) {
       pickDirectoryPath: () => run("editor.pickDirectory", []),
       pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
     },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+    dispose() { disposed = true; for (const requestCancel of activeJobs.values()) void requestCancel().catch(() => {}); },
   };
 }
 
@@ -5948,25 +7943,53 @@ function panelLocalClient(sdk: any): any {
 function withPanelLocalClient(Component: any) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
+    const reported = React.useRef(new WeakMap<object, Set<string>>());
+    const key = JSON.stringify([props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client: any;
+      const fail = (timeout: boolean, cause?: unknown) => {
+        if (!active || settled) return;
+        settled = true; clearTimeout(timer);
+        const error = timeout
+          ? "Connecting to Selects took too long. Reopen the Project and try again."
+          : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        // Diagnostics stay private; neither the DOM nor finishTemplate receives
+        // raw SDK output, paths or an exception stack.
+        setState({sdk: props.sdk, key, error, cause});
+      };
+      // This is a read-only bootstrap observation, not a mutation retry or cancel.
+      const timer = setTimeout(() => fail(true), 30000);
       createPanelLocalClient(props.sdk).then(value => {
         client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
+        if (!active || settled) { value.dispose(); return; }
+        settled = true; clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+        setState({sdk: props.sdk, key});
+      }).catch(error => fail(false, error));
       return () => {
-        active = false;
+        active = false; clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? new Set<string>();
+      if (seen.has(key)) return;
+      seen.add(key); reported.current.set(props.sdk, seen);
+      // A failed connection never mounts the child, so the wrapper must finish
+      // a hidden app run itself. Visible standalone panels keep an alert only.
+      try { Promise.resolve(props.sdk.finishTemplate({error: state.error})).catch(() => {}); }
+      catch { /* Do not replay completion or expose a transport exception. */ }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     return React.createElement(Component, props);
   };
 }

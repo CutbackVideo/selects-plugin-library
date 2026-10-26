@@ -1,5 +1,22 @@
 # Validation
 
+## Current repair checkpoint: 0.1.19
+
+The canonical original-Image source is now an explicit `.mjs` build input
+shared with Photo Grid Reveal. This panel has only the synchronized function
+export prefix; its source-check behavior, public interface and recipe are
+unchanged. See `docs/template-repair/gallery-input.md` for packaging and
+existing-consumer regressions.
+
+## Earlier repair checkpoint: 0.1.18
+
+The shared run feature now checks hashing/text codecs and callable new-claim
+capabilities before asset work or authoring. Saved recovery needs no new UUID or
+SDK file writes. The four-consumer regression is recorded in
+`docs/template-repair/polaroid-run.md`; this changes no design or receipt format.
+Installed-app, actual Windows, full Inspector/AV/export and changed-input quality
+remain unverified. Client #7828 is still a prerequisite before publication.
+
 ## Default layout = Semin's reference Draft (0.1.7, 2026-10-12)
 
 Since 0.1.7 the plan is Semin's hand-finished Draft "Camera shutter dump" (Staging project CLIP HIGHLIGHTS UPDATE; 25 fps, 250 frames, 720x1280), not the 30 fps measurement below: photo starts 3, 22, 39, 58, 74, 91, 111, 130, 150, 165, 184, 201; shutter sounds 3 frames earlier, 11 frames each; her tile sizes and positions (crop focus starts at 0.5: her focus points were for her own photos); no crop on photos 11-12; the app's Burst and Text graphics at 216-250 with her parameters and component code, except that the title text is the Project name instead of her "Lake District / Memories". Other frame rates scale every frame by round(f*fps/25). `node --test tests/camera_shutter_dump_semin.test.mjs` runs the real finishing script on a fake Draft with every default and diffs it against `tests/fixtures/camera_shutter_dump_semin.json` (clips per track, transforms, effect names and parameters, graphic parameters and code, sound placements): zero differences outside those two intentional ones, which the test checks separately. Not yet run in the app.

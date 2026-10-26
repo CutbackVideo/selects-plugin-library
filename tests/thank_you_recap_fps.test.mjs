@@ -2,7 +2,8 @@
 // are seconds on the template music; each clip must end on its cut at the Draft's rate (also after the Draft adopts
 // its first clip's rate), the music overlay may not ask past the end of music.mp3 (Selects: "Resource overlay
 // simulation covered only part of …"), and only the host's "not placeable yet" errors may come back as notReady.
-// At 29.97 and 30 every Draft call must match origin/main's script exactly.
+// The reference excerpt starts 5.25 seconds into the bundled track; the earlier
+// bass roll is not part of the shipped example.
 // THANK_YOU_RECAP_PANEL / THANK_YOU_RECAP_BASE override the panels.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,7 +38,7 @@ function scriptOf(src) {
     return {id: v.id, seconds: v.seconds, hero: false, use, of: 0};
   });
   for (const s of slots) if (!s.hero) s.of = uses.get(s.id);
-  const plan = {projectId: 'p', slots, starts, end: constant(src, 'END'), frame: {width: 1920, height: 1080}, name: 'n', musicId: 'm', musicSeconds: constant(src, 'MUSIC_SECONDS')};
+  const plan = {projectId: 'p', slots, starts, end: constant(src, 'END'), frame: {width: 1920, height: 1080}, name: 'n', musicId: 'm', musicSeconds: constant(src, 'MUSIC_SECONDS'),musicSourceStart:constant(src,'MUSIC_SOURCE_START')??0};
   const body = src.slice(src.indexOf('async function buildRecap('));
   const start = body.indexOf('  const script = `') + '  const script = `'.length;
   const tpl = body.slice(start, body.indexOf('`;\n', start));
@@ -64,11 +65,11 @@ async function run(script, fps, {reported = fps, adopt = null, musicRow = {durat
     clips: async ({trackScope}) => clips.filter((c) => trackScope === 'all' || c.main).map((c) => ({...c})),
     setFrameSize: async (a) => log('setFrameSize', a),
     rangeAtFrames: async (a, b) => [a, b],
-    overlayResource: async ({resource, over}) => {
-      log('overlayResource', {resource, over});
+    overlayResource: async ({resource, over,sourceStartSeconds}) => {
+      log('overlayResource', {resource, over,...sourceStartSeconds!==undefined?{sourceStartSeconds}:{}});
       if (fail.overlay) throw new Error(fail.overlay);
-      if ((over[1] - over[0]) / fps > musicLength + 1e-3 / fps) throw new Error(`Resource overlay simulation covered only part of [${over[0]}, ${over[1]}) for resource <music.mp3>`);
-      clips.push({clipId: 'c' + next++, resourceId: resource, startFrame: over[0], endFrame: over[1], main: false});
+      if ((sourceStartSeconds??0)+(over[1] - over[0]) / fps > musicLength + 1e-3 / fps) throw new Error(`Resource overlay simulation covered only part of [${over[0]}, ${over[1]}) for resource <music.mp3>`);
+      clips.push({clipId: 'c' + next++, resourceId: resource, startFrame: over[0], endFrame: over[1],sourceStartSeconds:sourceStartSeconds??0, main: false});
     },
     commitAll: async (m) => { log('commitAll', m); return {createdDraftId: 'd1'}; },
   };
@@ -81,6 +82,11 @@ async function run(script, fps, {reported = fps, adopt = null, musicRow = {durat
 
 const RATES = [24000 / 1001, 24, 25, 30000 / 1001, 30, 60000 / 1001];
 const music = (clips) => clips.find((c) => c.resourceId === 'm');
+test('the shipped reference starts with the held hero and song at 5.25 seconds, without an extra roll',async()=>{
+ const {script,times}=scriptOf(panel),out=await run(script,24),main=out.clips.filter(c=>c.main);
+ assert.equal(main[0].resourceId,'h');assert.equal(main[0].startFrame,0);assert.equal(main[0].endFrame,Math.round(3.3*24));
+ assert.equal(music(out.clips).sourceStartSeconds,5.25);assert.equal(times.at(-1),20.633);assert.equal(out.result.endFrame,495);
+});
 
 // Every clip after the first ends on its cut at the final rate; the music starts at 0, stays inside music.mp3,
 // and the returned edges/fps (used by the titles run) are the real clip boundaries at that rate.
@@ -96,7 +102,7 @@ function assertBuilt({result, clips, fps}, times, from = 1) {
   const bed = music(clips);
   assert.equal(bed.startFrame, 0);
   assert.ok(bed.endFrame <= result.endFrame);
-  assert.ok(bed.endFrame / fps <= MUSIC + 1e-9, String(bed.endFrame));
+  assert.ok(bed.sourceStartSeconds+bed.endFrame / fps <= MUSIC + 1e-9, String(bed.endFrame));
 }
 
 for (const fps of RATES) {
@@ -125,21 +131,21 @@ test('a Draft reporting a rounded 29.97 builds like the exact rate', async () =>
 
 test('the music is clamped to its own length: the Resource\'s, else the bundled file\'s', async () => {
   const {script, times} = scriptOf(panel);
-  // A rate where the montage's last cut lands past the end of music.mp3 (25.917 s > 25.913 s).
+  // A short Resource must clamp using the remaining duration after the offset.
   const fallback = await run(script, 12, {musicRow: {}});
   assertBuilt(fallback, times, 0);
-  assert.equal(music(fallback.clips).endFrame, Math.floor(MUSIC * 12));
+  assert.equal(music(fallback.clips).endFrame,Math.min(Math.round(constant(panel,'END')*12),Math.floor((MUSIC-constant(panel,'MUSIC_SOURCE_START'))*12+1e-3)));
   // A Resource that reports a shorter track wins over the bundled length.
   const short = await run(script, 30, {musicRow: {durationSeconds: 25}, musicLength: 25});
-  assert.equal(music(short.clips).endFrame, 750);
+  assert.equal(music(short.clips).endFrame, Math.floor((25-constant(panel,'MUSIC_SOURCE_START'))*30+1e-3));
 });
 
 test('only "not placeable yet" errors come back as notReady; any other error as itself, with nothing committed', async () => {
   const {script} = scriptOf(panel);
   for (const [fail, want] of [
     [{overlay: 'Resource m is not ready'}, {notReady: 'm'}],
-    [{insert: 'analyzed sequence not found'}, {notReady: 'b'}],
-    [{insert: 'placement_source_unavailable'}, {notReady: 'b'}],
+    [{insert: 'analyzed sequence not found'}, {notReady: 'a'}],
+    [{insert: 'placement_source_unavailable'}, {notReady: 'a'}],
     [{overlay: 'Resource overlay simulation covered only part of [0, 777) for resource <music.mp3>'}, {failed: 'Resource overlay simulation covered only part of [0, 777) for resource <music.mp3>'}],
     [{insert: 'Source range out of bounds'}, {failed: 'Source range out of bounds'}],
   ]) {
@@ -150,10 +156,12 @@ test('only "not placeable yet" errors come back as notReady; any other error as 
 });
 
 for (const fps of [30000 / 1001, 30]) {
-  test(`at ${fps.toFixed(3)} fps every Draft call matches origin/main`, {skip: base ? false : 'origin/main not available'}, async () => {
+  test(`at ${fps.toFixed(3)} fps the reference trim preserves canvas and commit contracts`, {skip: base ? false : 'origin/main not available'}, async () => {
     const before = await run(scriptOf(base).script, fps);
     const after = await run(scriptOf(panel).script, fps);
-    assert.deepEqual(after.result, before.result);
-    assert.deepEqual(after.calls, before.calls);
+    assert.equal(after.result.cuts,before.result.cuts-constant(base,'ROLL').length);
+    assert.equal(after.result.endFrame,Math.round((constant(base,'END')-5.25)*fps));
+    assert.equal(after.clips[0].resourceId,'h');assert.equal(music(after.clips).sourceStartSeconds,5.25);
+    assert.deepEqual(after.calls.filter(c=>/^(setFrameSize|commitAll) /.test(c)),before.calls.filter(c=>/^(setFrameSize|commitAll) /.test(c)));
   });
 }

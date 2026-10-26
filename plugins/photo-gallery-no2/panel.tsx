@@ -13,8 +13,1513 @@
 // @icon image
 // Build a native, editable 3×7 photo/video gallery in the current Selects project.
 import React from 'react';
-const SCRIPT_PREFIX = "// Inputs use the 60 fps reference clock; the result uses the Project frame grid.\nconst REFERENCE = Object.freeze({\n  width: 1080,\n  height: 1920,\n  fps: 60,\n  durationFrames: 853,\n  nominalBpm: 113,\n  colorFrame: 270,\n  revealFrames: Object.freeze([0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205]),\n});\n\nfunction assertPositiveInteger(value, label) {\n  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);\n}\n\nfunction validateMedia(media) {\n  if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');\n  return media.map((item, index) => {\n    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs an Image or Video Resource`);\n    if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);\n    assertPositiveInteger(item.width, `Slot ${index + 1} width`);\n    assertPositiveInteger(item.height, `Slot ${index + 1} height`);\n    const focusX = item.focusX ?? 0.5;\n    const focusY = item.focusY ?? 0.5;\n    if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {\n      throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);\n    }\n    if (item.kind === 'video') assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);\n    return { ...item, focusX, focusY };\n  });\n}\n\nfunction tileRect(row, column) {\n  return {\n    left: column * 360 + 2,\n    right: (column + 1) * 360 - 2,\n    top: Math.round(row * REFERENCE.height / 7) + 2,\n    bottom: Math.round((row + 1) * REFERENCE.height / 7) - 2,\n  };\n}\n\nfunction planGallery(input) {\n  if (!input || typeof input !== 'object') throw new Error('Gallery input is required');\n  const media = validateMedia(input.media);\n  const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;\n  assertPositiveInteger(durationFrames, 'durationFrames');\n  if (media.some((item) => item.kind === 'video' && item.durationFrames < durationFrames)) {\n    throw new Error('A selected video is too short; hold its last frame (the panel does this) before planning');\n  }\n  const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;\n  const bpm = hasManualBpm ? Number(input.manualBpm) : Number(input.estimatedBpm);\n  if (!Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm)) {\n    throw new Error('BPM is required; provide a manual BPM when there is no music or no reliable estimate');\n  }\n  const fps = input.fps ?? REFERENCE.fps;\n  if (!Number.isFinite(fps) || fps <= 0) throw new Error(\"Invalid Project frame rate\");\n  const toDraftFrame = frame => Math.round(frame * fps / REFERENCE.fps);\n  const outputDurationFrames = toDraftFrame(durationFrames);\n  const ratio = REFERENCE.nominalBpm / bpm;\n  const revealFrames = REFERENCE.revealFrames.map((frame) => toDraftFrame(frame * ratio));\n  if (revealFrames.some((frame, i) => i > 0 && frame <= revealFrames[i - 1])) {\n    throw new Error('BPM is too high to show all 21 tiles in distinct output frames');\n  }\n  const colorFrame = toDraftFrame(REFERENCE.colorFrame * ratio);\n  if (colorFrame >= outputDurationFrames) throw new Error('Color transition would occur after the output end');\n  if (input.music) {\n    if (typeof input.music.resourceId !== 'string' || !input.music.resourceId.trim()) throw new Error('Music needs a resource ID');\n    assertPositiveInteger(input.music.durationFrames, 'Music durationFrames');\n    const musicStartFrame = input.music.startFrame ?? 0;\n    if (!Number.isSafeInteger(musicStartFrame) || musicStartFrame < 0) throw new Error('Music startFrame must be nonnegative');\n    if (input.music.durationFrames - musicStartFrame < durationFrames) throw new Error('Selected music is too short for the output');\n  }\n  const tiles = media.map((item, i) => ({\n    slotKey: `tile-${String(i + 1).padStart(2, '0')}`,\n    resourceId: item.resourceId,\n    kind: item.kind,\n    row: Math.floor(i / 3),\n    column: i % 3,\n    rect: tileRect(Math.floor(i / 3), i % 3),\n    revealFrame: revealFrames[i],\n    endFrame: outputDurationFrames,\n    focusX: item.focusX,\n    focusY: item.focusY,\n  }));\n  return {\n    frameSize: { width: REFERENCE.width, height: REFERENCE.height },\n    fps,\n    durationFrames: outputDurationFrames,\n    bpm,\n    bpmSource: hasManualBpm ? 'manual' : 'estimated',\n    colorFrame,\n    music: input.music ? { ...input.music, startSeconds: (input.music.startFrame ?? 0) / REFERENCE.fps } : null,\n    tiles,\n  };\n}\n\n// Executed inside Selects run_script by both the panel and the chat skill.\nconst TILE_EFFECT = `import {useCurrentFrame} from 'remotion';\nexport default function PhotoGalleryTile({Source,data}) {\n  const frame = useCurrentFrame();\n  const sourceW = data.sourceWidth, sourceH = data.sourceHeight;\n  const frameW = data.frameWidth, frameH = data.frameHeight;\n  const x = Math.max(frameW - sourceW, Math.min(0, frameW / 2 - data.focusX * sourceW));\n  const y = Math.max(frameH - sourceH, Math.min(0, frameH / 2 - data.focusY * sourceH));\n  return <div style={{position:'absolute',inset:0}}>\n    <div style={{position:'absolute',left:data.cropLeft,top:data.cropTop,width:frameW,height:frameH,overflow:'hidden',filter:frame < data.colorAfterLocalFrame ? 'grayscale(1)' : 'none'}}>\n      <div style={{position:'absolute',left:x,top:y,width:sourceW,height:sourceH}}><Source/></div>\n    </div>\n  </div>;\n}`;\n\nfunction galleryFail(message) { throw new Error(message); }\n\n// Host paths: POSIX (/…) on macOS; a drive (C:\\… or C:/…) or UNC (\\\\server\\…) path on Windows.\nfunction galleryAbsolute(path) {\n  return typeof path === 'string' && !path.includes('\\0') && /^(?:\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)./.test(path);\n}\n// One comparison key per host path: NFC; a Windows path (drive letter or backslash) also gets / separators and is\n// case-folded, as Windows paths are case-insensitive. POSIX paths stay case-sensitive.\nfunction galleryPathKey(path) {\n  const text = String(path ?? '').normalize('NFC');\n  return /^[A-Za-z]:(?:[\\\\/]|$)/.test(text) || text.includes('\\\\') ? text.replace(/\\\\/g, '/').toLowerCase() : text;\n}\nfunction gallerySamePath(a, b) { return typeof a === 'string' && typeof b === 'string' && galleryPathKey(a) === galleryPathKey(b); }\n\nfunction galleryResolveResource(items, resourceId, path, label) {\n  const byId = items.find((item) => item.resourceId === resourceId);\n  if (!galleryAbsolute(path)) galleryFail(`${label} path is required`);\n  if (gallerySamePath(byId?.path, path)) return byId;\n  const matches = items.filter((item) => gallerySamePath(item.path, path));\n  if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);\n  return matches[0];\n}\n\nasync function galleryInventory(project, paths = null) {\n  const resources = await project.resources();\n  const byId = new Map();\n  for (const row of resources) byId.set(row.resourceId, row);\n  const overview = await project.sourceFiles();\n  const nodes = [];\n  const visit = (items) => {\n    for (const item of items || []) {\n      if (item.type === 'dir') visit(item.children);\n      else nodes.push(item);\n    }\n  };\n  if (Array.isArray(overview.fileTree)) visit(overview.fileTree);\n  else if (overview.mode === 'summary' && Array.isArray(overview.folders)) {\n    for (const folder of overview.folders) {\n      const part = await project.sourceFiles({ folder: folder.name });\n      if (!Array.isArray(part.fileTree)) galleryFail('Media inventory is incomplete');\n      visit(part.fileTree);\n    }\n  } else galleryFail('Media inventory is unavailable');\n  const media = [], audio = [];\n  const seen = new Set();\n  for (const node of nodes) {\n    const resource = byId.get(node.resourceId);\n    if (!resource || seen.has(node.resourceId) || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;\n    const type = String(resource.type).toLowerCase();\n    const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;\n    if (!kind) continue;\n    const durationSeconds = Number.isFinite(node.durationSeconds) ? node.durationSeconds : resource.durationSeconds;\n    const durationFrames = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 60) : null;\n    const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames };\n    if (kind === 'audio') audio.push(common);\n    else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {\n      media.push({ ...common, kind, width: node.frameSize?.width ?? null, height: node.frameSize?.height ?? null });\n    }\n    seen.add(node.resourceId);\n  }\n  const unavailable = resources.filter((resource) =>\n    (!paths || nodes.some(n => n.resourceId === resource.resourceId && paths.includes(n.path))) &&\n    ['image', 'video', 'audio'].includes(String(resource.type).toLowerCase()) &&\n    !media.some((item) => item.resourceId === resource.resourceId) &&\n    !audio.some((item) => item.resourceId === resource.resourceId));\n  return { media, audio, unavailable: unavailable.map((item) => ({ resourceId: item.resourceId, name: item.name })) };\n}\n\nfunction galleryGeometry(tile, source, colorFrame) {\n  const { left, right, top, bottom } = tile.rect;\n  const width = right - left, height = bottom - top;\n  const q = Math.min(source.width / width, source.height / height);\n  const frameWidth = width * q, frameHeight = height * q;\n  const conform = Math.min(1080 / source.width, 1920 / source.height);\n  return {\n    effect: {\n      sourceWidth: source.width, sourceHeight: source.height,\n      frameWidth, frameHeight,\n      cropLeft: (source.width - frameWidth) / 2,\n      cropTop: (source.height - frameHeight) / 2,\n      focusX: tile.focusX, focusY: tile.focusY,\n      colorAfterLocalFrame: colorFrame - tile.revealFrame,\n    },\n    transform: {\n      position: { x: (((left + right) / 2) - 540) / 1920 * 100, y: (960 - (top + bottom) / 2) / 1920 * 100 },\n      scale: { x: 1 / (q * conform), y: 1 / (q * conform) },\n    },\n  };\n}\n\nfunction assertGalleryInput(input) {\n  if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');\n  if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');\n  if (!['inspect', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');\n  if (['create', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');\n  return input;\n}\n\nasync function galleryImportConverted(selects, project, input, inventory, onImportStarted) {\n  const requiredFrames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(requiredFrames) || requiredFrames < 1 || requiredFrames > 36000) {\n    galleryFail('Held video duration must be an integer from 1 to 36000 frames');\n  }\n  if (!Array.isArray(input.converted) || input.converted.length < 1 || input.converted.length > 21) {\n    galleryFail('Provide one to 21 held video files');\n  }\n  const seenSources = new Set();\n  for (const item of input.converted) {\n    const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');\n    if (source.kind !== 'video' || seenSources.has(source.resourceId) ||\n        !galleryAbsolute(item.path) || !/\\.mp4$/i.test(item.path)) {\n      galleryFail('A held clip must match one distinct Project video and absolute MP4 path');\n    }\n    seenSources.add(source.resourceId);\n  }\n  const paths = [...new Map(input.converted.map((item) => [galleryPathKey(item.path), item.path])).values()];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => galleryPathKey(file.path)));\n  if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(galleryPathKey(path)))) {\n    galleryFail('A held video file is missing or unreadable; no Project media was imported');\n  }\n  const currentByPath = new Map();\n  for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(galleryPathKey(item.path), item);\n  const missing = paths.filter((path) => !currentByPath.has(galleryPathKey(path)));\n  if (missing.length) {\n    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');\n    onImportStarted();\n    await project.importFiles({ paths: missing });\n  }\n  const fresh = missing.length ? await galleryInventory(project) : inventory;\n  const importedByPath = new Map();\n  for (const item of fresh.media) if (item.kind === 'video') importedByPath.set(galleryPathKey(item.path), item);\n  const converted = input.converted.map((item) => {\n    const video = importedByPath.get(galleryPathKey(item.path));\n    if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {\n      galleryFail('Held video import or length could not be verified; inspect Project files before retrying');\n    }\n    const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');\n    return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,\n      resourceId: video.resourceId,\n      // The Project's own spelling of the path, which native placement later compares exactly.\n      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames };\n  });\n  return { status: 'prepared', converted };\n}\n\nasync function galleryImportBundledMusic(selects, project, input, inventory, onImportStarted) {\n  const frames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) galleryFail('Music length must be an integer from 1 to 36000 frames');\n  if (!galleryAbsolute(input.path) || !/\\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');\n  const probe = await selects.media.probe({ filePaths: [input.path] });\n  if (probe.error || probe.errors?.length || probe.summary?.failed ||\n      !(probe.files || []).some(file => gallerySamePath(file.path, input.path) && (!file.type || /audio/i.test(file.type)))) {\n    galleryFail('Bundled music is missing or corrupt; reinstall the plugin');\n  }\n  const matches = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (matches.length > 1 || inventory.media.some(item => gallerySamePath(item.path, input.path))) galleryFail('Bundled music path is ambiguous or is not Audio');\n  if (!matches.length) {\n    onImportStarted();\n    await project.importFiles({ paths: [input.path] });\n    inventory = await galleryInventory(project);\n  }\n  const audio = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (audio.length !== 1 || !Number.isSafeInteger(audio[0].durationFrames)) galleryFail('Bundled music import is not ready; inspect Project media before retrying');\n  if (audio[0].durationFrames < frames) galleryFail('Music is too short for this result length; shorten the result or choose a longer track');\n  return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };\n}\n\nasync function galleryPreflight(selects, project, input, inventory) {\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);\n    }\n    if ((item.width != null && fresh.width != null && fresh.width !== item.width) ||\n        (item.height != null && fresh.height != null && fresh.height !== item.height)) {\n      galleryFail(`Slot ${i + 1} dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };\n  });\n  const music = input.music == null ? null :\n    galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  if (input.music != null && !music) galleryFail('Selected music is missing or moved');\n  const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };\n  const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });\n  const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));\n  if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {\n    galleryFail('A selected media file is missing, unreadable, or corrupt; no Draft was saved');\n  }\n  const meta = await project.meta();\n  if (!Array.isArray(meta.draftIds)) galleryFail('Project Draft list is unavailable');\n  return { plan, chosen, music: selectedMusic };\n}\n\nasync function galleryCreate(selects, project, input, inventory, onCommitStarted) {\n  const { plan, chosen, music } = await galleryPreflight(selects, project, input, inventory);\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  if ((await draft.meta()).fps !== plan.fps) galleryFail('The Project frame rate changed; no Draft was saved');\n  await draft.insertGap({ seconds: plan.durationFrames / plan.fps });\n  await draft.setFrameSize(plan.frameSize);\n  const prepared = await draft.meta();\n  if (prepared.fps !== plan.fps || prepared.durationFrames !== plan.durationFrames ||\n      prepared.frameSize?.width !== plan.frameSize.width || prepared.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('The working Draft does not match the requested frame grid, canvas, and duration; no Draft was saved');\n  }\n  let knownClipIds = new Set((await draft.clips({ trackScope: 'all' })).map((row) => row.clipId));\n  for (let i = 0; i < plan.tiles.length; i++) {\n    const tile = plan.tiles[i], source = chosen[i];\n    try {\n      await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });\n    } catch (error) {\n      if (source.kind === 'image' && /not a Video\\/Audio asset/i.test(String(error?.message || error))) {\n        galleryFail('The plugin SDK cannot place original Image Resources on video tracks, although the editor can; no Draft was saved');\n      }\n      throw error;\n    }\n    const after = await draft.clips({ trackScope: 'all' });\n    const added = after.filter((row) => !knownClipIds.has(row.clipId) && row.resourceId === tile.resourceId && row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (added.length !== 1) galleryFail(`Could not identify tile ${i + 1} after placement; no Draft was saved`);\n    const clip = added[0];\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    await draft.addVideoEffect({\n      clip, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT,\n      parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ],\n    });\n    const freshClip = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!freshClip) galleryFail(`Tile ${i + 1} disappeared before placement was complete`);\n    await draft.setClipTransform({ clip: freshClip, position: geometry.transform.position, scale: geometry.transform.scale });\n    const finalRows = await draft.clips({ trackScope: 'all' });\n    const finalClip = finalRows.find((row) => row.clipId === clip.clipId);\n    if (!finalClip) galleryFail(`Tile ${i + 1} disappeared after transform`);\n    knownClipIds = new Set(finalRows.map((row) => row.clipId));\n  }\n  if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (music.startSeconds ?? music.startFrame / 60) });\n  const rows = await draft.clips({ trackScope: 'all' });\n  if (rows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('The working Draft has an unexpected Main Resource');\n  if (rows.filter((row) => row.trackKind === 'video' && row.resourceId != null).length !== 21) galleryFail('The working Draft does not contain all 21 editable tiles');\n  onCommitStarted();\n  const saved = await draft.commitAll('Create editable 21-tile Photo Gallery');\n  if (!saved?.createdDraftId) galleryFail('Save outcome is unknown; inspect Project Drafts before retrying');\n  return { status: 'saved', draftId: saved.createdDraftId, tileCount: 21, durationFrames: plan.durationFrames, colorFrame: plan.colorFrame };\n}\n\nasync function galleryCreateBase(project, input, onCommitStarted) {\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  await draft.setFrameSize({ width: 1080, height: 1920 });\n  const fps=(await draft.meta()).fps;\n  if(fps!==(input.fps??60))galleryFail('Project frame rate changed');\n  await draft.insertGap({seconds:input.durationFrames/fps});\n  onCommitStarted();\n  const saved = await draft.commitAll('Create Photo Gallery Draft');\n  if (!saved?.createdDraftId) galleryFail('Empty Draft save outcome is unknown');\n  return { status: 'baseCreated', draftId: saved.createdDraftId };\n}\n\nasync function galleryFillBase(selects, project, input, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  if (!Number.isSafeInteger(input.durationFrames) || input.durationFrames < 1) galleryFail('Invalid Gallery duration');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft must be an empty portrait Draft');\n  }\n  await draft.insertGap({ seconds: input.durationFrames / meta.fps });\n  if ((await draft.meta()).durationFrames !== input.durationFrames) galleryFail('Could not author exact Gallery duration');\n  onCommitStarted();\n  const saved = await draft.commitAll('Set Photo Gallery duration');\n  if (!saved?.commitId) galleryFail('Duration save outcome is unknown');\n  return { status: 'baseFilled', draftId: input.draftId, durationFrames: input.durationFrames };\n}\n\nfunction galleryBatchTiles(tiles, slotKeys, limit) {\n  if (slotKeys === undefined) return tiles;\n  if (!Array.isArray(slotKeys) || slotKeys.length < 1 || slotKeys.length > limit ||\n      new Set(slotKeys).size !== slotKeys.length ||\n      slotKeys.some(key => !tiles.some(tile => tile.slotKey === key))) {\n    galleryFail(`Provide one to ${limit} distinct eligible slot keys`);\n  }\n  const selected = new Set(slotKeys);\n  return tiles.filter(tile => selected.has(tile.slotKey));\n}\n\nasync function galleryPlaceVideosExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  const { plan } = await galleryPreflight(selects, project, input, inventory);\n  const videos = galleryBatchTiles(plan.tiles.filter(tile => tile.kind === 'video'), input.slotKeys, 1);\n  if (!videos.length) return { status: 'videosPlaced', draftId: input.draftId, tileCount: 0 };\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft clock, canvas, or duration changed');\n  }\n  const rows = await draft.clips({ trackScope: 'all' });\n  const existing = rows.filter(row => row.trackKind === 'video' && row.resourceId);\n  const imageTiles = plan.tiles.filter(tile => tile.kind === 'image');\n  if (new Set(existing.map(row => row.clipId)).size !== existing.length ||\n      new Set(existing.map(row => row.trackId)).size !== existing.length ||\n      rows.some(row => row.trackKind === 'audio' && row.resourceId) ||\n      rows.some(row => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft has unexpected media');\n  const used = new Set();\n  for (const tile of imageTiles) {\n    const matches = existing.filter(row => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Image ${tile.slotKey} changed before video placement`);\n    used.add(matches[0].clipId);\n  }\n  // Earlier bounded calls may have saved Videos already. Validate all of them\n  // against this frozen plan, but never replace or duplicate an existing target.\n  const placedVideoKeys = new Set();\n  for (const row of existing.filter(row => !used.has(row.clipId))) {\n    const matches = plan.tiles.filter(tile => tile.kind === 'video' &&\n      tile.resourceId === row.resourceId && tile.revealFrame === row.startFrame && tile.endFrame === row.endFrame);\n    if (matches.length !== 1 || placedVideoKeys.has(matches[0].slotKey)) galleryFail('Target Draft has unexpected or duplicate video media');\n    placedVideoKeys.add(matches[0].slotKey);\n  }\n  if (videos.some(tile => placedVideoKeys.has(tile.slotKey))) galleryFail('A selected Video is already present; inspect the Draft before retrying');\n  for (const tile of videos) {\n    const resource = project.resource(tile.resourceId);\n    const overlay = async (startFrame) => {\n      const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));\n      await draft.overlayResource({ resource, over: await draft.rangeAtFrames(startFrame, tile.endFrame) });\n      const rows = (await draft.clips({ trackScope: 'all' })).filter(row => !before.has(row.clipId));\n      const visual = rows.filter(row => row.trackKind === 'video' && row.resourceId === tile.resourceId);\n      if (visual.length !== 1 || visual[0].startFrame !== startFrame) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);\n      const sourceAudio = rows.filter(row => row.trackKind === 'audio' && row.resourceId);\n      if (sourceAudio.length) await draft.removeClips(sourceAudio);\n      return visual[0];\n    };\n    let clip = await overlay(tile.revealFrame);\n    if (clip.endFrame < tile.endFrame) {\n      // The SDK may quantize a seconds-based overlay one frame short at some\n      // 60 fps start positions. Re-place with enough source time, then use the\n      // public clip move and trim operations to get exact frame boundaries.\n      await draft.removeClips([clip]);\n      if (tile.revealFrame < 1) galleryFail(`Video ${tile.slotKey} cannot cover the output end`);\n      clip = await overlay(tile.revealFrame - 1);\n      const moved = await draft.moveOverlayClip({ clip, startFrame: tile.revealFrame });\n      const matches = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === moved.clipId);\n      if (matches.length !== 1) galleryFail(`Video ${tile.slotKey} moved clip could not be read back`);\n      clip = matches[0];\n    }\n    if (clip.endFrame > tile.endFrame) {\n      await draft.remove(await draft.rangeAtFrames(tile.endFrame, clip.endFrame), { tracks: [clip.trackId] });\n    }\n    const exact = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === clip.clipId &&\n      row.trackKind === 'video' && row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (exact.length !== 1) galleryFail(`Video ${tile.slotKey} could not reach its exact reveal and end frames`);\n    if ((await draft.clips({ trackScope: 'all' })).some(row => row.trackKind === 'audio' && row.resourceId)) {\n      galleryFail(`Video ${tile.slotKey} retained source audio`);\n    }\n  }\n  onCommitStarted();\n  const saved = await draft.commitAll('Place Photo Gallery video tiles');\n  if (!saved?.commitId) galleryFail('Video placement save outcome is unknown');\n  return { status: 'videosPlaced', draftId: input.draftId, tileCount: videos.length };\n}\n\nasync function galleryStyleExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('An explicit target Draft is required');\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('Target Draft does not belong to this Project');\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    if (fresh.kind !== item.kind) galleryFail(`Slot ${i + 1} Resource type changed`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable`);\n    }\n    if (fresh.width != null && fresh.width !== item.width || fresh.height != null && fresh.height !== item.height) {\n      galleryFail(`Slot ${i + 1} photo dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };\n  });\n  const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,\n    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });\n  const selectedTiles = galleryBatchTiles(plan.tiles, input.slotKeys, 3);\n  const selectedKeys = new Set(selectedTiles.map(tile => tile.slotKey));\n  if (input.placeMusic !== undefined && typeof input.placeMusic !== 'boolean') galleryFail('placeMusic must be a boolean');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== plan.fps || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== plan.frameSize.width || meta.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('Target Draft clock, canvas, or duration does not match the Gallery plan');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft Main track is not blank');\n  if (allRows.some((row) => row.trackKind === 'audio' && row.resourceId)) galleryFail('Target Draft has unexpected source audio');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21 || new Set(rows.map((row) => row.trackId)).size !== 21) {\n    galleryFail('Target Draft must contain exactly 21 independent visual tracks');\n  }\n  const used = new Set(), targets = [];\n  for (let i = 0; i < 21; i++) {\n    const tile = plan.tiles[i];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Target tile ${tile.slotKey} does not match the selected Resource and frames`);\n    const clip = matches[0];\n    used.add(clip.clipId);\n    if (!selectedKeys.has(tile.slotKey)) continue;\n    if ((await draft.videoEffects(clip)).length) galleryFail(`Target tile ${tile.slotKey} already has effects; inspect it before retrying`);\n    const transform = await draft.clipTransform(clip);\n    const identity = !transform || !transform.enabled ||\n      (transform.position?.x === 0 && transform.position?.y === 0 &&\n       transform.scale?.x === 1 && transform.scale?.y === 1 &&\n       transform.rotation === 0 && transform.anchor?.x === 0 && transform.anchor?.y === 0);\n    if (!identity) galleryFail(`Target tile ${tile.slotKey} already has a manual transform; inspect it before retrying`);\n    targets.push({ clip, tile, source: chosen[i] });\n  }\n  for (const { clip, tile, source } of targets) {\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    const current = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!current) galleryFail(`Target tile ${tile.slotKey} disappeared before styling`);\n    await draft.addVideoEffect({ clip: current, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT, parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ] });\n    const fresh = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!fresh) galleryFail(`Target tile ${tile.slotKey} disappeared during styling`);\n    await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });\n  }\n  if (plan.music && input.placeMusic !== false) await draft.overlayResource({ resource: project.resource(plan.music.resourceId),\n    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (plan.music.startSeconds ?? plan.music.startFrame / 60) });\n  onCommitStarted();\n  const saved = await draft.commitAll('Style Photo Gallery tiles');\n  if (!saved?.commitId) galleryFail('Style save outcome is unknown; inspect the Draft before retrying');\n  return { status: 'styled', draftId: input.draftId, tileCount: targets.length, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame };\n}\n\nasync function galleryVerifyCreated(selects, project, input, inventory) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('The saved Draft ID is required for readback');\n  const { plan, chosen } = await galleryPreflight(selects, project, input, inventory);\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('The saved Draft does not belong to this Project');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Saved Draft canvas, frame rate, or duration does not match the request');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Saved Draft has an unexpected Main Resource');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21) galleryFail('Saved Draft does not contain exactly 21 independent visual clips');\n  const audioRows = allRows.filter((row) => row.trackKind === 'audio' && row.resourceId);\n  if (plan.music) {\n    if (audioRows.length !== 1 || audioRows[0].resourceId !== plan.music.resourceId ||\n        audioRows[0].startFrame !== 0 || audioRows[0].endFrame !== plan.durationFrames) {\n      galleryFail('Saved Draft music does not match the requested Resource and duration');\n    }\n  } else if (audioRows.length) galleryFail('Saved Draft has unexpected music');\n  const usedClipIds = new Set();\n  for (let tileIndex = 0; tileIndex < plan.tiles.length; tileIndex++) {\n    const tile = plan.tiles[tileIndex];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !usedClipIds.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Saved tile ${tile.slotKey} does not match its requested Resource and frames`);\n    const clip = matches[0];\n    const effects = await draft.videoEffects(clip);\n    if (effects.filter((effect) => effect.name === `Gallery ${tile.slotKey} color-${plan.colorFrame}` && effect.enabled !== false).length !== 1) {\n      galleryFail(`Saved tile ${tile.slotKey} has no matching color-transition effect`);\n    }\n    const actual = await draft.clipTransform(clip);\n    const expected = galleryGeometry(tile, chosen[tileIndex], plan.colorFrame).transform;\n    const close = (left, right) => typeof left === 'number' && Number.isFinite(left) && Math.abs(left - right) <= 1e-5;\n    if (!actual?.enabled || !close(actual.position?.x, expected.position.x) ||\n        !close(actual.position?.y, expected.position.y) ||\n        !close(actual.scale?.x, expected.scale.x) || !close(actual.scale?.y, expected.scale.y)) {\n      galleryFail(`Saved tile ${tile.slotKey} position or crop transform does not match the requested grid`);\n    }\n    usedClipIds.add(clip.clipId);\n  }\n  return { status: 'verified', draftId: input.draftId, tileCount: 21, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame, structuralOnly: true };\n}\n\nasync function galleryOperation(selects, raw) {\n  let commitStarted = false;\n  try {\n    const input = assertGalleryInput(raw);\n    const project = selects.project(input.projectId);\n    const inventory = await galleryInventory(project, input.operation === 'inspect' ? input.paths : null);\n    if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };\n    if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'preflight') {\n      const { plan } = await galleryPreflight(selects, project, input, inventory);\n      return { status: 'ready', plan };\n    }\n    if (input.operation === 'createBase') return await galleryCreateBase(project, input, () => { commitStarted = true; });\n    if (input.operation === 'fillBase') return await galleryFillBase(selects, project, input, () => { commitStarted = true; });\n    if (input.operation === 'placeVideosExisting') return await galleryPlaceVideosExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'styleExisting') return await galleryStyleExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);\n    galleryFail('Unknown gallery action');\n  } catch (error) {\n    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message: String(error?.message || error) };\n  }\n}\n\nreturn await galleryOperation(selects, ";
+// file-observation:start
+// Generated by tools/build_file_observation.mjs; edit file-observation.source.js.
+async function fingerprintTemplateFile(files,path,check=()=>{}) {
+/* @noble/hashes 2.2.0; license retained inside serialized SDK copies.
+The MIT License (MIT)
+
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the “Software”), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+const __templateHashAny=value=>value;
+var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Object).defineProperty; var G = __templateHashAny(Object).getOwnPropertyDescriptor; var V = __templateHashAny(Object).getOwnPropertyNames; var O = __templateHashAny(__templateHashAny(Object).prototype).hasOwnProperty; var k = (t, e, r) => e in t ? __templateHashAny(w)(t, e, { enumerable: !0, configurable: !0, writable: !0, value: r }) : __templateHashAny(t)[e] = r; var R = (t, e) => { for (var r in e)
+    __templateHashAny(w)(t, r, { get: __templateHashAny(e)[r], enumerable: !0 }); }, $ = (t, e, r, o) => { if (e && typeof e == "object" || typeof e == "function")
+    for (let n of __templateHashAny(V)(e))
+        !__templateHashAny(O).call(t, n) && n !== r && __templateHashAny(w)(t, n, { get: () => __templateHashAny(e)[n], enumerable: !(o = __templateHashAny(G)(e, n)) || __templateHashAny(o).enumerable }); return t; }; var M = t => __templateHashAny($)(__templateHashAny(w)({}, "__esModule", { value: !0 }), t); var a = (t, e, r) => __templateHashAny(k)(t, typeof e != "symbol" ? e + "" : e, r); var N = {}; __templateHashAny(R)(N, { sha256: () => _ }); function j(t) { return t instanceof Uint8Array || __templateHashAny(ArrayBuffer).isView(t) && __templateHashAny(__templateHashAny(t).constructor).name === "Uint8Array" && "BYTES_PER_ELEMENT" in t && __templateHashAny(t).BYTES_PER_ELEMENT === 1; } function m(t, e, r = "") { let o = __templateHashAny(j)(t), n = __templateHashAny(t)?.length, f = e !== void 0; if (!o || f && n !== e) {
+    let s = r && `"${r}" `, x = f ? ` of length ${e}` : "", i = o ? `length=${n}` : `type=${typeof t}`, h = s + "expected Uint8Array" + x + ", got " + i;
+    throw o ? new (__templateHashAny(RangeError))(h) : new (__templateHashAny(TypeError))(h);
+} return t; } function L(t, e = !0) { if (__templateHashAny(t).destroyed)
+    throw new (__templateHashAny(Error))("Hash instance has been destroyed"); if (e && __templateHashAny(t).finished)
+    throw new (__templateHashAny(Error))("Hash#digest() has already been called"); } function C(t, e) { __templateHashAny(m)(t, void 0, "digestInto() output"); let r = __templateHashAny(e).outputLen; if (__templateHashAny(t).length < r)
+    throw new (__templateHashAny(RangeError))('"digestInto() output" expected to be of length >=' + r); } function y(...t) { for (let e = 0; e < __templateHashAny(t).length; e++)
+    __templateHashAny(__templateHashAny(t)[e]).fill(0); } function A(t) { return new (__templateHashAny(DataView))(__templateHashAny(t).buffer, __templateHashAny(t).byteOffset, __templateHashAny(t).byteLength); } function d(t, e) { return t << 32 - e | t >>> e; } function F(t, e = {}) { let r = (n, f) => __templateHashAny(__templateHashAny(__templateHashAny(t)(f)).update(n)).digest(), o = __templateHashAny(t)(void 0); return __templateHashAny(r).outputLen = __templateHashAny(o).outputLen, __templateHashAny(r).blockLen = __templateHashAny(o).blockLen, __templateHashAny(r).canXOF = __templateHashAny(o).canXOF, __templateHashAny(r).create = n => __templateHashAny(t)(n), __templateHashAny(Object).assign(r, e), __templateHashAny(Object).freeze(r); } var T = t => ({ oid: __templateHashAny(Uint8Array).from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, t]) }); function D(t, e, r) { return t & e ^ ~t & r; } function I(t, e, r) { return t & e ^ t & r ^ e & r; } var E = class {
+    constructor(e, r, o, n) { __templateHashAny(a)(__templateHashAny(this), "blockLen"); __templateHashAny(a)(__templateHashAny(this), "outputLen"); __templateHashAny(a)(__templateHashAny(this), "canXOF", !1); __templateHashAny(a)(__templateHashAny(this), "padOffset"); __templateHashAny(a)(__templateHashAny(this), "isLE"); __templateHashAny(a)(__templateHashAny(this), "buffer"); __templateHashAny(a)(__templateHashAny(this), "view"); __templateHashAny(a)(__templateHashAny(this), "finished", !1); __templateHashAny(a)(__templateHashAny(this), "length", 0); __templateHashAny(a)(__templateHashAny(this), "pos", 0); __templateHashAny(a)(__templateHashAny(this), "destroyed", !1); __templateHashAny(__templateHashAny(this)).blockLen = e, __templateHashAny(__templateHashAny(this)).outputLen = r, __templateHashAny(__templateHashAny(this)).padOffset = o, __templateHashAny(__templateHashAny(this)).isLE = n, __templateHashAny(__templateHashAny(this)).buffer = new (__templateHashAny(Uint8Array))(e), __templateHashAny(__templateHashAny(this)).view = __templateHashAny(A)(__templateHashAny(__templateHashAny(this)).buffer); }
+    update(e) { __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(m)(e); let { view: r, buffer: o, blockLen: n } = __templateHashAny(this), f = __templateHashAny(e).length; for (let s = 0; s < f;) {
+        let x = __templateHashAny(Math).min(n - __templateHashAny(__templateHashAny(this)).pos, f - s);
+        if (x === n) {
+            let i = __templateHashAny(A)(e);
+            for (; n <= f - s; s += n)
+                __templateHashAny(__templateHashAny(this)).process(i, s);
+            continue;
+        }
+        __templateHashAny(o).set(__templateHashAny(e).subarray(s, s + x), __templateHashAny(__templateHashAny(this)).pos), __templateHashAny(__templateHashAny(this)).pos += x, s += x, __templateHashAny(__templateHashAny(this)).pos === n && (__templateHashAny(__templateHashAny(this)).process(r, 0), __templateHashAny(__templateHashAny(this)).pos = 0);
+    } return __templateHashAny(__templateHashAny(this)).length += __templateHashAny(e).length, __templateHashAny(__templateHashAny(this)).roundClean(), __templateHashAny(this); }
+    digestInto(e) { __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(C)(e, __templateHashAny(this)), __templateHashAny(__templateHashAny(this)).finished = !0; let { buffer: r, view: o, blockLen: n, isLE: f } = __templateHashAny(this), { pos: s } = __templateHashAny(this); __templateHashAny(r)[s++] = 128, __templateHashAny(y)(__templateHashAny(__templateHashAny(__templateHashAny(this)).buffer).subarray(s)), __templateHashAny(__templateHashAny(this)).padOffset > n - s && (__templateHashAny(__templateHashAny(this)).process(o, 0), s = 0); for (let c = s; c < n; c++)
+        __templateHashAny(r)[c] = 0; __templateHashAny(o).setBigUint64(n - 8, __templateHashAny(BigInt)(__templateHashAny(__templateHashAny(this)).length * 8), f), __templateHashAny(__templateHashAny(this)).process(o, 0); let x = __templateHashAny(A)(e), i = __templateHashAny(__templateHashAny(this)).outputLen; if (i % 4)
+        throw new (__templateHashAny(Error))("_sha2: outputLen must be aligned to 32bit"); let h = i / 4, u = __templateHashAny(__templateHashAny(this)).get(); if (h > __templateHashAny(u).length)
+        throw new (__templateHashAny(Error))("_sha2: outputLen bigger than state"); for (let c = 0; c < h; c++)
+        __templateHashAny(x).setUint32(4 * c, __templateHashAny(u)[c], f); }
+    digest() { let { buffer: e, outputLen: r } = __templateHashAny(this); __templateHashAny(__templateHashAny(this)).digestInto(e); let o = __templateHashAny(e).slice(0, r); return __templateHashAny(__templateHashAny(this)).destroy(), o; }
+    _cloneInto(e) { e || (e = new (__templateHashAny((__templateHashAny(__templateHashAny(this)).constructor)))), __templateHashAny(e).set(...__templateHashAny(__templateHashAny(this)).get()); let { blockLen: r, buffer: o, length: n, finished: f, destroyed: s, pos: x } = __templateHashAny(this); return __templateHashAny(e).destroyed = s, __templateHashAny(e).finished = f, __templateHashAny(e).length = n, __templateHashAny(e).pos = x, n % r && __templateHashAny(__templateHashAny(e).buffer).set(o), e; }
+    clone() { return __templateHashAny(__templateHashAny(this))._cloneInto(); }
+}, b = __templateHashAny(Uint32Array).from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]); var W = __templateHashAny(Uint32Array).from([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]), l = new (__templateHashAny(Uint32Array))(64), B = class extends __templateHashAny(E) {
+    constructor(e) { super(64, e, 8, !1); }
+    get() { let { A: e, B: r, C: o, D: n, E: f, F: s, G: x, H: i } = __templateHashAny(this); return [e, r, o, n, f, s, x, i]; }
+    set(e, r, o, n, f, s, x, i) { __templateHashAny(__templateHashAny(this)).A = e | 0, __templateHashAny(__templateHashAny(this)).B = r | 0, __templateHashAny(__templateHashAny(this)).C = o | 0, __templateHashAny(__templateHashAny(this)).D = n | 0, __templateHashAny(__templateHashAny(this)).E = f | 0, __templateHashAny(__templateHashAny(this)).F = s | 0, __templateHashAny(__templateHashAny(this)).G = x | 0, __templateHashAny(__templateHashAny(this)).H = i | 0; }
+    process(e, r) { for (let c = 0; c < 16; c++, r += 4)
+        __templateHashAny(l)[c] = __templateHashAny(e).getUint32(r, !1); for (let c = 16; c < 64; c++) {
+        let g = __templateHashAny(l)[c - 15], p = __templateHashAny(l)[c - 2], S = __templateHashAny(d)(g, 7) ^ __templateHashAny(d)(g, 18) ^ g >>> 3, H = __templateHashAny(d)(p, 17) ^ __templateHashAny(d)(p, 19) ^ p >>> 10;
+        __templateHashAny(l)[c] = H + __templateHashAny(l)[c - 7] + S + __templateHashAny(l)[c - 16] | 0;
+    } let { A: o, B: n, C: f, D: s, E: x, F: i, G: h, H: u } = __templateHashAny(this); for (let c = 0; c < 64; c++) {
+        let g = __templateHashAny(d)(x, 6) ^ __templateHashAny(d)(x, 11) ^ __templateHashAny(d)(x, 25), p = u + g + __templateHashAny(D)(x, i, h) + __templateHashAny(W)[c] + __templateHashAny(l)[c] | 0, H = (__templateHashAny(d)(o, 2) ^ __templateHashAny(d)(o, 13) ^ __templateHashAny(d)(o, 22)) + __templateHashAny(I)(o, n, f) | 0;
+        u = h, h = i, i = x, x = s + p | 0, s = f, f = n, n = o, o = p + H | 0;
+    } o = o + __templateHashAny(__templateHashAny(this)).A | 0, n = n + __templateHashAny(__templateHashAny(this)).B | 0, f = f + __templateHashAny(__templateHashAny(this)).C | 0, s = s + __templateHashAny(__templateHashAny(this)).D | 0, x = x + __templateHashAny(__templateHashAny(this)).E | 0, i = i + __templateHashAny(__templateHashAny(this)).F | 0, h = h + __templateHashAny(__templateHashAny(this)).G | 0, u = u + __templateHashAny(__templateHashAny(this)).H | 0, __templateHashAny(__templateHashAny(this)).set(o, n, f, s, x, i, h, u); }
+    roundClean() { __templateHashAny(y)(l); }
+    destroy() { __templateHashAny(__templateHashAny(this)).destroyed = !0, __templateHashAny(__templateHashAny(this)).set(0, 0, 0, 0, 0, 0, 0, 0), __templateHashAny(y)(__templateHashAny(__templateHashAny(this)).buffer); }
+}, U = class extends __templateHashAny(B) {
+    constructor() { super(32); __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b)[0] | 0); __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b)[1] | 0); __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b)[2] | 0); __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b)[3] | 0); __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b)[4] | 0); __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b)[5] | 0); __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b)[6] | 0); __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b)[7] | 0); }
+}; var _ = __templateHashAny(F)(() => new (__templateHashAny(U)), __templateHashAny(T)(1)); return __templateHashAny(M)(N); }))();
+
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
+ const observe=async operation=>{check();const result=await operation();check();return result;};
+ const before=await observe(()=>files.stat(path));
+ if(before===null)return null;
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||!Number.isFinite(before.ino))throw Error("The file's size or identity could not be confirmed.");
+ const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+ for(let offset=0;offset<before.size;){
+  const length=Math.min(49152,before.size-offset);
+  const chunk=await observe(()=>files.readRange({path,offset,length}));
+  if(!chunk||chunk.bytesRead!==length||typeof chunk.base64!=='string'||chunk.base64.length!==4*Math.ceil(length/3)||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64))throw Error('The file read returned an incomplete or invalid binary chunk.');
+  const bytes=new Uint8Array(length);
+  let position=0;
+  for(let i=0;i<chunk.base64.length;i+=4){
+   const a=alphabet.indexOf(chunk.base64[i]),b=alphabet.indexOf(chunk.base64[i+1]),c=chunk.base64[i+2]==='='?0:alphabet.indexOf(chunk.base64[i+2]),d=chunk.base64[i+3]==='='?0:alphabet.indexOf(chunk.base64[i+3]);
+   if(chunk.base64[i+2]==='='&&(b&15)!==0||chunk.base64[i+3]==='='&&chunk.base64[i+2]!=='='&&(c&3)!==0)throw Error('The file read returned a noncanonical binary chunk.');
+   bytes[position++]=(a<<2)|(b>>4);
+   if(position<length)bytes[position++]=((b&15)<<4)|(c>>2);
+   if(position<length)bytes[position++]=((c&3)<<6)|d;
+  }
+  hash.update(bytes);check();offset+=length;
+ }
+ const after=await observe(()=>files.stat(path));
+ if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The file changed while its contents were read.');
+ const digest=hash.digest();check();
+ let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
+ return {size:before.size,sha256:hex};
+}
+// file-observation:end
+// draft-observation:start
+// Plugin-private saved-state observation. Uses existing Panel read methods only.
+// A working copy inside run_script is deliberately not observable here.
+async function readTemplateDraftSources(sdk,projectId,draftId,libraryId=null){
+ const fail=message=>{throw Object.assign(Error(message),{code:'TEMPLATE_SOURCE_UNVERIFIED'});};
+ if(typeof sdk?.call!=='function'||typeof projectId!=='string'||!projectId||typeof draftId!=='string'||!draftId)fail('Saved Draft source target is invalid.');
+ const core=await sdk.call('getDraftCore',draftId),owner=core?.owner,sequence=core?.sequenceJson;
+ if(owner?.projectId!==projectId||typeof owner.libraryId!=='string'||!owner.libraryId||libraryId!==null&&owner.libraryId!==libraryId||sequence?.id!==draftId||sequence.libraryId!==undefined&&sequence.libraryId!==owner.libraryId||core.isEditedDraft===false)fail('Saved Draft source owner could not be confirmed.');
+ // The complete saved JSON also witnesses non-source edits across independent reads.
+ const witness=JSON.stringify(sequence);
+ if(typeof witness!=='string'||witness.length>8388608)fail('Saved Draft observation exceeds its input limit.');
+ let snapshot,missingMethod=false;
+ try{snapshot=await sdk.call('getDraftMediaSnapshot',projectId,draftId);}
+ catch(error){
+  // Compatibility only for an absent read method. Real read failures stay failures.
+  if(!/^(?:Panels cannot call ["']getDraftMediaSnapshot["']|No such method: getDraftMediaSnapshot|Unknown (?:method|read method):? getDraftMediaSnapshot)/.test(String(error?.message||error)))throw error;
+  missingMethod=true;
+ }
+ let clips=[],revision;
+ if(!missingMethod){
+  if(typeof snapshot?.revision!=='string'||!snapshot.revision||!Number.isFinite(snapshot.fps)||snapshot.fps<=0||!Array.isArray(snapshot.clips)||snapshot.clips.length>1000||snapshot.clips.some(row=>!row||typeof row!=='object'))fail('Saved Draft media observation is incomplete.');
+  clips=snapshot.clips.filter(row=>row?.resourceId!=null).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds,endSeconds:row.sourceEndSeconds},playbackSpeed:row.playbackSpeed}));
+  revision=JSON.stringify({core:witness,media:snapshot.revision,clips});
+ }else{
+  // getDraftCore is an existing public read. Interpret only documented persisted
+  // Clip.1 (frames) / Clip.2 (ticks) ranges, never application/user database files.
+  if(sequence.schema!=='Cutback.Timeline.1'||!Array.isArray(sequence.tracks?.children))fail('Saved Draft schema is unsupported.');
+  const fps=sequence.frameRate;
+  if(!Number.isFinite(fps)||fps<=0||fps>1000)fail('Saved Draft frame grid is invalid.');
+  const rate=sequence.frameRateRatio;
+  let tickFrame;
+  if(rate!==undefined){
+   if(!Number.isSafeInteger(rate?.numerator)||rate.numerator<=0||!Number.isSafeInteger(rate.denominator)||rate.denominator<=0||Math.abs(fps-rate.numerator/rate.denominator)>8*Number.EPSILON*Math.max(1,fps))fail('Saved Draft rational frame grid is invalid.');
+   tickFrame=Number((705600000n*BigInt(rate.denominator)+BigInt(Math.floor(rate.numerator/2)))/BigInt(rate.numerator));
+  }else tickFrame=Math.round(705600000/fps);
+  if(!Number.isSafeInteger(tickFrame)||tickFrame<1)fail('Saved Draft Tick grid is invalid.');
+  for(const track of sequence.tracks.children){
+   if(!track||typeof track.id!=='string'||!track.id||!Array.isArray(track.children))fail('Saved Draft track is invalid.');
+   const kind={Main:'main',Video:'video',Audio:'audio'}[track.kind];
+   if(!kind)continue;
+   let offset=0;
+   for(const row of track.children){
+    const current=row?.schema==='Cutback.Clip.2'||row?.schema==='Cutback.Gap.2',legacy=row?.schema==='Cutback.Clip.1'||row?.schema==='Cutback.Gap.1';
+    if(!current&&!legacy)fail('Saved Draft source schema is unsupported.');
+    const start=row.sourceRange?.startTime,duration=row.sourceRange?.duration;
+    if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(duration)||duration<0||row.cut!==undefined&&typeof row.cut!=='boolean')fail('Saved Draft source range is invalid.');
+    const frames=current?duration/tickFrame:duration;
+    if(!Number.isSafeInteger(frames)||frames<0)fail('Saved Draft source is not aligned to its frame grid.');
+    if(row.cut)continue;
+    const resourceId=row.mediaReferences?.defaultMedia?.id;
+    if(resourceId!=null){
+     if(!Number.isSafeInteger(row.id)||row.id<0||frames<1||typeof resourceId!=='string'||!resourceId)fail('Saved Draft source identity is invalid.');
+     const policy=row.timing??{playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true};
+     const n=policy.playbackSpeed?.numerator,d=policy.playbackSpeed?.denominator,r=policy.sourceTickRoundingRemainder??0;
+     if(!Number.isSafeInteger(n)||n<1||!Number.isSafeInteger(d)||d<1||!Number.isSafeInteger(r)||r<0||r>=d||typeof policy.preserveAudioPitch!=='boolean'||legacy&&(n!==1||d!==1||r!==0))fail('Saved Draft timing policy is unsupported.');
+     // Match ClipTiming's nonnegative round-half-up mapping, including its origin
+     // remainder. BigInt avoids losing a source Tick in large rational products.
+     const round=(a,b)=>(2n*a+b)/(2n*b);
+     const delta=current?Number(round(BigInt(r)+BigInt(n)*BigInt(duration),BigInt(d))-round(BigInt(r),BigInt(d))):duration;
+     if(!Number.isSafeInteger(delta)||!Number.isSafeInteger(start+delta))fail('Saved Draft source time exceeds its exact range.');
+     const unit=current?705600000:fps;
+     clips.push({clipId:row.id,trackId:track.id,trackKind:kind,resourceId,startFrame:offset,endFrame:offset+frames,source:{clipId:row.id,startSeconds:start/unit,endSeconds:(start+delta)/unit},playbackSpeed:n/d});
+    }
+    offset+=frames;
+    if(!Number.isSafeInteger(offset))fail('Saved Draft placement exceeds its exact range.');
+   }
+  }
+  revision=witness;
+ }
+ const ids=new Set();
+ if(clips.length>1000)fail('Saved Draft contains too many media clips.');
+ for(const row of clips){
+  const key=JSON.stringify([row.trackId,row.clipId]);
+  if(ids.has(key)||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||!['main','video','audio'].includes(row.trackKind)||typeof row.resourceId!=='string'||!row.resourceId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame||!Number.isFinite(row.source.startSeconds)||row.source.startSeconds<0||!Number.isFinite(row.source.endSeconds)||row.source.endSeconds<=row.source.startSeconds||!Number.isFinite(row.playbackSpeed)||row.playbackSpeed<=0)fail('Saved Draft source observation is invalid.');
+  ids.add(key);
+ }
+ // This function runs in the panel, where Web Crypto already backs durable run
+ // receipts. Keep the revision witness bounded when it is passed into scripts.
+ if(!globalThis.crypto?.subtle||typeof TextEncoder!=='function')fail('Saved Draft revision hashing is unavailable.');
+ revision=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(revision))),n=>n.toString(16).padStart(2,'0')).join('');
+ return {revision,owner:{projectId,libraryId:owner.libraryId},clips};
+}
+
+// SDK-safe projection of a caller-supplied *actual saved* observation. Resource
+// aliases are checked by the existing SDK structural verifier, not guessed here.
+function templateObservedSource(observation,row){
+ const invalid=()=>{throw Error('Saved source target could not be confirmed.');};
+ if(!Array.isArray(observation?.clips)||!row||!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string')invalid();
+ const found=observation.clips.filter(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+ if(found.length!==1)invalid();
+ const actual=found[0],source=actual.source;
+ if(actual.trackKind!==row.trackKind||actual.startFrame!==row.startFrame||actual.endFrame!==row.endFrame||source?.clipId!==row.clipId||!Number.isFinite(source.startSeconds)||source.startSeconds<0||!Number.isFinite(source.endSeconds)||source.endSeconds<=source.startSeconds)invalid();
+ return {clipId:row.clipId,startSeconds:source.startSeconds,endSeconds:source.endSeconds};
+}
+// draft-observation:end
+const SCRIPT_PREFIX = "// Inputs use the 60 fps reference clock; the result uses the Project frame grid.\nconst REFERENCE = Object.freeze({\n  width: 1080,\n  height: 1920,\n  fps: 60,\n  durationFrames: 853,\n  nominalBpm: 113,\n  colorFrame: 270,\n  revealFrames: Object.freeze([0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205]),\n});\n\nfunction assertPositiveInteger(value, label) {\n  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);\n}\n\n// Keep the reference clock, the Project frame grid and physical source seconds\n// distinct. Prepared video is 60 fps, so its last frame must cover the rounded\n// Project end, including when that end is later than the reference duration.\nfunction galleryFrameClock(durationFrames, fps) {\n  assertPositiveInteger(durationFrames, 'durationFrames');\n  if (durationFrames > 36000) throw new Error('durationFrames must be at most 36000');\n  if (typeof fps !== 'number' || !Number.isFinite(fps) || fps <= 0) throw new Error('Invalid Project frame rate');\n  const frames = Math.round(durationFrames * fps / REFERENCE.fps);\n  assertPositiveInteger(frames, 'Project durationFrames');\n  const minimumSeconds = frames / fps;\n  const preparedFrames = Math.max(durationFrames, Math.ceil(minimumSeconds * REFERENCE.fps - 1e-9));\n  if (!Number.isSafeInteger(preparedFrames)) throw new Error('Prepared video duration is out of range');\n  return {frames, minimumSeconds, durationFrames: preparedFrames};\n}\n\nfunction gallerySourceSeconds(item, label) {\n  // Frame-only inputs remain supported by the standalone planner. Live Project\n  // readers require exact seconds; a supplied invalid value never falls back.\n  const seconds = item.durationSeconds === undefined ? item.durationFrames / REFERENCE.fps : item.durationSeconds;\n  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) throw new Error(`${label} needs a verified duration`);\n  return seconds;\n}\n\nfunction validateMedia(media) {\n  if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');\n  return media.map((item, index) => {\n    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs an Image or Video Resource`);\n    if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);\n    assertPositiveInteger(item.width, `Slot ${index + 1} width`);\n    assertPositiveInteger(item.height, `Slot ${index + 1} height`);\n    if(item.fit!==undefined&&!['cover','contain'].includes(item.fit))throw new Error(`Slot ${index+1} has an invalid fit`);\n    const focusX = item.focusX ?? 0.5;\n    const focusY = item.focusY ?? 0.5;\n    if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {\n      throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);\n    }\n    if (item.kind === 'video') {\n      if (item.durationSeconds === undefined) assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);\n      gallerySourceSeconds(item, `Slot ${index + 1}`);\n    }\n    return { ...item, focusX, focusY };\n  });\n}\n\nfunction tileRect(row, column) {\n  return {\n    left: column * 360 + 2,\n    right: (column + 1) * 360 - 2,\n    top: Math.round(row * REFERENCE.height / 7) + 2,\n    bottom: Math.round((row + 1) * REFERENCE.height / 7) - 2,\n  };\n}\n\nfunction planGallery(input, {preparing = false, pendingBpm = false} = {}) {\n  if (!input || typeof input !== 'object') throw new Error('Gallery input is required');\n  if (pendingBpm && !preparing) throw new Error('A pending BPM is only valid during preparation');\n  const media = validateMedia(input.media);\n  const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;\n  const fps = input.fps ?? REFERENCE.fps;\n  const clock = galleryFrameClock(durationFrames, fps);\n  const shortVideos = media.filter(item => item.kind === 'video' && gallerySourceSeconds(item, 'Video') + 1e-9 < clock.minimumSeconds);\n  if (!preparing && shortVideos.length) {\n    throw new Error('A selected video is too short; hold its last frame (the panel does this) before planning');\n  }\n  const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;\n  const bpmPending = pendingBpm && !hasManualBpm && input.estimatedBpm == null;\n  const bpm = bpmPending ? null : (hasManualBpm ? input.manualBpm : input.estimatedBpm);\n  if (!bpmPending && (typeof bpm !== 'number' || !Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm))) {\n    throw new Error('BPM is required; provide a manual BPM when there is no music or no reliable estimate');\n  }\n  const toDraftFrame = frame => Math.round(frame * fps / REFERENCE.fps);\n  const outputDurationFrames = clock.frames;\n  const ratio = bpmPending ? null : REFERENCE.nominalBpm / bpm;\n  const revealFrames = REFERENCE.revealFrames.map(frame => bpmPending ? null : toDraftFrame(frame * ratio));\n  if (!bpmPending && revealFrames.some((frame, i) => !Number.isSafeInteger(frame) || i > 0 && frame <= revealFrames[i - 1])) {\n    throw new Error('BPM is too high to show all 21 tiles in distinct output frames');\n  }\n  const colorFrame = bpmPending ? null : toDraftFrame(REFERENCE.colorFrame * ratio);\n  if (!bpmPending && (!Number.isSafeInteger(colorFrame) || colorFrame >= outputDurationFrames)) throw new Error('Color transition would occur after the output end');\n  if (input.music) {\n    if (typeof input.music.resourceId !== 'string' || !input.music.resourceId.trim()) throw new Error('Music needs a resource ID');\n    assertPositiveInteger(input.music.durationFrames, 'Music durationFrames');\n    const musicStartFrame = input.music.startFrame ?? 0;\n    if (!Number.isSafeInteger(musicStartFrame) || musicStartFrame < 0) throw new Error('Music startFrame must be nonnegative');\n    if (gallerySourceSeconds(input.music, 'Music') - musicStartFrame / REFERENCE.fps + 1e-9 < clock.minimumSeconds) throw new Error('Selected music is too short for the output');\n  }\n  if (preparing && shortVideos.length && clock.durationFrames > 36000) throw new Error('Prepared video exceeds the 36000-frame limit');\n  const tiles = media.map((item, i) => ({\n    slotKey: `tile-${String(i + 1).padStart(2, '0')}`,\n    resourceId: item.resourceId,\n    kind: item.kind,\n    row: Math.floor(i / 3),\n    column: i % 3,\n    rect: tileRect(Math.floor(i / 3), i % 3),\n    revealFrame: revealFrames[i],\n    endFrame: outputDurationFrames,\n    focusX: item.focusX,\n    focusY: item.focusY,\n    ...(item.fit==='contain'?{fit:'contain'}:{}),\n  }));\n  return {\n    frameSize: { width: REFERENCE.width, height: REFERENCE.height },\n    fps,\n    durationFrames: outputDurationFrames,\n    bpm,\n    bpmSource: bpmPending ? 'pending' : hasManualBpm ? 'manual' : 'estimated',\n    preparation: {durationFrames: clock.durationFrames, minimumSeconds: clock.minimumSeconds},\n    colorFrame,\n    music: input.music ? { ...input.music, startSeconds: (input.music.startFrame ?? 0) / REFERENCE.fps } : null,\n    tiles,\n  };\n}\n\nasync function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {\n const project=selects.project(projectId), resources=await project.resources(), nodes=[];\n const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};\n const overview=await project.sourceFiles();\n if('fileTree' in overview)visit(overview.fileTree);\n else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}\n const sources=photos.map(photo=>{\n  const matches=nodes.filter(node=>node.path===photo.path&&(!matchById||node.resourceId===photo.resourceId)&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));\n  if(matches.length!==1||matches[0].resourceId!==photo.resourceId)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);\n  const row=matches[0],size=row.frameSize;\n  if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('A selected Image has no verified native dimensions: '+photo.name);\n  return {resourceId:row.resourceId,path:row.path,name:photo.name,width:size.width,height:size.height};\n });\n const fail=(code,photo,message)=>{throw Object.assign(new Error(message+': '+photo.name),{code,resourceId:photo.resourceId});};\n if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')throw Error('This Selects version does not support original photo file checks.');\n const checked=new Set();\n for(const photo of sources){\n  if(checked.has(photo.path))continue;\n  let before;\n  try{before=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file');}\n  if(before===null)fail('image-source-missing',photo,'The original photo file is missing');\n  if(!before||!Number.isSafeInteger(before.size)||before.size<0||typeof before.isDirectory!=='boolean')fail('image-source-unknown',photo,'Could not confirm the original photo file');\n  if(before.isDirectory||before.size===0)fail('image-source-unreadable',photo,'The original photo file is not readable');\n  let first;\n  try{first=await selects.files.readRange({path:photo.path,offset:0,length:1});}catch{fail('image-source-unreadable',photo,'Could not read the original photo file');}\n  if(!first||first.bytesRead!==1||typeof first.base64!=='string'||!/^[A-Za-z0-9+/]{2}==$/.test(first.base64))fail('image-source-unknown',photo,'Could not confirm reading the original photo file');\n  let after;\n  try{after=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file after reading');}\n  if(!after||after.isDirectory||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))fail('image-source-changed',photo,'The original photo file changed while reading');\n  checked.add(photo.path);\n }\n return sources;\n}\nasync function fingerprintTemplateFile(files,path,check=()=>{}) {\n/* @noble/hashes 2.2.0; license retained inside serialized SDK copies.\nThe MIT License (MIT)\n\nCopyright (c) 2022 Paul Miller (https://paulmillr.com)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the “Software”), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in\nall copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\nTHE SOFTWARE.\n*/\nconst __templateHashAny=value=>value;\nvar __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Object).defineProperty; var G = __templateHashAny(Object).getOwnPropertyDescriptor; var V = __templateHashAny(Object).getOwnPropertyNames; var O = __templateHashAny(__templateHashAny(Object).prototype).hasOwnProperty; var k = (t, e, r) => e in t ? __templateHashAny(w)(t, e, { enumerable: !0, configurable: !0, writable: !0, value: r }) : __templateHashAny(t)[e] = r; var R = (t, e) => { for (var r in e)\n    __templateHashAny(w)(t, r, { get: __templateHashAny(e)[r], enumerable: !0 }); }, $ = (t, e, r, o) => { if (e && typeof e == \"object\" || typeof e == \"function\")\n    for (let n of __templateHashAny(V)(e))\n        !__templateHashAny(O).call(t, n) && n !== r && __templateHashAny(w)(t, n, { get: () => __templateHashAny(e)[n], enumerable: !(o = __templateHashAny(G)(e, n)) || __templateHashAny(o).enumerable }); return t; }; var M = t => __templateHashAny($)(__templateHashAny(w)({}, \"__esModule\", { value: !0 }), t); var a = (t, e, r) => __templateHashAny(k)(t, typeof e != \"symbol\" ? e + \"\" : e, r); var N = {}; __templateHashAny(R)(N, { sha256: () => _ }); function j(t) { return t instanceof Uint8Array || __templateHashAny(ArrayBuffer).isView(t) && __templateHashAny(__templateHashAny(t).constructor).name === \"Uint8Array\" && \"BYTES_PER_ELEMENT\" in t && __templateHashAny(t).BYTES_PER_ELEMENT === 1; } function m(t, e, r = \"\") { let o = __templateHashAny(j)(t), n = __templateHashAny(t)?.length, f = e !== void 0; if (!o || f && n !== e) {\n    let s = r && `\"${r}\" `, x = f ? ` of length ${e}` : \"\", i = o ? `length=${n}` : `type=${typeof t}`, h = s + \"expected Uint8Array\" + x + \", got \" + i;\n    throw o ? new (__templateHashAny(RangeError))(h) : new (__templateHashAny(TypeError))(h);\n} return t; } function L(t, e = !0) { if (__templateHashAny(t).destroyed)\n    throw new (__templateHashAny(Error))(\"Hash instance has been destroyed\"); if (e && __templateHashAny(t).finished)\n    throw new (__templateHashAny(Error))(\"Hash#digest() has already been called\"); } function C(t, e) { __templateHashAny(m)(t, void 0, \"digestInto() output\"); let r = __templateHashAny(e).outputLen; if (__templateHashAny(t).length < r)\n    throw new (__templateHashAny(RangeError))('\"digestInto() output\" expected to be of length >=' + r); } function y(...t) { for (let e = 0; e < __templateHashAny(t).length; e++)\n    __templateHashAny(__templateHashAny(t)[e]).fill(0); } function A(t) { return new (__templateHashAny(DataView))(__templateHashAny(t).buffer, __templateHashAny(t).byteOffset, __templateHashAny(t).byteLength); } function d(t, e) { return t << 32 - e | t >>> e; } function F(t, e = {}) { let r = (n, f) => __templateHashAny(__templateHashAny(__templateHashAny(t)(f)).update(n)).digest(), o = __templateHashAny(t)(void 0); return __templateHashAny(r).outputLen = __templateHashAny(o).outputLen, __templateHashAny(r).blockLen = __templateHashAny(o).blockLen, __templateHashAny(r).canXOF = __templateHashAny(o).canXOF, __templateHashAny(r).create = n => __templateHashAny(t)(n), __templateHashAny(Object).assign(r, e), __templateHashAny(Object).freeze(r); } var T = t => ({ oid: __templateHashAny(Uint8Array).from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, t]) }); function D(t, e, r) { return t & e ^ ~t & r; } function I(t, e, r) { return t & e ^ t & r ^ e & r; } var E = class {\n    constructor(e, r, o, n) { __templateHashAny(a)(__templateHashAny(this), \"blockLen\"); __templateHashAny(a)(__templateHashAny(this), \"outputLen\"); __templateHashAny(a)(__templateHashAny(this), \"canXOF\", !1); __templateHashAny(a)(__templateHashAny(this), \"padOffset\"); __templateHashAny(a)(__templateHashAny(this), \"isLE\"); __templateHashAny(a)(__templateHashAny(this), \"buffer\"); __templateHashAny(a)(__templateHashAny(this), \"view\"); __templateHashAny(a)(__templateHashAny(this), \"finished\", !1); __templateHashAny(a)(__templateHashAny(this), \"length\", 0); __templateHashAny(a)(__templateHashAny(this), \"pos\", 0); __templateHashAny(a)(__templateHashAny(this), \"destroyed\", !1); __templateHashAny(__templateHashAny(this)).blockLen = e, __templateHashAny(__templateHashAny(this)).outputLen = r, __templateHashAny(__templateHashAny(this)).padOffset = o, __templateHashAny(__templateHashAny(this)).isLE = n, __templateHashAny(__templateHashAny(this)).buffer = new (__templateHashAny(Uint8Array))(e), __templateHashAny(__templateHashAny(this)).view = __templateHashAny(A)(__templateHashAny(__templateHashAny(this)).buffer); }\n    update(e) { __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(m)(e); let { view: r, buffer: o, blockLen: n } = __templateHashAny(this), f = __templateHashAny(e).length; for (let s = 0; s < f;) {\n        let x = __templateHashAny(Math).min(n - __templateHashAny(__templateHashAny(this)).pos, f - s);\n        if (x === n) {\n            let i = __templateHashAny(A)(e);\n            for (; n <= f - s; s += n)\n                __templateHashAny(__templateHashAny(this)).process(i, s);\n            continue;\n        }\n        __templateHashAny(o).set(__templateHashAny(e).subarray(s, s + x), __templateHashAny(__templateHashAny(this)).pos), __templateHashAny(__templateHashAny(this)).pos += x, s += x, __templateHashAny(__templateHashAny(this)).pos === n && (__templateHashAny(__templateHashAny(this)).process(r, 0), __templateHashAny(__templateHashAny(this)).pos = 0);\n    } return __templateHashAny(__templateHashAny(this)).length += __templateHashAny(e).length, __templateHashAny(__templateHashAny(this)).roundClean(), __templateHashAny(this); }\n    digestInto(e) { __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(C)(e, __templateHashAny(this)), __templateHashAny(__templateHashAny(this)).finished = !0; let { buffer: r, view: o, blockLen: n, isLE: f } = __templateHashAny(this), { pos: s } = __templateHashAny(this); __templateHashAny(r)[s++] = 128, __templateHashAny(y)(__templateHashAny(__templateHashAny(__templateHashAny(this)).buffer).subarray(s)), __templateHashAny(__templateHashAny(this)).padOffset > n - s && (__templateHashAny(__templateHashAny(this)).process(o, 0), s = 0); for (let c = s; c < n; c++)\n        __templateHashAny(r)[c] = 0; __templateHashAny(o).setBigUint64(n - 8, __templateHashAny(BigInt)(__templateHashAny(__templateHashAny(this)).length * 8), f), __templateHashAny(__templateHashAny(this)).process(o, 0); let x = __templateHashAny(A)(e), i = __templateHashAny(__templateHashAny(this)).outputLen; if (i % 4)\n        throw new (__templateHashAny(Error))(\"_sha2: outputLen must be aligned to 32bit\"); let h = i / 4, u = __templateHashAny(__templateHashAny(this)).get(); if (h > __templateHashAny(u).length)\n        throw new (__templateHashAny(Error))(\"_sha2: outputLen bigger than state\"); for (let c = 0; c < h; c++)\n        __templateHashAny(x).setUint32(4 * c, __templateHashAny(u)[c], f); }\n    digest() { let { buffer: e, outputLen: r } = __templateHashAny(this); __templateHashAny(__templateHashAny(this)).digestInto(e); let o = __templateHashAny(e).slice(0, r); return __templateHashAny(__templateHashAny(this)).destroy(), o; }\n    _cloneInto(e) { e || (e = new (__templateHashAny((__templateHashAny(__templateHashAny(this)).constructor)))), __templateHashAny(e).set(...__templateHashAny(__templateHashAny(this)).get()); let { blockLen: r, buffer: o, length: n, finished: f, destroyed: s, pos: x } = __templateHashAny(this); return __templateHashAny(e).destroyed = s, __templateHashAny(e).finished = f, __templateHashAny(e).length = n, __templateHashAny(e).pos = x, n % r && __templateHashAny(__templateHashAny(e).buffer).set(o), e; }\n    clone() { return __templateHashAny(__templateHashAny(this))._cloneInto(); }\n}, b = __templateHashAny(Uint32Array).from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]); var W = __templateHashAny(Uint32Array).from([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]), l = new (__templateHashAny(Uint32Array))(64), B = class extends __templateHashAny(E) {\n    constructor(e) { super(64, e, 8, !1); }\n    get() { let { A: e, B: r, C: o, D: n, E: f, F: s, G: x, H: i } = __templateHashAny(this); return [e, r, o, n, f, s, x, i]; }\n    set(e, r, o, n, f, s, x, i) { __templateHashAny(__templateHashAny(this)).A = e | 0, __templateHashAny(__templateHashAny(this)).B = r | 0, __templateHashAny(__templateHashAny(this)).C = o | 0, __templateHashAny(__templateHashAny(this)).D = n | 0, __templateHashAny(__templateHashAny(this)).E = f | 0, __templateHashAny(__templateHashAny(this)).F = s | 0, __templateHashAny(__templateHashAny(this)).G = x | 0, __templateHashAny(__templateHashAny(this)).H = i | 0; }\n    process(e, r) { for (let c = 0; c < 16; c++, r += 4)\n        __templateHashAny(l)[c] = __templateHashAny(e).getUint32(r, !1); for (let c = 16; c < 64; c++) {\n        let g = __templateHashAny(l)[c - 15], p = __templateHashAny(l)[c - 2], S = __templateHashAny(d)(g, 7) ^ __templateHashAny(d)(g, 18) ^ g >>> 3, H = __templateHashAny(d)(p, 17) ^ __templateHashAny(d)(p, 19) ^ p >>> 10;\n        __templateHashAny(l)[c] = H + __templateHashAny(l)[c - 7] + S + __templateHashAny(l)[c - 16] | 0;\n    } let { A: o, B: n, C: f, D: s, E: x, F: i, G: h, H: u } = __templateHashAny(this); for (let c = 0; c < 64; c++) {\n        let g = __templateHashAny(d)(x, 6) ^ __templateHashAny(d)(x, 11) ^ __templateHashAny(d)(x, 25), p = u + g + __templateHashAny(D)(x, i, h) + __templateHashAny(W)[c] + __templateHashAny(l)[c] | 0, H = (__templateHashAny(d)(o, 2) ^ __templateHashAny(d)(o, 13) ^ __templateHashAny(d)(o, 22)) + __templateHashAny(I)(o, n, f) | 0;\n        u = h, h = i, i = x, x = s + p | 0, s = f, f = n, n = o, o = p + H | 0;\n    } o = o + __templateHashAny(__templateHashAny(this)).A | 0, n = n + __templateHashAny(__templateHashAny(this)).B | 0, f = f + __templateHashAny(__templateHashAny(this)).C | 0, s = s + __templateHashAny(__templateHashAny(this)).D | 0, x = x + __templateHashAny(__templateHashAny(this)).E | 0, i = i + __templateHashAny(__templateHashAny(this)).F | 0, h = h + __templateHashAny(__templateHashAny(this)).G | 0, u = u + __templateHashAny(__templateHashAny(this)).H | 0, __templateHashAny(__templateHashAny(this)).set(o, n, f, s, x, i, h, u); }\n    roundClean() { __templateHashAny(y)(l); }\n    destroy() { __templateHashAny(__templateHashAny(this)).destroyed = !0, __templateHashAny(__templateHashAny(this)).set(0, 0, 0, 0, 0, 0, 0, 0), __templateHashAny(y)(__templateHashAny(__templateHashAny(this)).buffer); }\n}, U = class extends __templateHashAny(B) {\n    constructor() { super(32); __templateHashAny(a)(__templateHashAny(this), \"A\", __templateHashAny(b)[0] | 0); __templateHashAny(a)(__templateHashAny(this), \"B\", __templateHashAny(b)[1] | 0); __templateHashAny(a)(__templateHashAny(this), \"C\", __templateHashAny(b)[2] | 0); __templateHashAny(a)(__templateHashAny(this), \"D\", __templateHashAny(b)[3] | 0); __templateHashAny(a)(__templateHashAny(this), \"E\", __templateHashAny(b)[4] | 0); __templateHashAny(a)(__templateHashAny(this), \"F\", __templateHashAny(b)[5] | 0); __templateHashAny(a)(__templateHashAny(this), \"G\", __templateHashAny(b)[6] | 0); __templateHashAny(a)(__templateHashAny(this), \"H\", __templateHashAny(b)[7] | 0); }\n}; var _ = __templateHashAny(F)(() => new (__templateHashAny(U)), __templateHashAny(T)(1)); return __templateHashAny(M)(N); }))();\n\n if(typeof path!=='string'||!path||path.includes('\\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');\n const observe=async operation=>{check();const result=await operation();check();return result;};\n const before=await observe(()=>files.stat(path));\n if(before===null)return null;\n if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||!Number.isFinite(before.ino))throw Error(\"The file's size or identity could not be confirmed.\");\n const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\n for(let offset=0;offset<before.size;){\n  const length=Math.min(49152,before.size-offset);\n  const chunk=await observe(()=>files.readRange({path,offset,length}));\n  if(!chunk||chunk.bytesRead!==length||typeof chunk.base64!=='string'||chunk.base64.length!==4*Math.ceil(length/3)||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64))throw Error('The file read returned an incomplete or invalid binary chunk.');\n  const bytes=new Uint8Array(length);\n  let position=0;\n  for(let i=0;i<chunk.base64.length;i+=4){\n   const a=alphabet.indexOf(chunk.base64[i]),b=alphabet.indexOf(chunk.base64[i+1]),c=chunk.base64[i+2]==='='?0:alphabet.indexOf(chunk.base64[i+2]),d=chunk.base64[i+3]==='='?0:alphabet.indexOf(chunk.base64[i+3]);\n   if(chunk.base64[i+2]==='='&&(b&15)!==0||chunk.base64[i+3]==='='&&chunk.base64[i+2]!=='='&&(c&3)!==0)throw Error('The file read returned a noncanonical binary chunk.');\n   bytes[position++]=(a<<2)|(b>>4);\n   if(position<length)bytes[position++]=((b&15)<<4)|(c>>2);\n   if(position<length)bytes[position++]=((c&3)<<6)|d;\n  }\n  hash.update(bytes);check();offset+=length;\n }\n const after=await observe(()=>files.stat(path));\n if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The file changed while its contents were read.');\n const digest=hash.digest();check();\n let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');\n return {size:before.size,sha256:hex};\n}\nfunction requireSourceFileSupport(files) {\n if(typeof files?.stat!=='function'||typeof files?.readRange!=='function'){\n  const message='Update Selects to verify complete source file contents before creating this template.';\n  throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});\n }\n}\nasync function observeSourceFiles(files,paths,expected=null) {\n const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});\n if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\\0')))throw issue('source-file-input','The selected source paths are invalid.');\n const selected=[...new Set(paths)];\n const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);\n if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');\n if(!selected.length)return [];\n requireSourceFileSupport(files);\n const observed=[];\n for(const path of selected){\n  let fingerprint;\n  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}\n  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');\n  const row={...fingerprint,path};\n  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');\n  const before=expected?.find(row=>row.path===path);\n  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');\n  observed.push({path,size:row.size,sha256:row.sha256});\n }\n return observed;\n}\nfunction bindMediaPlacement(before,rows,wanted) {\n const fail=()=>{throw Error('The media placement differs from its requested interval or source.');};\n const valid=list=>Array.isArray(list)&&list.length<=1024&&list.every(row=>row&&Number.isSafeInteger(row.clipId)&&row.clipId>=0&&typeof row.trackId==='string'&&row.trackId)&&new Set(list.map(row=>row.clipId)).size===list.length;\n if(!valid(before)||!valid(rows)||!wanted||typeof wanted.resourceId!=='string'||!wanted.resourceId)fail();\n const keys=['trackId','trackKind','resourceId','startFrame','endFrame'],ids=new Set(before.map(row=>row.clipId)),added=rows.filter(row=>!ids.has(row.clipId));\n if(rows.length!==before.length+1||added.length!==1||before.some(old=>{const current=rows.find(row=>row.clipId===old.clipId);return !current||keys.some(key=>current[key]!==old[key]);}))fail();\n const row=added[0];if(!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)fail();\n for(const key of ['resourceId','trackKind','startFrame','endFrame'])if(wanted[key]!==undefined&&row[key]!==wanted[key])fail();\n return row;\n}\nasync function placeWorkingCopyImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement){\n const project=selects.project(projectId),meta=await draft.meta();\n if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize.width!==plan.canvas.width||meta.frameSize.height!==plan.canvas.height)throw Error('The Draft frame grid differs from the plan.');\n const fresh=await sourceFacts(selects,projectId,sources);\n if(fresh.length!==sources.length||fresh.some((source,index)=>source.resourceId!==sources[index].resourceId||source.width!==sources[index].width||source.height!==sources[index].height))throw Error('A selected Image changed. Prepare the Images again.');\n const placements=[];\n for(const item of items){\n  const source=fresh[item.source];if(!source)throw Error('An Image occurrence has no source.');\n  const before=await draft.clips({trackScope:'all'});\n  await draft.overlayResource({resource:project.resource(source.resourceId),over:await draft.rangeAtFrames(item.startFrame,item.endFrame)});\n  const added=bindPlacement(before,await draft.clips({trackScope:'all'}),{resourceId:source.resourceId,trackKind:'video',startFrame:item.startFrame,endFrame:item.endFrame});\n  placements.push({...item,clipId:added.clipId,trackId:added.trackId,resourceId:source.resourceId});\n }\n if((await draft.meta()).durationFrames!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');\n return {placements,photos:fresh.map(source=>({width:source.width,height:source.height}))};\n}\nasync function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format,bindPlacement){\n let stage='read';\n try{\n  const {projectId,plan,sources,items,partialDraftId}=config,project=selects.project(projectId);\n  if(partialDraftId&&!(await project.meta()).draftIds.includes(partialDraftId))throw Error('Partial Draft is not in this Project.');\n  const draft=partialDraftId?selects.draft(partialDraftId):await project.createDraft({name:config.name});\n  if(!('motionGraphics' in draft)||!('motionGraphicProgram' in draft))throw Error('Update Selects to verify editable graphics.');\n  if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');\n  if(!partialDraftId){\n   stage='working copy';\n   if(config.main){await draft.insertResource({resourceId:config.main.resourceId,sourceRange:{startSeconds:config.main.startSeconds,endSeconds:config.main.startSeconds+plan.durationFrames/plan.fps}});}\n   else await draft.insertGap({seconds:plan.durationFrames/plan.fps});\n   await draft.setFrameSize(plan.canvas);\n  }else{\n   const rows=await draft.clips({trackScope:'all'});\n   if(rows.some(row=>row.trackKind!=='main'||(config.main?row.resourceId!==config.main.resourceId:Boolean(row.resourceId)))||config.main&&rows.length!==1)throw Error('Partial Draft is not empty; inspect it before retrying.');\n  }\n  stage='placement';const native=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement);\n  const clips=native.placements.map(({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame}));\n  stage='finish';const result=await finish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programFeature(selects,{...config,clips},format));\n  return {...result,fps:plan.fps,durationFrames:plan.durationFrames,frameSize:plan.canvas,clips};\n }catch(error){return {status:stage==='finish'?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:config.partialDraftId||null};}\n}\nasync function inspectImageGraphics(draft,expected){\n if(!('motionGraphics' in draft)||!('motionGraphicProgram' in draft))throw Error('Update Selects to verify editable graphics.');\n const same=(a,b)=>{\n  if(a===b)return true;\n  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;\n  const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(key=>Object.prototype.hasOwnProperty.call(b,key)&&same(a[key],b[key]));\n };\n const graphics=await draft.motionGraphics();\n if(!Array.isArray(graphics)||graphics.length!==expected.length)throw Error('Graphic count could not be confirmed.');\n for(const wanted of expected){\n  const actual=graphics.find(g=>g.clip.clipId===wanted.clipId&&g.clip.trackId===wanted.trackId)?.clip;\n  if(!actual||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Graphic placement could not be confirmed.');\n  const program=await draft.motionGraphicProgram(actual);\n  if(!program||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Object.entries(wanted.parameters).every(([key,value])=>Object.prototype.hasOwnProperty.call(program.parameters,key)&&same(program.parameters[key],value)))throw Error('Graphic parameters could not be confirmed.');\n }\n}\nasync function inspectImageTransforms(draft,expected,includeMain=false){\n // Both consumers author fixed intrinsic transforms; motion belongs to their\n // separate effects. Never adopt an observed transform as the expected value.\n if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');\n const rows=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='video'||includeMain&&clip.trackKind==='main'&&clip.resourceId!=null);\n if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Visual transform count could not be confirmed.');\n const same=(a,b)=>{\n  // Converting domain coordinates to the SDK may introduce floating-point noise.\n  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));\n  if(a===b)return true;\n  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;\n  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));\n };\n const receipts=[];\n for(const wanted of expected){\n  const clip=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);\n  if(!clip)throw Error('Visual transform target could not be confirmed.');\n  const patch=wanted.transform,transform={enabled:true,rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[],...patch,position:{x:0,y:0,...patch.position},scale:{x:1,y:1,...patch.scale},anchor:{x:0,y:0,...patch.anchor}};\n  const actual=await draft.clipTransform(clip);\n  if(!actual||!Object.entries(transform).every(([key,value])=>same(actual[key],value)))throw Error('Visual transform could not be confirmed.');\n  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,transform});\n }\n return receipts;\n}\nasync function inspectImageAudio(draft,expected,project,overlayOnly=false,observedSources=null,readSource=null){\n const mismatch=message=>Object.assign(Error(message),{code:'IMAGE_AUDIO_MISMATCH'});\n const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);\n if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw mismatch('Audio clip count could not be confirmed.');\n if(!expected.length)return [];\n if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');\n const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];\n const same=(a,b)=>{\n  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));\n  if(a===b)return true;\n  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;\n  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));\n };\n for(const wanted of expected){\n  const row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);\n  if(!row||row.trackKind!==wanted.trackKind||row.resourceId!==wanted.resourceId||row.startFrame!==wanted.startFrame||row.endFrame!==wanted.endFrame||types.get(row.resourceId)!=='Audio'||!same(row.audioSourceIndexes,wanted.audioSourceIndexes))throw mismatch('Audio placement or routing could not be confirmed.');\n  const settings={volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0,...wanted.settings},actual=await draft.clipAudio(row);\n  if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw mismatch('Audio volume or fades could not be confirmed.');\n  if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');\n  const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};\n  if(!Number.isSafeInteger(source.playbackSpeed?.numerator)||source.playbackSpeed.numerator<1||!Number.isSafeInteger(source.playbackSpeed?.denominator)||source.playbackSpeed.denominator<1||typeof source.preserveAudioPitch!=='boolean')throw Error('Audio source evidence is invalid.');\n  if(row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio playback policy could not be confirmed.');\n  // Time uses floating-point arithmetic noise only, not the relative tolerance\n  // used for level/fades. A small changed source instant must remain detectable.\n  const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));\n  // An unsaved working copy has no persisted source read. Keep the requested\n  // interval as intent; only saved verification supplies independently read\n  // sources. Never infer the source offset from timeline placement.\n  if(observedSources!==null){\n   if(typeof readSource!=='function')throw Error('Audio source observation is unavailable.');\n   let observed;try{observed=readSource(observedSources,row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}\n   if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds))throw mismatch('Audio source timing could not be confirmed.');\n  }\n  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});\n }\n return receipts;\n}\nfunction imageProgramsFeature(selects,config=null,format=null){\n const issue=message=>Object.assign(Error(message),{code:'IMAGE_PROGRAM_INVALID',publicMessage:message});\n const guarded=fn=>async(...args)=>{try{return await fn(...args);}catch(cause){if(cause?.code==='IMAGE_PROGRAM_INVALID')throw cause;throw Object.assign(issue('Image program state could not be confirmed.'),{cause});}};\n const same=(a,b)=>{\n  if(a===b)return true;\n  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;\n  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));\n };\n const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});\n const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);\n // Reconcile a caller-owned program intent on Main or overlay visuals. Names\n // only locate candidates; code, values, controls, intervals and order prove a\n // match. Preflight the whole intent before the caller's optional mutation.\n const reconcile=guarded(async(draft,input,beforeApply=null)=>{\n  if(!['clips','motionGraphics','motionGraphicProgram','videoEffects','videoEffectProgram','addMotionGraphic','addVideoEffect','rangeAtFrames'].every(key=>typeof draft[key]==='function'))throw issue('Update Selects to verify authored programs.');\n  const text=JSON.stringify(input,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['function','bigint','symbol'].includes(typeof value))throw issue('Program intent contains an unsupported value.');return value;});\n  if(!text||text.length>8*1024*1024)throw issue('Program intent exceeds its input limit.');\n  const intent=JSON.parse(text),names=value=>Array.isArray(value)&&value.length<=32&&new Set(value).size===value.length&&value.every(name=>typeof name==='string'&&name.length>0&&name.length<=256);\n  if(!intent||!names(intent.graphicNames)||!names(intent.effectNames)||!Array.isArray(intent.graphics)||intent.graphics.length>256||!Array.isArray(intent.clips)||intent.clips.length>256||new Set(intent.graphics.map(g=>g.name)).size!==intent.graphics.length||new Set(intent.clips.map(c=>c.clipId)).size!==intent.clips.length||beforeApply!==null&&typeof beforeApply!=='function')throw issue('Program intent is incomplete.');\n  const prepare=program=>{\n   if(!program||typeof program.tsxCode!=='string'||!program.tsxCode||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');\n   return normalized(program);\n  };\n  const graphicPlans=intent.graphics.map(g=>{\n   if(!g||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');\n   return {...g,program:prepare(g)};\n  });\n  const clipPlans=intent.clips.map(c=>{\n   if(!c||!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||!Array.isArray(c.effects)||c.effects.length>32||new Set(c.effects.map(e=>e.name)).size!==c.effects.length)throw issue('Effect intent has an invalid target.');\n   return {...c,effects:c.effects.map(e=>{if(!e||!intent.effectNames.includes(e.name))throw issue('Effect intent has an invalid name.');return {name:e.name,program:prepare(e)};})};\n  });\n  const rowFor=async wanted=>{\n   const rows=await draft.clips({trackScope:'all'}),row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);\n   if(!row||!['main','video'].includes(row.trackKind)||!row.resourceId)throw issue('Effect intent target could not be confirmed.');return row;\n  };\n  const graphicPresent=async wanted=>{\n   const candidates=(await draft.motionGraphics()).filter(g=>g.name===wanted.name);\n   if(candidates.length>1)throw issue('Graphic intent matches several placements.');\n   if(!candidates.length)return false;\n   const clip=candidates[0].clip;\n   if(clip.trackKind!=='video'||clip.startFrame!==wanted.startFrame||clip.endFrame!==wanted.endFrame||!matches(await draft.motionGraphicProgram(clip),wanted.program))throw issue('Graphic program, controls or interval differ from the intended result.');\n   return true;\n  };\n  const effectState=async(wanted,complete)=>{\n   const all=await draft.videoEffects(await rowFor(wanted));\n   if(!Array.isArray(all)||all.some((e,index)=>e.effectIndex!==index||e.clipId!==wanted.clipId||e.trackId!==wanted.trackId))throw issue('Effect stack target could not be confirmed.');\n   const managed=all.filter(e=>intent.effectNames.includes(e.name));\n   if(managed.length>wanted.effects.length||complete&&managed.length!==wanted.effects.length)throw issue('Effect intent count could not be confirmed.');\n   for(const [index,e] of managed.entries()){\n    const expected=wanted.effects[index];\n    if(e.name!==expected.name||e.enabled!==true||!matches(await draft.videoEffectProgram(e),expected.program))throw issue('Effect program, controls or prefix order differ from the intended result.');\n   }\n   return {count:managed.length,stack:all.map(e=>({name:e.name,effectName:e.effectName,enabled:e.enabled}))};\n  };\n  for(const g of graphicPlans)g.kept=await graphicPresent(g);\n  for(const c of clipPlans)c.before=await effectState(c,false);\n  // Muting and other caller policy run only after every existing program was\n  // checked. All targets below are reread after that edit and each addition.\n  if(beforeApply)await beforeApply();\n  let graphicsAdded=0,graphicsKept=0;\n  const effects=Object.fromEntries(intent.effectNames.map(name=>[name,{added:0,kept:0}]));\n  for(const g of graphicPlans){\n   if(g.kept){graphicsKept++;continue;}\n   await draft.addMotionGraphic({within:await draft.rangeAtFrames(g.startFrame,g.endFrame),label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters});graphicsAdded++;\n  }\n  for(const c of clipPlans){\n   for(const [index,e] of c.effects.entries()){\n    if(index<c.before.count){effects[e.name].kept++;continue;}\n    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,tsxCode:e.program.tsxCode,parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;\n   }\n  }\n  // Writer acknowledgements are not evidence that a program was applied.\n  for(const g of graphicPlans)if(!await graphicPresent(g))throw issue('The intended graphic was not applied.');\n  for(const c of clipPlans){\n   const after=await effectState(c,true);\n   if(!same(after.stack.slice(0,c.before.stack.length),c.before.stack))throw issue('An existing effect stack changed while applying programs.');\n  }\n  return {graphicsAdded,graphicsKept,effects};\n });\n const inspect=async(draft,expected)=>{\n  if(!('videoEffects' in draft)||!('videoEffectProgram' in draft)||!('motionGraphicProgram' in draft))throw issue('Update Selects to verify Image programs.');\n  const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');\n  if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');\n  const sources=[],clips=[];\n  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};\n  for(const wanted of expected){\n   const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');\n   const effects=await draft.videoEffects(clip);\n   if(!Array.isArray(effects)||effects.length!==wanted.effects.length)throw issue('Effect stack could not be confirmed.');\n   const checked=[];\n   for(const [index,entry] of wanted.effects.entries()){\n    const actual=effects[index],program=normalized(entry);\n    if(actual.effectIndex!==index||actual.name!==entry.name||actual.enabled!==true||!matches(await draft.videoEffectProgram(actual),program))throw issue('Effect program, order or controls could not be confirmed.');\n    checked.push({name:entry.name,...pack(program)});\n   }\n   const graphic=await draft.motionGraphicProgram(clip);\n   if(wanted.graphic?!matches(graphic,normalized(wanted.graphic)):graphic!==null)throw issue('Graphic program or controls could not be confirmed.');\n   clips.push({clipId:clip.clipId,trackId:clip.trackId,effects:checked,graphic:wanted.graphic?pack(wanted.graphic):null});\n  }\n  return {sources,clips};\n };\n const presets=new Map();\n const preset=async id=>{\n  if(!config)throw issue('Effect preset preparation requires an authoring target.');\n  if(presets.has(id))return presets.get(id);\n  const definition=await selects.effectPresets.get(id);\n  if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');\n  // The public preset definition omits effect TSX. Resolve a canonical program\n  // in an isolated unsaved reference, never by adopting the target's output.\n  const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});\n  await probe.insertGap({seconds:config.plan.durationFrames/config.plan.fps});await probe.setFrameSize(config.plan.canvas);\n  await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});\n  if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');\n  let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');\n  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});\n  if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');\n  clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');\n  const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');\n  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});\n  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');\n  const value={name:definition.label,...expected};presets.set(id,value);return value;\n };\n const confirm=details=>{\n  if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');\n  const result={draftId:config.partialDraftId||'x'.repeat(120),fps:config.plan.fps,durationFrames:config.plan.durationFrames,frameSize:config.plan.canvas,clips:config.clips,...details};\n  // Reserve more than a UUID for the post-commit identity. Check the actual\n  // journal envelope and ASCII encoding before the only persistence boundary.\n  try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}\n };\n const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));\n return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};\n}\nfunction templateRunJSON(value,limit=49152) {\n // Request data may opt in to a larger budget. Receipt envelopes and their\n // exclusive/CAS writes retain the original 48 KiB default and exact bytes.\n if(!Number.isSafeInteger(limit)||limit<49152||limit>131072)throw Error('Invalid template request limit.');\n const text=JSON.stringify(value).replace(/[\\u007f-\\uffff]/g,char=>'\\\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));\n if(text.length>limit)throw Error('The template run receipt exceeds the local file limit.');\n return text;\n}\nfunction templateRunBase64(text) {\n const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';let out='';\n for(let i=0;i<text.length;i+=3){\n  const a=text.charCodeAt(i),b=text.charCodeAt(i+1),c=text.charCodeAt(i+2);\n  out+=alphabet[a>>2]+alphabet[((a&3)<<4)|(Number.isNaN(b)?0:b>>4)]+(Number.isNaN(b)?'=':alphabet[((b&15)<<2)|(Number.isNaN(c)?0:c>>6)])+(Number.isNaN(c)?'=':alphabet[c&63]);\n }\n return out;\n}\nfunction templateStateJSON(value,limit=8388608){\n const text=JSON.stringify(value,(_key,item)=>{\n  if(typeof item==='number'&&!Number.isFinite(item)||['function','symbol','bigint'].includes(typeof item))throw Error('Template state contains an unsupported value.');\n  return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item;\n }).replace(/[\\u007f-\\uffff]/g,char=>'\\\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));\n if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;\n}\nasync function templateStateFile(selects,path,text,encode,expected=null,fingerprint=null){\n const files=selects.files;\n if(!files||!['readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof fingerprint!=='function'||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');\n if(!expected){\n  for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}\n  const observed=await fingerprint(files,path);\n  if(!observed||observed.size!==text.length||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('Template state file could not be fingerprinted.');\n  expected={path,...observed};\n }\n if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');\n const before=await fingerprint(files,path);\n if(!before||before.size!==expected.size||before.sha256!==expected.sha256)throw Error('The template state file has changed.');\n for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.readRange({path,offset,length:chunk.length});if(reply?.bytesRead!==chunk.length||reply.base64!==encode(chunk))throw Error('The saved Draft differs from its owned state.');}\n const after=await fingerprint(files,path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');\n return expected;\n}\nasync function writeTemplateRunResult(selects,claim,result,json,encode) {\n try{\n  const row=JSON.parse(claim.expectedText),status=result.status;\n  if(row.status!=='claimed'||!['saved','notSaved','outcomeUnknown'].includes(status))throw Error('Invalid run receipt state');\n  let saved;\n  if(status==='saved'){\n   if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');\n   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{},...'sourceGuard' in result?{sourceGuard:result.sourceGuard}:{}};\n  }\n  const savedDraftId=status==='outcomeUnknown'?result.draftId:null;\n  if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\\0')))throw Error('Invalid saved Draft identity');\n  const next=json({...row,status,...saved?{result:saved}:{},...savedDraftId?{savedDraftId}:{}});\n  const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});\n  return {...result,runReceiptSaved:reply?.replaced===true};\n }catch{return {...result,runReceiptSaved:false};}\n}\nasync function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false,requireComplete=false){\n const project=selects.project(projectId),resources=new Map(),matches=[];\n const rows=await project.resources();\n if(requireComplete&&!Array.isArray(rows))throw Error('The Project Resource catalog is incomplete.');\n for(const resource of rows){\n  if(requireComplete&&(!resource||typeof resource.resourceId!=='string'||!resource.resourceId||resources.has(resource.resourceId)))throw Error('The Project Resource catalog is contradictory.');\n  resources.set(resource.resourceId,resource);\n }\n const key=value=>{const text=normalizeUnicode?String(value).normalize('NFC'):String(value);return platform==='win32'?text.replace(/\\\\/g,'/').toLowerCase():text;};\n const visit=items=>{\n  if(requireComplete&&!Array.isArray(items))throw Error('The Project file tree is incomplete.');\n  for(const n of items||[]){\n   if(matches.length>=2)return;\n   if(requireComplete&&(!n||typeof n!=='object'))throw Error('The Project file tree is incomplete.');\n   if(n.type==='dir')visit(n.children);\n   else if(n.path&&key(n.path)===key(path)){\n    if(requireComplete&&!resources.has(n.resourceId))throw Error('The selected Project file has no Resource metadata.');\n    if(resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,path:n.path,type:r.type,durationSeconds:r.durationSeconds,...r.type==='Image'?{frameSize:n.frameSize}:{}});}\n   }\n  }\n };\n const tree=await project.sourceFiles();\n if('fileTree' in tree)visit(tree.fileTree);\n else{\n  if(requireComplete&&(!Array.isArray(tree.folders)||!tree.folders.length&&tree.fileCount!==0))throw Error('The Project file overview is incomplete.');\n  const seen=new Set();\n  for(const folder of tree.folders||[]){\n   if(matches.length>=2)break;\n   if(requireComplete&&(!folder||typeof folder.name!=='string'||!folder.name||seen.has(folder.name)))throw Error('The Project folder overview is contradictory.');\n   seen.add(folder.name);const detail=await project.sourceFiles({folder:folder.name});\n   if('fileTree' in detail)visit(detail.fileTree);\n   else if(requireComplete)throw Error('The Project folder detail is incomplete.');\n  }\n }\n return {matches};\n}\n// Executed inside Selects run_script by both the panel and the chat skill.\nconst TILE_EFFECT = `import {useCurrentFrame} from 'remotion';\nexport default function PhotoGalleryTile({Source,data}) {\n  const frame = useCurrentFrame();\n  const sourceW = data.sourceWidth, sourceH = data.sourceHeight;\n  const frameW = data.frameWidth, frameH = data.frameHeight;\n  const x = Math.max(frameW - sourceW, Math.min(0, frameW / 2 - data.focusX * sourceW));\n  const y = Math.max(frameH - sourceH, Math.min(0, frameH / 2 - data.focusY * sourceH));\n  return <div style={{position:'absolute',inset:0}}>\n    <div style={{position:'absolute',left:data.cropLeft,top:data.cropTop,width:frameW,height:frameH,overflow:'hidden',filter:frame < data.colorAfterLocalFrame ? 'grayscale(1)' : 'none'}}>\n      <div style={{position:'absolute',left:x,top:y,width:sourceW,height:sourceH}}><Source/></div>\n    </div>\n  </div>;\n}`;\n\nfunction galleryFail(message) { throw Object.assign(new Error(message),{galleryPublic:true}); }\n\n// Host paths: POSIX (/…) on macOS; a drive (C:\\… or C:/…) or UNC (\\\\server\\…) path on Windows.\nfunction galleryAbsolute(path) {\n  return typeof path === 'string' && !path.includes('\\0') && /^(?:\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)./.test(path);\n}\n// One comparison key per host path: NFC; a Windows path (drive letter or backslash) also gets / separators and is\n// case-folded, as Windows paths are case-insensitive. POSIX paths stay case-sensitive.\nfunction galleryPathKey(path) {\n  const text = String(path ?? '').normalize('NFC');\n  return /^[A-Za-z]:(?:[\\\\/]|$)/.test(text) || text.includes('\\\\') ? text.replace(/\\\\/g, '/').toLowerCase() : text;\n}\nfunction gallerySamePath(a, b) { return typeof a === 'string' && typeof b === 'string' && galleryPathKey(a) === galleryPathKey(b); }\n\nfunction galleryResolveResource(items, resourceId, path, label) {\n  if (!galleryAbsolute(path)) galleryFail(`${label} path is required`);\n  const matches = items.filter((item) => gallerySamePath(item.path, path));\n  if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);\n  return matches[0];\n}\n\nasync function galleryInventory(project, paths = null) {\n  const resources = await project.resources();\n  const byId = new Map();\n  for (const row of resources) byId.set(row.resourceId, row);\n  const overview = await project.sourceFiles();\n  const nodes = [];\n  const visit = (items) => {\n    for (const item of items || []) {\n      if (item.type === 'dir') visit(item.children);\n      else nodes.push(item);\n    }\n  };\n  if (Array.isArray(overview.fileTree)) visit(overview.fileTree);\n  else if (overview.mode === 'summary' && Array.isArray(overview.folders)) {\n    for (const folder of overview.folders) {\n      const part = await project.sourceFiles({ folder: folder.name });\n      if (!Array.isArray(part.fileTree)) galleryFail('Media inventory is incomplete');\n      visit(part.fileTree);\n    }\n  } else galleryFail('Media inventory is unavailable');\n  const media = [], audio = [];\n  for (const node of nodes) {\n    const resource = byId.get(node.resourceId);\n    if (!resource || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;\n    const type = String(resource.type).toLowerCase();\n    const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;\n    if (!kind) continue;\n    const durationSeconds = Number.isFinite(node.durationSeconds) ? node.durationSeconds : resource.durationSeconds;\n    const durationFrames = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 60) : null;\n    const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames, durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : null };\n    if (kind === 'audio') audio.push(common);\n    else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {\n      media.push({ ...common, kind, width: node.frameSize?.width ?? null, height: node.frameSize?.height ?? null });\n    }\n  }\n  const readyIds = new Set([...media, ...audio].map(item => item.resourceId));\n  const scopedIds = paths && new Set(nodes.filter(node => paths.includes(node.path)).map(node => node.resourceId));\n  const unavailable = resources.filter((resource) =>\n    (!scopedIds || scopedIds.has(resource.resourceId)) &&\n    ['image', 'video', 'audio'].includes(String(resource.type).toLowerCase()) &&\n    !readyIds.has(resource.resourceId));\n  return { media, audio, unavailable: unavailable.map((item) => ({ resourceId: item.resourceId, name: item.name })) };\n}\n\nfunction galleryGeometry(tile, source, colorFrame) {\n  const { left, right, top, bottom } = tile.rect;\n  const width = right - left, height = bottom - top;\n  const contain=tile.fit==='contain';\n  const q = (contain?Math.max:Math.min)(source.width / width, source.height / height);\n  // Contain exposes the full native raster; shrinking only its transform would keep the cover viewport.\n  const frameWidth = contain?source.width:width*q, frameHeight = contain?source.height:height*q;\n  const conform = Math.min(1080 / source.width, 1920 / source.height);\n  return {\n    effect: {\n      sourceWidth: source.width, sourceHeight: source.height,\n      frameWidth, frameHeight,\n      cropLeft: (source.width - frameWidth) / 2,\n      cropTop: (source.height - frameHeight) / 2,\n      focusX: tile.focusX, focusY: tile.focusY,\n      colorAfterLocalFrame: colorFrame - tile.revealFrame,\n    },\n    transform: {\n      position: { x: (((left + right) / 2) - 540) / 1920 * 100, y: (960 - (top + bottom) / 2) / 1920 * 100 },\n      scale: { x: 1 / (q * conform), y: 1 / (q * conform) },\n    },\n  };\n}\n\nfunction assertGalleryInput(input) {\n  if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');\n  if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');\n  if (!['inspect', 'verifyInputs', 'verifyMusic', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated', 'verifySourceFiles', 'verifySourceMetadata'].includes(input.operation)) galleryFail('Unknown gallery action');\n  if (['create', 'verifyInputs', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');\n  return input;\n}\n\nasync function galleryImportConverted(selects, project, input, inventory, onImportStarted) {\n  const requiredFrames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(requiredFrames) || requiredFrames < 1 || requiredFrames > 36000) {\n    galleryFail('Held video duration must be an integer from 1 to 36000 frames');\n  }\n  if (!Array.isArray(input.converted) || input.converted.length < 1 || input.converted.length > 21) {\n    galleryFail('Provide one to 21 held video files');\n  }\n  const seenSources = new Set();\n  for (const item of input.converted) {\n    const source = galleryResolveResource([...inventory.media,...inventory.audio], item?.sourceResourceId, item?.sourcePath, 'Selected source');\n    if (source.kind !== 'video' || seenSources.has(source.resourceId) ||\n        !galleryAbsolute(item.path) || !/\\.mp4$/i.test(item.path)) {\n      galleryFail('A held clip must match one distinct Project video and absolute MP4 path');\n    }\n    seenSources.add(source.resourceId);\n  }\n  const paths = [...new Map(input.converted.map((item) => [galleryPathKey(item.path), item.path])).values()];\n  if(paths.length!==input.converted.length)galleryFail('Each distinct source needs its own held video path');\n  const target=async(path,current)=>{\n    const platform=/^[A-Za-z]:[\\\\/]|\\\\/.test(path)?'win32':'darwin';\n    const result=await readBundledAssetResource(selects,input.projectId,path,platform,true);\n    if(result.matches.length>1)galleryFail('Held video path is ambiguous in this Project');\n    const match=result.matches[0];if(!match)return null;\n    if(match.type!=='Video')galleryFail('Held video path is not a Video Resource');\n    const rows=current.media.filter(row=>row.resourceId===match.resourceId&&gallerySamePath(row.path,path));\n    const video=rows[0];\n    if(rows.length!==1||!Number.isSafeInteger(video.width)||video.width<1||!Number.isSafeInteger(video.height)||video.height<1||!Number.isSafeInteger(video.durationFrames)||video.durationFrames<requiredFrames||!Number.isFinite(video.durationSeconds)||video.durationSeconds+1e-9<requiredFrames/60)galleryFail('Held video import or length could not be verified; inspect Project files before retrying');\n    return video;\n  };\n  const currentByPath=new Map();\n  for(const path of paths){const row=await target(path,inventory);if(row)currentByPath.set(galleryPathKey(path),row);}\n  const probe = await selects.media.probe({ filePaths: paths });\n  const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => galleryPathKey(file.path)));\n  if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(galleryPathKey(path)))) {\n    galleryFail('A held video file is missing or unreadable; no Project media was imported');\n  }\n  const missing = paths.filter((path) => !currentByPath.has(galleryPathKey(path)));\n  let imported;\n  if (missing.length) {\n    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');\n    onImportStarted();\n    try{imported=await project.importFiles({ paths: missing });}catch{/* A lost reply is resolved from independent registered state below. */}\n  }\n  // Probing is asynchronous even when every target was already registered.\n  // Reobserve metadata before reusing it; a cached pre-probe row is not proof.\n  const fresh = await galleryInventory(project);\n  const importedByPath = new Map();\n  for(const path of paths){const row=await target(path,fresh);if(!row)galleryFail('Held video import outcome could not be confirmed; inspect Project files before retrying');importedByPath.set(galleryPathKey(path),row);}\n  const ids=imported?.addedResourceIds;\n  if(Array.isArray(ids)&&ids.length){\n    const confirmed=missing.map(path=>importedByPath.get(galleryPathKey(path)).resourceId);\n    if(ids.length!==confirmed.length||new Set(ids).size!==ids.length||ids.some(id=>!confirmed.includes(id)))galleryFail('Added held video identities could not be confirmed; inspect Project files before retrying');\n  }\n  const converted = input.converted.map((item) => {\n    const video = importedByPath.get(galleryPathKey(item.path));\n    if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {\n      galleryFail('Held video import or length could not be verified; inspect Project files before retrying');\n    }\n    const source = galleryResolveResource([...fresh.media,...fresh.audio], item.sourceResourceId, item.sourcePath, 'Selected source');\n    if(source.kind!=='video')galleryFail('Selected source changed during held video import');\n    return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,\n      resourceId: video.resourceId,\n      // The Project's own spelling of the path, which native placement later compares exactly.\n      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames, durationSeconds: video.durationSeconds };\n  });\n  return { status: 'prepared', converted };\n}\n\nasync function galleryImportBundledMusic(selects, project, input, inventory, onImportStarted) {\n  const frames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) galleryFail('Music length must be an integer from 1 to 36000 frames');\n  if (!galleryAbsolute(input.path) || !/\\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');\n  if(!/\\/\\.selects\\/plugin-data\\/photo-gallery-no2\\/assets\\/[0-9a-f]{64}\\.mp3$/.test(galleryPathKey(input.path)))galleryFail('Prepare bundled music through the installed panel first. Only its verified owned asset path may be registered; installation paths cannot be used.');\n  const probe = await selects.media.probe({ filePaths: [input.path] });\n  if (probe.error || probe.errors?.length || probe.summary?.failed ||\n      !(probe.files || []).some(file => gallerySamePath(file.path, input.path) && (!file.type || /audio/i.test(file.type)))) {\n    galleryFail('Bundled music is missing or corrupt; reinstall the plugin');\n  }\n  const matches = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (matches.length > 1 || inventory.media.some(item => gallerySamePath(item.path, input.path))) galleryFail('Bundled music path is ambiguous or is not Audio');\n  if (!matches.length) {\n    onImportStarted();\n    await project.importFiles({ paths: [input.path] });\n    inventory = await galleryInventory(project);\n  }\n  const audio = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (audio.length !== 1 || !Number.isSafeInteger(audio[0].durationFrames)) galleryFail('Bundled music import is not ready; inspect Project media before retrying');\n  if (audio[0].durationFrames < frames) galleryFail('Music is too short for this result length; shorten the result or choose a longer track');\n  return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };\n}\n\nfunction gallerySelectedInputs(input, inventory) {\n  const chosen = input.media.map((item, i) => {\n    if (!item || typeof item.resourceId !== 'string' || !item.resourceId.trim()) galleryFail(`Slot ${i + 1} Resource ID is required`);\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    if (item.kind !== fresh.kind) galleryFail(`Slot ${i + 1} media type changed`);\n    const width = fresh.width, height = fresh.height;\n    if (fresh.kind === 'video' && (!Number.isFinite(fresh.durationSeconds) || fresh.durationSeconds <= 0)) galleryFail(`Slot ${i + 1} Video duration is unavailable`);\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);\n    }\n    if ((item.width != null && fresh.width != null && fresh.width !== item.width) ||\n        (item.height != null && fresh.height != null && fresh.height !== item.height)) {\n      galleryFail(`Slot ${i + 1} dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY, fit:item.fit };\n  });\n  const music = input.music == null ? null :\n    galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  if (input.music != null && !music) galleryFail('Selected music is missing or moved');\n  if (music && (!Number.isFinite(music.durationSeconds) || music.durationSeconds <= 0)) galleryFail('Selected music duration is unavailable');\n  const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };\n  const media = validateMedia(chosen);\n  return {chosen:media,music:selectedMusic};\n}\n\nasync function galleryReadInputs(selects, project, input, inventory) {\n  const {chosen:media,music}=gallerySelectedInputs(input,inventory);\n  const paths = [...new Set([...media.map((item) => item.path), ...(music ? [music.path] : [])])];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));\n  if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {\n    galleryFail('A selected media file is missing, unreadable, or corrupt; no Draft was saved');\n  }\n  // A probe can outlive its file snapshot. Reuse the same post-probe original\n  // Image checks as other photo templates; Video-only inputs need no unused\n  // Image file capability. Current aliases come from frozen selected paths.\n  const images = media.map((item, index) => ({ ...item, name: `Tile ${index + 1}` })).filter(item => item.kind === 'image');\n  if (images.length) {\n    const facts = await nativeImageSources(selects, input.projectId, images);\n    for (let index = 0; index < images.length; index++) if (facts[index].width !== images[index].width || facts[index].height !== images[index].height) {\n      throw Object.assign(new Error(`A selected Image changed while checking inputs: ${images[index].name}`), { code: 'image-source-changed', resourceId: images[index].resourceId });\n    }\n  }\n  return { chosen: media, music };\n}\n\nasync function galleryReadMusic(selects, project, input, inventory) {\n  try {\n  requireSourceFileSupport(selects.files);\n  const read=rows=>{\n    const music=galleryResolveResource(rows.audio,input.music?.resourceId,input.music?.path,'Music');\n    if(!Number.isFinite(music.durationSeconds)||music.durationSeconds<=0)galleryFail('Selected music duration is unavailable');\n    return music;\n  };\n  const before=read(inventory),probe=await selects.media.probe({filePaths:[before.path]});\n  const matches=(probe.files??[]).filter(file=>gallerySamePath(file.path,before.path)&&(!file.type||/audio/i.test(file.type)));\n  if(probe.error||probe.errors?.length||probe.summary?.failed||matches.length!==1)galleryFail('Selected music is missing, unreadable or not Audio');\n  const after=read(await galleryInventory(project));\n  if(before.resourceId!==after.resourceId||!gallerySamePath(before.path,after.path)||before.durationSeconds!==after.durationSeconds)galleryFail('Selected music changed while checking inputs');\n  return after;\n  }catch(error){\n    if(error?.galleryPublic)throw error;\n    galleryFail('Selected music could not be verified. Check the Project file and try again.');\n  }\n}\n\nasync function galleryPreflight(selects, project, input, inventory) {\n  const { chosen, music } = await galleryReadInputs(selects, project, input, inventory);\n  const plan = planGallery({ media: chosen, music, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });\n  const meta = await project.meta();\n  if (!Array.isArray(meta.draftIds)) galleryFail('Project Draft list is unavailable');\n  return { plan, chosen, music };\n}\n\nasync function galleryAtomicSources(selects, projectId, sources) {\n  const project=selects.project(projectId),inventory=await galleryInventory(project);\n  const fresh=(await galleryReadInputs(selects,project,{projectId,media:sources,music:null},inventory)).chosen;\n  if(gallerySourceSignature(sources,null)!==gallerySourceSignature(fresh,null))galleryFail('Selected Gallery source facts changed before placement');\n  return fresh;\n}\n\nfunction gallerySourceSignature(media,music) {\n  return JSON.stringify({media:media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,item.kind==='video'?item.durationSeconds:null]),music:music?[music.resourceId,music.path,music.durationSeconds]:null});\n}\n\nasync function galleryCheckSourceMetadata(selects,projectId,guard) {\n  try{\n    const inventory=await galleryInventory(selects.project(projectId));\n    const {chosen,music}=gallerySelectedInputs({media:guard.media,music:guard.music},inventory);\n    if(gallerySourceSignature(chosen,music)!==guard.signature)galleryFail('Selected Gallery source facts changed during composition');\n  }catch(error){if(error?.galleryPublic)throw error;galleryFail('Selected Gallery source metadata could not be confirmed. Reload the Project inputs.');}\n}\n\nasync function galleryVerifySourceGuard(selects,projectId,guard) {\n  await galleryCheckSourceMetadata(selects,projectId,guard);\n  await observeSourceFiles(selects.files,guard.files.map(file=>file.path),guard.files);\n  await galleryCheckSourceMetadata(selects,projectId,guard);\n}\n\nasync function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programs) {\n  let commitStarted=false,savedId=null;\n  try {\n    const {plan,projectId}=config,project=selects.project(projectId),expectedTransforms=[],expectedPrograms=[];\n    const controls=[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:.5,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:.5,min:0,max:1,step:.01}];\n    for (let index=0;index<plan.tiles.length;index++) {\n      const tile=plan.tiles[index],placement=native.placements[index];\n      const clip=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===placement.clipId&&row.trackId===placement.trackId);\n      if(!clip)throw Error('A Gallery tile disappeared before styling');\n      const geometry=galleryGeometry(tile,config.sources[index],plan.colorFrame);\n      const name=`Gallery ${tile.slotKey} color-${plan.colorFrame}`;\n      await draft.addVideoEffect({clip,label:name,tsxCode:TILE_EFFECT,parameters:geometry.effect,editableParameters:controls});\n      const fresh=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===clip.clipId&&row.trackId===clip.trackId);\n      if(!fresh)throw Error('A Gallery tile disappeared during styling');\n      await draft.setClipTransform({clip:fresh,position:geometry.transform.position,scale:geometry.transform.scale});\n      expectedTransforms.push({clipId:clip.clipId,trackId:clip.trackId,transform:{position:geometry.transform.position,scale:geometry.transform.scale}});\n      expectedPrograms.push({clipId:clip.clipId,trackId:clip.trackId,effects:[{name,tsxCode:TILE_EFFECT,parameters:geometry.effect,editableParameters:controls}],graphic:null});\n    }\n    if(plan.music)await draft.overlayResource({resource:project.resource(plan.music.resourceId),over:await draft.rangeAtFrames(0,plan.durationFrames),sourceStartSeconds:plan.music.startSeconds});\n    const rows=await draft.clips({trackScope:'all'});\n    if(rows.some(row=>row.trackKind==='main'&&row.resourceId)||rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==21)throw Error('The complete Gallery does not contain exactly 21 visual tiles');\n    const graphics=[];await inspectGraphics(draft,graphics);\n    const transforms=await inspectTransforms(draft,expectedTransforms),audioRows=rows.filter(row=>row.trackKind==='audio');\n    const wantedAudio=plan.music?[{clipId:audioRows[0]?.clipId,trackId:audioRows[0]?.trackId,trackKind:'audio',resourceId:plan.music.resourceId,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:plan.music.startSeconds,endSeconds:plan.music.startSeconds+plan.durationFrames/plan.fps}}]:[];\n    const audio=await inspectAudio(draft,wantedAudio,project),programSnapshot=await programs.inspect(draft,expectedPrograms);\n    const receipts={graphics,transforms,audio,programs:programSnapshot,sourceGuard:config.sourceReceipt??config.sourceGuard};programs.confirm(config.runReceipt?receipts:{graphics,transforms,audio,programs:programSnapshot});\n    await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);\n    config.onCommitStarted();commitStarted=true;\n    const saved=await draft.commitAll('Create complete Photo Gallery Draft');\n    if(!saved?.createdDraftId)throw Error('Gallery save outcome is unknown; inspect the Project before retrying');\n    savedId=saved.createdDraftId;\n    await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);\n    return {status:'saved',draftId:saved.createdDraftId,...receipts};\n  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',...savedId?{draftId:savedId}:{},message:savedId?'The Gallery was saved, but its source files changed or could not be confirmed. Inspect the saved Draft before retrying.':String(error?.message||error)};}\n}\n\nasync function galleryCreate(selects,project,input,inventory,onCommitStarted) {\n  requireSourceFileSupport(selects.files);\n  const {plan,chosen,music}=await galleryPreflight(selects,project,input,inventory);\n  const files=await observeSourceFiles(selects.files,[...chosen.map(item=>item.path),...music?[music.path]:[]]);\n  for(const expected of input.faceFingerprints||[]){\n    const actual=files.find(file=>gallerySamePath(file.path,expected.path));\n    if(!actual||actual.size!==expected.size||actual.sha256!==expected.sha256)galleryFail('An original photo changed after face analysis; no Draft was saved');\n  }\n  const sourceGuard={media:chosen,music,files,signature:gallerySourceSignature(chosen,music)};\n  await galleryCheckSourceMetadata(selects,input.projectId,sourceGuard);\n  if(input.musicFingerprint){\n    const expected=input.musicFingerprint,actual=music&&files.find(file=>gallerySamePath(file.path,music.path));\n    if(!actual||!gallerySamePath(expected.path,music.path)||expected.size!==actual.size||expected.sha256!==actual.sha256)galleryFail('Selected music changed after the BPM estimate. Run a new estimate before creating the Gallery.');\n  }\n  let sourceReceipt=null;\n  if(input.runReceipt){\n    const claim=JSON.parse(input.runReceipt.expectedText);\n    if(claim.status!=='claimed'||claim.scope?.pluginId!=='photo-gallery-no2'||claim.scope.projectId!==input.projectId||typeof claim.owner!=='string'||!/^[a-f0-9-]{36}$/i.test(claim.owner)||typeof input.runReceipt.path!=='string')galleryFail('Gallery source evidence owner is invalid.');\n    const path=input.runReceipt.path+'.gallery-sources-'+claim.owner+'.json';\n    sourceReceipt={version:2,...await templateStateFile(selects,path,templateStateJSON(sourceGuard),templateRunBase64,null,fingerprintTemplateFile)};\n  }\n  const config={sourceReceipt,projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,sourceGuard,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};\n  const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON,bindMediaPlacement);\n  return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;\n}\n\nasync function galleryCreateBase(project, input, onCommitStarted) {\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  await draft.setFrameSize({ width: 1080, height: 1920 });\n  const fps=(await draft.meta()).fps;\n  if(fps!==(input.fps??60))galleryFail('Project frame rate changed');\n  await draft.insertGap({seconds:input.durationFrames/fps});\n  onCommitStarted();\n  const saved = await draft.commitAll('Create Photo Gallery Draft');\n  if (!saved?.createdDraftId) galleryFail('Empty Draft save outcome is unknown');\n  return { status: 'baseCreated', draftId: saved.createdDraftId };\n}\n\nasync function galleryFillBase(selects, project, input, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  if (!Number.isSafeInteger(input.durationFrames) || input.durationFrames < 1) galleryFail('Invalid Gallery duration');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft must be an empty portrait Draft');\n  }\n  await draft.insertGap({ seconds: input.durationFrames / meta.fps });\n  if ((await draft.meta()).durationFrames !== input.durationFrames) galleryFail('Could not author exact Gallery duration');\n  onCommitStarted();\n  const saved = await draft.commitAll('Set Photo Gallery duration');\n  if (!saved?.commitId) galleryFail('Duration save outcome is unknown');\n  return { status: 'baseFilled', draftId: input.draftId, durationFrames: input.durationFrames };\n}\n\nfunction galleryBatchTiles(tiles, slotKeys, limit) {\n  if (slotKeys === undefined) return tiles;\n  if (!Array.isArray(slotKeys) || slotKeys.length < 1 || slotKeys.length > limit ||\n      new Set(slotKeys).size !== slotKeys.length ||\n      slotKeys.some(key => !tiles.some(tile => tile.slotKey === key))) {\n    galleryFail(`Provide one to ${limit} distinct eligible slot keys`);\n  }\n  const selected = new Set(slotKeys);\n  return tiles.filter(tile => selected.has(tile.slotKey));\n}\n\nasync function galleryPlaceVideosExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  const { plan } = await galleryPreflight(selects, project, input, inventory);\n  const videos = galleryBatchTiles(plan.tiles.filter(tile => tile.kind === 'video'), input.slotKeys, 1);\n  if (!videos.length) return { status: 'videosPlaced', draftId: input.draftId, tileCount: 0 };\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft clock, canvas, or duration changed');\n  }\n  const rows = await draft.clips({ trackScope: 'all' });\n  const existing = rows.filter(row => row.trackKind === 'video' && row.resourceId);\n  const imageTiles = plan.tiles.filter(tile => tile.kind === 'image');\n  if (new Set(existing.map(row => row.clipId)).size !== existing.length ||\n      new Set(existing.map(row => row.trackId)).size !== existing.length ||\n      rows.some(row => row.trackKind === 'audio' && row.resourceId) ||\n      rows.some(row => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft has unexpected media');\n  const used = new Set();\n  for (const tile of imageTiles) {\n    const matches = existing.filter(row => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Image ${tile.slotKey} changed before video placement`);\n    used.add(matches[0].clipId);\n  }\n  // Earlier bounded calls may have saved Videos already. Validate all of them\n  // against this frozen plan, but never replace or duplicate an existing target.\n  const placedVideoKeys = new Set();\n  for (const row of existing.filter(row => !used.has(row.clipId))) {\n    const matches = plan.tiles.filter(tile => tile.kind === 'video' &&\n      tile.resourceId === row.resourceId && tile.revealFrame === row.startFrame && tile.endFrame === row.endFrame);\n    if (matches.length !== 1 || placedVideoKeys.has(matches[0].slotKey)) galleryFail('Target Draft has unexpected or duplicate video media');\n    placedVideoKeys.add(matches[0].slotKey);\n  }\n  if (videos.some(tile => placedVideoKeys.has(tile.slotKey))) galleryFail('A selected Video is already present; inspect the Draft before retrying');\n  for (const tile of videos) {\n    const resource = project.resource(tile.resourceId);\n    const overlay = async (startFrame) => {\n      const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));\n      await draft.overlayResource({ resource, over: await draft.rangeAtFrames(startFrame, tile.endFrame) });\n      const rows = (await draft.clips({ trackScope: 'all' })).filter(row => !before.has(row.clipId));\n      const visual = rows.filter(row => row.trackKind === 'video' && row.resourceId === tile.resourceId);\n      if (visual.length !== 1 || visual[0].startFrame !== startFrame) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);\n      const sourceAudio = rows.filter(row => row.trackKind === 'audio' && row.resourceId);\n      if (sourceAudio.length) await draft.removeClips(sourceAudio);\n      return visual[0];\n    };\n    let clip = await overlay(tile.revealFrame);\n    if (clip.endFrame < tile.endFrame) {\n      // The SDK may quantize a seconds-based overlay one frame short at some\n      // 60 fps start positions. Re-place with enough source time, then use the\n      // public clip move and trim operations to get exact frame boundaries.\n      await draft.removeClips([clip]);\n      if (tile.revealFrame < 1) galleryFail(`Video ${tile.slotKey} cannot cover the output end`);\n      clip = await overlay(tile.revealFrame - 1);\n      const moved = await draft.moveOverlayClip({ clip, startFrame: tile.revealFrame });\n      const matches = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === moved.clipId);\n      if (matches.length !== 1) galleryFail(`Video ${tile.slotKey} moved clip could not be read back`);\n      clip = matches[0];\n    }\n    if (clip.endFrame > tile.endFrame) {\n      await draft.remove(await draft.rangeAtFrames(tile.endFrame, clip.endFrame), { tracks: [clip.trackId] });\n    }\n    const exact = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === clip.clipId &&\n      row.trackKind === 'video' && row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (exact.length !== 1) galleryFail(`Video ${tile.slotKey} could not reach its exact reveal and end frames`);\n    if ((await draft.clips({ trackScope: 'all' })).some(row => row.trackKind === 'audio' && row.resourceId)) {\n      galleryFail(`Video ${tile.slotKey} retained source audio`);\n    }\n  }\n  onCommitStarted();\n  const saved = await draft.commitAll('Place Photo Gallery video tiles');\n  if (!saved?.commitId) galleryFail('Video placement save outcome is unknown');\n  return { status: 'videosPlaced', draftId: input.draftId, tileCount: videos.length };\n}\n\nasync function galleryStyleExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('An explicit target Draft is required');\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('Target Draft does not belong to this Project');\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    if (fresh.kind !== item.kind) galleryFail(`Slot ${i + 1} Resource type changed`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable`);\n    }\n    if (fresh.width != null && fresh.width !== item.width || fresh.height != null && fresh.height !== item.height) {\n      galleryFail(`Slot ${i + 1} photo dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY, fit:item.fit };\n  });\n  const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,\n    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });\n  const selectedTiles = galleryBatchTiles(plan.tiles, input.slotKeys, 3);\n  const selectedKeys = new Set(selectedTiles.map(tile => tile.slotKey));\n  if (input.placeMusic !== undefined && typeof input.placeMusic !== 'boolean') galleryFail('placeMusic must be a boolean');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== plan.fps || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== plan.frameSize.width || meta.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('Target Draft clock, canvas, or duration does not match the Gallery plan');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft Main track is not blank');\n  if (allRows.some((row) => row.trackKind === 'audio' && row.resourceId)) galleryFail('Target Draft has unexpected source audio');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21 || new Set(rows.map((row) => row.trackId)).size !== 21) {\n    galleryFail('Target Draft must contain exactly 21 independent visual tracks');\n  }\n  const used = new Set(), targets = [];\n  for (let i = 0; i < 21; i++) {\n    const tile = plan.tiles[i];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Target tile ${tile.slotKey} does not match the selected Resource and frames`);\n    const clip = matches[0];\n    used.add(clip.clipId);\n    if (!selectedKeys.has(tile.slotKey)) continue;\n    if ((await draft.videoEffects(clip)).length) galleryFail(`Target tile ${tile.slotKey} already has effects; inspect it before retrying`);\n    const transform = await draft.clipTransform(clip);\n    const identity = !transform || !transform.enabled ||\n      (transform.position?.x === 0 && transform.position?.y === 0 &&\n       transform.scale?.x === 1 && transform.scale?.y === 1 &&\n       transform.rotation === 0 && transform.anchor?.x === 0 && transform.anchor?.y === 0);\n    if (!identity) galleryFail(`Target tile ${tile.slotKey} already has a manual transform; inspect it before retrying`);\n    targets.push({ clip, tile, source: chosen[i] });\n  }\n  for (const { clip, tile, source } of targets) {\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    const current = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!current) galleryFail(`Target tile ${tile.slotKey} disappeared before styling`);\n    await draft.addVideoEffect({ clip: current, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT, parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ] });\n    const fresh = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!fresh) galleryFail(`Target tile ${tile.slotKey} disappeared during styling`);\n    await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });\n  }\n  if (plan.music && input.placeMusic !== false) await draft.overlayResource({ resource: project.resource(plan.music.resourceId),\n    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (plan.music.startSeconds ?? plan.music.startFrame / 60) });\n  onCommitStarted();\n  const saved = await draft.commitAll('Style Photo Gallery tiles');\n  if (!saved?.commitId) galleryFail('Style save outcome is unknown; inspect the Draft before retrying');\n  return { status: 'styled', draftId: input.draftId, tileCount: targets.length, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame };\n}\n\nasync function galleryVerifyCreated(selects, project, input, inventory) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('The saved Draft ID is required for readback');\n  const { plan, chosen } = await galleryPreflight(selects, project, input, inventory);\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('The saved Draft does not belong to this Project');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Saved Draft canvas, frame rate, or duration does not match the request');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Saved Draft has an unexpected Main Resource');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21) galleryFail('Saved Draft does not contain exactly 21 independent visual clips');\n  const audioRows = allRows.filter((row) => row.trackKind === 'audio' && row.resourceId);\n  if (plan.music) {\n    if (audioRows.length !== 1 || audioRows[0].resourceId !== plan.music.resourceId ||\n        audioRows[0].startFrame !== 0 || audioRows[0].endFrame !== plan.durationFrames) {\n      galleryFail('Saved Draft music does not match the requested Resource and duration');\n    }\n  } else if (audioRows.length) galleryFail('Saved Draft has unexpected music');\n  const usedClipIds = new Set();\n  for (let tileIndex = 0; tileIndex < plan.tiles.length; tileIndex++) {\n    const tile = plan.tiles[tileIndex];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !usedClipIds.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Saved tile ${tile.slotKey} does not match its requested Resource and frames`);\n    const clip = matches[0];\n    const effects = await draft.videoEffects(clip);\n    if (effects.filter((effect) => effect.name === `Gallery ${tile.slotKey} color-${plan.colorFrame}` && effect.enabled !== false).length !== 1) {\n      galleryFail(`Saved tile ${tile.slotKey} has no matching color-transition effect`);\n    }\n    const actual = await draft.clipTransform(clip);\n    const expected = galleryGeometry(tile, chosen[tileIndex], plan.colorFrame).transform;\n    const close = (left, right) => typeof left === 'number' && Number.isFinite(left) && Math.abs(left - right) <= 1e-5;\n    if (!actual?.enabled || !close(actual.position?.x, expected.position.x) ||\n        !close(actual.position?.y, expected.position.y) ||\n        !close(actual.scale?.x, expected.scale.x) || !close(actual.scale?.y, expected.scale.y)) {\n      galleryFail(`Saved tile ${tile.slotKey} position or crop transform does not match the requested grid`);\n    }\n    usedClipIds.add(clip.clipId);\n  }\n  return { status: 'verified', draftId: input.draftId, tileCount: 21, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame, structuralOnly: true };\n}\n\nasync function galleryOperation(selects, raw) {\n  const result = await galleryOperationBody(selects, raw);\n  // Publish in the SDK invocation before its response can be lost. The same\n  // exclusive owner is the only writer; neither a remount nor a timeout retries.\n  return raw?.operation === 'create' && raw.runReceipt\n    ? await writeTemplateRunResult(selects, raw.runReceipt, result, templateRunJSON, templateRunBase64)\n    : result;\n}\n\nasync function galleryOperationBody(selects, raw) {\n  let commitStarted = false;\n  try {\n    const input = assertGalleryInput(raw);\n    const project = selects.project(input.projectId);\n    const inventory = await galleryInventory(project, input.operation === 'inspect' ? input.paths : null);\n    if (input.operation === 'inspect') {\n      const rows = [...inventory.media, ...inventory.audio];\n      const counts = new Map();\n      for (const row of rows) { const key = galleryPathKey(row.path); counts.set(key, (counts.get(key) || 0) + 1); }\n      const unique = row => counts.get(galleryPathKey(row.path)) === 1;\n      const unavailable = new Map([...inventory.unavailable, ...rows.filter(row => !unique(row))].map(row => [row.resourceId, { resourceId: row.resourceId, name: row.name }]));\n      return { status: 'inspected', projectId: input.projectId, media: inventory.media.filter(unique), audio: inventory.audio.filter(unique), unavailable: [...unavailable.values()] };\n    }\n    if (input.operation === 'verifyInputs') {\n      requireSourceFileSupport(selects.files);\n      const { chosen, music } = await galleryReadInputs(selects, project, input, inventory);\n      return { status: 'inputsReady', media: chosen, music };\n    }\n    if (input.operation === 'verifyMusic') return {status:'musicReady',music:await galleryReadMusic(selects,project,input,inventory)};\n    if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });\n    // These reads run in a new SDK invocation after the sole save. Project\n    // caches belong to that invocation; no fresh option or new SDK is needed.\n    if (input.operation === 'verifySourceFiles') {\n      if(!input.sourceGuard||!Array.isArray(input.sourceGuard.media)||!Array.isArray(input.sourceGuard.files))galleryFail('Saved Gallery source evidence is unavailable.');\n      await galleryVerifySourceGuard(selects,input.projectId,input.sourceGuard);\n      return {status:'verified'};\n    }\n    if (input.operation === 'verifySourceMetadata') {\n      if(!input.sourceGuard||!Array.isArray(input.sourceGuard.media))galleryFail('Saved Gallery source evidence is unavailable.');\n      await galleryCheckSourceMetadata(selects,input.projectId,input.sourceGuard);\n      return {status:'verified'};\n    }\n    if (input.operation === 'preflight') {\n      const { plan } = await galleryPreflight(selects, project, input, inventory);\n      return { status: 'ready', plan };\n    }\n    if (input.operation === 'createBase') {\n      await galleryReadInputs(selects, project, input, inventory);\n      return await galleryCreateBase(project, input, () => { commitStarted = true; });\n    }\n    if (input.operation === 'fillBase') return await galleryFillBase(selects, project, input, () => { commitStarted = true; });\n    if (input.operation === 'placeVideosExisting') return await galleryPlaceVideosExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'styleExisting') return await galleryStyleExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);\n    galleryFail('Unknown gallery action');\n  } catch (error) {\n    const message=raw?.operation==='verifyMusic'&&!error?.galleryPublic?'Selected music could not be verified. Check the Project file and try again.':String(error?.message||error);\n    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message, .../^(?:image-source-|source-file-)/.test(error?.code || '') ? { code: error.code, resourceId: error.resourceId } : {} };\n  }\n}\n\nreturn await galleryOperation(selects, ";
 const buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';
+// Inputs use the 60 fps reference clock; the result uses the Project frame grid.
+const REFERENCE = Object.freeze({
+  width: 1080,
+  height: 1920,
+  fps: 60,
+  durationFrames: 853,
+  nominalBpm: 113,
+  colorFrame: 270,
+  revealFrames: Object.freeze([0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205]),
+});
+
+function assertPositiveInteger(value, label) {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);
+}
+
+// Keep the reference clock, the Project frame grid and physical source seconds
+// distinct. Prepared video is 60 fps, so its last frame must cover the rounded
+// Project end, including when that end is later than the reference duration.
+function galleryFrameClock(durationFrames, fps) {
+  assertPositiveInteger(durationFrames, 'durationFrames');
+  if (durationFrames > 36000) throw new Error('durationFrames must be at most 36000');
+  if (typeof fps !== 'number' || !Number.isFinite(fps) || fps <= 0) throw new Error('Invalid Project frame rate');
+  const frames = Math.round(durationFrames * fps / REFERENCE.fps);
+  assertPositiveInteger(frames, 'Project durationFrames');
+  const minimumSeconds = frames / fps;
+  const preparedFrames = Math.max(durationFrames, Math.ceil(minimumSeconds * REFERENCE.fps - 1e-9));
+  if (!Number.isSafeInteger(preparedFrames)) throw new Error('Prepared video duration is out of range');
+  return {frames, minimumSeconds, durationFrames: preparedFrames};
+}
+
+function gallerySourceSeconds(item, label) {
+  // Frame-only inputs remain supported by the standalone planner. Live Project
+  // readers require exact seconds; a supplied invalid value never falls back.
+  const seconds = item.durationSeconds === undefined ? item.durationFrames / REFERENCE.fps : item.durationSeconds;
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) throw new Error(`${label} needs a verified duration`);
+  return seconds;
+}
+
+function validateMedia(media) {
+  if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');
+  return media.map((item, index) => {
+    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs an Image or Video Resource`);
+    if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);
+    assertPositiveInteger(item.width, `Slot ${index + 1} width`);
+    assertPositiveInteger(item.height, `Slot ${index + 1} height`);
+    if(item.fit!==undefined&&!['cover','contain'].includes(item.fit))throw new Error(`Slot ${index+1} has an invalid fit`);
+    const focusX = item.focusX ?? 0.5;
+    const focusY = item.focusY ?? 0.5;
+    if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {
+      throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);
+    }
+    if (item.kind === 'video') {
+      if (item.durationSeconds === undefined) assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);
+      gallerySourceSeconds(item, `Slot ${index + 1}`);
+    }
+    return { ...item, focusX, focusY };
+  });
+}
+
+function tileRect(row, column) {
+  return {
+    left: column * 360 + 2,
+    right: (column + 1) * 360 - 2,
+    top: Math.round(row * REFERENCE.height / 7) + 2,
+    bottom: Math.round((row + 1) * REFERENCE.height / 7) - 2,
+  };
+}
+
+function planGallery(input, {preparing = false, pendingBpm = false} = {}) {
+  if (!input || typeof input !== 'object') throw new Error('Gallery input is required');
+  if (pendingBpm && !preparing) throw new Error('A pending BPM is only valid during preparation');
+  const media = validateMedia(input.media);
+  const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;
+  const fps = input.fps ?? REFERENCE.fps;
+  const clock = galleryFrameClock(durationFrames, fps);
+  const shortVideos = media.filter(item => item.kind === 'video' && gallerySourceSeconds(item, 'Video') + 1e-9 < clock.minimumSeconds);
+  if (!preparing && shortVideos.length) {
+    throw new Error('A selected video is too short; hold its last frame (the panel does this) before planning');
+  }
+  const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;
+  const bpmPending = pendingBpm && !hasManualBpm && input.estimatedBpm == null;
+  const bpm = bpmPending ? null : (hasManualBpm ? input.manualBpm : input.estimatedBpm);
+  if (!bpmPending && (typeof bpm !== 'number' || !Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm))) {
+    throw new Error('BPM is required; provide a manual BPM when there is no music or no reliable estimate');
+  }
+  const toDraftFrame = frame => Math.round(frame * fps / REFERENCE.fps);
+  const outputDurationFrames = clock.frames;
+  const ratio = bpmPending ? null : REFERENCE.nominalBpm / bpm;
+  const revealFrames = REFERENCE.revealFrames.map(frame => bpmPending ? null : toDraftFrame(frame * ratio));
+  if (!bpmPending && revealFrames.some((frame, i) => !Number.isSafeInteger(frame) || i > 0 && frame <= revealFrames[i - 1])) {
+    throw new Error('BPM is too high to show all 21 tiles in distinct output frames');
+  }
+  const colorFrame = bpmPending ? null : toDraftFrame(REFERENCE.colorFrame * ratio);
+  if (!bpmPending && (!Number.isSafeInteger(colorFrame) || colorFrame >= outputDurationFrames)) throw new Error('Color transition would occur after the output end');
+  if (input.music) {
+    if (typeof input.music.resourceId !== 'string' || !input.music.resourceId.trim()) throw new Error('Music needs a resource ID');
+    assertPositiveInteger(input.music.durationFrames, 'Music durationFrames');
+    const musicStartFrame = input.music.startFrame ?? 0;
+    if (!Number.isSafeInteger(musicStartFrame) || musicStartFrame < 0) throw new Error('Music startFrame must be nonnegative');
+    if (gallerySourceSeconds(input.music, 'Music') - musicStartFrame / REFERENCE.fps + 1e-9 < clock.minimumSeconds) throw new Error('Selected music is too short for the output');
+  }
+  if (preparing && shortVideos.length && clock.durationFrames > 36000) throw new Error('Prepared video exceeds the 36000-frame limit');
+  const tiles = media.map((item, i) => ({
+    slotKey: `tile-${String(i + 1).padStart(2, '0')}`,
+    resourceId: item.resourceId,
+    kind: item.kind,
+    row: Math.floor(i / 3),
+    column: i % 3,
+    rect: tileRect(Math.floor(i / 3), i % 3),
+    revealFrame: revealFrames[i],
+    endFrame: outputDurationFrames,
+    focusX: item.focusX,
+    focusY: item.focusY,
+    ...(item.fit==='contain'?{fit:'contain'}:{}),
+  }));
+  return {
+    frameSize: { width: REFERENCE.width, height: REFERENCE.height },
+    fps,
+    durationFrames: outputDurationFrames,
+    bpm,
+    bpmSource: bpmPending ? 'pending' : hasManualBpm ? 'manual' : 'estimated',
+    preparation: {durationFrames: clock.durationFrames, minimumSeconds: clock.minimumSeconds},
+    colorFrame,
+    music: input.music ? { ...input.music, startSeconds: (input.music.startFrame ?? 0) / REFERENCE.fps } : null,
+    tiles,
+  };
+}
+
+const sharedAiJobs=(()=>{const module={exports:{}};
+// ai-job-client:start
+// Plugin-private durable orchestration of the existing public AI SDK.
+// This module is bundled into panels; it has no Node or renderer-global dependencies.
+const STATUS = new Set(['queued', 'running', 'canceling', 'succeeded', 'failed', 'canceled']);
+const terminal = status => ['succeeded', 'failed', 'canceled'].includes(status);
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const writes = new Map();
+const error = (code, message) => Object.assign(new Error(message), { code });
+const invalid = () => error('SHARED_AI_INVALID', 'Saved AI analysis does not match this source or task.');
+const clone = value => JSON.parse(JSON.stringify(value));
+function stable(value) {
+  if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + stable(value[k])).join(',') + '}';
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint' || typeof value === 'number' && !Number.isFinite(value)) throw invalid();
+  return JSON.stringify(value);
+}
+function attached(signal) {
+  if (signal?.aborted) throw error('SHARED_AI_DETACHED', 'AI observation stopped. Reopen to recover the saved job.');
+}
+function inputFor(projectId, request) {
+  if (!request || !['faces.detect', 'person.matte'].includes(request.task) || !UUID.test(request.resourceId)) throw invalid();
+  const input = { runtimeId: 'selects-ai-runtime', projectId, resourceId: request.resourceId, task: request.task };
+  if (request.sourceRange !== undefined) {
+    const { startSeconds, endSeconds } = request.sourceRange || {};
+    if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+    input.sourceRange = { startSeconds, endSeconds };
+  }
+  if (request.options !== undefined) {
+    if (!request.options || Array.isArray(request.options) || typeof request.options !== 'object') throw invalid();
+    stable(request.options); input.options = clone(request.options);
+  }
+  return input;
+}
+async function requestKey(scope, identity, input, attempt) {
+  const withoutKey = { ...input }; delete withoutKey.requestKey;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt })));
+  return 'shared-ai-' + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('');
+}
+function createSharedAiJobClient(env) {
+  const { projectId, scope, runScript, load, save } = env || {};
+  if (typeof projectId !== 'string' || !projectId || typeof scope !== 'string' || !scope ||
+      ![runScript, load, save].every(f => typeof f === 'function')) throw invalid();
+  const storageKey = stable({ projectId, scope });
+  const fresh = () => ({ version: 1, projectId, scope, records: [] });
+  // Observe one saved job; timing out a read never cancels or resubmits it.
+  // Use the monotonic clock when available, rather than the user's wall clock.
+  function observation(options, cancel = false) {
+    const timing = (value, fallback, max, zero = false) => {
+      const n = value ?? fallback;
+      if (!Number.isFinite(n) || n < (zero ? 0 : 1) || n > max) throw invalid();
+      return n;
+    };
+    const maxWaitMs = timing(options.maxWaitMs ?? env.maxWaitMs, cancel ? 60000 : 1800000, 86400000);
+    const pollMs = timing(options.pollMs ?? env.pollMs, 500, 60000, true);
+    const readTimeoutMs = timing(options.readTimeoutMs ?? env.readTimeoutMs, 30000, 60000);
+    const readRetryMs = timing(options.readRetryMs ?? env.readRetryMs, 500, 60000, true);
+    const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? () => performance.now() : () => Date.now();
+    const deadline = now() + maxWaitMs, signal = options.signal;
+    const pending = (record, cause) => {
+      const message = cancel ? 'AI cancellation could not be confirmed. Cancellation is saved; reopen to recover it.'
+        : 'AI progress or results could not be confirmed. Reopen to recover the saved job.';
+      return Object.assign(error(cancel ? 'SHARED_AI_CANCEL_PENDING' : 'SHARED_AI_OBSERVATION_PENDING', message),
+        { publicMessage: message, workflowId: record?.workflowId, projectId, ...(cause === undefined ? {} : { cause }) });
+    };
+    const check = record => { attached(signal); if (now() >= deadline) throw pending(record); };
+    // Late read replies are ignored. This helper is never used for a write.
+    function wait(task, milliseconds, onTimeout) {
+      return new Promise((resolve, reject) => {
+        let done = false;
+        const finish = (fn, value) => {
+          if (done) return;
+          done = true; clearTimeout(timer); signal?.removeEventListener('abort', abort); fn(value);
+        };
+        const abort = () => { try { attached(signal); } catch (cause) { finish(reject, cause); } };
+        const timer = setTimeout(() => task ? finish(reject, onTimeout()) : finish(resolve), milliseconds);
+        signal?.addEventListener('abort', abort, { once: true });
+        if (signal?.aborted) { abort(); return; }
+        if (task) Promise.resolve().then(task).then(value => finish(resolve, value), cause => finish(reject, cause));
+      });
+    }
+    async function pause(milliseconds, record) {
+      check(record);
+      const remaining = Math.max(0, deadline - now());
+      await wait(null, Math.min(milliseconds, remaining));
+      // Timers may round fractional milliseconds down. A capped delay consumes
+      // the budget; do not squeeze another request into that rounding gap.
+      if (milliseconds >= remaining) throw pending(record);
+      check(record);
+    }
+    async function read(record, script, summary) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        check(record);
+        let value;
+        try {
+          const remaining = Math.max(0, deadline - now());
+          value = await wait(() => runScript(script, summary, false), Math.min(readTimeoutMs, remaining),
+            () => readTimeoutMs >= remaining ? pending(record) : error('SHARED_AI_READ_TIMEOUT', 'The AI observation read timed out.'));
+        } catch (cause) {
+          if (['SHARED_AI_DETACHED','SHARED_AI_OBSERVATION_PENDING','SHARED_AI_CANCEL_PENDING'].includes(cause?.code)) throw cause;
+          check(record);
+          if (attempt === 2) throw pending(record, cause);
+          await pause(Math.min(60000, readRetryMs * 2 ** attempt), record);
+          continue;
+        }
+        check(record); return value;
+      }
+    }
+    return { check, read, pause: record => pause(pollMs, record) };
+  }
+  async function read() {
+    let journal;
+    try { journal = await load(); }
+    catch (cause) {
+      if (String(cause?.message || cause).trim() === 'The file is unavailable.' || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+      else throw cause;
+    }
+    if (journal == null) return fresh();
+    if (typeof journal === 'string') { try { journal = JSON.parse(journal); } catch { throw invalid(); } }
+    if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 10000) throw invalid();
+    const keys = new Set();
+    for (const r of journal.records) {
+      if (!r || typeof r.identity !== 'string' || !Number.isSafeInteger(r.attempt) || r.attempt < 0 || r.attempt > 255 ||
+          !/^shared-ai-[\da-f]{64}$/.test(r.input?.requestKey) || keys.has(r.input.requestKey) ||
+          (r.workflowId !== undefined && (typeof r.workflowId !== 'string' || !r.workflowId)) ||
+          (r.status !== undefined && !STATUS.has(r.status)) || (r.cancelRequested !== undefined && typeof r.cancelRequested !== 'boolean')) throw invalid();
+      const input = inputFor(projectId, r.input);
+      if (stable({ ...input, requestKey: r.input.requestKey }) !== stable(r.input)) throw invalid();
+      keys.add(r.input.requestKey);
+    }
+    return clone(journal);
+  }
+  async function update(record) {
+    const prior = writes.get(storageKey) || Promise.resolve();
+    const pending = prior.catch(() => {}).then(async () => {
+      const journal = await read(), i = journal.records.findIndex(r => r.input.requestKey === record.input.requestKey), old = journal.records[i];
+      if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw invalid();
+      const next = { ...old, ...record, cancelRequested: Boolean(old?.cancelRequested || record.cancelRequested) };
+      if (old?.workflowId) next.workflowId = old.workflowId;
+      if (old && terminal(old.status)) next.status = old.status;
+      if (i < 0) journal.records.push(next); else journal.records[i] = next;
+      await save(clone(journal)); Object.assign(record, next);
+    });
+    writes.set(storageKey, pending);
+    try { await pending; } finally { if (writes.get(storageKey) === pending) writes.delete(storageKey); }
+  }
+  async function ack(record, signal) {
+    if (record.workflowId) return;
+    attached(signal);
+    const value = await runScript(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record.input)});return {workflowId:j.workflowId};`, 'Start shared AI analysis', true);
+    if (typeof value?.workflowId !== 'string' || !value.workflowId) throw invalid();
+    record.workflowId = value.workflowId;
+    // Preserve an acknowledgment even when a panel detached during submit.
+    await update(record); attached(signal);
+  }
+  async function status(record, observer, cancel = false) {
+    observer.check(record);
+    const script = `return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel ? 'cancel' : 'status'}();`;
+    // A cancellation is a write, so its transport failure is never retried here.
+    const value = cancel ? await runScript(script, 'Cancel shared AI analysis', true)
+      : await observer.read(record, script, 'Read shared AI progress');
+    if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== 'selects-ai-runtime' || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
+    record.status = value.status; await update(record); return value;
+  }
+  async function stop(record, options, observer) {
+    record.cancelRequested = true; await update(record); await ack(record, options.signal);
+    if (!terminal(record.status)) await status(record, observer, true);
+    while (!terminal(record.status)) {
+      await observer.pause(record);
+      await status(record, observer);
+    }
+  }
+  async function run(request, options = {}) {
+    attached(options.signal);
+    const observer = observation(options);
+    const input = inputFor(projectId, request), identity = options.identity ?? '';
+    if (typeof identity !== 'string') throw invalid();
+    const journal = await read();
+    let record = journal.records.filter(r => r.identity === identity && stable(inputFor(projectId, r.input)) === stable(input)).sort((a, b) => b.attempt - a.attempt)[0];
+    if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
+    // A detached panel can have saved 'running' while Main has since stopped.
+    // Refresh only during recovery; failure of a newly submitted job is not retried.
+    if (record?.workflowId && options.retryTerminal) {
+      attached(options.signal); await status(record, observer); attached(options.signal);
+    }
+    if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options, observer);
+    if (!record || options.retryTerminal && (['failed', 'canceled'].includes(record.status) || record.cancelRequested && terminal(record.status))) {
+      const attempt = record ? record.attempt + 1 : 0;
+      if (attempt > 255) throw invalid();
+      record = { identity, attempt, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt) } };
+      await update(record);
+    }
+    await ack(record, options.signal);
+    for (;;) {
+      attached(options.signal);
+      const latest = (await read()).records.find(r => r.input.requestKey === record.input.requestKey);
+      if (!latest) throw invalid(); Object.assign(record, latest);
+      const value = await status(record, observer, record.cancelRequested && !terminal(record.status));
+      attached(options.signal);
+      if (record.cancelRequested || record.status === 'canceled') throw error('SHARED_AI_CANCELED', 'AI analysis was canceled. Start again to retry.');
+      if (record.status === 'failed') throw error('SHARED_AI_FAILED', 'AI analysis failed. ' + String(value.lastErrorMessage || '').slice(0, 300));
+      if (record.status === 'succeeded') {
+        const result = await observer.read(record, `return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, 'Read shared AI result');
+        attached(options.signal);
+        if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== 'object') throw invalid();
+        return { workflowId: record.workflowId, input: clone(record.input), result };
+      }
+      options.onProgress?.(value);
+      await observer.pause(record);
+    }
+  }
+  async function cancel(options = {}) {
+    const observer = observation(options, true);
+    const journal = await read();
+    for (const record of journal.records) {
+      if (options.identity !== undefined && record.identity !== options.identity || terminal(record.status)) continue;
+      if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
+      await stop(record, options, observer);
+    }
+  }
+  return { run, cancel };
+}
+module.exports = { createSharedAiJobClient };
+// ai-job-client:end
+return module.exports;})();
+const sharedAiResources=(()=>{const module={exports:{}};
+// ai-resources:start
+// Private joins between short run_script ids and persistent Project Resource ids.
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const fingerprint = rows => JSON.stringify(rows.map(r => [r.resourceId, r.name, r.type]));
+function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main'] } = {}) {
+  if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error('The Draft belongs to another Project.');
+  const bindings = new Map();
+  function walk(rows) {
+    for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+        if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error('Ambiguous clip source binding.');
+        bindings.set(row.id, id);
+      }
+      if (Array.isArray(row.children)) walk(row.children);
+    }
+  }
+  for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+  return bindings;
+}
+function pathKey(value) {
+  const path = String(value).normalize('NFC'), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+  const normalized = path.replace(/\\/g, '/'); return windows ? normalized.toLowerCase() : normalized;
+}
+function runner(sdk, runScript) {
+  return runScript || (async (script, summary, allowCommit = false) => {
+    const value = await sdk.runScript({ script, summary, allowCommit });
+    if (value?.isError || value?.result === undefined) throw new Error(value?.output || 'The Project read returned an incomplete result.');
+    return value.result;
+  });
+}
+async function joinRows(sdk, projectId, runScript, script) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw new Error('Could not read Project Resources.');
+  const observed = await runner(sdk, runScript)(script, 'Resolve persistent AI source');
+  const after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error('Project Resources changed while resolving the AI source.');
+  const out = new Map();
+  for (const row of observed.rows) {
+    const raw = before[row?.index];
+    if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== 'string') throw new Error('The persistent AI source could not be matched.');
+    out.set(row.id, raw.resourceId);
+  }
+  return out;
+}
+async function resolveSharedAiResources(sdk, projectId, aliases, runScript) {
+  if (!Array.isArray(aliases) || aliases.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid AI source ids.');
+  const wanted = [...new Set(aliases)];
+  const mappings = await joinRows(sdk, projectId, runScript, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+  for (const id of wanted) if (UUID.test(id)) {
+    const raw = await sdk.call('listProjectResources', projectId);
+    if (!raw.some(r => r.resourceId === id)) throw new Error('The AI source is no longer in this Project.');
+    mappings.set(id, id);
+  }
+  if (wanted.some(id => !mappings.has(id))) throw new Error('The AI source id is unavailable.');
+  return mappings;
+}
+async function importSharedAiResource(sdk, projectId, path, runScript) {
+  if (typeof path !== 'string' || !path || !(/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path))) throw new Error('An absolute AI source path is required.');
+  const run = runner(sdk, runScript);
+  const script = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+  let map = await joinRows(sdk, projectId, run, script);
+  if (!map.size) {
+    await run(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, 'Register AI source media', true);
+    map = await joinRows(sdk, projectId, run, script);
+  }
+  const ids = [...new Set(map.values())];
+  if (ids.length !== 1) throw new Error('The imported AI source path is missing or ambiguous.');
+  return ids[0];
+}
+module.exports = { canonicalResourceBindings, resolveSharedAiResources, importSharedAiResource, importSharedAiVideo: importSharedAiResource };
+// ai-resources:end
+return module.exports;})();
+const sharedCoverFocus=(()=>{const module={exports:{}};
+// cover-focus:start
+// Calculates focus for observed face boxes only; undetected faces and unsampled motion remain unknown.
+// Detection boxes are in the displayed source raster, before the existing cover crop.
+// This only finds a feasible focus; it cannot make an over-wide group fit a fixed crop.
+function faceSafeCoverFocus(source, frame, observation, manualFocus = null) {
+  if (manualFocus) {
+    if (![manualFocus.focusX, manualFocus.focusY].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw Error('Invalid manual focus');
+    return { status: 'manual', focusX: manualFocus.focusX, focusY: manualFocus.focusY };
+  }
+  const W = source.width, H = source.height, w = frame.width, h = frame.height;
+  if (![W, H, w, h].every(n => Number.isFinite(n) && n > 0)) throw Error('Invalid crop dimensions');
+  if (observation?.coordinateSpace !== 'display-pixels' || observation?.boxFormat !== 'xyxy' ||
+      observation?.frameSize?.width !== W || observation?.frameSize?.height !== H || !Array.isArray(observation.samples) || !observation.samples.length) {
+    return { status: 'unavailable', reason: 'face-coordinates' };
+  }
+  let boxCount = 0;
+  const bounds = { left: W, right: 0, top: H, bottom: 0 };
+  for (const sample of observation.samples) {
+    if (!Array.isArray(sample.faces)) return { status: 'unavailable', reason: 'face-coordinates' };
+    for (const face of sample.faces) {
+      const b = face?.box;
+      if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax].every(Number.isFinite) ||
+          b.xmin < 0 || b.ymin < 0 || b.xmax > W || b.ymax > H || b.xmin >= b.xmax || b.ymin >= b.ymax) {
+        return { status: 'unavailable', reason: 'face-coordinates' };
+      }
+      boxCount++;
+      bounds.left = Math.min(bounds.left, b.xmin); bounds.right = Math.max(bounds.right, b.xmax);
+      bounds.top = Math.min(bounds.top, b.ymin); bounds.bottom = Math.max(bounds.bottom, b.ymax);
+    }
+  }
+  if (!boxCount) return { status: 'unavailable', reason: 'no-faces' };
+  const cropW = Math.min(W, H * w / h), cropH = Math.min(H, W * h / w);
+  if (bounds.right - bounds.left > cropW + 1e-7 || bounds.bottom - bounds.top > cropH + 1e-7) {
+    return { status: 'cannot-fit', reason: 'faces-wider-than-crop', observedFaceBoxes: boxCount };
+  }
+  // Keep the existing centered composition when it already contains every box.
+  const centered = bounds.left >= (W - cropW) / 2 && bounds.right <= (W + cropW) / 2 &&
+    bounds.top >= (H - cropH) / 2 && bounds.bottom <= (H + cropH) / 2;
+  if (centered) return { status: 'focused', focusX: 0.5, focusY: 0.5, changed: false,
+    observedFaceBoxes: boxCount, observedBounds: bounds, cropWidth: cropW, cropHeight: cropH };
+  const x = Math.max(cropW / 2, Math.min(W - cropW / 2, (bounds.left + bounds.right) / 2));
+  const y = Math.max(cropH / 2, Math.min(H - cropH / 2, (bounds.top + bounds.bottom) / 2));
+  return { status: 'focused', focusX: x / W, focusY: y / H, changed: true, observedFaceBoxes: boxCount,
+    observedBounds: bounds, cropWidth: cropW, cropHeight: cropH };
+}
+
+module.exports = { faceSafeCoverFocus };
+// cover-focus:end
+return module.exports;})();
+const gallerySourceFacts = async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
+ const project=selects.project(projectId), resources=await project.resources(), nodes=[];
+ const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
+ const overview=await project.sourceFiles();
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ const sources=photos.map(photo=>{
+  const matches=nodes.filter(node=>node.path===photo.path&&(!matchById||node.resourceId===photo.resourceId)&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));
+  if(matches.length!==1||matches[0].resourceId!==photo.resourceId)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
+  const row=matches[0],size=row.frameSize;
+  if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('A selected Image has no verified native dimensions: '+photo.name);
+  return {resourceId:row.resourceId,path:row.path,name:photo.name,width:size.width,height:size.height};
+ });
+ const fail=(code,photo,message)=>{throw Object.assign(new Error(message+': '+photo.name),{code,resourceId:photo.resourceId});};
+ if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')throw Error('This Selects version does not support original photo file checks.');
+ const checked=new Set();
+ for(const photo of sources){
+  if(checked.has(photo.path))continue;
+  let before;
+  try{before=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file');}
+  if(before===null)fail('image-source-missing',photo,'The original photo file is missing');
+  if(!before||!Number.isSafeInteger(before.size)||before.size<0||typeof before.isDirectory!=='boolean')fail('image-source-unknown',photo,'Could not confirm the original photo file');
+  if(before.isDirectory||before.size===0)fail('image-source-unreadable',photo,'The original photo file is not readable');
+  let first;
+  try{first=await selects.files.readRange({path:photo.path,offset:0,length:1});}catch{fail('image-source-unreadable',photo,'Could not read the original photo file');}
+  if(!first||first.bytesRead!==1||typeof first.base64!=='string'||!/^[A-Za-z0-9+/]{2}==$/.test(first.base64))fail('image-source-unknown',photo,'Could not confirm reading the original photo file');
+  let after;
+  try{after=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file after reading');}
+  if(!after||after.isDirectory||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))fail('image-source-changed',photo,'The original photo file changed while reading');
+  checked.add(photo.path);
+ }
+ return sources;
+};
+function bindMediaPlacement(before,rows,wanted) {
+ const fail=()=>{throw Error('The media placement differs from its requested interval or source.');};
+ const valid=list=>Array.isArray(list)&&list.length<=1024&&list.every(row=>row&&Number.isSafeInteger(row.clipId)&&row.clipId>=0&&typeof row.trackId==='string'&&row.trackId)&&new Set(list.map(row=>row.clipId)).size===list.length;
+ if(!valid(before)||!valid(rows)||!wanted||typeof wanted.resourceId!=='string'||!wanted.resourceId)fail();
+ const keys=['trackId','trackKind','resourceId','startFrame','endFrame'],ids=new Set(before.map(row=>row.clipId)),added=rows.filter(row=>!ids.has(row.clipId));
+ if(rows.length!==before.length+1||added.length!==1||before.some(old=>{const current=rows.find(row=>row.clipId===old.clipId);return !current||keys.some(key=>current[key]!==old[key]);}))fail();
+ const row=added[0];if(!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)fail();
+ for(const key of ['resourceId','trackKind','startFrame','endFrame'])if(wanted[key]!==undefined&&row[key]!==wanted[key])fail();
+ return row;
+}
+async function placeWorkingCopyImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement){
+ const project=selects.project(projectId),meta=await draft.meta();
+ if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize.width!==plan.canvas.width||meta.frameSize.height!==plan.canvas.height)throw Error('The Draft frame grid differs from the plan.');
+ const fresh=await sourceFacts(selects,projectId,sources);
+ if(fresh.length!==sources.length||fresh.some((source,index)=>source.resourceId!==sources[index].resourceId||source.width!==sources[index].width||source.height!==sources[index].height))throw Error('A selected Image changed. Prepare the Images again.');
+ const placements=[];
+ for(const item of items){
+  const source=fresh[item.source];if(!source)throw Error('An Image occurrence has no source.');
+  const before=await draft.clips({trackScope:'all'});
+  await draft.overlayResource({resource:project.resource(source.resourceId),over:await draft.rangeAtFrames(item.startFrame,item.endFrame)});
+  const added=bindPlacement(before,await draft.clips({trackScope:'all'}),{resourceId:source.resourceId,trackKind:'video',startFrame:item.startFrame,endFrame:item.endFrame});
+  placements.push({...item,clipId:added.clipId,trackId:added.trackId,resourceId:source.resourceId});
+ }
+ if((await draft.meta()).durationFrames!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
+ return {placements,photos:fresh.map(source=>({width:source.width,height:source.height}))};
+}
+async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format,bindPlacement){
+ let stage='read';
+ try{
+  const {projectId,plan,sources,items,partialDraftId}=config,project=selects.project(projectId);
+  if(partialDraftId&&!(await project.meta()).draftIds.includes(partialDraftId))throw Error('Partial Draft is not in this Project.');
+  const draft=partialDraftId?selects.draft(partialDraftId):await project.createDraft({name:config.name});
+  if(!('motionGraphics' in draft)||!('motionGraphicProgram' in draft))throw Error('Update Selects to verify editable graphics.');
+  if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');
+  if(!partialDraftId){
+   stage='working copy';
+   if(config.main){await draft.insertResource({resourceId:config.main.resourceId,sourceRange:{startSeconds:config.main.startSeconds,endSeconds:config.main.startSeconds+plan.durationFrames/plan.fps}});}
+   else await draft.insertGap({seconds:plan.durationFrames/plan.fps});
+   await draft.setFrameSize(plan.canvas);
+  }else{
+   const rows=await draft.clips({trackScope:'all'});
+   if(rows.some(row=>row.trackKind!=='main'||(config.main?row.resourceId!==config.main.resourceId:Boolean(row.resourceId)))||config.main&&rows.length!==1)throw Error('Partial Draft is not empty; inspect it before retrying.');
+  }
+  stage='placement';const native=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement);
+  const clips=native.placements.map(({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame}));
+  stage='finish';const result=await finish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programFeature(selects,{...config,clips},format));
+  return {...result,fps:plan.fps,durationFrames:plan.durationFrames,frameSize:plan.canvas,clips};
+ }catch(error){return {status:stage==='finish'?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:config.partialDraftId||null};}
+}
+async function inspectImageGraphics(draft,expected){
+ if(!('motionGraphics' in draft)||!('motionGraphicProgram' in draft))throw Error('Update Selects to verify editable graphics.');
+ const same=(a,b)=>{
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(key=>Object.prototype.hasOwnProperty.call(b,key)&&same(a[key],b[key]));
+ };
+ const graphics=await draft.motionGraphics();
+ if(!Array.isArray(graphics)||graphics.length!==expected.length)throw Error('Graphic count could not be confirmed.');
+ for(const wanted of expected){
+  const actual=graphics.find(g=>g.clip.clipId===wanted.clipId&&g.clip.trackId===wanted.trackId)?.clip;
+  if(!actual||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Graphic placement could not be confirmed.');
+  const program=await draft.motionGraphicProgram(actual);
+  if(!program||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Object.entries(wanted.parameters).every(([key,value])=>Object.prototype.hasOwnProperty.call(program.parameters,key)&&same(program.parameters[key],value)))throw Error('Graphic parameters could not be confirmed.');
+ }
+}
+async function inspectImageTransforms(draft,expected,includeMain=false){
+ // Both consumers author fixed intrinsic transforms; motion belongs to their
+ // separate effects. Never adopt an observed transform as the expected value.
+ if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');
+ const rows=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='video'||includeMain&&clip.trackKind==='main'&&clip.resourceId!=null);
+ if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Visual transform count could not be confirmed.');
+ const same=(a,b)=>{
+  // Converting domain coordinates to the SDK may introduce floating-point noise.
+  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const receipts=[];
+ for(const wanted of expected){
+  const clip=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);
+  if(!clip)throw Error('Visual transform target could not be confirmed.');
+  const patch=wanted.transform,transform={enabled:true,rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[],...patch,position:{x:0,y:0,...patch.position},scale:{x:1,y:1,...patch.scale},anchor:{x:0,y:0,...patch.anchor}};
+  const actual=await draft.clipTransform(clip);
+  if(!actual||!Object.entries(transform).every(([key,value])=>same(actual[key],value)))throw Error('Visual transform could not be confirmed.');
+  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,transform});
+ }
+ return receipts;
+}
+async function inspectImageAudio(draft,expected,project,overlayOnly=false,observedSources=null,readSource=null){
+ const mismatch=message=>Object.assign(Error(message),{code:'IMAGE_AUDIO_MISMATCH'});
+ const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);
+ if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw mismatch('Audio clip count could not be confirmed.');
+ if(!expected.length)return [];
+ if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
+ const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
+ const same=(a,b)=>{
+  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ for(const wanted of expected){
+  const row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
+  if(!row||row.trackKind!==wanted.trackKind||row.resourceId!==wanted.resourceId||row.startFrame!==wanted.startFrame||row.endFrame!==wanted.endFrame||types.get(row.resourceId)!=='Audio'||!same(row.audioSourceIndexes,wanted.audioSourceIndexes))throw mismatch('Audio placement or routing could not be confirmed.');
+  const settings={volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0,...wanted.settings},actual=await draft.clipAudio(row);
+  if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw mismatch('Audio volume or fades could not be confirmed.');
+  if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');
+  const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};
+  if(!Number.isSafeInteger(source.playbackSpeed?.numerator)||source.playbackSpeed.numerator<1||!Number.isSafeInteger(source.playbackSpeed?.denominator)||source.playbackSpeed.denominator<1||typeof source.preserveAudioPitch!=='boolean')throw Error('Audio source evidence is invalid.');
+  if(row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio playback policy could not be confirmed.');
+  // Time uses floating-point arithmetic noise only, not the relative tolerance
+  // used for level/fades. A small changed source instant must remain detectable.
+  const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
+  // An unsaved working copy has no persisted source read. Keep the requested
+  // interval as intent; only saved verification supplies independently read
+  // sources. Never infer the source offset from timeline placement.
+  if(observedSources!==null){
+   if(typeof readSource!=='function')throw Error('Audio source observation is unavailable.');
+   let observed;try{observed=readSource(observedSources,row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
+   if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds))throw mismatch('Audio source timing could not be confirmed.');
+  }
+  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});
+ }
+ return receipts;
+}
+function imageProgramsFeature(selects,config=null,format=null){
+ const issue=message=>Object.assign(Error(message),{code:'IMAGE_PROGRAM_INVALID',publicMessage:message});
+ const guarded=fn=>async(...args)=>{try{return await fn(...args);}catch(cause){if(cause?.code==='IMAGE_PROGRAM_INVALID')throw cause;throw Object.assign(issue('Image program state could not be confirmed.'),{cause});}};
+ const same=(a,b)=>{
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
+ const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ // Reconcile a caller-owned program intent on Main or overlay visuals. Names
+ // only locate candidates; code, values, controls, intervals and order prove a
+ // match. Preflight the whole intent before the caller's optional mutation.
+ const reconcile=guarded(async(draft,input,beforeApply=null)=>{
+  if(!['clips','motionGraphics','motionGraphicProgram','videoEffects','videoEffectProgram','addMotionGraphic','addVideoEffect','rangeAtFrames'].every(key=>typeof draft[key]==='function'))throw issue('Update Selects to verify authored programs.');
+  const text=JSON.stringify(input,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['function','bigint','symbol'].includes(typeof value))throw issue('Program intent contains an unsupported value.');return value;});
+  if(!text||text.length>8*1024*1024)throw issue('Program intent exceeds its input limit.');
+  const intent=JSON.parse(text),names=value=>Array.isArray(value)&&value.length<=32&&new Set(value).size===value.length&&value.every(name=>typeof name==='string'&&name.length>0&&name.length<=256);
+  if(!intent||!names(intent.graphicNames)||!names(intent.effectNames)||!Array.isArray(intent.graphics)||intent.graphics.length>256||!Array.isArray(intent.clips)||intent.clips.length>256||new Set(intent.graphics.map(g=>g.name)).size!==intent.graphics.length||new Set(intent.clips.map(c=>c.clipId)).size!==intent.clips.length||beforeApply!==null&&typeof beforeApply!=='function')throw issue('Program intent is incomplete.');
+  const prepare=program=>{
+   if(!program||typeof program.tsxCode!=='string'||!program.tsxCode||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
+   return normalized(program);
+  };
+  const graphicPlans=intent.graphics.map(g=>{
+   if(!g||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
+   return {...g,program:prepare(g)};
+  });
+  const clipPlans=intent.clips.map(c=>{
+   if(!c||!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||!Array.isArray(c.effects)||c.effects.length>32||new Set(c.effects.map(e=>e.name)).size!==c.effects.length)throw issue('Effect intent has an invalid target.');
+   return {...c,effects:c.effects.map(e=>{if(!e||!intent.effectNames.includes(e.name))throw issue('Effect intent has an invalid name.');return {name:e.name,program:prepare(e)};})};
+  });
+  const rowFor=async wanted=>{
+   const rows=await draft.clips({trackScope:'all'}),row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
+   if(!row||!['main','video'].includes(row.trackKind)||!row.resourceId)throw issue('Effect intent target could not be confirmed.');return row;
+  };
+  const graphicPresent=async wanted=>{
+   const candidates=(await draft.motionGraphics()).filter(g=>g.name===wanted.name);
+   if(candidates.length>1)throw issue('Graphic intent matches several placements.');
+   if(!candidates.length)return false;
+   const clip=candidates[0].clip;
+   if(clip.trackKind!=='video'||clip.startFrame!==wanted.startFrame||clip.endFrame!==wanted.endFrame||!matches(await draft.motionGraphicProgram(clip),wanted.program))throw issue('Graphic program, controls or interval differ from the intended result.');
+   return true;
+  };
+  const effectState=async(wanted,complete)=>{
+   const all=await draft.videoEffects(await rowFor(wanted));
+   if(!Array.isArray(all)||all.some((e,index)=>e.effectIndex!==index||e.clipId!==wanted.clipId||e.trackId!==wanted.trackId))throw issue('Effect stack target could not be confirmed.');
+   const managed=all.filter(e=>intent.effectNames.includes(e.name));
+   if(managed.length>wanted.effects.length||complete&&managed.length!==wanted.effects.length)throw issue('Effect intent count could not be confirmed.');
+   for(const [index,e] of managed.entries()){
+    const expected=wanted.effects[index];
+    if(e.name!==expected.name||e.enabled!==true||!matches(await draft.videoEffectProgram(e),expected.program))throw issue('Effect program, controls or prefix order differ from the intended result.');
+   }
+   return {count:managed.length,stack:all.map(e=>({name:e.name,effectName:e.effectName,enabled:e.enabled}))};
+  };
+  for(const g of graphicPlans)g.kept=await graphicPresent(g);
+  for(const c of clipPlans)c.before=await effectState(c,false);
+  // Muting and other caller policy run only after every existing program was
+  // checked. All targets below are reread after that edit and each addition.
+  if(beforeApply)await beforeApply();
+  let graphicsAdded=0,graphicsKept=0;
+  const effects=Object.fromEntries(intent.effectNames.map(name=>[name,{added:0,kept:0}]));
+  for(const g of graphicPlans){
+   if(g.kept){graphicsKept++;continue;}
+   await draft.addMotionGraphic({within:await draft.rangeAtFrames(g.startFrame,g.endFrame),label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters});graphicsAdded++;
+  }
+  for(const c of clipPlans){
+   for(const [index,e] of c.effects.entries()){
+    if(index<c.before.count){effects[e.name].kept++;continue;}
+    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,tsxCode:e.program.tsxCode,parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
+   }
+  }
+  // Writer acknowledgements are not evidence that a program was applied.
+  for(const g of graphicPlans)if(!await graphicPresent(g))throw issue('The intended graphic was not applied.');
+  for(const c of clipPlans){
+   const after=await effectState(c,true);
+   if(!same(after.stack.slice(0,c.before.stack.length),c.before.stack))throw issue('An existing effect stack changed while applying programs.');
+  }
+  return {graphicsAdded,graphicsKept,effects};
+ });
+ const inspect=async(draft,expected)=>{
+  if(!('videoEffects' in draft)||!('videoEffectProgram' in draft)||!('motionGraphicProgram' in draft))throw issue('Update Selects to verify Image programs.');
+  const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');
+  const sources=[],clips=[];
+  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
+  for(const wanted of expected){
+   const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');
+   const effects=await draft.videoEffects(clip);
+   if(!Array.isArray(effects)||effects.length!==wanted.effects.length)throw issue('Effect stack could not be confirmed.');
+   const checked=[];
+   for(const [index,entry] of wanted.effects.entries()){
+    const actual=effects[index],program=normalized(entry);
+    if(actual.effectIndex!==index||actual.name!==entry.name||actual.enabled!==true||!matches(await draft.videoEffectProgram(actual),program))throw issue('Effect program, order or controls could not be confirmed.');
+    checked.push({name:entry.name,...pack(program)});
+   }
+   const graphic=await draft.motionGraphicProgram(clip);
+   if(wanted.graphic?!matches(graphic,normalized(wanted.graphic)):graphic!==null)throw issue('Graphic program or controls could not be confirmed.');
+   clips.push({clipId:clip.clipId,trackId:clip.trackId,effects:checked,graphic:wanted.graphic?pack(wanted.graphic):null});
+  }
+  return {sources,clips};
+ };
+ const presets=new Map();
+ const preset=async id=>{
+  if(!config)throw issue('Effect preset preparation requires an authoring target.');
+  if(presets.has(id))return presets.get(id);
+  const definition=await selects.effectPresets.get(id);
+  if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');
+  // The public preset definition omits effect TSX. Resolve a canonical program
+  // in an isolated unsaved reference, never by adopting the target's output.
+  const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});
+  await probe.insertGap({seconds:config.plan.durationFrames/config.plan.fps});await probe.setFrameSize(config.plan.canvas);
+  await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});
+  if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');
+  let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');
+  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});
+  if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
+  clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});
+  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
+  const value={name:definition.label,...expected};presets.set(id,value);return value;
+ };
+ const confirm=details=>{
+  if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');
+  const result={draftId:config.partialDraftId||'x'.repeat(120),fps:config.plan.fps,durationFrames:config.plan.durationFrames,frameSize:config.plan.canvas,clips:config.clips,...details};
+  // Reserve more than a UUID for the post-commit identity. Check the actual
+  // journal envelope and ASCII encoding before the only persistence boundary.
+  try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
+ };
+ const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
+ return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};
+}
+async function verifyAtomicImageDraft(sdk,projectId,result){
+ const {draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs}=result,expected={draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs};
+ const unverified=cause=>{const message='The saved Image Draft, graphics or sound could not be confirmed. Inspect the Draft before starting a new run.';return Object.assign(Error(message),{code:'IMAGE_SAVE_UNVERIFIED',draftId,publicMessage:message,cause});};
+ if(!Array.isArray(graphics))throw Object.assign(Error('Saved graphic receipts are unavailable. Inspect the existing Draft before starting a new run.'),{code:'IMAGE_SAVE_UNVERIFIED',draftId});
+ if(!Array.isArray(transforms))throw unverified('Saved transform receipts are unavailable.');
+ if(!Array.isArray(audio))throw unverified('Saved Audio receipts are unavailable.');
+ if(audio.some(row=>!row?.source))throw unverified('Saved Audio source evidence is unavailable.');
+ if(!programs)throw unverified('Saved program receipts are unavailable.');
+ let response;try{
+  const sources=audio.length?await readTemplateDraftSources(sdk,projectId,draftId):null;
+  response=await sdk.runScript({summary:'Verify complete saved Image Draft',allowCommit:false,script:`const readSource=${sources?templateObservedSource.toString():'null'};const expected=${JSON.stringify(expected)};const project=selects.project(${JSON.stringify(projectId)});if(!(await project.meta()).draftIds.includes(expected.draftId))throw Error('Saved Draft is not in this Project');const draft=selects.draft(expected.draftId),meta=await draft.meta(),rows=await draft.clips({trackScope:'all'});if(meta.fps!==expected.fps||meta.durationFrames!==expected.durationFrames||meta.frameSize.width!==expected.frameSize.width||meta.frameSize.height!==expected.frameSize.height)throw Error('Saved Draft frame grid could not be confirmed');if(rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==expected.clips.length)throw Error('Saved Image count could not be confirmed');for(const wanted of expected.clips){const actual=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);if(!actual||actual.resourceId!==wanted.resourceId||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Saved Image placement could not be confirmed');}await (${inspectImageGraphics.toString()})(draft,expected.graphics);await (${inspectImageTransforms.toString()})(draft,expected.transforms);await (${inspectImageAudio.toString()})(draft,expected.audio,project,false,${JSON.stringify(sources)},readSource);await (${imageProgramsFeature.toString()})(selects).verify(draft,expected.programs);return {verified:true};`});
+  if(response?.isError||response?.result?.verified!==true)throw Error('The saved Draft inspection did not complete.');
+  if(sources){
+   const after=await readTemplateDraftSources(sdk,projectId,draftId,sources.owner?.libraryId??null);
+   if(JSON.stringify(after)!==JSON.stringify(sources))throw Error('The saved Draft changed during source verification.');
+  }
+ }catch(cause){throw unverified(cause);}
+ return result;
+}
+async function readImageDraftFps(sdk,projectId,draftId=null){
+ const response=await sdk.runScript({summary:'Read the Project frame rate',allowCommit:false,script:`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(draftId)};if(id&&!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=id?selects.draft(id):await p.createDraft({name:'Image frame rate check'});return {fps:(await d.meta()).fps};`});
+ if(response.isError||!Number.isFinite(response.result?.fps)||response.result.fps<=0)throw Error('Could not read the Project frame rate.');
+ return response.result.fps;
+}
+function templateRunJSON(value,limit=49152) {
+ // Request data may opt in to a larger budget. Receipt envelopes and their
+ // exclusive/CAS writes retain the original 48 KiB default and exact bytes.
+ if(!Number.isSafeInteger(limit)||limit<49152||limit>131072)throw Error('Invalid template request limit.');
+ const text=JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('The template run receipt exceeds the local file limit.');
+ return text;
+}
+function templateRunBase64(text) {
+ const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';let out='';
+ for(let i=0;i<text.length;i+=3){
+  const a=text.charCodeAt(i),b=text.charCodeAt(i+1),c=text.charCodeAt(i+2);
+  out+=alphabet[a>>2]+alphabet[((a&3)<<4)|(Number.isNaN(b)?0:b>>4)]+(Number.isNaN(b)?'=':alphabet[((b&15)<<2)|(Number.isNaN(c)?0:c>>6)])+(Number.isNaN(c)?'=':alphabet[c&63]);
+ }
+ return out;
+}
+function templateStateJSON(value,limit=8388608){
+ const text=JSON.stringify(value,(_key,item)=>{
+  if(typeof item==='number'&&!Number.isFinite(item)||['function','symbol','bigint'].includes(typeof item))throw Error('Template state contains an unsupported value.');
+  return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item;
+ }).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
+}
+async function templateStateFile(selects,path,text,encode,expected=null,fingerprint=null){
+ const files=selects.files;
+ if(!files||!['readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof fingerprint!=='function'||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');
+ if(!expected){
+  for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}
+  const observed=await fingerprint(files,path);
+  if(!observed||observed.size!==text.length||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('Template state file could not be fingerprinted.');
+  expected={path,...observed};
+ }
+ if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');
+ const before=await fingerprint(files,path);
+ if(!before||before.size!==expected.size||before.sha256!==expected.sha256)throw Error('The template state file has changed.');
+ for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.readRange({path,offset,length:chunk.length});if(reply?.bytesRead!==chunk.length||reply.base64!==encode(chunk))throw Error('The saved Draft differs from its owned state.');}
+ const after=await fingerprint(files,path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');
+ return expected;
+}
+async function writeTemplateRunResult(selects,claim,result,json,encode) {
+ try{
+  const row=JSON.parse(claim.expectedText),status=result.status;
+  if(row.status!=='claimed'||!['saved','notSaved','outcomeUnknown'].includes(status))throw Error('Invalid run receipt state');
+  let saved;
+  if(status==='saved'){
+   if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{},...'sourceGuard' in result?{sourceGuard:result.sourceGuard}:{}};
+  }
+  const savedDraftId=status==='outcomeUnknown'?result.draftId:null;
+  if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\0')))throw Error('Invalid saved Draft identity');
+  const next=json({...row,status,...saved?{result:saved}:{},...savedDraftId?{savedDraftId}:{}});
+  const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});
+  return {...result,runReceiptSaved:reply?.replaced===true};
+ }catch{return {...result,runReceiptSaved:false};}
+}
+function templateRunIssue(code,message) {
+ return Object.assign(Error(message),{code,publicMessage:message});
+}
+function validateTemplateRun(row,scope,digest,recordPath=null) {
+ const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
+ if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
+  typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown','retired'].includes(row.status))throw invalid();
+ if(row.savedDraftId!==undefined&&(row.status!=='outcomeUnknown'||typeof row.savedDraftId!=='string'||!row.savedDraftId||row.savedDraftId.length>1024||row.savedDraftId.includes('\0')))throw invalid();
+ if(row.status==='saved'){
+  const r=row.result;
+  if(!r||typeof r.draftId!=='string'||!r.draftId||!Number.isFinite(r.fps)||r.fps<=0||!Number.isSafeInteger(r.durationFrames)||r.durationFrames<1||
+   !Number.isSafeInteger(r.frameSize?.width)||r.frameSize.width<1||!Number.isSafeInteger(r.frameSize?.height)||r.frameSize.height<1||!Array.isArray(r.clips)||!r.clips.length||r.clips.length>256||
+   r.clips.some(c=>!c||!Number.isSafeInteger(c.clipId)||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame||c.endFrame>r.durationFrames))throw invalid();
+  if(new Set(r.clips.map(c=>c.clipId)).size!==r.clips.length)throw invalid();
+  if(r.stateFile!==undefined){const file=r.stateFile;if(!file||Object.keys(file).length!==3||typeof file.path!=='string'||!recordPath||file.path!==recordPath+'.state-'+row.owner+'.json'||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256)||!Number.isSafeInteger(file.size)||file.size<1||file.size>8388608)throw invalid();}
+  if(r.sourceGuard!==undefined){
+   const g=r.sourceGuard;if(!g||typeof g!=='object'||Array.isArray(g))throw invalid();
+   if(g.version===1){
+    if(g.owner!==row.owner||!recordPath||g.path!==recordPath+'.sources-'+row.owner+'.json'||!Array.isArray(g.intent)||!g.intent.length||g.intent.length>1000)throw invalid();
+   }else if(g.version===2){
+    if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!recordPath||g.path!==recordPath+'.gallery-sources-'+row.owner+'.json'||!Number.isSafeInteger(g.size)||g.size<1||g.size>8388608||typeof g.sha256!=='string'||!/^[a-f0-9]{64}$/.test(g.sha256))throw invalid();
+   }else{
+    // Gallery guards source metadata/files; Vlog's versioned guard binds saved
+    // clip windows to a separately retained planner intent. Keep both contracts.
+    const text=(value,max)=>typeof value==='string'&&value.length>0&&value.length<=max&&!value.includes('\0');
+    const identity=item=>item&&text(item.resourceId,1024)&&text(item.path,4096);
+    if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!Array.isArray(g.media)||!g.media.length||g.media.length>21||!Array.isArray(g.files)||!g.files.length||g.files.length>22||!text(g.signature,32768))throw invalid();
+    for(const item of g.media)if(!identity(item)||!['image','video'].includes(item.kind)||!Number.isSafeInteger(item.width)||item.width<1||!Number.isSafeInteger(item.height)||item.height<1||item.kind==='video'&&(!Number.isFinite(item.durationSeconds)||item.durationSeconds<=0)||['focusX','focusY'].some(key=>item[key]!==undefined&&(!Number.isFinite(item[key])||item[key]<0||item[key]>1)))throw invalid();
+    if(g.music!==null&&(!identity(g.music)||!Number.isFinite(g.music.durationSeconds)||g.music.durationSeconds<=0||g.music.startFrame!==undefined&&(!Number.isSafeInteger(g.music.startFrame)||g.music.startFrame<0)))throw invalid();
+    if(new Set(g.files.map(file=>file?.path)).size!==g.files.length||g.files.some(file=>!file||Object.keys(file).length!==3||!text(file.path,4096)||!Number.isSafeInteger(file.size)||file.size<1||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256))||[...g.media,...g.music?[g.music]:[]].some(item=>!g.files.some(file=>file.path===item.path)))throw invalid();
+    const signature=JSON.stringify({media:g.media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,item.kind==='video'?item.durationSeconds:null]),music:g.music?[g.music.resourceId,g.music.path,g.music.durationSeconds]:null});
+    if(signature!==g.signature)throw invalid();
+   }
+  }
+  if(r.graphics!==undefined){
+   if(!Array.isArray(r.graphics)||r.graphics.length>256||r.graphics.some(g=>!g||!Number.isSafeInteger(g.clipId)||g.clipId<0||typeof g.trackId!=='string'||!g.trackId||!Number.isSafeInteger(g.startFrame)||!Number.isSafeInteger(g.endFrame)||g.startFrame<0||g.endFrame<=g.startFrame||g.endFrame>r.durationFrames||!g.parameters||typeof g.parameters!=='object'||Array.isArray(g.parameters)||'tsxCode' in g))throw invalid();
+   if(new Set(r.graphics.map(g=>g.clipId)).size!==r.graphics.length||r.graphics.some(g=>r.clips.some(c=>c.clipId===g.clipId)))throw invalid();
+  }
+  if(r.transforms!==undefined){
+   const visual=[...r.clips,...(r.graphics??[])],point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
+   if(!Array.isArray(r.transforms)||r.transforms.length!==visual.length||new Set(r.transforms.map(t=>t?.clipId)).size!==r.transforms.length)throw invalid();
+   for(const row of r.transforms){
+    const t=row?.transform;
+    if(!row||!visual.some(c=>c.clipId===row.clipId&&c.trackId===row.trackId)||Object.keys(row).length!==3||!t||Object.keys(t).length!==10||typeof t.enabled!=='boolean'||typeof t.flipHorizontal!=='boolean'||typeof t.flipVertical!=='boolean'||!point(t.position)||!point(t.scale)||t.scale.x<=0||t.scale.y<=0||!point(t.anchor)||!Number.isFinite(t.rotation))throw invalid();
+    for(const key of ['positionKeys','scaleKeys','rotationKeys'])if(!Array.isArray(t[key])||t[key].length>256||t[key].some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||(key==='positionKeys'?!point(k):!Number.isFinite(k[key==='scaleKeys'?'scale':'rotation']))))throw invalid();
+   }
+  }
+  if(r.audio!==undefined){
+   if(!Array.isArray(r.audio)||r.audio.length>256||new Set(r.audio.map(a=>a?.clipId)).size!==r.audio.length)throw invalid();
+   const db=value=>Number.isFinite(value)&&value>=-60&&value<=12,visual=[...r.clips,...(r.graphics??[])];
+   for(const a of r.audio){
+    const s=a?.settings;
+    if(!a||Object.keys(a).length!==(a.source===undefined?8:9)||!Number.isSafeInteger(a.clipId)||a.clipId<0||typeof a.trackId!=='string'||!a.trackId||!['main','audio'].includes(a.trackKind)||typeof a.resourceId!=='string'||!a.resourceId||!Number.isSafeInteger(a.startFrame)||!Number.isSafeInteger(a.endFrame)||a.startFrame<0||a.endFrame<=a.startFrame||a.endFrame>r.durationFrames||visual.some(c=>c.clipId===a.clipId)||!s||Object.keys(s).length!==4)throw invalid();
+    if(a.source!==undefined){
+     const t=a.source,rate=t?.playbackSpeed;
+     if(!t||Object.keys(t).length!==4||!Number.isFinite(t.startSeconds)||t.startSeconds<0||!Number.isFinite(t.endSeconds)||t.endSeconds<=t.startSeconds||!rate||Object.keys(rate).length!==2||!Number.isSafeInteger(rate.numerator)||rate.numerator<1||!Number.isSafeInteger(rate.denominator)||rate.denominator<1||rate.numerator/rate.denominator<.01||rate.numerator/rate.denominator>100||typeof t.preserveAudioPitch!=='boolean')throw invalid();
+    }
+    if(a.audioSourceIndexes!==null&&(!Array.isArray(a.audioSourceIndexes)||a.audioSourceIndexes.length>256||new Set(a.audioSourceIndexes).size!==a.audioSourceIndexes.length||a.audioSourceIndexes.some(i=>!Number.isSafeInteger(i)||i<0)))throw invalid();
+    const duration=(a.endFrame-a.startFrame)/r.fps;
+    if(!Array.isArray(s.volumeKeys)||s.volumeKeys.length>256||(s.volumeKeys.length?s.volumeDb!==null:!db(s.volumeDb))||s.volumeKeys.some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||k.atSeconds>duration||!db(k.volumeDb))||!Number.isFinite(s.fadeInSeconds)||s.fadeInSeconds<0||s.fadeInSeconds>duration||!Number.isFinite(s.fadeOutSeconds)||s.fadeOutSeconds<0||s.fadeOutSeconds>duration)throw invalid();
+   }
+  }
+  if(r.programs!==undefined){
+   const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   const entry=(e,effect)=>{
+    if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
+    if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();
+    used.add(e.source);
+   };
+   for(const c of p.clips){
+    if(!c||Object.keys(c).length!==4||!visual.some(v=>v.clipId===c.clipId&&v.trackId===c.trackId)||!Array.isArray(c.effects)||c.effects.length>64)throw invalid();
+    c.effects.forEach(e=>entry(e,true));
+    const graphic=(r.graphics??[]).some(g=>g.clipId===c.clipId);
+    if(graphic)entry(c.graphic,false);else if(c.graphic!==null)throw invalid();
+   }
+   if(used.size!==p.sources.length)throw invalid();
+  }
+ }
+ return row;
+}
+async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,verify,options={}) {
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!options||['existingOnly','retryNotSaved','retireUnstarted'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean')||options.existingOnly&&(options.retryNotSaved||options.retireUnstarted)||options.retryNotSaved&&options.retireUnstarted)fail('TEMPLATE_RUN_INVALID','Invalid run recovery options.');
+ if(!scope||!['pluginId','libraryId','projectId','runId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=1024)||!/^[a-z0-9-]+$/.test(scope.pluginId))fail('TEMPLATE_RUN_INVALID','The template run target is incomplete. Start again from the Project.');
+ scope={pluginId:scope.pluginId,libraryId:scope.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const targetCheck=async()=>{
+  const target=await sdk.call('getProjectDraftScaffold',scope.projectId);
+  if(target?.owner?.libraryId!==scope.libraryId||target.owner.projectId!==scope.projectId)fail('TEMPLATE_RUN_TARGET','The template run belongs to a different Project or library. Start again from the intended Project.');
+  check();
+ };
+ await targetCheck();
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','compareAndReplace','mkdir'].every(key=>typeof files[key]==='function'))fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const digest=async(value,limit=49152)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value,limit)))),n=>n.toString(16).padStart(2,'0')).join('');
+ const key=await digest(scope),requestDigest=await digest(request,options.requestLimit??49152);
+ const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
+ let lastReadText=null;
+ const read=async()=>{
+  if(!await files.exists(path))return null;
+  let row;
+  try{
+   for(let attempt=0;attempt<3;attempt++){
+   const stat=await files.stat(path);if(stat?.isDirectory===false&&stat.size===0)continue;
+   if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
+   const bytes=await files.readRange(path,0,stat.size),after=await files.stat(path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]')throw Error('Invalid run record bytes');
+   // A legitimate Main-side receipt may replace the claim between these reads.
+   // Retry bounded observations; never parse a mixture or retry authoring.
+   if(!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))continue;
+   if(bytes.byteLength!==stat.size)throw Error('Invalid run record bytes');
+   lastReadText=new TextDecoder().decode(bytes);row=JSON.parse(lastReadText);break;
+   }
+   if(row===undefined)fail('TEMPLATE_RUN_PENDING','The run record is changing. Check its saved result again.');
+  }catch(error){if(error?.code==='TEMPLATE_RUN_PENDING')throw error;fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
+  return validateTemplateRun(row,scope,requestDigest,path);
+ };
+ const recover=async row=>{
+  if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
+  if(row.status==='retired')throw Object.assign(templateRunIssue('TEMPLATE_RUN_RETIRED','This old operation was retired before saving. Start a new template run with the updated version.'),{outcome:'notSaved'});
+  if(row.status==='notSaved')fail('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.');
+  if(row.status==='outcomeUnknown'&&row.savedDraftId)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The saved Draft '+row.savedDraftId+' could not be confirmed. Inspect it before starting another run.'),{draftId:row.savedDraftId});
+  fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
+ };
+ const existing=await read(),retryText=lastReadText;
+ if(existing&&!((options.retryNotSaved||options.retireUnstarted)&&existing.status==='notSaved'))return recover(existing);
+ if(options.existingOnly)fail('TEMPLATE_RUN_MISSING','The owned assembly record is missing. Inspect the Project before starting another run.');
+ if(typeof globalThis.crypto?.randomUUID!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&typeof selects.files?.compareAndReplace==='function'&&typeof selects.files?.writeChunk==='function'};"});
+ if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ await files.mkdir(directory,{recursive:true});check();
+ const owner=crypto.randomUUID(),expectedText=templateRunJSON({version:1,scope,requestDigest,owner,status:'claimed'}),claim={path,expectedText};
+ // Exclusive creation is a filesystem operation, including across app windows.
+ // compareAndReplace alone serializes only one renderer bridge's own writes.
+ if(existing){
+  // Only a positive no-save is eligible. The exclusive generation lock covers
+  // other renderer bridges too; a CAS alone does not provide that guarantee.
+  const lock=path+'.retry-'+existing.owner;
+  try{await files.writeFile(lock,owner,{flag:'wx'});}catch(cause){
+   const stat=await files.stat(lock),bytes=stat?.size===owner.length?await files.readRange(lock,0,stat.size):null;
+   if(!bytes||new TextDecoder().decode(bytes)!==owner)fail('TEMPLATE_RUN_PENDING','A retry of this known no-save run is awaiting confirmation.');
+  }
+  try{
+   const replaced=await files.compareAndReplace(path,retryText,expectedText);
+   if(!replaced){const row=await read();if(row?.owner!==owner)return recover(row);}
+  }catch(cause){const row=await read();if(row?.owner!==owner)throw cause;}
+ }else try{await files.writeFile(path,expectedText,{flag:'wx'});}catch(cause){
+  const row=await read();
+  if(!row)fail('TEMPLATE_RUN_STORAGE','The run could not be recorded. Nothing was dispatched. Check local file access and start a new run.');
+  if(row.owner!==owner)return recover(row);
+  // A lost claim ACK is safe to recover here: authoring has not been dispatched.
+ }
+ if(options.retireUnstarted){
+  // An exclusive claim excludes older windows too. A distinct terminal state
+  // cannot be mistaken for their retryable pre-save failure.
+  const retired=templateRunJSON({...JSON.parse(expectedText),status:'retired'});
+  try{await files.compareAndReplace(path,expectedText,retired);}catch{}
+  const row=await read();if(row?.status==='retired')return recover(row);
+  fail('TEMPLATE_RUN_PENDING','Retirement of this old operation could not be confirmed. Check the same run again.');
+ }
+ let dispatched=false;
+ try{
+  check();
+  return await perform(claim,async()=>{await targetCheck();dispatched=true;});
+ }catch(cause){
+  if(!dispatched){
+   // No authoring was dispatched. Never overwrite a later Main-side receipt.
+   await files.compareAndReplace(path,expectedText,templateRunJSON({...JSON.parse(expectedText),status:'notSaved'})).catch(()=>{});
+   if(cause&&typeof cause==='object')Object.assign(cause,{outcome:'notSaved'});
+  }else{
+   // Main may finish after the transport failed. Keep its expected claim intact
+   // so the late receipt can land. A positively saved receipt permits readback.
+   const row=await read();if(row?.status==='saved')return recover(row);
+   if(row?.status==='notSaved')throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.'),{cause});
+  }
+  throw cause;
+ }
+}
+function bundledAssetIssue(code,message,cause=undefined){
+ return Object.assign(Error(message),{code:'BUNDLED_ASSET_'+code,publicMessage:message,...cause?{cause}:{}});
+}
+async function readBundledAssetBytes(files,path,limit,current){
+ current();if(typeof files?.readRange!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+ const stat=await files.stat(path);current();
+ if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>limit)throw bundledAssetIssue('BYTES','The bundled file is missing, unreadable or exceeds its size limit.');
+ // Freeze the observation as a read budget. readFile would stat again and could
+ // allocate a larger, changed file before this feature gets to reject it.
+ const raw=await files.readRange(path,0,stat.size);current();
+ const after=await files.stat(path);current();
+ if(!ArrayBuffer.isView(raw)||raw.byteLength!==stat.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw bundledAssetIssue('CHANGED','The bundled file changed while reading. Start a new run.');
+ return Uint8Array.from(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
+}
+async function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false,requireComplete=false){
+ const project=selects.project(projectId),resources=new Map(),matches=[];
+ const rows=await project.resources();
+ if(requireComplete&&!Array.isArray(rows))throw Error('The Project Resource catalog is incomplete.');
+ for(const resource of rows){
+  if(requireComplete&&(!resource||typeof resource.resourceId!=='string'||!resource.resourceId||resources.has(resource.resourceId)))throw Error('The Project Resource catalog is contradictory.');
+  resources.set(resource.resourceId,resource);
+ }
+ const key=value=>{const text=normalizeUnicode?String(value).normalize('NFC'):String(value);return platform==='win32'?text.replace(/\\/g,'/').toLowerCase():text;};
+ const visit=items=>{
+  if(requireComplete&&!Array.isArray(items))throw Error('The Project file tree is incomplete.');
+  for(const n of items||[]){
+   if(matches.length>=2)return;
+   if(requireComplete&&(!n||typeof n!=='object'))throw Error('The Project file tree is incomplete.');
+   if(n.type==='dir')visit(n.children);
+   else if(n.path&&key(n.path)===key(path)){
+    if(requireComplete&&!resources.has(n.resourceId))throw Error('The selected Project file has no Resource metadata.');
+    if(resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,path:n.path,type:r.type,durationSeconds:r.durationSeconds,...r.type==='Image'?{frameSize:n.frameSize}:{}});}
+   }
+  }
+ };
+ const tree=await project.sourceFiles();
+ if('fileTree' in tree)visit(tree.fileTree);
+ else{
+  if(requireComplete&&(!Array.isArray(tree.folders)||!tree.folders.length&&tree.fileCount!==0))throw Error('The Project file overview is incomplete.');
+  const seen=new Set();
+  for(const folder of tree.folders||[]){
+   if(matches.length>=2)break;
+   if(requireComplete&&(!folder||typeof folder.name!=='string'||!folder.name||seen.has(folder.name)))throw Error('The Project folder overview is contradictory.');
+   seen.add(folder.name);const detail=await project.sourceFiles({folder:folder.name});
+   if('fileTree' in detail)visit(detail.fileTree);
+   else if(requireComplete)throw Error('The Project folder detail is incomplete.');
+  }
+ }
+ return {matches};
+}
+async function prepareBundledAsset(sdk,files,options){
+ const {projectId,pluginId,sourcePath,type,extension,encoding='binary',expectedBytes,expectedSha256,frameSize,platform='darwin',normalizeUnicode=false,minimumSeconds=0,label='asset',isCurrent=()=>true}=options??{};
+ let importStarted=false;
+ const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED',importStarted?'The template run ended after an asset import was requested. Check the Project files.':'The template run ended before importing the bundled asset.');};
+ try{
+  const pinned=expectedBytes!==undefined||expectedSha256!==undefined;
+  if(typeof projectId!=='string'||!projectId||projectId!==projectId.trim()||typeof pluginId!=='string'||pluginId.length>63||!/^[a-z0-9][a-z0-9-]*$/.test(pluginId)||typeof sourcePath!=='string'||!sourcePath||!['Image','Audio'].includes(type)||!(type==='Image'?extension==='png':['mp3','m4a','wav'].includes(extension))||!['binary','base64'].includes(encoding)||!['asset','frame','music'].includes(label)||!Number.isFinite(minimumSeconds)||minimumSeconds<0||type==='Image'&&minimumSeconds!==0||encoding==='base64'&&!pinned||pinned&&(!Number.isSafeInteger(expectedBytes)||expectedBytes<1||expectedBytes>32*1024*1024||typeof expectedSha256!=='string'||!/^[0-9a-f]{64}$/.test(expectedSha256)))throw bundledAssetIssue('INPUT','The bundled asset request is invalid.');
+  if(typeof normalizeUnicode!=='boolean'||typeof isCurrent!=='function'||frameSize&&(type!=='Image'||!Number.isSafeInteger(frameSize.width)||frameSize.width<1||!Number.isSafeInteger(frameSize.height)||frameSize.height<1))throw bundledAssetIssue('INPUT','The bundled asset comparison or Image dimensions are invalid.');
+  const subtle=globalThis.crypto?.subtle;
+  if(!subtle||encoding==='base64'&&typeof globalThis.atob!=='function'||['stat','readRange','writeFile','exists','mkdir','join','homedir'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+  const hash=async bytes=>{current();const digest=await subtle.digest('SHA-256',bytes);current();return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');};
+  const installed=async()=>{
+   // Base64 permits ordinary line wrapping, with bounded whitespace overhead.
+   const limit=encoding==='binary'?32*1024*1024:4*Math.ceil(expectedBytes/3)+Math.max(4096,Math.ceil(expectedBytes*.1));
+   const bytes=await readBundledAssetBytes(files,sourcePath,limit,current);
+   let decoded=bytes;
+   if(encoding==='base64'){
+    const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/\s/g,'');
+    if(text.length!==4*Math.ceil(expectedBytes/3)||!/^[A-Za-z0-9+/]*={0,2}$/.test(text))throw bundledAssetIssue('ENCODING','The encoded bundled asset is invalid.');
+    const binary=globalThis.atob(text);current();decoded=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)decoded[i]=binary.charCodeAt(i);
+   }
+   if(pinned&&decoded.length!==expectedBytes)throw bundledAssetIssue('BYTES','The bundled asset byte count does not match its manifest.');
+   const digest=await hash(decoded);
+   if(pinned&&digest!==expectedSha256)throw bundledAssetIssue('HASH','The bundled asset does not match its manifest. Check the installed template files before starting again.');
+   return {bytes:decoded,digest};
+  };
+  current();const original=await installed();current();const home=await files.homedir();current();
+  const directory=files.join(home,'.selects','plugin-data',pluginId,'assets'),path=files.join(directory,original.digest+'.'+extension);
+  current();await files.mkdir(directory,{recursive:true});current();const exists=await files.exists(path);current();const stored=exists?await files.stat(path):null;current();
+  const have=stored?.isDirectory===false&&stored.size===original.bytes.length?await readBundledAssetBytes(files,path,32*1024*1024,current):null;
+  if(!have||await hash(have)!==original.digest){current();await files.writeFile(path,original.bytes);current();}
+  if(await hash(await readBundledAssetBytes(files,path,32*1024*1024,current))!==original.digest)throw bundledAssetIssue('COPY','The bundled asset data copy could not be confirmed.');
+  if((await installed()).digest!==original.digest)throw bundledAssetIssue('CHANGED','The installed asset changed during preparation. Start a new run.');
+  const read=async()=>{
+   current();const reply=await sdk.runScript({summary:'Find bundled '+label+' Resource',allowCommit:false,script:`return await (${readBundledAssetResource.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(path)},${JSON.stringify(platform)},${JSON.stringify(normalizeUnicode)});`});current();
+   if(reply?.isError||!Array.isArray(reply?.result?.matches)||reply.result.matches.length>1)throw bundledAssetIssue('READ','The bundled asset in this Project could not be uniquely confirmed. Check the Project files.');
+   return reply.result.matches[0]??null;
+  };
+  const ready=row=>{
+   if(!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.path!=='string'||!row.path||row.type!==type)throw bundledAssetIssue('METADATA','The bundled Resource type, path or identity could not be confirmed. Check the Project files.');
+   if(type==='Audio'&&(!Number.isFinite(row.durationSeconds)||row.durationSeconds<=0||row.durationSeconds<minimumSeconds))throw bundledAssetIssue('METADATA','The bundled file could not be confirmed as full-length Audio. Check the Project files.');
+   const size=row.frameSize;
+   if(type==='Image'&&(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1||frameSize&&(size.width!==frameSize.width||size.height!==frameSize.height)))throw bundledAssetIssue('METADATA','The bundled Image dimensions could not be confirmed. Check the Project files.');
+   return {resourceId:row.resourceId,path:row.path,...type==='Image'?{width:size.width,height:size.height}:{durationSeconds:row.durationSeconds}};
+  };
+  const existing=await read();if(existing)return ready(existing);
+  current();let imported,importFailure;importStarted=true;
+  try{imported=await sdk.runScript({summary:'Import bundled '+label,allowCommit:true,script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify([path])}});`});}catch(error){importFailure=error;}
+  const ids=imported?.result?.addedResourceIds,row=await read();
+  if(row){if(Array.isArray(ids)&&ids.length&&(ids.length!==1||ids[0]!==row.resourceId))throw bundledAssetIssue('IMPORT_UNKNOWN','The added asset could not be confirmed. Check the Project files.');return ready(row);}
+  if(!imported?.isError&&Array.isArray(ids)&&!ids.length)throw bundledAssetIssue('SKIPPED','Selects did not add the bundled asset. Check the Project import result before starting again.');
+  throw bundledAssetIssue('IMPORT_UNKNOWN','The asset import outcome could not be confirmed. Inspect the Project before starting again.',importFailure);
+ }catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))throw error;throw bundledAssetIssue('PREPARE','The bundled asset could not be prepared. Check the installed files and Project resources.',error);}
+}
+async function readAssetFileIdentity(files,path,hashFile,current){
+ try{
+ current();const before=await files.stat(path);current();
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media file is missing or unreadable.');
+ const sha256=await hashFile(path);current();const after=await files.stat(path);current();
+ if(typeof sha256!=='string'||!/^[0-9a-f]{64}$/.test(sha256)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media file changed while its contents were checked. Start a new run.');
+ return {sha256,bytes:before.size};
+ }catch(error){
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('SOURCE','The media file could not be read. Check the selected source and file access.',error);
+ }
+}
+async function prepareDerivedAsset(files,options){
+ const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
+ if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
+ if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The derived media cancellation signal is invalid.');
+ const current=()=>{if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before media preparation completed.');};
+ const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
+ const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
+ const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
+ current();
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(['join','stat','readFile','readRange','exists','mkdir','writeFile','compareAndReplace','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
+ const cached=async()=>{
+  current();let candidate;
+  try{
+   if(!await files.exists(indexPath)){current();return null;}
+   // A different live writer may atomically replace a complete index between
+   // our stat/read/stat observations. Reobserve only this read; never replay
+   // publication or treat an unconfirmed, changing index as a cache miss.
+   let bytes;
+   for(let attempt=0;attempt<3;attempt++){
+    current();
+    try{bytes=await readBundledAssetBytes(files,indexPath,49152,current);break;}
+    catch(error){
+     current();if(error?.code!=='BUNDLED_ASSET_CHANGED')throw error;
+     if(attempt===2)throw Object.assign(bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.',error),{terminal:true});
+    }
+   }
+   const row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+   if(row?.version!==1||row.key!==key||!same(row.source,source)||!valid(row.output))return null;
+   const path=files.join(objectDirectory,row.output.sha256+'.'+extension);
+   if(!same(await readAssetFileIdentity(files,path,hashFile,current),row.output))return null;
+   await verify(path);current();candidate={path,output:row.output,reused:true};
+  }catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;return null;}
+  await freshSource();return candidate;
+ };
+ const previous=await cached();current();if(previous)return previous;
+ if(typeof globalThis.crypto?.randomUUID!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ const owner=crypto.randomUUID();
+ if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
+ current();await files.mkdir(directory,{recursive:true});current();
+ const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
+ let result,preparationFailure;const reservations=reserveAssetFiles(files,current,owner);
+
+ try{
+  // Reserve each private path exclusively before copying/encoding over it.
+  await reservations.reserve(snapshot,'source');await reservations.reserve(temporary,'output');
+  await files.copyFile(sourcePath,snapshot);current();
+  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
+  await produce(snapshot,temporary);current();await freshSource();
+  await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
+  current();await files.mkdir(objectDirectory,{recursive:true});current();
+  const path=files.join(objectDirectory,output.sha256+'.'+extension);
+  let have=false;
+  try{have=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch{current();}
+  if(!have){
+   // A lost rename reply is observed, never retried or implemented as delete+move.
+   try{current();await files.rename(temporary,path);}catch{}
+   current();let confirmed=false;
+   try{confirmed=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;}
+   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media publication could not be confirmed. Inspect the cache before starting again.');
+  }
+  await freshSource();current();await files.mkdir(indexDirectory,{recursive:true});current();
+  const text=JSON.stringify({version:1,key,source,output});
+  try{await files.writeFile(indexPath,text);}catch{/* Observe an acknowledged or concurrent complete index below. */}
+  current();const confirmed=await cached();
+  if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
+  result={...confirmed,reused:false};
+ }catch(error){
+  preparationFailure=error;
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
+ }finally{
+  // Only this invocation's reserved staging paths are disposable. Published
+  // objects/indexes may already be referenced by a different run or old Draft.
+  if(preparationFailure?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(preparationFailure,reservations);
+  const cleanupFailures=await reservations.cleanup({observeFailure:cleanupRequired});
+  if(cleanupRequired&&cleanupFailures.length)throw Object.assign(bundledAssetIssue('CLEANUP','Analysis workspace cleanup could not be confirmed. Inspect the preparation workspace before starting again.',preparationFailure),{terminal:true,cleanupFailures});
+ }
+ // Cleanup is asynchronous too: a detached owner must not receive a late success.
+ current();return result;
+}
+function reserveAssetFiles(files,current,owner){
+ const owned=new Set(),tokens=new Set();
+ const reservationUnknown=cause=>Object.assign(bundledAssetIssue('RESERVATION_UNKNOWN','The media file reservation could not be confirmed. Inspect the preparation workspace before starting again.',cause),{terminal:true});
+ // Ownership observations are bounded and can run after cancellation so only
+ // positively identified reservations enter cleanup. A filename alone is not proof.
+ const observe=async path=>{
+  try{
+   const before=await files.stat(path);
+   if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||before.size>1024)return null;
+   const bytes=await files.readRange(path,0,before.size),after=await files.stat(path);
+   if(!(bytes instanceof Uint8Array)||bytes.length!==before.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))return null;
+   return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+  }catch{return null;}
+ };
+ const reserve=async(path,role)=>{
+  current();const token=crypto.randomUUID();
+  if(typeof token!=='string'||!/^[0-9a-f-]{36}$/i.test(token)||token===owner||tokens.has(token))throw bundledAssetIssue('UNSUPPORTED','The media reservation owner could not be created.');
+  tokens.add(token);const marker=JSON.stringify({version:1,kind:'derived-reservation',owner,token,role});let creationFailure;
+  try{await files.writeFile(path,marker,{flag:'wx'});}catch(error){creationFailure=error;}
+  if(await observe(path)!==marker)throw reservationUnknown(creationFailure);
+  owned.add(path);current();
+  // Consume exactly this marker to retain the established empty-output contract.
+  // During an unobserved replacement, cleanup must not race a late rename.
+  owned.delete(path);let replaced,clearFailure;
+  try{replaced=await files.compareAndReplace(path,marker,'');}catch(error){clearFailure=error;}
+  const cleared=await observe(path);
+  if(replaced===false){if(cleared===marker)owned.add(path);throw reservationUnknown(clearFailure);}
+  if(cleared!=='')throw reservationUnknown(clearFailure);
+  owned.add(path);current();
+ };
+ return {reserve,paths:()=>[...owned],cleanup:async({observeFailure=false}={})=>{
+  const failures=[];
+  for(const path of owned){
+   try{await files.removeFile({filePath:path});}
+   catch(cause){
+    // A lost deletion reply is observed once, never replayed. Existing derived
+    // callers retain best-effort cleanup; transient readers require a verdict.
+    if(observeFailure){try{if(await files.stat(path)===null)continue;}catch{}}
+    failures.push({path,cause});
+   }
+  }
+  return failures;
+ }};
+}
+function retainUnconfirmedAssetFiles(error,reservations){
+ return Object.assign(bundledAssetIssue('WORKSPACE_UNKNOWN','The media job exit could not be confirmed. Its temporary workspace is retained for inspection.',error),{
+  terminal:true,preserveTemporaryFiles:true,
+  ...(typeof (error?.unconfirmedJobId??error?.jobId)==='string'?{unconfirmedJobId:error.unconfirmedJobId??error.jobId}:{}),
+  retainedTemporaryFiles:[...new Set([...(Array.isArray(error?.retainedTemporaryFiles)?error.retainedTemporaryFiles:[]),...reservations.paths()])]
+ });
+}
+async function runAssetMediaTool(media,kind,args,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw bundledAssetIssue('INPUT','The media process options are invalid.');
+ const {isCurrent=()=>true,signal,timeoutMs=120000,deadline}=options;
+ if(!['runFFmpeg','runFFprobe'].includes(kind)||!Array.isArray(args)||args.some(arg=>typeof arg!=='string')||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||deadline!==undefined&&!Number.isFinite(deadline)||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The media process request or scope is invalid.');
+ if(typeof media?.[kind]!=='function'||typeof AbortController!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to run and cancel media preparation safely.');
+ const controller=new AbortController();let stopped=false,timedOut=false,watch,timer;
+ const stop=()=>{stopped=true;controller.abort();};
+ const live=()=>{try{return isCurrent()&&!signal?.aborted;}catch{return false;}};
+ const check=()=>{if(!live())stop();else watch=setTimeout(check,50);};
+ const expiresAt=Math.min(Date.now()+timeoutMs,deadline===undefined?Infinity:deadline),remaining=expiresAt-Date.now();
+ signal?.addEventListener('abort',stop,{once:true});check();
+ if(remaining<=0){timedOut=true;controller.abort();}
+ else timer=setTimeout(()=>{timedOut=true;controller.abort();},remaining);
+ try{
+  if(stopped||timedOut)throw Error('The media process was not dispatched.');
+  const result=await media[kind](args,true,controller.signal);
+  if(!live())stop();
+  if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
+  if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
+  return result;
+ }catch(cause){
+  if(cause?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(cause,{paths:()=>[]});
+  if(!live())stop();
+  if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
+  if(stopped)throw Object.assign(bundledAssetIssue('STOPPED','The template run ended before media preparation completed.',cause),{terminal:true});
+  if(timedOut)throw Object.assign(bundledAssetIssue('TIMEOUT','Media preparation timed out.',cause),{terminal:true});
+  if(cause?.terminal||cause?.code==='host-missing')throw cause;
+  throw bundledAssetIssue('MEDIA','Media preparation could not be completed. Check the source file and media tools.',cause);
+ }finally{clearTimeout(timer);clearTimeout(watch);signal?.removeEventListener('abort',stop);}
+}
 // Domain reads and editable Image placement use the public Project/Draft SDK.
 async function galleryNativeResources(sdk, projectId, media, libraryId = null) {
   const result = await sdk.runScript({
@@ -38,6 +1543,9 @@ async function galleryNativePlace(sdk, projectId, draftId, media, plan, libraryI
     script: `const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)}),plan=${JSON.stringify(plan)},media=${JSON.stringify(selected)};
       if(!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)}))throw Error('Target Draft does not belong to this Project');
       const meta=await d.meta();if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames)throw Error('Gallery Draft clock or duration changed');
+      const images=media.map((item,index)=>({...item,name:'Tile '+(index+1)})).filter(item=>item.kind==='image');
+      const facts=images.length?await (${gallerySourceFacts.toString()})(selects,${JSON.stringify(projectId)},images):[];
+      if(facts.some((row,index)=>row.width!==images[index].width||row.height!==images[index].height))throw Error('Selected Gallery Images changed before placement');
       const placements=[];for(let index=0;index<plan.tiles.length;index++){const tile=plan.tiles[index];if(tile.kind!=='image')continue;
         const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
         await d.overlayResource({resource:p.resource(media[index].resourceId),over:await d.rangeAtFrames(tile.revealFrame,tile.endFrame)});
@@ -52,12 +1560,13 @@ async function galleryNativePlace(sdk, projectId, draftId, media, plan, libraryI
   return result.result;
 }
 
+const galleryFaceFocus=sharedCoverFocus.faceSafeCoverFocus;
 
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
 function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
-function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member,...code==='host-missing'?{publicMessage:message}:{} }); }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
   const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
@@ -78,33 +1587,6 @@ function hostJoin(...parts) {
   const sep = hostIsWindows() ? "\\" : "/";
   return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
 }
-// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
-// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
-// the internal [[Class]] tag and array-likeness instead.
-function hostBytes(v) {
-  const tag = (x) => Object.prototype.toString.call(x);
-  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
-  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
-    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
-  }
-  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
-  throw hostError("read-failed", "the file could not be read");
-}
-// A file's bytes (FileSystem.readFile without an encoding).
-async function hostReadBytes(path) {
-  const v = await hostNeed("FileSystem", "readFile").readFile(path);
-  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
-  return hostBytes(v);
-}
-// A text file (some host builds return text directly, others bytes).
-async function hostReadText(path) {
-  const v = await hostNeed("FileSystem", "readFile").readFile(path);
-  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
-}
-// Cleanup is best effort; all disk operations cross the async SDK bridge.
-async function hostRemove(path) {
-  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
-}
 async function hostRoots(sdk, id, marker) {
   hostUseSdk(sdk);
   const fs = hostNeed("FileSystem", "exists");
@@ -114,77 +1596,42 @@ async function hostRoots(sdk, id, marker) {
   try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
-// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
-// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
-// throws when ffmpeg fails or `signal` (optional) aborts it.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
-  const rt = hostApi("Runtime", "runFFmpeg");
-  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
-  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
-  const controller = typeof AbortController === "undefined" ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const relay = () => { if (controller) controller.abort(); };
-  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
-  try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
-    const bytes = await hostReadBytes(tmp);
-    // A copy, so the samples sit on a 4-byte boundary.
-    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
-    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
-    return samples;
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    await hostRemove(tmp);
-  }
-}
-// An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path) {
-  try {
-    const rt = hostApi("Runtime", "runFFprobe");
-    if (!rt) return null;
-    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
-    const v = parseFloat(String(r?.stdout || "").trim());
-    return v > 0 ? v : null;
-  } catch { return null; }
-}
 // av-host:end
 
 // hold:start
 // Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
 // video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
-// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v2. Long videos are never touched. A cache
-// entry is keyed by the source path, size and modification time; it is reused only when its metadata matches and
-// ffprobe still counts the expected frames. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched. Full
+// source/output hashes and private source snapshots belong to the shared asset owner. Domain callbacks own
+// the encoding and whole-output validation. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
-const HOLD_ALGORITHM = 'photo-gallery-hold-v2-max1920-h264-crf18';
-function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed' }); }
+const HOLD_ALGORITHM = 'photo-gallery-hold-v3-sha256-frozen-max1920-h264-crf18';
+function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed',publicMessage:message }); }
 // Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
 function holdPathKey(path) {
   const text = String(path ?? '').normalize('NFC');
   return /^[A-Za-z]:(?:[\\/]|$)/.test(text) || text.includes('\\') ? text.replace(/\\/g, '/').toLowerCase() : text;
 }
 // Runs Runtime.runFFmpeg/runFFprobe with a deadline. The host rejects with a JSON string, not an Error.
-async function holdTool(kind, argv, seconds) {
-  const rt = hostNeed('Runtime', kind);
-  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), seconds * 1000) : null;
-  try { return await rt[kind](argv, true, controller ? controller.signal : undefined); }
-  catch (error) {
-    if (controller?.signal.aborted) throw holdError('Media conversion timed out');
-    if (error?.code === 'host-missing') throw error;
-    throw Object.assign(holdError(kind + ' failed'), { detail: String(error?.message ?? error).slice(0, 600) });
-  } finally { if (timer) clearTimeout(timer); }
+async function holdTool(kind, argv, seconds, options = {}) {
+  const rt = options.client ? options.client.media : hostNeed('Runtime', kind);
+  if(typeof rt?.[kind]!=='function')throw hostError('host-missing','Update Selects to prepare media: missing '+kind);
+  try{return await runAssetMediaTool(rt,kind,argv,{isCurrent:options.isCurrent,signal:options.signal,deadline:options.deadline,timeoutMs:seconds*1000});}
+  catch(error){
+    if(error?.code==='host-missing')throw error;
+    if(error?.code==='BUNDLED_ASSET_UNSUPPORTED')throw hostError('host-missing',error.publicMessage);
+    throw Object.assign(holdError(error?.publicMessage||'Media preparation failed.'),{terminal:!!error?.terminal,cause:error});
+  }
 }
-async function holdProbe(path, countFrames = false) {
+async function holdProbe(path, countFrames = false, options = {}) {
   let result;
   try {
     result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
       'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames:stream_side_data=rotation:stream_tags=rotate',
-      '-of', 'json', path], 45);
-  } catch (error) { if (error.code === 'host-missing' || /timed out/.test(error.message)) throw error; throw holdError('Video cannot be decoded'); }
+      '-of', 'json', path], 45, options);
+  } catch (error) { if (error.code === 'host-missing' || error.terminal) throw error; throw holdError('Video cannot be decoded'); }
   let streams, video;
   try { streams = JSON.parse(String(result?.stdout || '')).streams; video = streams.find(item => item?.codec_type === 'video'); } catch { video = null; }
   if (!video) throw holdError('Media has no readable picture stream');
@@ -213,30 +1660,23 @@ function holdDimensions(width, height) {
   const w = Math.max(1, round(width * factor)), h = Math.max(1, round(height * factor));
   return [w + w % 2, h + h % 2];
 }
-async function holdValidate(path, frames, dimensions, decode = false) {
-  const { video, streams } = await holdProbe(path, true);
+async function holdValidate(path, frames, dimensions, decode = false, options = {}) {
+  const { video, streams } = await holdProbe(path, true, options);
   if (streams.length !== 1 || video.codec_name !== 'h264') throw holdError('Cached video has the wrong stream format');
   if (video.r_frame_rate !== '60/1' || video.avg_frame_rate !== '60/1') throw holdError('Cached video has the wrong frame rate');
   if (video.nb_read_frames !== String(frames)) throw holdError('Cached video has the wrong frame count');
   if (video.width !== dimensions[0] || video.height !== dimensions[1]) throw holdError('Cached video has the wrong dimensions');
   if (decode) {
-    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30)); }
-    catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('Generated video contains undecodable frames'); }
+    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30), options); }
+    catch (error) { if (error.terminal) throw error; throw holdError('Generated video contains undecodable frames'); }
   }
   return video;
-}
-// { size, mtimeMs } of a file (FileSystem.stat crosses IPC, so only its plain fields are used), or null.
-async function holdStat(path) {
-  try {
-    const stat = (await hostNeed('FileSystem', 'stat').stat(path));
-    return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
-  } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
 }
 async function holdKey(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function holdEncode(source, target, frames) {
+async function holdEncode(source, target, frames, options = {}) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
   // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
@@ -244,73 +1684,53 @@ async function holdEncode(source, target, frames) {
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
-      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
-  } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
+      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)), options);
+  } catch (error) { if (error.terminal) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
-async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
-  const fs = hostNeed('FileSystem', 'exists');
-  try {
-    if (!(await fs.exists(videoPath)) || !(await fs.exists(metaPath))) return false;
-    const data = JSON.parse(await hostReadText(metaPath));
-    const stat = (await holdStat(videoPath));
-    if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
-        data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
-        !stat || data.outputSize !== stat.size) return false;
-    await holdValidate(videoPath, frames, dimensions);
-    return true;
-  } catch (error) { if (error?.code === 'host-missing') throw error; return false; }
+async function holdFileHash(path,options) {
+  const result=await holdTool('runFFmpeg',['-nostdin','-v','error','-f','data','-i',path,'-map','0:0','-c','copy','-f','hash','-hash','sha256','-'],900,options);
+  const match=String(result?.stdout??'').trim().match(/^SHA256=([0-9a-f]{64})$/i);
+  if(!match)throw holdError('The complete media file hash could not be confirmed');
+  return match[1].toLowerCase();
 }
-async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot) {
-  const key = await holdKey([HOLD_ALGORITHM, holdPathKey(source), identity.size, identity.mtimeMs, frames, HOLD_FPS].join('\0'));
-  const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
+async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
+  const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
-  const fs = hostNeed('FileSystem', 'rename');
-  const writer = hostNeed('FileSystem', 'writeFile');
-  const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
-  const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
-  const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
-  const unchanged = async () => { const now = (await holdStat(source)); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
-  try {
-    await holdEncode(source, temporary, frames);
-    if (!(await unchanged())) throw holdError('A video changed during extension');
-    await holdValidate(temporary, frames, dimensions, true);
-    const output = (await holdStat(temporary));
-    if (!output) throw holdError('ffmpeg could not extend the short video');
-    await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
-      sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
-    (await fs.rename(temporary, videoPath));
-    (await fs.rename(temporaryMeta, metaPath));
-  } finally {
-    await hostRemove(temporary);
-    await hostRemove(temporaryMeta);
-  }
-  return { videoPath, dimensions, reused: false };
+  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,hashFile:path=>holdFileHash(path,options),
+    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
+    verify:path=>holdValidate(path,frames,dimensions,true,options)});
+  return {videoPath:result.path,dimensions,reused:result.reused};
 }
 // `request` is { videos: [{ path }], durationFrames }; `dataDir` is the plugin's data folder.
-async function holdVideos(request, dataDir) {
+async function holdVideos(request, dataDir, options = {}) {
   const videos = request?.videos, frames = request?.durationFrames;
   if (!Array.isArray(videos) || videos.length < 1 || videos.length > HOLD_MAX_VIDEOS) throw holdError('Provide between 1 and 21 short videos');
   if (!Number.isSafeInteger(frames) || frames < 1 || frames > HOLD_MAX_FRAMES) throw holdError('durationFrames must be a positive integer at most 36000');
   if (!dataDir) throw holdError('The plugin data folder is unavailable');
-  hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
-  const cacheRoot = hostJoin(dataDir, 'held-v2');
-  (await hostNeed('FileSystem', 'mkdir').mkdir(cacheRoot, { recursive: true }));
-  const exists = hostNeed('FileSystem', 'exists');
+  if(!options||typeof options!=='object'||Array.isArray(options)||options.isCurrent!==undefined&&typeof options.isCurrent!=='function')throw holdError('Media preparation options need a callable liveness predicate');
+  options={...options,client:options.client??hostSdk,isCurrent:options.isCurrent??(()=>true)};
+  const current=()=>{if(!options.isCurrent()||options.signal?.aborted)throw holdError('The template run ended during media preparation');};
+  const paths=videos.map((item,index)=>{const path=item?.path;if(typeof path!=='string')throw holdError('Video '+(index+1)+' needs a file path');if(!path||path.includes('\0')||path.length>8192)throw holdError('Video '+(index+1)+' has an invalid path');return path;});
+  const files=options.client?.files;
+  for(const [service,names,label] of [[options.client?.media,['runFFmpeg','runFFprobe'],'Runtime'],[files,['copyFile','rename','join'],'FileSystem']]){
+    for(const name of names)if(typeof service?.[name]!=='function')throw hostError('host-missing','Update Selects to prepare media: missing '+label+'.'+name,label+'.'+name);
+  }
+  if(typeof globalThis.crypto?.subtle?.digest!=='function')throw holdError('Update Selects to verify complete source media contents');
+  const cacheRoot = files.join(dataDir, 'held-v3'),selected=new Map();
+  // Observe every requested source before generating any derived file.
+  for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
+    const identity=await readAssetFileIdentity(files,raw,path=>holdFileHash(path,options),current);
+    const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
+  }
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
-    const raw = videos[index]?.path;
-    if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
-    if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
+    const raw = paths[index];
     try {
-      const identity = (await exists.exists(raw)) ? (await holdStat(raw)) : null;
-      if (!identity) throw holdError('Video is missing');
-      const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
+      current();const {identity,sourceDimensions}=selected.get(holdPathKey(raw));
+      const id = holdPathKey(raw) + '\0' + identity.sha256;
       if (!completed.has(id)) {
-        const { video } = await holdProbe(raw, true);
-        if (!(Number(video.nb_read_frames) >= 1)) throw holdError('Video has no readable frames');
-        const sourceDimensions = holdUpright(video);
-        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot);
+        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot, options);
+        current();
         completed.set(id, { ...done, sourceDimensions });
       }
       const done = completed.get(id);
@@ -318,16 +1738,16 @@ async function holdVideos(request, dataDir) {
         sourceHeight: done.sourceDimensions[1], outputWidth: done.dimensions[0], outputHeight: done.dimensions[1], cacheHit: done.reused });
     } catch (error) {
       if (error?.code === 'host-missing') throw error;
-      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail });
+      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail,...error?.publicMessage?{publicMessage:error.publicMessage}:{} });
     }
   }
-  return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
+  current();return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
 }
 // hold:end
 
 // tempo:start
 // Bounded local BPM suggestion (formerly tempo.py), plain JS so tests can run it in node:vm. The first 30 s are
-// decoded by the host's ffmpeg to mono samples at 11025 Hz (hostDecodePcm), quantized to 16-bit as tempo.py read
+// decoded from a verified source snapshot to mono samples at 11025 Hz, quantized to 16-bit as tempo.py read
 // them, then a ~10 ms RMS onset envelope is autocorrelated over 70-180 BPM. Ambiguous or silent input yields no BPM.
 const TEMPO_RATE = 11025, TEMPO_HOP = 110, TEMPO_MIN_BPM = 70, TEMPO_MAX_BPM = 180, TEMPO_SECONDS = 30;
 // Python's round(): halves go to the even neighbour.
@@ -366,16 +1786,57 @@ function tempoEstimate(samples) {
   if (best[0] < 0.12 || best[0] < runnerUp * 1.08) return { status: 'uncertain', reason: 'Tempo is ambiguous; enter BPM manually' };
   return { status: 'estimated', bpm: tempoRoundEven(best[1] * 10) / 10 };
 }
-// The estimate for an audio file, decoded through the host's ffmpeg into `dataDir`; never throws for bad audio.
-async function tempoOfFile(path, dataDir) {
-  let samples;
-  try { samples = await hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS, undefined, 45000); }
-  catch (error) {
-    if (error?.code === 'host-missing') throw error;
-    return { status: 'uncertain', reason: 'Audio could not be decoded' };
+// Analyze a verified private source through the existing derived-file owner.
+// No Resource-ID memo: every invocation checks source and cached PCM bytes.
+async function analyzeMusicFile(path, dataDir, options = {}) {
+  const client=options.client??hostSdk,files=client?.files;
+  const issue=(message,code='tempo-invalid')=>Object.assign(new Error(message),{code,publicMessage:message,terminal:true,safeNotSaved:true});
+  if(typeof options.isCurrent!=='undefined'&&typeof options.isCurrent!=='function')throw issue('The music analysis scope is invalid.');
+  const timeout=options.timeoutMs??45000;
+  if(!Number.isFinite(timeout)||timeout<=0||timeout>45000)throw issue('The music analysis deadline is invalid.');
+  const deadline=Date.now()+timeout;
+  const live=()=>{try{return !options.signal?.aborted&&(options.isCurrent?.()??true);}catch{return false;}};
+  const current=()=>{if(!live())throw issue('The music analysis ended before completion.','tempo-stopped');if(Date.now()>=deadline)throw issue('The music analysis timed out.','tempo-timeout');};
+  current();
+  if(!dataDir)throw issue('The music analysis folder is unavailable. Check storage and file access.','tempo-storage');
+  if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function')||typeof client?.media?.runFFmpeg!=='function'||!globalThis.crypto?.subtle||typeof globalThis.crypto?.randomUUID!=='function')throw hostError('host-missing','Update Selects to verify and analyze the selected music.');
+  const work={client,isCurrent:live,signal:options.signal,deadline};
+  const hashFile=path=>holdFileHash(path,work);
+  let decodeFailed=false;
+  try{
+    const source=await readAssetFileIdentity(files,path,hashFile,current);current();
+    const key=await holdKey(['gallery-tempo-v1-f32le',holdPathKey(path),source.sha256,source.bytes,TEMPO_RATE,TEMPO_SECONDS].join('\0'));current();
+    const maxBytes=TEMPO_RATE*TEMPO_SECONDS*4;
+    const read=async(file,expected)=>{
+      const bytes=await readBundledAssetBytes(files,file,maxBytes,current);current();
+      if(expected){
+        const digest=await crypto.subtle.digest('SHA-256',bytes);current();
+        const sha256=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+        if(bytes.length!==expected.bytes||sha256!==expected.sha256)throw issue('The decoded music PCM contents changed before analysis.','tempo-pcm');
+      }
+      if(bytes.length%4!==0)throw issue('The decoded music PCM length is invalid.','tempo-pcm');
+      const values=new Float32Array(bytes.length/4),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+      for(let i=0;i<values.length;i++){values[i]=view.getFloat32(i*4,true);if(!Number.isFinite(values[i]))throw issue('The decoded music PCM contains an invalid sample.','tempo-pcm');}
+      return values;
+    };
+    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},signal:options.signal,hashFile,
+      produce:async(snapshot,target)=>{
+        try{await holdTool('runFFmpeg',['-nostdin','-v','error','-y','-t',String(TEMPO_SECONDS),'-i',snapshot,'-vn','-ac','1','-ar',String(TEMPO_RATE),'-f','f32le',target],45,work);}
+        catch(error){if(!error?.terminal&&error?.code==='hold-failed')decodeFailed=true;throw error;}
+      },verify:read});
+    current();const samples=await read(prepared.path,prepared.output);current();
+    const result=tempoEstimate(samples);current();
+    const after=await readAssetFileIdentity(files,path,hashFile,current);current();
+    if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw issue('The selected music source changed during analysis.','tempo-changed');
+    return {estimate:result,source:{size:source.bytes,sha256:source.sha256}};
+  }catch(error){
+    current();if(decodeFailed&&!error?.terminal)return {estimate:{status:'uncertain',reason:'Audio could not be decoded'},source:null};
+    if(error?.code==='host-missing'||typeof error?.publicMessage==='string'){error.safeNotSaved=true;throw error;}
+    throw Object.assign(issue('Music analysis could not be completed. Check the source file and media tools.','tempo-read'),{cause:error});
   }
-  if (!samples) return { status: 'uncertain', reason: 'This Selects build cannot decode audio for the estimate' };
-  return tempoEstimate(samples);
+}
+async function tempoOfFile(path,dataDir,options={}) {
+  return (await analyzeMusicFile(path,dataDir,options)).estimate;
 }
 // tempo:end
 
@@ -386,6 +1847,7 @@ const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, foc
 const preparing = { say: null };
 const STRINGS = {
   "ko": {
+    "focusHint": "\uc790\ub3d9 \ucd08\uc810\uc774 \uc5bc\uad74\uc744 \ub193\uce60 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uac01 \uce78\uc744 \ud655\uc778\ud558\uace0 \ud544\uc694\ud558\uba74 \ucd08\uc810 \uc2ac\ub77c\uc774\ub354\ub85c \uc870\uc815\ud558\uc138\uc694. \uba40\ub9ac \ub5a8\uc5b4\uc9c4 \uc5ec\ub7ec \uc0ac\ub78c\uc740 \ud55c \uce78\uc5d0 \ubaa8\ub450 \ub2f4\uae30 \uc5b4\ub824\uc6b8 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     "title": "Photo Grid Reveal",
     "description": "3\uc5f4 \u00d7 7\ud589\uc774 \ucc28\ub840\ub85c \ucc44\uc6cc\uc9c0\uace0 \uc804\uccb4\uac00 \ud751\ubc31\uc5d0\uc11c \uceec\ub7ec\ub85c \ubc14\ub01d\ub2c8\ub2e4. \uc0c8 \ud3b8\uc9d1\ubcf8\uc758 21\uce78\uc5d0 \uc0ac\uc9c4\uacfc \uc601\uc0c1\uc744 \uac01\uac01 \uc9c0\uc815\ud569\ub2c8\ub2e4.",
     "noProject": "\uba3c\uc800 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
@@ -428,6 +1890,7 @@ const STRINGS = {
     "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c."
   },
   "en": {
+    "focusHint": "Automatic face focus can miss faces. Inspect each tile and use the focus sliders when needed; widely separated people may not fit one tile.",
     "title": "Photo Grid Reveal",
     "description": "A 3 \u00d7 7 gallery fills in order, then all tiles switch from monochrome to color. Assign a photo or video to each tile when creating a Draft.",
     "noProject": "Open a project first.",
@@ -807,32 +2270,121 @@ const STRINGS = {
   }
 };
 
-// The bundled track, imported into the Project once; `durationFrames` is the
-// length it must cover.
-async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
-  // The installed asset through the host FileSystem (no shell), the same on macOS and Windows.
-  let musicPath = null;
+// The packaged excerpt is pinned to this template release. Existing Drafts keep
+// their old content paths; installation paths are never newly registered.
+const GALLERY_MUSIC={bytes:457308,sha256:'70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0',seconds:853/60};
+async function prepareBundledMusic(sdk, t, { projectId, durationFrames, fps: knownFps, isCurrent, onImportStarted }) {
+  if(typeof sdk?.runScript!=='function'){
+    const message='Update Selects to prepare bundled music.';
+    throw Object.assign(new Error(message),{publicMessage:message,safeNotSaved:true});
+  }
+  let importStarted=false;
   try {
-    const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
-    const path = hostJoin(plugin, 'assets', 'music.mp3');
-    if ((await hostNeed('FileSystem', 'exists').exists(path))) musicPath = path;
-  } catch (error) { if (error?.code === 'host-missing') throw error; musicPath = null; }
-  if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
-  if (!isCurrent()) throw new Error(t.changed);
-  onImportStarted();
-  const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
-    script: buildScript({ operation: 'importBundledMusic', projectId, path: musicPath, durationFrames }) });
-  if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
-  if (response.isError || response.result?.status !== 'musicReady') throw new Error(response.result?.message || response.output || t.unknown);
-  return response.result.music;
+    if(!Number.isSafeInteger(durationFrames)||durationFrames<1||durationFrames>36000)throw templateIssue('Music length must be an integer from 1 to 36000 frames.');
+    if(!isCurrent())throw templateIssue(t.changed);
+    const fps=knownFps??await readImageDraftFps(sdk,projectId),{minimumSeconds}=galleryFrameClock(durationFrames,fps);
+    if(!isCurrent())throw templateIssue(t.changed);
+    if(minimumSeconds<=0)throw templateIssue('The requested duration is shorter than one frame on the Project frame grid.');
+    if(minimumSeconds>GALLERY_MUSIC.seconds+1e-9)throw templateIssue('Bundled music is too short for this result on the Project frame grid. Choose No music, another track or a shorter duration.');
+    const {plugin}=await hostRoots(sdk,'photo-gallery-no2','SKILL.md'),client=panelLocalClient(sdk);
+    const observe={runScript:async request=>{
+      if(request.allowCommit){await onImportStarted();if(!isCurrent())throw templateIssue(t.changed);importStarted=true;}
+      return sdk.runScript(request);
+    }};
+    const music=await prepareBundledAsset(observe,client.files,{projectId,pluginId:'photo-gallery-no2',sourcePath:hostJoin(plugin,'assets','music.mp3'),type:'Audio',extension:'mp3',expectedBytes:GALLERY_MUSIC.bytes,expectedSha256:GALLERY_MUSIC.sha256,minimumSeconds,platform:client.environment.platform,normalizeUnicode:true,label:'music',isCurrent});
+    return {...music,durationFrames:Math.round(music.durationSeconds*60),startFrame:0};
+  }catch(error){
+    if(error?.code==='not-found')throw templateIssue('Bundled music could not be located. Reinstall Photo Grid Reveal.');
+    if(error&&typeof error==='object')error.safeNotSaved=!importStarted;throw error;
+  }
 }
 
-async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted, isCurrent) {
-  const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
-  if (videos.some(item => !Number.isSafeInteger(item.durationFrames) || item.durationFrames < 1)) {
-    throw new Error('A selected video has no verified duration.');
+function requireGalleryAuthoringHost(sdk) {
+  if(typeof sdk?.runScript!=='function'){
+    const message='Update Selects to create a complete Photo Grid Reveal Draft.';
+    throw Object.assign(new Error(message),{safeNotSaved:true,publicMessage:message});
   }
-  const shortVideos = videos.filter(item => item.durationFrames < frames);
+}
+
+async function verifyGalleryInputs(sdk, t, input, isCurrent) {
+  requireGalleryAuthoringHost(sdk);
+  const stopped = () => Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
+  if (!isCurrent()) throw stopped();
+  const reply = await sdk.runScript({ script: buildScript({ ...input, operation: 'verifyInputs' }), summary: 'Verify Gallery original inputs', allowCommit: false });
+  if (!isCurrent()) throw stopped();
+  if (reply.isError || reply.result?.status !== 'inputsReady' || !Array.isArray(reply.result.media) || reply.result.media.length !== 21) {
+    const result = reply.result, error = Object.assign(new Error(result?.message || reply.output || t.failed), { safeNotSaved: true });
+    if (/^source-file-/.test(result?.code??'')) error.publicMessage=result.message;
+    else if (['image-source-missing', 'image-source-unreadable', 'image-source-unknown', 'image-source-changed'].includes(result?.code)) error.publicMessage = result.message + '. Check the original file in the Project, then try again.';
+    throw error;
+  }
+  return { ...input, media: reply.result.media.map((row,i)=>({...row,manualFocus:input.media[i].manualFocus===true})), music: reply.result.music };
+}
+
+// Only original still Images are analyzed here. Video motion needs its own source-window contract.
+async function galleryFaceScript(sdk,script,summary,allowCommit=false) {
+  const response=await sdk.runScript({script,summary,allowCommit});
+  if(response?.isError||response?.result==null)throw Error(response?.output||'Face analysis could not be read.');
+  return response.result;
+}
+async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
+  const current=()=>{if(!isCurrent())throw Object.assign(Error('Gallery context changed during face analysis.'),{contextChanged:true,safeNotSaved:true});};
+  current();
+  const diagnostics=[],faceFingerprints=[],media=input.media.map(item=>{const next={...item};delete next.fit;return next;});
+  const candidates=media.filter(item=>item.kind==='image'&&!item.manualFocus&&item.focusX===0.5&&item.focusY===0.5);
+  if(!candidates.length)return {...input,media,faceFocus:diagnostics,faceFingerprints};
+  let capability;
+  try{capability=await galleryFaceScript(sdk,"return {supported:selects.ai?.imageSourceSupported===true&&typeof selects.ai?.submit==='function'};",'Check original-photo face analysis');}catch{}
+  current();
+  if(!capability?.supported||!sdk.storage?.getItem||!sdk.storage?.setItem)return {...input,media,faceFocus:[{status:'unavailable',reason:'host-support'}],faceFingerprints};
+  const aliases=await sharedAiResources.resolveSharedAiResources(sdk,input.projectId,candidates.map(item=>item.resourceId));current();
+  const storageKey='photo-gallery-no2:face-focus-v1:'+input.projectId,scope='photo-gallery-no2:face-focus-v1';
+  const jobs=sharedAiJobs.createSharedAiJobClient({projectId:input.projectId,scope,
+    runScript:(code,summary,write)=>{current();return galleryFaceScript(sdk,code,summary,write)},
+    load:async()=>{const value=await sdk.storage.getItem(storageKey);return value==null?null:JSON.parse(value)},
+    save:journal=>sdk.storage.setItem(storageKey,JSON.stringify(journal)),maxWaitMs:120000,readTimeoutMs:10000,pollMs:500});
+  const observations=new Map(),failures=new Map(),deadline=Date.now()+120000;
+  for(let index=0;index<media.length;index++){
+    const item=media[index];
+    if(item.kind!=='image'||item.manualFocus||item.focusX!==0.5||item.focusY!==0.5)continue;
+    current();const rawId=aliases.get(item.resourceId);
+    if(Date.now()>=deadline){diagnostics.push({slot:index+1,resourceId:rawId,status:'unavailable',reason:'observation-budget'});continue;}
+    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+    if(!fingerprint)throw Object.assign(Error('The original photo is missing.'),{safeNotSaved:true});
+    faceFingerprints.push({path:item.path,...fingerprint});
+    const identity=JSON.stringify({resourceId:rawId,path:item.path,...fingerprint,width:item.width,height:item.height});
+    let observed=observations.get(identity),workflowId;
+    if(failures.has(identity)){diagnostics.push({slot:index+1,resourceId:rawId,...failures.get(identity)});continue;}
+    if(!observed){
+      try{
+        const result=await jobs.run({task:'faces.detect',resourceId:rawId,options:{provider:'cpu',scoreThreshold:0.8}},{identity,maxWaitMs:Math.max(1,deadline-Date.now())});current();
+        workflowId=result.workflowId;const artifact=result.result?.files?.detections;
+        if(!artifact)throw Error('Photo face analysis returned no coordinates.');
+        observed=await galleryFaceScript(sdk,`return await selects.ai.readJSON(${JSON.stringify(artifact)},${JSON.stringify(input.projectId)});`,'Read original-photo face coordinates');current();
+        if(observed?.contractVersion!==1||observed.task!=='faces.detect'||observed.sourceKind!=='image'||observed.samples?.length!==1||observed.samples[0]?.sourceTimeSeconds!==0)throw Error('Original-photo face coordinates do not match the Image contract.');
+      }catch(error){
+        current();const failure={status:'unavailable',reason:error.code||'face-analysis',message:String(error.message||error).slice(0,160)};
+        failures.set(identity,failure);diagnostics.push({slot:index+1,resourceId:rawId,...failure});continue;
+      }
+      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+      if(JSON.stringify(after)!==JSON.stringify(fingerprint))throw Object.assign(Error('Original photo changed during face analysis.'),{safeNotSaved:true});
+      observations.set(identity,observed);
+    }
+    const row=Math.floor(index/3),height=Math.round((row+1)*1920/7)-Math.round(row*1920/7)-4;
+    const focus=galleryFaceFocus(item,{width:356,height},observed);
+    diagnostics.push({slot:index+1,resourceId:rawId,...workflowId?{workflowId}:{},...focus});
+    if(focus.status==='focused')Object.assign(item,{focusX:focus.focusX,focusY:focus.focusY});
+    else if(focus.status==='cannot-fit'||focus.status==='unavailable'&&focus.reason==='no-faces')item.fit='contain';
+  }
+  current();return {...input,media,faceFocus:diagnostics,faceFingerprints};
+}
+
+async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, isCurrent) {
+  const frames = clock.durationFrames;
+  const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
+  const shortVideos = videos.filter(item => gallerySourceSeconds(item, 'Video') + 1e-9 < clock.minimumSeconds);
+  if(!shortVideos.length)return media;
+  const client=panelLocalClient(sdk);
   const groups = [{ sources: shortVideos, key: 'videos' }];
   const requestPaths = [];
   for (const group of groups) {
@@ -842,8 +2394,8 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
     preparing.say?.('Extending short videos…');
     let converted;
-    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data); }
-    catch (error) { throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
+    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent,client}); }
+    catch (error) { if(error?.publicMessage)throw error;throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
     const output = converted[group.key];
     if (converted.status !== 'converted' || output?.length !== group.sources.length) {
       throw new Error(converted.message || 'Media conversion failed.');
@@ -858,11 +2410,12 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
   if (!requestPaths.length) return media;
   if (!isCurrent()) throw new Error(t.changed);
   const prepared = [];
-  // Panel runScript has a fixed 30-second deadline. Keep persistent imports small.
+  // Keep reusable media imports small; they are separate from complete Draft authoring.
   for (let start = 0; start < requestPaths.length; start += 3) {
     if (!isCurrent()) throw new Error(t.changed);
     const chunk = requestPaths.slice(start, start + 3);
-    onImportStarted();
+    await onImportStarted();
+    if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
     const imported = await sdk.runScript({ script: buildScript({ operation: 'importConverted', projectId,
       converted: chunk, durationFrames: frames }), summary: 'Import independent Photo Gallery tile videos', allowCommit: true });
     if (imported.isError || imported.result?.status === 'outcomeUnknown' || !imported.result) throw new Error(t.unknown);
@@ -883,60 +2436,68 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     : item);
 }
 
-function scriptFailure(t, response, phase, draftId) {
-  const detail = response.result?.message || response.output || t.unknown;
-  return new Error(phase + (draftId ? ' [' + draftId + ']' : '') + ': ' + String(detail).slice(0, 1200));
-}
-
 // Builds the Draft once its inputs are settled (21 tiles, music, BPM), shared by
 // the Panel and a template run. `isCurrent` says the run still belongs to its
-// Project; `onDispatched` marks the first step that may save; `onDraft` gets the
-// new Draft. `libraryId` is a template run's library. A context change before
-// anything is created throws with `contextChanged`.
-async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDraft, libraryId = null }) {
-  const projectId = input.projectId;
-  const clock=await sdk.runScript({script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery frame grid'});return {fps:(await d.meta()).fps};`,summary:'Read Project frame grid',allowCommit:false});
-  if(clock.isError||!Number.isFinite(clock.result?.fps)||clock.result.fps<=0)throw new Error('Project frame rate is unavailable');
-  input.fps=clock.result.fps;
-  input.media = await prepareVisuals(sdk, t, input.media, input.durationFrames, projectId, onDispatched, isCurrent);
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true });
-  input.media = (await galleryNativeResources(sdk, projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
-  const preflight = await sdk.runScript({ script: buildScript({ ...input, operation: 'preflight' }),
-    summary: 'Check Photo Gallery media and timing', allowCommit: false });
-  if (preflight.isError || preflight.result?.status !== 'ready') throw Object.assign(
-    new Error(preflight.result?.message || preflight.output || t.failed), { safeNotSaved: true });
-  const plan = preflight.result.plan;
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { safeNotSaved: true });
-  onDispatched();
-  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase', durationFrames: plan.durationFrames }),
-    summary: 'Create Photo Gallery Draft', allowCommit: true });
-  if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw scriptFailure(t, base, 'Create Photo Gallery Draft');
-  const draftId = base.result.draftId;
-  onDraft(draftId);
-  await galleryNativePlace(sdk, projectId, draftId, input.media, plan, libraryId);
-  // Each panel script has a fixed 30-second deadline. Cold video analysis
-  // and effect compilation must not accumulate across all 21 tiles.
-  for (const tile of plan.tiles.filter(item => item.kind === 'video')) {
-    const videos = await sdk.runScript({ script: buildScript({ ...input, operation: 'placeVideosExisting', draftId,
-      slotKeys: [tile.slotKey] }),
-      summary: 'Place Gallery video tiles', allowCommit: true });
-    if (videos.isError || videos.result?.status !== 'videosPlaced') throw scriptFailure(t, videos, 'Place Gallery video tiles', draftId);
+// Project; `onDispatched` marks possible Draft persistence, while imports have
+// their own observer. `onDraft` gets the complete saved identity. `libraryId`
+// is a template run's library. A stale context stops before Draft dispatch.
+async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false,fitBundledDefault=false) {
+  const stopped=()=>Object.assign(new Error('The Gallery context changed before preparation.'),{contextChanged:true,safeNotSaved:true});
+  if(!isCurrent())throw stopped();
+  input.fps=await readImageDraftFps(sdk,input.projectId);
+  if(!isCurrent())throw stopped();
+  // Only an untouched bundled default may end on the last complete frame
+  // inside the pinned excerpt. Explicit lengths retain the strict music guard.
+  if(fitBundledDefault&&input.durationFrames===853){
+    while(input.durationFrames>1&&galleryFrameClock(input.durationFrames,input.fps).minimumSeconds>GALLERY_MUSIC.seconds+1e-9)input.durationFrames--;
   }
-  for (let start = 0; start < plan.tiles.length; start += 3) {
-    const styled = await sdk.runScript({ script: buildScript({ ...input, operation: 'styleExisting', draftId,
-      slotKeys: plan.tiles.slice(start, start + 3).map(tile => tile.slotKey),
-      placeMusic: start + 3 >= plan.tiles.length }),
-      summary: 'Style Photo Gallery tiles', allowCommit: true });
-    if (styled.isError || styled.result?.status !== 'styled') throw scriptFailure(t, styled, 'Style Photo Gallery tiles', draftId);
+  try{return planGallery(input,{preparing:true,pendingBpm});}
+  catch(error){error.safeNotSaved=true;throw error;}
+}
+
+async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{}}) {
+  Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
+  const plan=await planGalleryPreparation(sdk,input,isCurrent);
+  input.media=await prepareVisuals(sdk,t,input.media,plan.preparation,input.projectId,onImportStarted,isCurrent);
+  if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
+  const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
+  if(preflight.isError||preflight.result?.status!=='ready')throw Object.assign(new Error(preflight.result?.message||preflight.output||t.failed),{safeNotSaved:true});
+  await onDispatched();
+  if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  const response=await sdk.runScript({script:buildScript({...input,operation:'create',...runReceipt?{runReceipt}:{}}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
+  if(typeof response.result?.draftId==='string'&&response.result.draftId)await onDraft(response.result.draftId);
+  if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
+    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null});
   }
-  let verified = false, readReturned = false;
-  try {
-    const read = await sdk.runScript({ script: buildScript({ ...input, operation: 'verifyCreated', draftId }),
-      summary: 'Read saved Photo Gallery Draft', allowCommit: false });
-    readReturned = true;
-    verified = !read.isError && read.result?.status === 'verified' && read.result.tileCount === 21;
-  } catch { /* The mutating call already returned a saved Draft ID. */ }
-  return { draftId, verified, readReturned };
+  const result=response.result;
+  await verifyGallerySavedDraft(sdk,input.projectId,result);
+  return {...result,verified:true,readReturned:true};
+}
+
+// Independent post-save source reads use separate invocations so the original
+// Project cache cannot masquerade as fresh facts. Keep saved identity on failure.
+async function verifyGallerySavedDraft(sdk,projectId,result){
+ const unverified=cause=>Object.assign(Error('The Gallery was saved, but its sources could not be confirmed. Inspect the saved Draft before retrying.'),{code:'IMAGE_SAVE_UNVERIFIED',draftId:result?.draftId,cause});
+ try{
+  await verifyAtomicImageDraft(sdk,projectId,result);
+  let sourceGuard=result.sourceGuard;
+  if(!sourceGuard)throw Error('Saved Gallery source evidence is unavailable.');
+  if(sourceGuard.version===2){
+   const files=panelLocalClient(sdk).files,before=await files.stat(sourceGuard.path);
+   if(!before||before.isDirectory!==false||before.size!==sourceGuard.size||before.size<1||before.size>8388608)throw Error('Saved Gallery source evidence is unavailable.');
+   const bytes=await files.readRange(sourceGuard.path,0,before.size),after=await files.stat(sourceGuard.path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==before.size||!after||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw Error('Saved Gallery source evidence changed.');
+   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
+   if(digest!==sourceGuard.sha256)throw Error('Saved Gallery source evidence changed.');
+   sourceGuard=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+  }
+  for(const operation of ['verifySourceFiles','verifySourceMetadata']){
+   const response=await sdk.runScript({summary:'Verify saved Gallery original sources',allowCommit:false,script:buildScript({operation,projectId,sourceGuard})});
+   if(response.isError||response.result?.status!=='verified')throw Error('Saved Gallery sources changed or could not be read.');
+  }
+ }catch(cause){throw unverified(cause);}
+ return result;
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
@@ -957,17 +2518,24 @@ function GalleryPanel({ sdk, context, ui }) {
   const [manualBpm, setManualBpm] = React.useState(113);
   const [estimated, setEstimated] = React.useState(null);
   const [durationFrames, setDurationFrames] = React.useState(853);
+  const durationEdited = React.useRef(false);
   const [name, setName] = React.useState('Photo Grid Reveal');
   const [busy, setBusy] = React.useState(false);
   const [unknown, setUnknown] = React.useState(false);
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
+  const [resourceRevision, setResourceRevision] = React.useState(0);
+  const resourceScope = React.useRef(null), inventoryState = React.useRef(null);
   const running = React.useRef(false);
+  const alive = React.useRef(true);
+  const musicScope = React.useRef(null);
+  React.useEffect(()=>()=>{musicScope.current?.abort();},[context.projectId,context.sequenceId]);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
+    alive.current = true;
     const say = text => setStatus({ tone: 'muted', text });
     preparing.say = say;
-    return () => { if (preparing.say === say) preparing.say = null; };
+    return () => { alive.current = false;if (preparing.say === say) preparing.say = null; };
   }, []);
   current.current = { projectId: context.projectId, sequenceId: context.sequenceId };
   const key = JSON.stringify([context.projectId, context.sequenceId]);
@@ -982,7 +2550,8 @@ function GalleryPanel({ sdk, context, ui }) {
   const canAssignReferenceMix = inventory?.media?.length === 21 && photos.length === 15 && videos.length === 6;
   const missingMotion = assigned === 21 ? [...REFERENCE_VIDEO_SLOTS].filter(number =>
     inventory.media.find(item => item.resourceId === slots[number - 1].resourceId)?.kind !== 'video') : [];
-  const sameContext = (projectId, sequenceId) => current.current.projectId === projectId && current.current.sequenceId === sequenceId;
+  const sameContext = (projectId, sequenceId) => alive.current && current.current.projectId === projectId && current.current.sequenceId === sequenceId;
+  inventoryState.current = { inventory, slots, musicChoice, key, ready };
 
   React.useEffect(() => {
     // The host opens this new Draft during Create. Retain its frozen inputs
@@ -996,53 +2565,130 @@ function GalleryPanel({ sdk, context, ui }) {
     setEstimated(null); setUnknown(false); setSavedTarget(null); setStatus(null);
   }, [context.projectId, context.sequenceId]);
 
+  React.useEffect(() => {
+    const scope = { projectId: context.projectId, pending: false, active: false, closed: false, revision: 0 };
+    resourceScope.current = scope;
+    const unsubscribe = scope.projectId && typeof sdk.on === 'function' ? sdk.on('resourcesChanged', event => {
+      if (event?.projectId !== scope.projectId || scope.closed || !(event.added?.length || event.removed?.length)) return;
+      scope.pending = true; scope.revision++; setResourceRevision(value => value + 1);
+    }) : null;
+    return () => { scope.closed = true; unsubscribe?.(); if (resourceScope.current === scope) resourceScope.current = null; };
+  }, [sdk, context.projectId]);
+
+  React.useEffect(() => {
+    const scope = resourceScope.current;
+    // Imports made by an in-progress Create must not change its frozen inputs
+    // or its save verification. Coalesce them until that operation settles.
+    if (!scope || scope.closed || !scope.pending || scope.active || running.current || busy || !ready) return;
+    scope.pending = false; scope.active = true;
+    const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key, revision = scope.revision;
+    const live = () => !scope.closed && resourceScope.current === scope && sameContext(projectId, sequenceId);
+    (async () => {
+      try {
+        const next = await readInventory(projectId, () => live() && scope.revision === revision && !running.current);
+        if (!live()) return;
+        if (scope.revision !== revision || running.current || inventoryState.current.key !== requestedKey) { scope.pending = true; return; }
+        const before = inventoryState.current;
+        const sameSource = (old, fresh) => old && fresh && old.path === fresh.path && old.kind === fresh.kind;
+        const changed = before.slots.some(slot => slot.resourceId && !sameSource(before.inventory.media.find(row => row.resourceId === slot.resourceId), next.media.find(row => row.resourceId === slot.resourceId)));
+        const selectedAudio = !['bundled', 'none'].includes(before.musicChoice);
+        const oldAudio = before.inventory.audio.find(row => row.resourceId === before.musicChoice), newAudio = next.audio.find(row => row.resourceId === before.musicChoice);
+        if (changed || selectedAudio && (!oldAudio || !newAudio || oldAudio.path !== newAudio.path)) {
+          // Preserve the choice for inspection; never retarget a tile or drop
+          // its selected music silently when aliases or membership changed.
+          setLoadedKey(''); setStatus({ tone: 'error', text: t.changed }); return;
+        }
+        setInventory(next);
+      } catch (error) {
+        if (live() && !running.current) setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) });
+      } finally {
+        scope.active = false;
+        if (!scope.closed && resourceScope.current === scope && scope.pending) setResourceRevision(value => value + 1);
+      }
+    })();
+  }, [sdk, resourceRevision, busy, ready, key]);
+
   function updateSlot(patch) {
+    if ('focusX' in patch || 'focusY' in patch) patch={...patch,manualFocus:true};
     setSlots(previous => previous.map((item, i) => i === slotIndex ? { ...item, ...patch } : item));
+  }
+
+  function deferActiveRefresh() {
+    const scope = resourceScope.current;
+    if (scope?.active) { scope.pending = true; scope.revision++; }
+  }
+
+  async function readInventory(projectId, isCurrent = () => true) {
+    const input = { operation: 'inspect', projectId };
+    const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
+    if (!isCurrent()) return null;
+    if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) throw new Error(response.result?.message || response.output || t.failed);
+    const native = await galleryNativeResources(sdk, projectId, response.result.media);
+    return { ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) };
   }
 
   async function load() {
     if (running.current || !context.projectId) return;
     const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key;
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     try {
-      const input = { operation: 'inspect', projectId };
-      const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
-      if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
-        throw new Error(response.result?.message || response.output || t.failed);
-      }
-      const native = await galleryNativeResources(sdk, projectId, response.result.media);
+      const next = await readInventory(projectId);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
-      setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
+      setInventory(next); setLoadedKey(requestedKey);
+      setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);durationEdited.current=false;
       setMusicChoice('bundled'); setManualEnabled(true); setManualBpm(113); setEstimated(null);
       setStatus(null);
     } catch (error) { setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) }); }
     finally { running.current = false; setBusy(false); }
   }
 
-  async function estimateMusic(audio) {
+  function beginMusicScope(isCurrent=()=>true) {
+    if(typeof AbortController!=='function')throw hostError('host-missing','Update Selects to cancel music analysis safely.');
+    musicScope.current?.abort();
+    setEstimated(null);
+    const controller=new AbortController(),projectId=context.projectId,sequenceId=context.sequenceId;
+    musicScope.current=controller;
+    return {client:panelLocalClient(sdk),signal:controller.signal,isCurrent:()=>!controller.signal.aborted&&musicScope.current===controller&&sameContext(projectId,sequenceId)&&isCurrent()};
+  }
+
+  async function estimateMusic(audio,scope) {
     if (!audio?.path) throw new Error(t.uncertain);
-    if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
-    const value = await tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data);
+    const current=()=>{if(!scope.isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});};
+    const read=async()=>{
+      current();const response=await sdk.runScript({script:buildScript({operation:'verifyMusic',projectId:context.projectId,music:audio}),summary:'Verify selected Gallery music',allowCommit:false});current();
+      if(response.isError||response.result?.status!=='musicReady'||!response.result.music)throw new Error(response.result?.message||'Selected music could not be verified.');
+      return response.result.music;
+    };
+    const before=await read(),roots=await hostRoots(sdk,'photo-gallery-no2','SKILL.md');current();
+    const analysis=await analyzeMusicFile(before.path,roots.data,scope),value=analysis.estimate;current();
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
-    setEstimated({ resourceId: audio.resourceId, bpm: value.bpm });
-    return value.bpm;
+    const after=await read();current();
+    if(before.resourceId!==after.resourceId||holdPathKey(before.path)!==holdPathKey(after.path)||before.durationSeconds!==after.durationSeconds)throw new Error('Selected music changed during analysis. Start a new estimate.');
+    const musicFingerprint={path:after.path,...analysis.source};
+    setEstimated({ resourceId: after.resourceId, path:after.path, bpm: value.bpm,musicFingerprint });
+    return {bpm:value.bpm,musicFingerprint};
   }
 
   async function estimateOnClick() {
     if (running.current || !selectedMusic) return;
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
-    try { const bpm = await estimateMusic(selectedMusic); setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
-    catch (error) { setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.message || error) }); }
-    finally { running.current = false; setBusy(false); }
+    let scope;
+    try { scope=beginMusicScope();const {bpm} = await estimateMusic(selectedMusic,scope);if(scope.isCurrent())setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
+    catch (error) { if(!scope||scope.isCurrent())setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.publicMessage||error?.message || error) }); }
+    finally { running.current = false;if(alive.current)setBusy(false); }
   }
 
-  async function resolveBpm(audio) {
+  async function resolveBpm(audio,isCurrent) {
     if (manualEnabled) {
       if (!Number.isFinite(manualBpm) || manualBpm <= 0) throw new Error(t.bpmMissing);
       return { manualBpm };
     }
-    if (audio) return { estimatedBpm: await estimateMusic(audio) };
+    if (audio) {
+      try{const analysis=await estimateMusic(audio,beginMusicScope(isCurrent));return {estimatedBpm:analysis.bpm,musicFingerprint:analysis.musicFingerprint};}
+      catch(error){if(error&&typeof error==='object')error.safeNotSaved=true;throw error;}
+    }
     throw new Error(t.bpmMissing);
   }
 
@@ -1053,23 +2699,29 @@ function GalleryPanel({ sdk, context, ui }) {
     try {
       if (assigned !== 21) throw new Error(t.missing);
       input = { operation: 'create', projectId, name: name.trim(), durationFrames,
-        media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY })),
+        media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY, manualFocus:item.manualFocus===true })),
         music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
-          durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
+          durationFrames: selectedMusic.durationFrames, durationSeconds: selectedMusic.durationSeconds, startFrame: 0 } : null,
+        ...(manualEnabled?{manualBpm}:{}) };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
     const isCurrent = () => sameContext(projectId, sequenceId) && requestedKey === key;
     try {
+      input = await verifyGalleryInputs(sdk, t, input, isCurrent);
+      input = await focusGalleryPhotos(sdk,input,isCurrent);
+      await planGalleryPreparation(sdk,input,isCurrent,!manualEnabled,musicChoice==='bundled'&&!durationEdited.current);
+      if(input.durationFrames!==durationFrames)setDurationFrames(input.durationFrames);
       const audio = musicChoice === 'bundled' ? await prepareBundledMusic(sdk, t, { projectId,
-        durationFrames: input.durationFrames, isCurrent, onImportStarted: () => { dispatched = true; } }) : selectedMusic;
-      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 } : null;
-      Object.assign(input, await resolveBpm(audio));
+        durationFrames: input.durationFrames, fps:input.fps, isCurrent, onImportStarted: () => { dispatched = true; } }) : input.music;
+      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, durationSeconds: audio.durationSeconds, startFrame: 0 } : null;
+      Object.assign(input, await resolveBpm(audio,isCurrent));
       if (!isCurrent()) { setStatus({ tone: 'error', text: t.changed }); return; }
       const built = await buildGalleryDraft(sdk, t, { input, isCurrent,
-        onDispatched: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });
+        onDispatched: () => { dispatched = true; }, onImportStarted: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });
       // Selects may open the just-created Draft while its readback runs. That
       // expected sequence change must not turn a verified save into an error.
       if (built.verified) {
@@ -1113,6 +2765,7 @@ function GalleryPanel({ sdk, context, ui }) {
       {inventory.media.length === 0 && <ui.Message tone="error">{t.noMedia}</ui.Message>}
       <ui.Select label={t.slot} value={selectedSlot} onChange={setSelectedSlot} options={SLOT_KEYS.map((value, i) => ({ value: String(i), label: String(i + 1).padStart(2, '0') + ' · ' + (slots[i].resourceId ? (inventory.media.find(media => media.resourceId === slots[i].resourceId)?.name || slots[i].resourceId) : t.choose) }))}/>
       <ui.Select label={t.media} value={slot.resourceId || null} onChange={resourceId => updateSlot({ resourceId })} options={inventory.media.map(item => ({ value: item.resourceId, label: item.name + ' · ' + item.kind }))} placeholder={t.choose} disabled={busy}/>
+      <small>{t.focusHint || STRINGS.en.focusHint}</small>
       <ui.Slider label={t.focusX} value={slot.focusX} onChange={focusX => updateSlot({ focusX })} min={0} max={1} step={0.01} disabled={busy || !slot.resourceId}/>
       <ui.Slider label={t.focusY} value={slot.focusY} onChange={focusY => updateSlot({ focusY })} min={0} max={1} step={0.01} disabled={busy || !slot.resourceId}/>
     </ui.Section>}
@@ -1127,7 +2780,7 @@ function GalleryPanel({ sdk, context, ui }) {
       {manualEnabled && <ui.NumberField label={t.bpm} value={manualBpm} onChange={setManualBpm} min={1} max={300} step={0.1} disabled={busy}/>}
       {!manualEnabled && selectedMusic && <ui.Button variant="secondary" onClick={estimateOnClick} disabled={busy}>{t.estimate}</ui.Button>}
       {estimated && selectedMusic && estimated.resourceId === selectedMusic.resourceId && <small>{t.estimated}: {estimated.bpm}</small>}
-      <ui.NumberField label={t.duration} value={Number((durationFrames / 60).toFixed(3))} onChange={seconds => setDurationFrames(Math.max(1, Math.round(seconds * 60)))} min={1 / 60} step={1 / 60} unit="s" disabled={busy}/>
+      <ui.NumberField label={t.duration} value={Number((durationFrames / 60).toFixed(3))} onChange={seconds => {durationEdited.current=true;setDurationFrames(Math.max(1, Math.round(seconds * 60)));}} min={1 / 60} step={1 / 60} unit="s" disabled={busy}/>
       <small>{t.durationNote}</small>
     </ui.Section>}
     {ready && <ui.Section title={t.createMode}>
@@ -1231,6 +2884,28 @@ async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   return native.selected.map(({ nativeResource, ...item }) => ({ ...item, focusX: 0.5, focusY: 0.5 }));
 }
 
+// Identity uses effective input choices, never display names or transient paths.
+// Validate before a durable claim; invalid input cannot reserve an app run.
+function galleryRunRequest(template) {
+  const group=(key,count,kind)=>{
+    const rows=template?.inputs?.[key];
+    if(!Array.isArray(rows)||rows.length!==count||rows.some(p=>p?.kind!==kind||typeof p.resourceId!=='string'||!p.resourceId))throw templateIssue(`Pick exactly ${count} ${key==='photos'?'photos':'videos'}, then try again.`);
+    return rows.map(({resourceId,kind})=>({resourceId,kind}));
+  };
+  const music=template?.options?.music??'bundled';
+  if(!['none','bundled'].includes(music))throw templateIssue('Choose bundled music or no music, then try again.');
+  return {photos:group('photos',15,'image'),clips:group('clips',6,'video'),music,durationFrames:TEMPLATE_DURATION_FRAMES,bpm:TEMPLATE_BPM};
+}
+
+// Read-only, unsaved capability probe before claiming or preparing Project assets.
+// Music Off has no Audio reader dependency. Existing saved receipts still need
+// the readers used to independently verify the persisted result.
+async function requireGalleryRunReaders(sdk,projectId,music) {
+  const methods=['motionGraphics','motionGraphicProgram','clipTransform','videoEffects','videoEffectProgram',...music==='none'?[]:['clipAudio']];
+  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')return {supported:false};const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
+  if(reply.isError||reply.result?.supported!==true)throw templateIssue('Update Selects to create and verify Photo Grid Reveal safely.');
+}
+
 // One plain sentence for the person, from a failure before anything was saved.
 function templateMessage(error) {
   if (error?.publicMessage) return error.publicMessage;
@@ -1238,13 +2913,12 @@ function templateMessage(error) {
   if (/no verified (image )?dimensions|no unique Project Resource/.test(said)) return 'A picked file is not ready yet; wait for it to finish importing, then try again.';
   if (/no verified duration/.test(said)) return 'A picked video is not ready yet; wait for it to finish importing, then try again.';
   if (/^(Could not download .+|The download of .+ did not match its pinned checksum|Could not prepare Python for .+)\.$/.test(said)) return said;
-  if (/does not expose native Image placement/.test(said)) return 'This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.';
+  if (/does not expose native Image placement|does not support original photo file checks/.test(said)) return 'This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.';
   return TEMPLATE_FAILED;
 }
 
-// Nobody sees this frame, so it shows one status line. It starts once per run id
-// and reports once, unless a newer run replaced it; a save that began is reported
-// as a possibly incomplete Draft and never retried.
+// The shared durable owner survives a new panel realm. Save receipts are read
+// back independently; an unknown run is inspected rather than authored again.
 function GalleryTemplateRun({ sdk, context }) {
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
   const t = STRINGS[context.language] || STRINGS.en;
@@ -1256,38 +2930,45 @@ function GalleryTemplateRun({ sdk, context }) {
   React.useEffect(() => {
     if (!runId || started.current === runId) return;
     started.current = runId;
-    const live = () => alive.current && latest.current.template?.runId === runId;
+    const projectId = context.projectId, template = context.template;
+    const live = () => alive.current && latest.current.template?.runId === runId && latest.current.projectId === projectId && latest.current.template?.libraryId === template?.libraryId;
     let ended = false;
     const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
     const say = text => { if (live()) setStatus(text); };
     preparing.say = say;
-    const projectId = context.projectId, template = context.template;
     let dispatched = false, draftId = null;
     (async () => {
       try {
         if (!projectId) throw templateIssue('Open a Project, then try again.');
+        requireGalleryAuthoringHost(sdk);
         const app = window.parent, libraryId = templateLibrary(app, projectId, template);
-        say('Finding your photos and videos…');
-        const media = await templateTiles(sdk, app, projectId, libraryId, template?.inputs);
-        if (!live()) throw templateIssue('The template run ended before the Draft was made.');
-        const input = { operation: 'create', projectId, name: TEMPLATE_NAME, durationFrames: TEMPLATE_DURATION_FRAMES,
-          media, music: null, manualBpm: TEMPLATE_BPM };
-        if (template?.options?.music !== 'none') {
-          say('Adding the music…');
-          const audio = await prepareBundledMusic(sdk, t, { projectId, durationFrames: input.durationFrames,
-            isCurrent: live, onImportStarted: () => { dispatched = true; } });
-          input.music = { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 };
-        }
-        say('Building the gallery…');
-        const built = await buildGalleryDraft(sdk, t, { input, isCurrent: live, libraryId,
-          onDispatched: () => { dispatched = true; }, onDraft: id => { draftId = id; } });
-        if (!built.verified) console.warn('[photo-gallery-no2] the saved Draft was not read back:', built.draftId);
+        const request=galleryRunRequest(template);
+        await requireGalleryRunReaders(sdk,projectId,request.music);
+        const built=await executeTemplateRun(sdk,panelLocalClient(sdk).files,{pluginId:'photo-gallery-no2',libraryId,projectId,runId},request,live,async(runReceipt,onDispatch)=>{
+          say('Finding your photos and videos…');
+          const media=await templateTiles(sdk,app,projectId,libraryId,template?.inputs);
+          if(!live())throw templateIssue('The template run ended before the Draft was made.');
+          const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
+          Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          Object.assign(input,await focusGalleryPhotos(sdk,input,live));
+          await planGalleryPreparation(sdk,input,live,false,request.music==='bundled');
+          if(request.music!=='none'){
+            say('Adding the music…');
+            const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,fps:input.fps,isCurrent:live,onImportStarted:()=>{}});
+            input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,durationSeconds:audio.durationSeconds,startFrame:0};
+          }
+          say('Building the gallery…');
+          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
+        },result=>verifyGallerySavedDraft(sdk,projectId,result));
+        draftId=built.draftId;
+        if(!draftId||!Array.isArray(built.clips)||built.clips.length!==21)throw templateIssue('The saved Gallery could not be confirmed. Inspect the Project before starting a new run.');
         say('Done.');
         finish({ sequenceId: built.draftId });
       } catch (error) {
+        if(!draftId&&typeof error?.draftId==='string'&&error.draftId)draftId=error.draftId;
         console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), { draftId, dispatched });
         say('Stopped.');
-        finish({ error: draftId ? TEMPLATE_PARTIAL : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
+        finish({ error: draftId ? TEMPLATE_PARTIAL+' ('+draftId+')' : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
       } finally {
         finish({ error: TEMPLATE_FAILED });
       }
@@ -1387,33 +3068,64 @@ function panelLocalPaths(platform: string) {
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
 async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    // Direct arguments keep object literals contextually typed by the SDK signature.
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script: string, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+      script,
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     // A clipped report has no result. Every read returning data rejects that case below.
     return response.result;
   };
+  // Direct arguments keep object literals contextually typed by the SDK signature.
+  const run = (method: string, args: unknown[], write = false) =>
+    runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
   const environment = await run("files.environment", []);
   if (!environment || typeof environment.platform !== "string" || !environment.homedir)
     throw new Error("Update Selects to use this plugin's local media workspace.");
   const paths = panelLocalPaths(environment.platform);
   const CHUNK_BYTES = 48 * 1024;
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // budget. The same script still awaits each canonical file operation in order.
+  const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
+    let count = Math.min(3, inputs.length), script = "";
+    while (count > 0) {
+      script = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script, method === "writeChunk") };
+  };
   const readRange = async (path: string, offset: number, length: number) => {
     const parts: Uint8Array[] = [];
     let total = 0;
     while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) =>
+        ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map(input => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes); total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
     }
     const output = new Uint8Array(total);
     let position = 0;
@@ -1426,8 +3138,13 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
+    // One script owns every read and its deadline; only the compact digest returns.
+    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
+    // SDK-shaped requests support the same shared observation in SDK scripts and
+    // the panel. Positional reads retain their existing byte/partial-EOF contract.
+    readRange: (path: string | {path: string; offset: number; length: number}, offset?: number, length?: number) =>
+      typeof path === "string" ? readRange(path, offset!, length!) : run("files.readRange", [path]),
     async readFile(path: string, encoding?: string) {
       const stat = await run("files.stat", [path]);
       if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
@@ -1449,18 +3166,31 @@ async function createPanelLocalClient(sdk: any) {
       const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
       let published = false;
       try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...(mode ? { mode } : {}) });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
       }
     },
     async compareAndReplace(path: string, expectedText: string | null, text: string) {
@@ -1476,51 +3206,113 @@ async function createPanelLocalClient(sdk: any) {
       return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from: string, to: string) => run("files.rename", [from, to], true),
     copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
     downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
     pathToLocalURL: (path: string) => run("files.localUrl", [path]),
     localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
   };
-  const activeJobs = new Set<string>();
+  const activeJobs = new Map<string, () => Promise<void>>();
   let disposed = false;
+  const SETTLEMENT_MS = 5000, OUTPUT_BYTES = 4 * 1024 * 1024;
+  const mediaIssue = (code: string, message: string, cause?: unknown, uncertain = false) =>
+    Object.assign(new Error(message), { code: "LOCAL_MEDIA_" + code, publicMessage: message, terminal: true, cause,
+      ...(uncertain ? { preserveTemporaryFiles: true } : {}) });
   const cancel = async (jobId: string) => {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
+  const observeMedia = (read: () => Promise<any>, deadline: number): Promise<any> => new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) { reject(mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
+    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+    Promise.resolve().then(read).then(
+      value => { clearTimeout(timer); resolve(value); },
+      cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
+  });
+  const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
   const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
+      signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
+    let started: any;
+    const starting = runSource(startSource, true);
+    try { started = await observeMedia(() => starting, Date.now() + SETTLEMENT_MS); }
+    catch (cause) {
+      // A late start identity can only stop that original job. Never start again
+      // or authorize cleanup from this background cancellation acknowledgement.
+      void starting.then(value => validJob(value) ? cancel(value.jobId) : undefined, () => {}).catch(() => {});
+      throw mediaIssue("START_UNKNOWN", "The media job start could not be confirmed. Its temporary workspace is retained for inspection.", cause, true);
+    }
+    if (!validJob(started))
+      throw mediaIssue("START_UNKNOWN", "The media job identity could not be confirmed. Its temporary workspace is retained for inspection.", undefined, true);
     const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    let cancellation: Promise<void> | null = null, cancellationDeadline: number | null = null, settled = false;
+    const requestCancel = () => {
+      if (!cancellation) {
+        cancellationDeadline = Date.now() + SETTLEMENT_MS;
+        cancellation = cancel(jobId);
+        void cancellation.catch(() => {});
+      }
+      return cancellation;
+    };
+    const abort = () => { void requestCancel(); };
+    activeJobs.set(jobId, requestCancel);
     signal?.addEventListener("abort", abort, { once: true });
     if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
+    let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
+    const knownState = (status: any) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
+    // Read-only observations may time out; a late reply cannot authorize cleanup.
+    const statusAt = (deadline: number) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const settleAfterFailure = async (cause: unknown) => {
+      requestCancel();
+      const deadline = cancellationDeadline!;
+      while (Date.now() < deadline) {
+        try {
+          const status = await statusAt(deadline);
+          if (knownState(status) && status.state !== "running") { settled = true; return; }
+        } catch { /* Only independent status reads may recover an unknown reply. */ }
+        if (Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+      }
+      throw Object.assign(mediaIssue("SETTLEMENT_UNKNOWN", "The media job exit could not be confirmed. Its temporary workspace is retained for inspection.", cause, true), { jobId });
+    };
     try {
       while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
+          throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
+        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
+        settled = status.state !== "running";
+        if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
+          throw mediaIssue("STATUS", "The media job returned an incomplete status.");
+        if (status.truncated) throw mediaIssue("OUTPUT", "Media output was truncated; no incomplete result was accepted.");
+        let position = cursor;
         for (const event of status.events) {
+          if (!event || !["stdout", "stderr"].includes(event.stream) || typeof event.text !== "string" || event.text.length > 4096 || !Number.isSafeInteger(event.cursor) || event.cursor !== position + 1 || event.cursor > status.nextCursor)
+            throw mediaIssue("OUTPUT", "The media job returned incomplete output.");
+          outputBytes += new TextEncoder().encode(event.text).byteLength;
+          if (outputBytes > OUTPUT_BYTES) throw mediaIssue("OUTPUT_LIMIT", "The media output exceeds its 4 MiB byte budget.");
+          position = event.cursor;
           if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
           else { stderr += event.text; onStderr?.(event.text); }
         }
+        if (position !== status.nextCursor) throw mediaIssue("OUTPUT", "The media job returned an incomplete output cursor.");
         cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (settled && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted || disposed) throw new DOMException("Aborted", "AbortError");
           if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
           return { stdout, stderr };
         }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+        if (!settled) await new Promise(resolve => setTimeout(resolve, 150));
       }
     } catch (error) {
-      await cancel(jobId).catch(() => {});
+      if (!settled) await settleAfterFailure(error);
       throw error;
     } finally {
       signal?.removeEventListener("abort", abort);
@@ -1539,7 +3331,7 @@ async function createPanelLocalClient(sdk: any) {
       pickDirectoryPath: () => run("editor.pickDirectory", []),
       pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
     },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+    dispose() { disposed = true; for (const requestCancel of activeJobs.values()) void requestCancel().catch(() => {}); },
   };
 }
 
@@ -1552,25 +3344,53 @@ function panelLocalClient(sdk: any): any {
 function withPanelLocalClient(Component: any) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
+    const reported = React.useRef(new WeakMap<object, Set<string>>());
+    const key = JSON.stringify([props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client: any;
+      const fail = (timeout: boolean, cause?: unknown) => {
+        if (!active || settled) return;
+        settled = true; clearTimeout(timer);
+        const error = timeout
+          ? "Connecting to Selects took too long. Reopen the Project and try again."
+          : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        // Diagnostics stay private; neither the DOM nor finishTemplate receives
+        // raw SDK output, paths or an exception stack.
+        setState({sdk: props.sdk, key, error, cause});
+      };
+      // This is a read-only bootstrap observation, not a mutation retry or cancel.
+      const timer = setTimeout(() => fail(true), 30000);
       createPanelLocalClient(props.sdk).then(value => {
         client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
+        if (!active || settled) { value.dispose(); return; }
+        settled = true; clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+        setState({sdk: props.sdk, key});
+      }).catch(error => fail(false, error));
       return () => {
-        active = false;
+        active = false; clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? new Set<string>();
+      if (seen.has(key)) return;
+      seen.add(key); reported.current.set(props.sdk, seen);
+      // A failed connection never mounts the child, so the wrapper must finish
+      // a hidden app run itself. Visible standalone panels keep an alert only.
+      try { Promise.resolve(props.sdk.finishTemplate({error: state.error})).catch(() => {}); }
+      catch { /* Do not replay completion or expose a transport exception. */ }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     return React.createElement(Component, props);
   };
 }

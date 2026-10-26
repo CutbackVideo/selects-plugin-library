@@ -185,7 +185,7 @@ const buildCue = (c, input, kept) => {
   const downbeatRatio = round2(beatOneRatio(lowPerBeat(dst, bpm, firstBeat, usableEnd), 0));
   console.log(c.id, JSON.stringify(loud), bpm, firstBeat, 'phase +' + k, ratios.map(round2).join('/'), 'downbeat', downbeatRatio, a.residualMedianMs, a.hitRate);
   return withHook({
-    id: c.id, label: c.label, group: c.group, file, duration: a.durationSeconds,
+    id: c.id, label: c.label, group: c.group, file, bytes: fs.statSync(dst).size, duration: a.durationSeconds,
     bpm, firstBeat, barPhaseBeats: k, usableEnd,
     lufs: loud.after.lufs, truePeak: loud.after.tp, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
     downbeatConfidence: downbeatRatio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio,
@@ -203,7 +203,7 @@ function main() {
   fs.mkdirSync(out, { recursive: true });
   if (src === '--onsets') {
     const m = JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8'));
-    m.cues = m.cues.map(c => withHook({ ...c, ...onsetFields(decode(path.join(out, c.file))) }));
+    m.cues = m.cues.map(c => withHook({ ...c, bytes: fs.statSync(path.join(out, c.file)).size, ...onsetFields(decode(path.join(out, c.file))) }));
     fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(m) + '\n');
     m.cues.forEach(c => console.log(c.id, c.onsets.length, 'onsets', JSON.stringify(c.onsetThresholds), 'hookStart', c.hookStart));
     return;
@@ -230,7 +230,7 @@ function main() {
     }
     // The kept entry takes its group from CUES (placed after the label, like a built entry). Its grid stays; its
     // downbeat is re-measured on that grid when the kit is available.
-    const entry = Object.assign({ id: kept.id, label: kept.label, group: c.group }, kept, { group: c.group });
+    const entry = Object.assign({ id: kept.id, label: kept.label, group: c.group }, kept, { group: c.group, bytes: fs.statSync(path.join(out, kept.file)).size });
     if (kit) {
       const ratio = round2(beatOneRatio(lowPerBeat(path.join(out, kept.file), kept.bpm, kept.firstBeat, kept.usableEnd), 0));
       Object.assign(entry, { downbeatConfidence: ratio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio: ratio });

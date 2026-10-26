@@ -94,7 +94,7 @@ for (const f of plugin.files) assert.ok(fs.existsSync(path.join(root, f)), 'plug
 for (const f of ['panel.tsx', 'planner.js', 'beat-detect.cjs', 'assets/decode-title.tsx', 'assets/archived-credit.tsx', 'assets/letterbox-reveal.tsx', 'assets/cinematic-look.tsx',
   'assets/fade-out.tsx', 'assets/photo-motion.tsx', 'assets/fonts/presets.json', 'assets/cues/manifest.json', 'scripts/assemble.js', 'scripts/decorate.js']) assert.ok(plugin.files.includes(f), 'ships ' + f);
 assert.deepEqual(plugin.compatibility.platforms, ['macOS arm64', 'Windows x64']);
-assert.ok(!/ffmpeg|node\.?js|homebrew/i.test(plugin.compatibility.selects), 'no tool requirements');
+assert.match(plugin.compatibility.selects, /no additional tools to install/i, 'no external tools to install; existing host FFmpeg is allowed');
 assert.deepEqual(Object.keys(plugin.localized).sort(), ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh']);
 for (const [lang, v] of Object.entries(plugin.localized)) assert.ok(v.name === 'Archive Vlog' && v.summary.length > 20, 'localized ' + lang);
 const opt = id => plugin.options.find(o => o.id === id);
@@ -133,8 +133,10 @@ for (const p of presets.presets) assert.equal(en['preset.' + p.id], p.label, 'pr
 assert.ok(ui.includes('{tOr(L, "preset." + p.id, p.label)}') && ui.includes('i18n-used: preset.*'), 'preset labels by id');
 // A quoted UI name inside a sentence equals that control's label.
 assert.ok(en.finishFailed.includes(en.finishTitle), 'quoted UI names');
-// No literal English UI text in JSX.
-assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(ui), 'no literal English text between JSX tags');
+// No literal English UI text in JSX. Shared transport function types (=> Promise<T>)
+// are not JSX and have their own bootstrap/local-client checks.
+const templateUi = ui.replace(block(panel, "local-sdk"), "");
+assert.ok(!/<[A-Za-z][\w.]*\b[^>]*>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*<\//.test(templateUi), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
 assert.ok(ui.includes('<div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>'), 'keep-all for Korean only');
 assert.ok(ui.includes('const L = uiLang(context);'), 'the language is read on every render');
@@ -174,7 +176,7 @@ assert.deepEqual(Object.keys(K.AV_ADJUST_LABELS), ['motion', 'motionStrength', '
 for (const [k, v] of Object.entries(K.AV_ADJUST_LABELS)) assert.equal(en['param.' + k], v, 'STRINGS.en param.' + k + ' = the English label');
 // decorate.js's own English defaults are the same words.
 {
-  const m = /const LABELS = \{([^}]+)\.\.\./.exec(read('scripts/decorate.js'));
+  const m = /const LABELS\s*=\s*\{([^}]+)\.\.\./.exec(read('scripts/decorate.js'));
   assert.ok(m, 'decorate.js LABELS');
   const defaults = (0, eval)('({' + m[1] + '})');
   for (const [k, v] of Object.entries(defaults)) assert.equal(K.AV_ADJUST_LABELS[k], v, 'decorate.js label ' + k);
@@ -347,12 +349,12 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   assert.equal(P.avVisibleFraction(undefined), 1); assert.equal(P.avVisibleFraction({ width: 0, height: 5 }), 1);
   // Every plan call passes the sizes (the landscape opening), and the Build freezes the opening's size for Finish.
   assert.equal((ui.match(/avPlanBuild\(\{[^;]*?sizes/g) || []).length, 3, 'avPlanBuild gets sizes at every call');
-  assert.ok(ui.includes('openingSize: sizes[plan.picks[0]?.rid] || null') && ui.includes('openingSize: res.openingSize || null'));
+  assert.ok(ui.includes('openingSize: sizes[plan.picks[0]?.rid] || null') && ui.includes('openingSize: pending.openingSize || null'));
 }
 // The panel and its template run use the builders (one config path for both).
 assert.equal((ui.match(/avAssembleConfig\(\{/g) || []).length, 2, 'assemble config: the panel and the template run');
-assert.equal((ui.match(/avDecorateConfig\(\{/g) || []).length, 2, 'decorate config: the panel and the template run');
-assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true })'));
+assert.equal((ui.match(/prepareArchiveDecoration\(sdk, value, assembly, check\)/g) || []).length, 3, 'one frozen decoration builder for the standalone and both selected-entry recovery paths');
+assert.ok(ui.includes('fill(assets.scripts.prepareJs, input)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true })'));
 
 // ---- Host I/O: no POSIX shell, guarded host services --------------------------------------------------------------
 // Runtime code never uses POSIX shell syntax, a data folder under the shell's HOME, Homebrew / nvm paths or a node
@@ -384,12 +386,13 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
     readFile: readFile || (async p => { throw Error('no file ' + p); }),
     removeFile: async ({ filePath }) => calls.removed.push(filePath),
   };
-  const Runtime = { getPlatform: () => platform, ...(ffmpeg ? { runFFmpeg: async (argv, quiet, signal) => { calls.ffmpeg.push(argv); return ffmpeg(argv); } } : {}) };
-  const ctx = { window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
+  const mediaFiles = require(path.join(root, '../../tests/async_media_files.cjs')).asyncMediaFiles(FileSystem);
+  const Runtime = { getPlatform: () => platform, ...(ffmpeg ? { runFFmpeg: async (argv, quiet, signal) => { calls.ffmpeg.push(argv); const result = await ffmpeg(argv); if (readFile) mediaFiles.publish(argv.at(-1), await readFile(argv.at(-1))); return result; } } : {}) };
+  const ctx = { crypto: require('node:crypto').webcrypto, TextEncoder, window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, parseFloat };
-  ctx.sdk = { files: FileSystem, media: Runtime, environment: { platform } };
+  ctx.sdk = { files: mediaFiles.files, media: Runtime, environment: { platform } };
   vm.createContext(ctx);
-  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block(panel, 'bundled-assets') + '\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
   const sdk = { ...ctx.sdk, runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
@@ -441,8 +444,9 @@ const hostTests = (async () => {
     assert.deepEqual(Array.from(out), Array.from(samples));
     const argv = j(calls.ffmpeg[0]);
     assert.deepEqual(argv.slice(0, 8), ['-nostdin', '-v', 'error', '-y', '-t', '240', '-i', 'C:\\Users\\me\\Music\\my song.mp3']);
-    assert.deepEqual(argv.slice(8, 14), ['-ac', '1', '-ar', '22050', '-f', 'f32le']);
-    assert.ok(/^C:\\data\\pcm-[\w-]+\.f32$/.test(wrote), 'temp file in the data folder, ASCII name: ' + wrote);
+    assert.deepEqual(argv.slice(8, 15), ['-vn', '-ac', '1', '-ar', '22050', '-f', 'f32le']);
+    assert.equal(path.win32.dirname(wrote), 'C:\\data');
+    assert.match(path.win32.basename(wrote), /^\.media-[a-f0-9-]{36}\.f32$/i, 'ASCII owned output name');
     assert.deepEqual(calls.removed, [wrote], 'the temp file is removed');
   }
   // Cleanup uses the public async removeFile method and tolerates failure.
@@ -487,8 +491,8 @@ for (const p of presets.presets) {
 assert.ok(ui.includes('label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(fl)), max: fl.max })}'));
 assert.ok(ui.includes('const v = fieldClip(String(value), fl.max);'));
 {
-  const runtime = panel.slice(panel.indexOf('// Field limits count Hangul'), panel.indexOf('// A message that follows the UI language'));
-  const clip = panel.slice(panel.indexOf('function fieldClip('), panel.indexOf('const PLUGIN_ID'));
+  const runtime = panel.match(/^const WIDE_RE =.*$/m)[0] + '\n' + panel.match(/^function fieldLen\([\s\S]*?^\}/m)[0];
+  const clip = panel.match(/^function fieldClip\([\s\S]*?^\}/m)[0];
   const F = new Function(runtime.replace(/: string|: number/g, '') + clip.replace(/: string|: number/g, '') + '\nreturn { fieldLen, fieldClip };')();
   assert.equal(F.fieldLen('MINI'), 4); assert.equal(F.fieldLen(ga + na), 4); assert.equal(F.fieldLen('a' + ga), 3);
   assert.equal(F.fieldClip(ga.repeat(13), 24), ga.repeat(12)); assert.equal(F.fieldClip('ab' + ga + na, 5), 'ab' + ga);
@@ -528,7 +532,7 @@ assert.ok(ui.includes('t(L, "ready", { summary: clipCount })'), 'readiness: inve
 // counts usable clips; a small note (never a gate) says analysed clips give better picks; clips still being added poll.
 for (const s of ['const localNote = facts.local > 0 ? t(L, "localNote", { count: facts.local }) : null;', '{localNote ? <ui.Message tone="muted">{localNote}</ui.Message> : null}',
   ': inventory.resources.length === 0 ? (facts.waiting ? t(L, "stillAdding", { count: facts.waiting }) : t(L, "noFootage"))',
-  'invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)', 'if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true);', 'const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",");']) assert.ok(ui.includes(s), s);
+  'invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)', 'if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true);', 'const sig = JSON.stringify(inv.resources);']) assert.ok(ui.includes(s), s);
 assert.ok(!/avAnalysis|notAnalysedAnalyse|statusKnown/.test(ui), 'no analysis gate left');
 // The block reasons never mention analysis: only footage, music and the title gate a build.
 {
@@ -545,12 +549,12 @@ for (const k of ['localNote', 'localChecked', 'stillAdding']) for (const l of Ob
 // cancellable, progress per part), and both join the planner through avShotCandidates (one score scale).
 for (const s of ['const rids: string[] = chosenRes.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);',
   'const localRes: any[] = chosenRes.filter((r: any) => r.analysed === false);',
-  '{ dataDir: roots?.data || null, concurrency: AV_LOCAL_CONCURRENCY, budgetMs: AV_LOCAL_BUDGET_MS, signal: ac.signal, onProgress: (p: any) => onDone(p.done) }',
   'toScore.length ? t(l, "localChecked", { done: scored, count: toScore.length }) : ""', 'todo.length ? t(l, "videosChecked", { done: searched, count: todo.length }) : ""',
-  'found = { key, failed: fresh.failed, local: cached ? cached.local : local,', 'const shots = avShotCandidates(found.list, found.local, { bpm: tempo, pace, durations: dur });',
+  'const shots = avShotCandidates(found.list, found.local, { bpm: tempo, pace, durations: dur });',
   'const scored = avShotCandidates(searched ? searched.list : [], searched ? searched.local : null, { bpm: tempo, pace, durations: dur });',
-  'alive = false; stopPreview(); localAbortRef.current?.abort();', ']).catch((e) => { localAbortRef.current?.abort(); throw e; });']) assert.ok(ui.includes(s), s);
-assert.equal((ui.match(/localAbortRef\.current\?\.abort\(\)/g) || []).length, 3, 'a new check, a Project switch / unmount, and a failed search cancel the local check');
+  'alive = false; stopPreview(); localAbortRef.current?.abort();']) assert.ok(ui.includes(s), s);
+// Cache invalidation, aggregate budgets and sibling settlement are verified through
+// actual Build/common-owner behavior in tests/archive_video_analysis.test.mjs.
 // Length: "N of M shots fit" from the planner, durations from avVideoSeconds.
 for (const s of ['const requested = avMontageShots(length, pace);', 'avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd })',
   'const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });', 't(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })',
@@ -568,24 +572,25 @@ for (const c of manifest.cues) {
     assert.equal(box3.P.avIntroSection({ introStart: c.introStart, firstBeat: c.firstBeat, bpm: c.bpm, usableEnd: c.usableEnd, videoSeconds, beatEnergy: c.beatEnergy }), c.introStart, c.id + ' ' + length + ' ' + pace);
   }
 }
-// The section preview plays a blob of the track's bytes from the section start and fades out at its end (no shell).
-for (const s of ['const bytes = await readBytes(file);', 'URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }))', 'audio.currentTime = from;',
-  'audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));', 'if (at >= end) { stopPreview(); return; }', 'URL.revokeObjectURL(previewUrlRef.current)',
-  'const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);']) assert.ok(ui.includes(s), s);
+// Original-file section seek/fade, cancellation and teardown are exercised through
+// the actual callback/common owner in tests/archive_preview_lifetime.test.mjs.
+// Whole-track Blob allocation is no longer the preview contract.
 // Own music: decoded by the host's ffmpeg (WebAudio without it), analysed in a worker only, cancellable, stale results
-// dropped; any failure falls back to fixed timing.
-for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
-  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'worker = new Worker(url);', 'try { worker?.terminate(); } catch',
-  'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });',
+// dropped. The shared content-bound analysis owner admits ordinary fallback;
+// actual caller failures/changed sources are covered by archive_own_music_analysis.
+for (const s of ['const g = await prepareArchiveOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live);',
+  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })',
+  'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid(g);',
   'if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }', 'if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }',
-  'worker-src * data: blob:', 'const v = await hostProbeSeconds(file.path);', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
+  'worker-src * data: blob:', 'probe: (snapshot: string) => hostProbeSeconds(snapshot, client, signal)', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
 assert.ok(/const OWN_RATE = 22050;/.test(panel) && /const OWN_MAX_SECONDS = 240;/.test(panel));
 assert.ok(!/analyze\(samples, OWN_RATE/.test(ui), 'never analysed on the panel thread');
-// The music cue is imported from the install folder by a joined path.
+// Both entries prepare the frozen cue generation through the existing asset
+// owner. The actual caller/bytes/import boundaries run in archive_owned_cues.
 assert.ok(ui.includes('musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null'));
-assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file),\n    duration: typeof cue.duration === "number" ? cue.duration : null })'), 'template run cue path and length');
-assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration })'), 'Build passes the cue length');
-assert.ok(ui.includes('musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,'));
+assert.ok(ui.includes('prepareArchiveCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1), check)'), 'template verifies cue contents and required section');
+assert.ok(ui.includes('prepareArchiveCue(sdk, pid, roots.plugin, frozen.musicCue, minimumSeconds, check)'), 'Build uses its frozen cue generation');
+assert.ok(ui.includes('musicCue: musicKind === "cue" ? JSON.parse(JSON.stringify(cue)) : null,'));
 // Advanced: Clip sound, the Cinematic look (strength follows the preset until moved), photos, Choose clips (thin stable
 // scrollbar for Windows).
 for (const s of ['label={t(L, "clipSound")}', 'label={t(L, "cinematicLook")}', '<ui.Slider label={t(L, "param.look")} value={strength} min={0} max={1} step={0.05}',
@@ -598,7 +603,8 @@ assert.ok(ui.includes('const fitLine = !assets || (musicKind === "own" && (!ownM
 // cancel signal (a cancelled analysis never reports another file's error).
 assert.ok(ui.includes('const BEAT_TIMEOUT_MS = 60000;') && ui.includes('timeoutMs: number = BEAT_TIMEOUT_MS'));
 assert.ok(ui.includes('err.code = "beat-timeout"') && ui.includes('if (e?.code === "beat-timeout") return t(lang, "beatTimeout");'));
-assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with the worker');
+// Resource cleanup, dispatch failure and deadlines are exercised through the
+// real shared owner in tests/analysis_worker.test.mjs.
 {
   const dec = ui.slice(ui.indexOf('async function decodeOwnMusic('), ui.indexOf('function analyseBeat('));
   assert.equal((dec.match(/if \(signal\.aborted\) throw new Error\("cancelled"\);/g) || []).length, 3, 'after ffmpeg, the file read and the decode');
@@ -609,11 +615,11 @@ assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with 
 // language (plural objects joined with `gap`).
 {
   const tpl = ui.slice(ui.indexOf('async function runArchiveVlogTemplate('), ui.indexOf('// What the app mounts out of sight for a template run'));
-  assert.ok(tpl.includes('credit: { on: false, name: "" }') && tpl.includes('look: true, credit: false } });'), 'template credit off');
-  assert.equal((tpl.match(/run\("Add title and look"/g) || []).length, 1, 'one decorate call site');
-  assert.equal((tpl.match(/await finish\(\)/g) || []).length, 2, 'one retry, as the inherited template run');
+  assert.ok(tpl.includes('credit: { on: false, name: "" }'), 'template credit off');
+  assert.equal((tpl.match(/continuations\.workflow\(/g) || []).length, 2, 'same workflow for recovered and fresh runs');
+  assert.equal((tpl.match(/await finish\(\)/g) || []).length, 0, 'no unconfirmed Finish replay');
   assert.ok(!/templateIssue\("/.test(ui), 'no English template messages');
-  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'tpl.notFound', 'tpl.notAnalysed', 'tpl.noTitle', 'tpl.finishFailed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
+  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'stepFailed', 'tpl.notAnalysed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
   assert.ok(tpl.includes('unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap"))'));
   const run = ui.slice(ui.indexOf('function TemplateRun('));
   for (const k of ['tpl.stoppedAt', 'tpl.stopped', 'tpl.done', 'tpl.stepDetail']) assert.ok(run.includes('"' + k + '"'), k);
@@ -621,7 +627,7 @@ assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with 
   for (const l of Object.keys(strings)) assert.ok(typeof strings[l]['tpl.notAnalysed'] === 'object', l + ' plural');
 }
 // A Draft found by its name after a lost reply: a STRINGS note, not English text in the script notes.
-assert.ok(ui.includes('a = { ...saved, notes: a?.notes || [], recovered: true };') && ui.includes('{result?.recovered ? <ui.Message tone="muted">{t(L, "draftRecovered")}</ui.Message> : null}'));
+assert.ok(!ui.includes('findDraftByName'), 'display names never authorize saved Draft adoption');
 assert.ok(!ui.includes('the Draft was found after its reply was lost'));
 // Preset names and the Pace option Cinematic stay English in every language; Kicker and Tagline are position labels.
 for (const [l, table] of Object.entries(strings)) {
@@ -644,9 +650,9 @@ assert.deepEqual([K.AV_ADJUST_LABELS.kicker, K.AV_ADJUST_LABELS.tagline], ['Top 
   assert.ok(effect.includes('runEpochRef.current++;'), 'a Project switch supersedes the running build');
   assert.equal((ui.match(/e !== STALE && runLive\(pid, epoch\)\) setStatus/g) || []).length, 2);
 }
-for (const s of ['const check = () => { if (!runLive(pid, epoch)) throw STALE; };', 'a = await run("Assemble Archive Vlog",', 'await run("Add title and look",',
+for (const s of ['const check = () => { if (!runLive(pid, epoch)) throw STALE; };', 'await finishAssembly(pending, check, continuations);', 'completed = await log.workflow(pending,',
   'async function finishTitle() {', 'try { await decorate(result, check); }', 'const s = seed + 1;', 'const gate = nextSeed === seed ? blockReason : anotherBlock;',
-  'saved = await findDraftByName(pid, frozen.draftName);', 'draftName: draftNameOf(titleFields.title, chosen.label, new Date()),']) assert.ok(ui.includes(s), s);
+  'const previous = await continuations.read();', 'draftName: draftNameOf(titleFields.title, chosen.label, new Date()),']) assert.ok(ui.includes(s), s);
 assert.equal((ui.match(/avPlanBuild\(\{/g) || []).length, 3, 'the build plan, the readiness plan and the template run');
 assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
 assert.ok(!/startAnalysis|analyzeResources/.test(ui), 'the panel does not start analysis');
@@ -723,7 +729,9 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
 // insertResource with "Resource analyzed sequence not found"), and the "not found" message carries it.
 {
   const src = panel.slice(panel.indexOf('const TEMPLATE_ALIAS_JS = `') + 'const TEMPLATE_ALIAS_JS = `'.length);
-  const script = src.slice(0, src.indexOf('`;')).replace('__CONFIG__', JSON.stringify({ projectId: 'p', files: [{ rid: 'r1', kind: 'video' }, { rid: 'r2', kind: 'video' }] }));
+  const shared = block(panel, 'file-observation') + '\n' + fs.readFileSync(path.resolve(root, '../../shared/native-image-input.mjs'), 'utf8').replace("import {fingerprintTemplateFile} from './file-observation.js';\n", '').replace(/^export /gm, '');
+  const declaration = 'const TEMPLATE_ALIAS_JS = `' + src.slice(0, src.indexOf('`;')) + '`;';
+  const script = new Function(shared + '\n' + declaration + '\nreturn TEMPLATE_ALIAS_JS;')().replace('__CONFIG__', JSON.stringify({ projectId: 'p', files: [{ rid: 'r1', kind: 'video' }, { rid: 'r2', kind: 'video' }] }));
   const draft = { clips: async () => [], insertResource: async ({ resourceId }) => { throw new Error('Resource analyzed sequence not found: seq-' + resourceId); }, meta: async () => ({}) };
   const selects = { project: () => ({ createDraft: async () => draft }) };
   const run = new Function('selects', 'return (async () => {' + script + '})();');

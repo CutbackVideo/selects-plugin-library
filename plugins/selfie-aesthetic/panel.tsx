@@ -1232,7 +1232,9 @@ const STRINGS = {
 };
 // STRINGS:END
 
-// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.
+// Generated text mechanics from shared/template-text.ts; STRINGS stays template-specific.
+// template-text:start
+// Template text mechanics; STRINGS remains the independently installed panel dictionary.
 const LANGS = ["de", "en", "es", "fr", "it", "ja", "ko", "pt", "tr", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 type Msg = string | { [category: string]: string };
@@ -1249,22 +1251,25 @@ function uiLang(context?: { language?: string | null } | null): Lang {
   return normLang(context?.language) ?? normLang(nav) ?? "en";
 }
 // Plural messages pick their form from vars.count; numbers are formatted for the language.
+function textMessage(table: Record<string, Msg> | undefined, key: string): Msg | undefined {
+  return table && Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
 function t(lang: Lang, key: string, vars: Vars = {}): string {
-  let msg: Msg | undefined = I18N_TABLE[lang]?.[key] ?? I18N_TABLE.en[key];
+  let msg: Msg | undefined = textMessage(I18N_TABLE[lang], key) ?? textMessage(I18N_TABLE.en, key);
   if (msg === undefined) return key;
   if (typeof msg !== "string") {
-    const n = Number(vars.count);
+    const n = Number(Object.prototype.hasOwnProperty.call(vars, "count") ? vars.count : undefined);
     msg = msg[new Intl.PluralRules(lang).select(Number.isFinite(n) ? n : 0)] ?? msg.other ?? "";
   }
   const nf = new Intl.NumberFormat(lang);
   return msg.replace(/\{(\w+)\}/g, (whole: string, name: string) => {
-    const v = vars[name];
+    const v = Object.prototype.hasOwnProperty.call(vars, name) ? vars[name] : undefined;
     return v === undefined ? whole : typeof v === "number" ? nf.format(v) : v;
   });
 }
 // Optional keys (preset/look labels by id): the English label from the JSON is the fallback.
 function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {
-  return I18N_TABLE.en[key] === undefined ? fallback : t(lang, key, vars);
+  return textMessage(I18N_TABLE.en, key) === undefined ? fallback : t(lang, key, vars);
 }
 // Field limits count Hangul, kana, CJK and fullwidth characters as 2.
 const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
@@ -1273,6 +1278,14 @@ function fieldLen(text: string): number {
   for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1;
   return n;
 }
+
+// Field clipping uses the same wide-character units as fieldLen.
+function fieldClip(text: string, max: number) {
+  let out = "", n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
+// template-text:end
 
 // A message that follows the UI language: state keeps the function and every render calls it with the current language.
 type Say = (lang: Lang) => string;
@@ -2774,10 +2787,16 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 }
 // quick-score:end
 
-// Beat detection for "Your own music": the kit's beat-detect.cjs (pure JS) up to its module.exports line, wrapped
-// so its helpers stay private. Used on the main thread only when a Web Worker cannot run (see saeBeatWorkerSource).
+// Beat detection for "Your own music": the canonical pure-JS engine, in a private CommonJS shim.
+// Used on the main thread only when a Web Worker cannot run (see saeBeatWorkerSource).
+// The local require has no main module, so the standalone Node CLI remains inactive.
 // sae-beat:start
 const saeBeat = (function () {
+'use strict';
+const module = { exports: {} };
+const require = () => ({});
+// audio-beat-analysis:start
+// Canonical numerical audio beat engine. Generated consumer copies; edit this shared source.
 'use strict';
 // Beat grid for Selects style apps (shared kit copy). Spectral-flux onsets, then the tempo and phase whose grid best meets them.
 // CLI: node beat-detect.cjs <mono-f32le-file> <sampleRate> [<out.json>]  -> one JSON line on stdout, or, with
@@ -3207,7 +3226,24 @@ function analyze(samples, sampleRate, opts) {
   };
 }
 
-return { analyze };
+module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux, takeFlip };
+
+if (require.main === module) {
+  const process = require('node:process');
+  try {
+    const [file, rate, out] = process.argv.slice(2);
+    const fs = require('node:fs');
+    const buf = fs.readFileSync(file);
+    const samples = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
+    const json = JSON.stringify(analyze(samples, Number(rate) || 22050)) + '\n';
+    if (out) { fs.writeFileSync(out, json); process.stdout.write('{"ok":true}\n'); } else process.stdout.write(json);
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ error: String(e && e.message || e) }) + '\n');
+    process.exit(1);
+  }
+}
+// audio-beat-analysis:end
+return { analyze: module.exports.analyze };
 })();
 // sae-beat:end
 
@@ -4642,9 +4678,19 @@ function errorText(e: any) { return String(e?.message || e); }
 // clips to their holds by that id (crop, clip sound, whip and look). So each handed file is placed once on an unsaved
 // scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its own, whose frame size is the
 // photo's, as inventory.js measures it. Nothing is committed. A file that cannot be placed is left out.
+
+// Preserve per-file causes across the existing retry; usable files still proceed.
+function templateAliasFailure(resolved, failed) {
+  const found = new Set(resolved.map(row => row.rid)), remaining = new Map();
+  for (const row of failed) if (!found.has(row.rid)) remaining.set(row.rid, row.message);
+  if (!remaining.size) return null;
+  console.warn("[selfie-aesthetic] selected file checks failed:", [...remaining]);
+  return resolved.length ? null : [...new Set(remaining.values())].join("\n");
+}
+
 const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-const resolved = [];
+const resolved = [], failed = [];
 let shared = null;
 for (const h of cfg.files) {
   try {
@@ -4662,9 +4708,9 @@ for (const h of cfg.files) {
       if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
     }
     resolved.push({ rid: h.rid, alias: clip.resourceId, size });
-  } catch (e) {}
+  } catch (e) { failed.push({ rid: h.rid, message: String(e?.message || e) }); }
 }
-return { resolved };`;
+return { resolved, failed };`;
 
 // The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
 // frame closing) replaced this one. `advance` names the current build step for the status line and the error.
@@ -4696,11 +4742,13 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
   if (!cue) throw new Error("no bundled music in assets/cues/manifest.json");
 
   const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const aliasFailures: Array<{ rid: string; message: string }> = [];
   const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
     for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
       const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
       check();
       resolved.push(...(r.resolved || []));
+      aliasFailures.push(...(r.failed || []));
     }
   };
   await resolveFiles(files);
@@ -4708,6 +4756,8 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
   const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
   if (unresolved.length) await resolveFiles(unresolved);
   const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const aliasFailure = templateAliasFailure(resolved, aliasFailures);
+  if (aliasFailure) throw new Error(aliasFailure);
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   // sdk.call (bad-shot spans) wants the app's ids: each alias maps back to the handed id it came from.

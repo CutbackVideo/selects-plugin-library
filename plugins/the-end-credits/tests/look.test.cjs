@@ -8,12 +8,12 @@ vm.runInContext(block + ';globalThis.L={tecLookChannel,tecLookPixel,tecLookTable
 const L = box.L, j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, msg + ': ' + a + ' vs ' + b);
 
-assert.ok(src.includes('<Source />'), 'renders the clip');
+// Actual source lifetime and alpha are covered by render_color_filter.test.mjs and Chromium evidence.
 assert.deepEqual([...src.matchAll(/from\s+"([^"]+)"/g)].map(m => m[1]).sort(), ['react', 'remotion']);
-assert.ok(src.includes('colorInterpolationFilters="sRGB"'), 'the filter works in sRGB, like the maths');
+// The shared color surface declares the sRGB filter space.
 
 // The filter: warm mask blend (arithmetic composites), overall saturation, then the tone tables, in that order.
-const order = ['result="warmMuted"', 'result="warmMask"', 'result="keepMask"', 'result="kept"', 'result="muted"', 'result="blended"', 'result="desaturated"', '<feComponentTransfer in="desaturated">'];
+const order = ['result="warmMuted"', 'result="warmMask"', 'result="keepMask"', 'result="kept"', 'result="muted"', 'result="blended"', 'result="desaturated"', '<feComponentTransfer in="desaturated" result={output}>'];
 order.reduce((at, k) => { const n = src.indexOf(k); assert.ok(n > at, 'filter order: ' + k); return n; }, -1);
 assert.equal((src.match(/operator="arithmetic"/g) || []).length, 3, 'two products and a sum');
 

@@ -22,7 +22,9 @@ Selects:
 - **Your own music**: decoded by the ffmpeg that ships with Selects (or by the
   panel itself on a Selects build without it) and analysed by the bundled
   `beat-detect.cjs` in a background worker inside the panel;
-- **Preview this section**: plays the track's own file in the panel.
+- **Preview this section**: streams the track's own file through Selects' local
+  media URL in the panel, keeping the original section position. It does not
+  copy the whole track into a browser Blob or write a preview file.
 - the quick check of clips without Selects' analysis: a small grey preview
   decoded by the same bundled ffmpeg, read back in the panel.
 

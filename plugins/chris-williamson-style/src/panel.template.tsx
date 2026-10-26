@@ -345,6 +345,7 @@ Transcript: ${JSON.stringify(rows)}`;
 // ---------------------------------------------------------------------------------------------------------
 // The pipeline. `env` supplies host access so the same code runs from the panel or a test harness.
 export type Env = {
+  language?: string;
   signal?: AbortSignal;
   onFaceStage?: (active: boolean, journalPath: string) => void;
   runScript: (script: string, summary: string, allowCommit?: boolean) => Promise<any>;
@@ -353,7 +354,7 @@ export type Env = {
   imageData?: (path:string) => Promise<string>;
   cleanLegacy?: (projectId:string,draftId:string) => Promise<any>;
   readCore?: (draftId:string) => Promise<any>;
-  capture?: (draftId:string,frames:number[]) => Promise<{dataUrl:string;name?:string}[]>;
+  capture?: (draftId:string,frames:number[]) => Promise<{dataUrl:string;name?:string;frames?:{frameNumber:number;hasSourceImage:boolean}[]}[]>;
   textMeasure?: () => Promise<(text: string) => number>;
   readText: (path: string) => Promise<string>;
   writeText: (path: string, text: string) => Promise<void>;
@@ -364,6 +365,11 @@ export type Env = {
   pluginDir: string;
   ffmpeg: string;
 };
+// Local presentation only: existing panel locales use Korean and English fallback.
+// The stage text is emitted by real work boundaries; no timer manufactures progress.
+function cwProgressText(env: Pick<Env, 'language'>, en: string, ko: string) {
+  return /^ko(?:-|$)/i.test(String(env.language || '')) ? ko : en;
+}
 export type Options = { scope?: UpdateScope; copy: boolean; retryFaceFailures?: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
 
 // mac-only:start
@@ -574,7 +580,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     // mac-only:start
     runShell: async (command, summary, timeoutMs = 120000) => {
       const r = await sdk.runShell({ command, summary, timeoutMs, maxOutputBytes: 16000 });
-      if (r.isError || r.exitCode !== 0) throw new Error((r.stderr || r.output || summary + " failed").slice(0, 600));
+      if (r.isError || r.exitCode !== 0) throw Object.assign(new Error((r.stderr || r.output || summary + " failed").slice(0, 600)),{rawStderr:r.stderr,rawStdout:r.stdout,rawOutput:r.output,exitCode:r.exitCode});
       return String(r.stdout || "");
     },
     // mac-only:end
@@ -582,7 +588,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     imageData: async (path) => { const bytes=await hostReadBytes(path);let raw="";for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));return "data:image/jpeg;base64,"+btoa(raw); },
     cleanLegacy: (project,id) => removeLegacyFlashes(sdk,env,project,id),
     readCore: (id) => sdk.call("getDraftCore",id),
-    capture: async (id,frames) => {const core=await sdk.call("getDraftCore",id);if(!core.owner)throw Error("Draft owner missing");const c=await sdk.call("captureVisualFrames",{owner:core.owner,sequenceId:id,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:"resolved",includeOverlays:true,frames:frames.map(frameNumber=>({frameNumber,view:"timeline_composite"}))});return [{dataUrl:await smallImage("data:image/jpeg;base64,"+c.data),name:"Saved Draft"}];},
+    capture: async (id,frames) => {const core=await sdk.call("getDraftCore",id);if(!core.owner)throw Error("Draft owner missing");const c=await sdk.call("captureVisualFrames",{owner:core.owner,sequenceId:id,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:"resolved",includeOverlays:true,frames:frames.map(frameNumber=>({frameNumber,view:"timeline_composite"}))});return [{dataUrl:await smallImage("data:image/jpeg;base64,"+c.data),name:"Saved Draft",frames:c.frames}];},
     // Real keyword widths in em: the embedded Inter ExtraBold, and for Hangul/CJK the system font the renderer falls back to.
     textMeasure: async () => {
       const src = /url\((data:[^)]+)\)/.exec(await readText(hostJoin(paths.plugin, "fonts", "font.css")))?.[1];
@@ -632,11 +638,20 @@ const FACE_UI: Record<string, string[]> = {
 function faceUI(context: any) { return FACE_UI[String(context?.language || 'en').toLowerCase().split('-')[0]] || FACE_UI.en; }
 
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
-async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
-  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
+async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string, includeTarget = false) {
+  if(includeTarget) {
+    const core=await sdk.call("getDraftCore",sequenceId);
+    if(core?.owner?.projectId!==projectId||core?.sequenceJson?.id!==sequenceId)throw new Error("The Draft belongs to another Project.");
+  }
+  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow${includeTarget?`,target:{projectId:${JSON.stringify(projectId)},draftId:${JSON.stringify(sequenceId)},projectName:(await project.meta()).title}`:""}};` });
   if (r.isError || !r.result) throw new Error(r.output || "Selects could not read this draft.");
   return r.result;
 }
+
+const TARGET_UI:Record<string,{project:string;draft:string}>= {
+  en:{project:"Project",draft:"Draft"},
+  ko:{project:"\ud504\ub85c\uc81d\ud2b8",draft:"\ud0c0\uc784\ub77c\uc778"},
+};
 
 /** The panel as a person uses it: one button that styles the open Draft into a new Draft. */
 function StylePanel({ sdk, context, ui }: any) {
@@ -648,17 +663,19 @@ function StylePanel({ sdk, context, ui }: any) {
   const observer = useRef<AbortController | null>(null);
   const faceJournal = useRef('');
   const S = faceUI(context);
+  const T = TARGET_UI[String(context?.language||"en").toLowerCase().split("-")[0]]||TARGET_UI.en;
   // The Draft on screen now; a finished run only switches the view if the person is still on the Draft it started from.
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string; ffmpeg: string } | null>(null);
   const [setupIssue, setSetupIssue] = useState("");
   const [sourceName, setSourceName] = useState("");
+  const [target, setTarget] = useState<{projectId:string;draftId:string;projectName:string}|null>(null);
   const [alreadyStyled, setAlreadyStyled] = useState(false);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ id: string } | null>(null);
+  const [result, setResult] = useState<{ id: string; warnings: string[] } | null>(null);
   const [pending, setPending] = useState(false);
   const [faceActive, setFaceActive] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -676,14 +693,14 @@ function StylePanel({ sdk, context, ui }: any) {
     let alive = true;
     mounted.current = true;
     locked.current = false; setBusy(false); setFaceActive(false); setCanceling(false); setPending(false); faceJournal.current = '';
-    setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
+    setResult(null); setError(""); setStatus(""); setSourceName(""); setTarget(null); setAlreadyStyled(false); setAnalysisState("checking");
     if (!sequenceId) return () => { mounted.current = false; };
-    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then(async (d: any) => {
+    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript", true).then(async (d: any) => {
       const saved = paths ? await readState({readText, dataDir:paths.data} as Env, sequenceId) : null;
       if (!alive) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
-      setSourceName(name);
+      setSourceName(name); setTarget(d.target);
       setPending(!!saved?.pending); faceJournal.current = saved?.faceJournal || '';
       setAlreadyStyled(name.endsWith(SUFFIX) && !saved?.pending);
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
@@ -730,8 +747,9 @@ function StylePanel({ sdk, context, ui }: any) {
       await ensureTranscript(from,controller.signal);
       const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
       const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
+      env.language = context?.language;
       const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
-      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
+      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId, warnings: Array.isArray(report.warnings) ? report.warnings.filter((text:any)=>typeof text==='string'&&text.trim()) : [] }); setStatus("Your Chris Williamson Style draft is ready."); }
       if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
       if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
@@ -765,14 +783,15 @@ function StylePanel({ sdk, context, ui }: any) {
 
   return <ui.Section title="Chris Williamson Style"><ui.Stack>
     <p>Turn a talking-head draft into a Chris Williamson-style podcast clip.</p>
-    {sourceName ? <p><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
+    {sourceName && target ? <p data-project-id={target.projectId} data-draft-id={target.draftId}><small>{T.project}: {target.projectName||target.projectId}</small><br/><small>{T.draft}: </small><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
-    <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
+    <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !target || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
     {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
+    {result?.warnings?.map((warning,index)=><ui.Message key={index} tone="warning">{warning}</ui.Message>)}
     {result && <ui.Button variant="secondary" disabled={busy} onClick={() => void sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(result.id) + ");", summary: "Open the Chris Williamson Style draft" })}>Open result</ui.Button>}
   </ui.Stack></ui.Section>;
 }
@@ -790,6 +809,37 @@ function templateSpeaker(template: any): any {
   return all.find((input) => (input?.kind === "timeline" && input.sequenceId) || (input?.kind === "video" && input.resourceId)) || null;
 }
 
+const RESULT_NOTICE_UI:Record<string,{title:string;message:string;done:string;close:string}>= {
+ en:{title:'Saved draft needs review',message:'The draft was saved. Review these issues before using the result:',done:'Done',close:'Close'},
+ ko:{title:'\uc800\uc7a5\ub41c \uacb0\uacfc\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694',message:'\ud0c0\uc784\ub77c\uc778\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uacb0\uacfc\ub97c \uc0ac\uc6a9\ud558\uae30 \uc804\uc5d0 \ub2e4\uc74c \ubb38\uc81c\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694:',done:'\ud655\uc778',close:'\ub2eb\uae30'},
+};
+export function templateIssueNotice(result:any,language:string){
+ const ko=language==='ko',warnings=(Array.isArray(result?.warnings)?result.warnings:[]).filter((text:any)=>typeof text==='string'&&text.trim()&&!/measured approximation.*exact reference font is unconfirmed/i.test(text));
+ const lines:string[]=[];
+ if(warnings.some((w:string)=>/B-roll crop rejected.*black/i.test(w)))lines.push(ko?'• B-roll\uc758 \uac80\uc740 \uc2dc\uc791 \ubd80\ubd84\uc744 \uc798\ub77c\ub0b8 \ub4a4 \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• B-roll: trim the black lead-in, then review it.');
+ else if(warnings.some((w:string)=>!/^B-roll search failed for /i.test(w)&&/B-roll.*(?:rejected|failed)|^Final B-roll crop could not be verified; omitted /i.test(w)))lines.push(ko?'• B-roll \uac80\ud1a0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4. \ud574\ub2f9 \uc601\uc0c1\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• B-roll review failed. Inspect the affected clip.');
+ const keptSpeaker=warnings.some((w:string)=>/No visually verified B-roll.*kept the speaker|speaker stays on screen.*without B-roll.*no usable picture was found/i.test(w));
+ const keptExisting=warnings.some((w:string)=>/No visually verified B-roll.*kept the existing cutaway when available|^No visually accepted candidate$|^Video is shorter than its planned cutaway$|^Final B-roll crop could not be verified; omitted /i.test(w));
+ if(keptSpeaker||keptExisting)lines.push(ko?(keptExisting?"\u2022 B-roll \ubbf8\ud655\ubcf4 \uad6c\uac04\uc740 \uae30\uc874 \uc7a5\uba74\uc744 \uc720\uc9c0\ud588\uc2b5\ub2c8\ub2e4. \ud574\ub2f9 \uad6c\uac04\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694.":"\u2022 B-roll \ubbf8\ud655\ubcf4 \uad6c\uac04\uc740 \ud654\uc790\ub97c \uc720\uc9c0\ud588\uc2b5\ub2c8\ub2e4. \ud574\ub2f9 \uad6c\uac04\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694."):(keptExisting?'• B-roll: some sections have no verified replacement; review the retained footage.':'• B-roll: some sections kept the speaker; no verified cutaway was found.'));
+ if(warnings.some((w:string)=>/contrast|can't be read|hard to read|glyphs disappear|inverted fill|marginal/i.test(w)))lines.push(ko?'• \uc790\ub9c9\uacfc \ubc30\uacbd\uc758 \ub300\ube44\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• Captions: review text contrast against the footage.');
+ if(warnings.some((w:string)=>/speaker.*out of frame|framing|weak frame/i.test(w)))lines.push(ko?'• \ud654\uc790\uac00 \ud654\uba74 \ubc16\uc73c\ub85c \ubc97\uc5b4\ub098\ub294 \uad6c\uac04\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• Framing: review the speaker leaving the picture.');
+ if(!lines.length)lines.push(ko?'• \uc2e4\ud589 \uc911 \ubcf4\uace0\ub41c \ubb38\uc81c\ub97c \uc804\uccb4 \ubcf4\uace0\uc11c\uc5d0\uc11c \ud655\uc778\ud574\uc8fc\uc138\uc694.':'• Review the reported execution issues in the full report.');
+ const path=typeof result?.jobDir==='string'?hostJoin(result.jobDir,'report.json'):null;
+ const prefix=(ko?'\ud0c0\uc784\ub77c\uc778\uc774 \uc800\uc7a5\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ud655\uc778\uc774 \ud544\uc694\ud55c \ud56d\ubaa9: ':'Draft saved. Issues requiring review: ')+warnings.length+'\n'+lines.join('\n')+'\n'+(ko?'\uc804\uccb4 \ubcf4\uace0\uc11c: ':'Full report: ');
+ const location=path&&path.length<=480-prefix.length?path:(ko?'\ud15c\ud50c\ub9bf \ub370\uc774\ud130 \ud3f4\ub354\uc758 report.json':'report.json in the template data folder');
+ const message=prefix+location;
+ return {message,warningCount:warnings.length};
+}
+export async function notifyTemplateIssues(sdk:any,context:any,result:any){
+ const warnings=(Array.isArray(result?.warnings)?result.warnings:[]).filter((text:any)=>typeof text==='string'&&text.trim()&&!/measured approximation.*exact reference font is unconfirmed/i.test(text));
+ if(!warnings.length)return {shown:false,warningCount:0};
+ if(typeof sdk.confirm!=='function')return {shown:false,warningCount:warnings.length,reason:'Host warning dialog is unavailable.'};
+ const language=String(context?.language||'en').toLowerCase().split('-')[0],ui=RESULT_NOTICE_UI[language]||RESULT_NOTICE_UI.en;
+ const notice=templateIssueNotice(result,language);
+ const acknowledged=await sdk.confirm({title:ui.title,message:notice.message,confirmLabel:ui.done,cancelLabel:ui.close});
+ return {shown:true,warningCount:warnings.length,summarizedWarnings:warnings.length,acknowledged:acknowledged===true};
+}
+
 async function templatePaths(sdk: any) {
   hostUseSdk(sdk);
   return await resolvePaths(sdk);
@@ -797,7 +847,7 @@ async function templatePaths(sdk: any) {
 
 /** A new Draft holding the whole picked video. */
 async function templateDraftFromVideo(env: Env, projectId: string, video: { resourceId: string; name: string }) {
-  env.status("Creating the new Draft…");
+  env.status(cwProgressText(env,"Creating the new Draft…","\uc0c8 Draft \ub9cc\ub4dc\ub294 \uc911…"));
   const name = String(video.name || "Video").replace(/\.[A-Za-z0-9]{1,5}$/, "") + SUFFIX;
   const made = await env.runScript(`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:${JSON.stringify(name)}});await d.insertResource({resourceId:${JSON.stringify(video.resourceId)}});const saved=await d.commitAll('Chris Williamson Style: new Draft from the video');return {id:saved.createdDraftId};`, "Create a Draft from the video", true);
   if (!made?.id) throw new Error("Selects could not create a Draft from this video. Try again.");
@@ -810,17 +860,19 @@ function TemplateRun({ sdk, context }: any) {
   const runId: string = context.template.runId;
   const currentRunId = useRef(runId);
   currentRunId.current = runId;
-  const [status, setStatus] = useState("Getting ready…");
+  const [status, setStatus] = useState(cwProgressText({language:context?.language},"Getting ready…","\uc900\ube44 \uc911…"));
+  const [finishedRun, setFinishedRun] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     // A newer run from the app reports instead of this one.
     const superseded = () => controller.signal.aborted || currentRunId.current !== runId;
-    const report = (text: string) => { if (!superseded()) setStatus(text); };
     let finished = false;
+    const report = (text: string) => { if (!finished && !superseded()) setStatus(text); };
     const finish = (result: { sequenceId: string } | { error: string }) => {
       if (finished || superseded()) return;
       finished = true;
-      setStatus("sequenceId" in result ? "Done." : result.error);
+      setFinishedRun(runId);
+      setStatus("sequenceId" in result ? cwProgressText({language:context?.language},"Done.","\uc644\ub8cc\ud588\uc2b5\ub2c8\ub2e4.") : result.error);
       sdk.finishTemplate(result);
     };
     void (async () => {
@@ -830,21 +882,27 @@ function TemplateRun({ sdk, context }: any) {
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
         const env = panelEnv(sdk, await templatePaths(sdk), report,controller.signal);
+        env.language = context?.language;
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
         if (superseded()) return;
         const result = await runPipeline(env, projectId, draftId, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
+        // Only real completed-run warnings open the host dialog. Dismissal never
+        // discards the saved Draft or starts a second generation/search.
+        if(result.warnings?.length)env.status(cwProgressText(env,"Waiting for the saved-draft review dialog…","\uc800\uc7a5\ub41c \uacb0\uacfc\uc758 \ud655\uc778 \ucc3d\uc744 \uae30\ub2e4\ub9ac\ub294 \uc911…"));
+        try{result.notification=await notifyTemplateIssues(sdk,context,result);await env.writeText(hostJoin(result.jobDir,'report.json'),JSON.stringify(result));}
+        catch(error:any){console.warn('Saved Chris draft notification could not be confirmed:',error?.message||error);}
         finish({ sequenceId: result.draftId });
       } catch (e: any) {
-        finish({ error: String(e?.message || e || "").slice(0, 300) || TEMPLATE_FAILED });
+        finish({ error: String(e?.publicMessage || e?.message || e || "").slice(0, 300) || TEMPLATE_FAILED });
       } finally {
         finish({ error: TEMPLATE_FAILED });
       }
     })();
     return () => controller.abort();
   }, [runId]);
-  return <small>{status}</small>;
+  return <TemplateProgressView runId={runId} status={status} terminal={finishedRun===runId}/>;
 }
 
 /** A template run (`context.template`) builds out of sight; otherwise the panel as a person uses it. */
@@ -1165,3 +1223,50 @@ function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: 
   }, [sdk?.updates]);
 }
 // app-update-guard:end
+
+// template-progress-adapter:start
+const sharedTemplateProgress=(()=>{const module={exports:{}};
+// template-progress:start
+// Read-only progress presentation. Existing consumer callbacks remain the only
+// source of stage information; clock ticks never imply work or completion.
+function createTemplateProgressView(React, timing = {}) {
+  const now = timing.now || (() => typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const schedule = timing.schedule || ((fn, ms) => setInterval(fn, ms));
+  const cancel = timing.cancel || (id => clearInterval(id));
+  const thresholdSeconds = 120;
+  return function TemplateProgressView({runId, status, busy = true, terminal = false}) {
+    const message = typeof status === 'string' && status.trim() ? status.trim() : 'Waiting for the first step…';
+    const snapshot = React.useRef(null);
+    const [, tick] = React.useState(0);
+    const stamp = now();
+    if (!snapshot.current || snapshot.current.runId !== runId) {
+      snapshot.current = {runId, message, changedAt: stamp, terminal: false};
+    }
+    const current = snapshot.current;
+    if (!current.terminal) {
+      if (current.message !== message) { current.message = message; current.changedAt = stamp; }
+      if (terminal || !busy) current.terminal = true;
+    }
+    const running = !current.terminal;
+    React.useEffect(() => {
+      if (!running) return;
+      let attached = true;
+      const timer = schedule(() => { if (attached) tick(value => value + 1); }, 1000);
+      return () => { attached = false; cancel(timer); };
+    }, [runId, running]);
+    const seconds = Math.floor(Math.max(0, stamp - current.changedAt) / 1000);
+    const h = React.createElement;
+    return h('section', {'aria-label': 'Template run progress', style: {display: 'grid', gap: 4, padding: '8px 0'}},
+      h('small', {role: 'status'}, running ? 'Current step: ' + current.message : current.message),
+      running && h('small', {'data-progress-age': true}, 'Last step change: ' + seconds + ' s ago.'),
+      running && seconds >= thresholdSeconds && h('p', {role: 'status', style: {margin: 0}},
+        'No new step update for ' + seconds + ' s. Completion has not been confirmed.'),
+      !running && h('small', null, 'Run finished.'),
+    );
+  };
+}
+module.exports = {createTemplateProgressView};
+// template-progress:end
+return module.exports;})();
+const TemplateProgressView=sharedTemplateProgress.createTemplateProgressView(React);
+// template-progress-adapter:end

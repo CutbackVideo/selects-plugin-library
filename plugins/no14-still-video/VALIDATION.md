@@ -1,8 +1,34 @@
 # Validation and current limits
 
-The current panel places four original Project photos as eight independently editable **Image** clips in a new 720×1280, 30 fps, 266-frame Draft. The exported result is an MP4. The prior still-MP4-input implementation below is historical format evidence, not evidence about the new Image route.
+## Current repair checkpoint: 0.5.14
 
-The current public `overlayResource(Image)` path rejects photos. The panel invokes the editor's existing internal `TimelineMutation.run` / `Sequence.place` Image route, without changing client code. Native `addTransition` on Image endpoints caused `InvalidFrameError` in this Selects version; the panel instead overlaps the fullscreen Image clips for ten frames and applies the measured transition alpha/brightness in their visual Effects. The internal placement bridge is a version-sensitive compatibility dependency and fails closed if unavailable.
+The canonical original-Image source is now an explicit `.mjs` build input
+shared with Photo Grid Reveal. This panel has only the synchronized function
+export prefix; its source-check behavior, public interface and recipe are
+unchanged. See `docs/template-repair/gallery-input.md` for packaging and
+existing-consumer regressions.
+
+## Earlier repair checkpoint: 0.5.13
+
+The shared run feature now checks hashing/text codecs and callable new-claim
+capabilities before preparing assets or authoring. Read-only recovery preserves
+the prior ability to reuse a saved run without a new UUID or SDK file writes.
+Four-consumer regression is recorded in `docs/template-repair/polaroid-run.md`.
+The recipe, saved request identity and receipt format do not change.
+
+The current source uses public original-Image placement, complete working-copy
+authoring, durable app-run recovery and independent saved-state receipts. Its
+MP3 compatibility entry now shares the generalized bundled-asset feature.
+Local tests preserve the Audio interface and original timing/design. This does
+not establish installed-app/Windows, whole AV playback/export or Inspector
+validation of this version. The client #7828 SDK prerequisite remains. All
+historical creation/export observations below belong to their stated older code.
+
+## Historical Image-route implementation and checks
+
+That panel placed four original Project photos as eight independently editable **Image** clips in a new 720×1280, 30 fps, 266-frame Draft. The exported result was an MP4. The prior still-MP4-input implementation below is historical format evidence.
+
+The older compatibility implementation used the internal `TimelineMutation.run` / `Sequence.place` Image route; its note that public `overlayResource(Image)` rejected photos does not describe the current SDK. Native `addTransition` on Image endpoints caused `InvalidFrameError` in that Selects version; the panel overlapped fullscreen Image clips for ten frames and applied transition alpha/brightness in visual Effects. The internal placement bridge was a version-sensitive compatibility dependency.
 
 ## New original Image path: local checks
 

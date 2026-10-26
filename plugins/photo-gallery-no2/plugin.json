@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.10",
+  "version": "0.3.36",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -14,6 +14,8 @@
     "build-script.mjs",
     "operation-builder.mjs",
     "operation-runtime.js",
+    "input-facts.generated.mjs",
+    "authoring.generated.mjs",
     "native-image-runtime.js",
     "format.mjs",
     "reference-oracle.json",
@@ -26,7 +28,7 @@
       "macOS Selects Staging",
       "Windows x64"
     ],
-    "selects": "Requires a panel host exposing the app-owned TimelineMutation service for Image placement; public run_script for video/audio overlays, effects, transforms, gap-backed Drafts, media import, and commit. Retest after Selects updates."
+    "selects": "Requires public original Image placement, Project Image dimensions, file stat/readRange, media probes, Video/Audio overlays, effects/transforms and gap-backed Draft persistence. Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified."
   },
   "localized": {
     "de": {
@@ -119,7 +121,6 @@
     }
   ],
   "prepare": [
-    "15 photos and 6 videos",
-    "Python 3 on this Mac, to hold short videos on their last frame"
+    "15 photos and 6 videos"
   ]
 }

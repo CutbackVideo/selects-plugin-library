@@ -21,6 +21,8 @@ from your Project.
 Every opening ends with a 0.6 second fade to black so it cuts cleanly into the next timeline. When the picked
 footage gives fewer shots than a reference has, the build falls back to the cue's beat grid below.
 
+In a template run, Whip cut and Motion graphics use the first usable selected video's display size as the output canvas, in selection order. An unrelated open timeline no longer changes a landscape selection into a portrait result. Funny quotes and the manual panel retain their existing canvas behavior.
+
 ## Why the result is repeatable
 
 Shot choice is a pure function of the Project's stored analysis: candidates are

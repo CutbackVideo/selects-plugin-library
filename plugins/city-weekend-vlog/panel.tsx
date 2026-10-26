@@ -1320,7 +1320,9 @@ const STRINGS = {
 };
 // STRINGS:END
 
-// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.
+// Generated text mechanics from shared/template-text.ts; STRINGS stays template-specific.
+// template-text:start
+// Template text mechanics; STRINGS remains the independently installed panel dictionary.
 const LANGS = ["de", "en", "es", "fr", "it", "ja", "ko", "pt", "tr", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 type Msg = string | { [category: string]: string };
@@ -1337,22 +1339,25 @@ function uiLang(context?: { language?: string | null } | null): Lang {
   return normLang(context?.language) ?? normLang(nav) ?? "en";
 }
 // Plural messages pick their form from vars.count; numbers are formatted for the language.
+function textMessage(table: Record<string, Msg> | undefined, key: string): Msg | undefined {
+  return table && Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
 function t(lang: Lang, key: string, vars: Vars = {}): string {
-  let msg: Msg | undefined = I18N_TABLE[lang]?.[key] ?? I18N_TABLE.en[key];
+  let msg: Msg | undefined = textMessage(I18N_TABLE[lang], key) ?? textMessage(I18N_TABLE.en, key);
   if (msg === undefined) return key;
   if (typeof msg !== "string") {
-    const n = Number(vars.count);
+    const n = Number(Object.prototype.hasOwnProperty.call(vars, "count") ? vars.count : undefined);
     msg = msg[new Intl.PluralRules(lang).select(Number.isFinite(n) ? n : 0)] ?? msg.other ?? "";
   }
   const nf = new Intl.NumberFormat(lang);
   return msg.replace(/\{(\w+)\}/g, (whole: string, name: string) => {
-    const v = vars[name];
+    const v = Object.prototype.hasOwnProperty.call(vars, name) ? vars[name] : undefined;
     return v === undefined ? whole : typeof v === "number" ? nf.format(v) : v;
   });
 }
 // Optional keys (preset/look labels by id): the English label from the JSON is the fallback.
 function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {
-  return I18N_TABLE.en[key] === undefined ? fallback : t(lang, key, vars);
+  return textMessage(I18N_TABLE.en, key) === undefined ? fallback : t(lang, key, vars);
 }
 // Field limits count Hangul, kana, CJK and fullwidth characters as 2.
 const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
@@ -1361,6 +1366,14 @@ function fieldLen(text: string): number {
   for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1;
   return n;
 }
+
+// Field clipping uses the same wide-character units as fieldLen.
+function fieldClip(text: string, max: number) {
+  let out = "", n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
+// template-text:end
 
 // A message that follows the UI language: state keeps the function and every render calls it with the current language.
 type Say = (lang: Lang) => string;
@@ -2047,31 +2060,90 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
 // rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()); so does
 // `timeoutMs` (BEAT_TIMEOUT_MS): a worker that never answers rejects with code "beat-timeout" (fixed timing then).
 const BEAT_TIMEOUT_MS = 60000;
-function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let worker: Worker | null = null, url: string | null = null, done = false;
-    let timer: any = null;
-    const finish = (fn: () => void) => {
-      if (done) return;
-      done = true;
-      if (timer) clearTimeout(timer);
-      try { worker?.terminate(); } catch { /* gone */ }
-      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
-      signal?.removeEventListener("abort", onAbort);
-      fn();
-    };
-    const onAbort = () => finish(() => reject(new Error("cancelled")));
-    if (signal?.aborted) { reject(new Error("cancelled")); return; }
-    signal?.addEventListener("abort", onAbort);
-    try {
-      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-      worker = new Worker(url);
-    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
-    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
-    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
-    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
-    worker.postMessage({ samples, rate: OWN_RATE });
-  });
+// analysis-worker:start
+// One browser Worker invocation. Algorithm, payload units and result protocol
+// belong to the caller; no Project, media process or persistent file is touched.
+function panelWorkerIssue(code,message,cause=undefined){
+ return Object.assign(Error(message),{code:'PANEL_WORKER_'+code,publicMessage:message,...cause?{cause}:{}});
+}
+async function runPanelWorker(source,payload,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw panelWorkerIssue('INPUT','The analysis worker scope is invalid.');
+ const {signal,isCurrent=()=>true,timeoutMs=60000,transfer}=options;
+ if(typeof source!=='string'||!source||new TextEncoder().encode(source).length>1024*1024||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw panelWorkerIssue('INPUT','The analysis worker request is invalid.');
+ if(transfer!==undefined&&!Array.isArray(transfer))throw panelWorkerIssue('INPUT','The analysis worker transfer list is invalid.');
+ const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
+ const stopped=cause=>panelWorkerIssue('STOPPED','Background analysis ended before completion.',cause);
+ const timeout=cause=>panelWorkerIssue('TIMEOUT','Background analysis timed out.',cause);
+ const deadline=Date.now()+timeoutMs;
+ if(!live())throw stopped();
+ if(typeof Worker!=='function'||typeof Blob!=='function'||typeof globalThis.URL?.createObjectURL!=='function'||typeof globalThis.URL?.revokeObjectURL!=='function')throw panelWorkerIssue('UNSUPPORTED','This environment cannot run background analysis.');
+ return new Promise((resolve,reject)=>{
+  let worker,url,timer,watch,done=false,phase='START';
+  const finish=(value,failure)=>{
+   if(done)return;done=true;
+   const cleanupFailures=[],attempt=action=>{try{action();}catch(error){cleanupFailures.push(error);}};
+   if(timer!==undefined)attempt(()=>clearTimeout(timer));
+   if(watch!==undefined)attempt(()=>clearTimeout(watch));
+   attempt(()=>signal?.removeEventListener('abort',onAbort));
+   if(worker){
+    attempt(()=>{worker.onmessage=null;worker.onerror=null;worker.onmessageerror=null;});
+    attempt(()=>worker.terminate());
+   }
+   if(url!==undefined)attempt(()=>URL.revokeObjectURL(url));
+   // Cleanup can itself detach the owner or cross the deadline. Never hand a
+   // late result back merely because its message arrived before cleanup began.
+   if(!live())failure=stopped(failure);
+   else if(Date.now()>=deadline)failure=timeout(failure);
+   if(cleanupFailures.length){
+    failure=Object.assign(panelWorkerIssue(failure?.code?.replace(/^PANEL_WORKER_/,'')??'CLEANUP',failure?.publicMessage??'Analysis worker cleanup could not be confirmed.',failure??cleanupFailures[0]),{terminal:true,cleanupFailures});
+   }
+   if(failure)reject(failure);else resolve(value);
+  };
+  const onAbort=()=>finish(undefined,stopped());
+  const current=()=>{
+   if(done)return false;
+   if(!live()){finish(undefined,stopped());return false;}
+   if(Date.now()>=deadline){finish(undefined,timeout());return false;}
+   return true;
+  };
+  const observe=()=>{if(current())watch=setTimeout(observe,50);};
+  try{
+   url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+   if(!current())return;
+   worker=new Worker(url);
+   worker.onmessage=event=>finish(event.data);
+   worker.onerror=event=>{try{event?.preventDefault?.();}catch{}finish(undefined,panelWorkerIssue('ERROR','Background analysis could not be completed.',event));};
+   worker.onmessageerror=event=>finish(undefined,panelWorkerIssue('MESSAGE','The background analysis response could not be read.',event));
+   // Subscribe after construction: cancellation inside a constructor must not
+   // finish before the newly created Worker reference becomes owned.
+   signal?.addEventListener('abort',onAbort,{once:true});
+   if(!current())return;
+   timer=setTimeout(()=>finish(undefined,timeout()),Math.max(0,deadline-Date.now()));
+   watch=setTimeout(observe,50);
+   phase='DISPATCH';
+   // Clone by default. Only callers that already relinquish their buffer opt
+   // into transfer; selection/copying and fallback remain caller policy.
+   if(transfer===undefined)worker.postMessage(payload);
+   else worker.postMessage(payload,transfer);
+  }catch(cause){finish(undefined,panelWorkerIssue(phase,phase==='START'?'The analysis worker could not start.':'The analysis worker request could not be sent.',cause));}
+ });
+}
+// analysis-worker:end
+async function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS, isCurrent: () => boolean = () => true): Promise<any> {
+  let reply: any;
+  try {
+    reply = await runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent });
+  } catch (cause: any) {
+    const timedOut = cause?.code === "PANEL_WORKER_TIMEOUT", stopped = cause?.code === "PANEL_WORKER_STOPPED";
+    const starting = cause?.code === "PANEL_WORKER_START" || cause?.code === "PANEL_WORKER_UNSUPPORTED";
+    const err: any = new Error(timedOut ? "the beat detection took too long" : stopped ? "cancelled" : starting ? "the beat detector could not start" : "the beat detector stopped");
+    if (timedOut) err.code = "beat-timeout";
+    err.cause = cause;
+    if (cause?.terminal) err.terminal = true;
+    throw err;
+  }
+  if (reply?.error) throw new Error(String(reply.error));
+  return reply?.ok;
 }
 // A browser-playable type for a music file, by its extension ("" lets the browser sniff).
 function audioType(path: string) {
@@ -3078,10 +3150,13 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
     // Decoded by the host's ffmpeg (or WebAudio), analysed by beat-detect.cjs in a Web Worker; no shell, no Node.
     const abort = new AbortController();
     ownAbortRef.current = abort;
+    const live = () => mountedRef.current && !abort.signal.aborted && ownAbortRef.current === abort;
     let samples: Float32Array | null = null;
     try {
       samples = await decodeOwnMusic(file.path, roots.data, abort.signal);
-      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      if (!live()) return;
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);
+      if (!live()) return;
       if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
       const og = cwvOwnGrid(g, null, NO_ONSETS);
@@ -3089,7 +3164,8 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
       setStatus(g.accepted ? null : og.faint ? { tone: "info", say: (l) => t(l, "faintTiming", { bpm }) }
         : { tone: "info", say: (l) => t(l, "musicFixedRhythm") });
     } catch (e: any) {
-      if (abort.signal.aborted) return;
+      if (!live()) return;
+      if (e?.terminal) { setOwnMusic(null); setOwnGrid(null); setStatus({ tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) }); return; }
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
       let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
       if (!duration) { const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
@@ -3509,9 +3585,19 @@ function errorText(e: any) { return String(e?.message || e); }
 // scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its own, whose frame size is the
 // photo's, as inventory.js measures it. Nothing is committed. A file that cannot be placed is left out. The first call
 // also reads the Project's title, the name the place is suggested from.
+
+// Preserve per-file causes across the existing retry; usable files still proceed.
+function templateAliasFailure(resolved, failed) {
+  const found = new Set(resolved.map(row => row.rid)), remaining = new Map();
+  for (const row of failed) if (!found.has(row.rid)) remaining.set(row.rid, row.message);
+  if (!remaining.size) return null;
+  console.warn("[city-weekend-vlog] selected file checks failed:", [...remaining]);
+  return resolved.length ? null : [...new Set(remaining.values())].join("\n");
+}
+
 const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-const resolved = [];
+const resolved = [], failed = [];
 let shared = null;
 for (const h of cfg.files) {
   try {
@@ -3529,11 +3615,11 @@ for (const h of cfg.files) {
       if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
     }
     resolved.push({ rid: h.rid, alias: clip.resourceId, size });
-  } catch (e) {}
+  } catch (e) { failed.push({ rid: h.rid, message: String(e?.message || e) }); }
 }
 let title = null;
 if (cfg.readTitle) { try { title = (await p.meta()).title || null; } catch (e) { title = null; } }
-return { resolved, title };`;
+return { resolved, failed, title };`;
 
 // The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
 // frame closing) replaced this one. `advance` names the current build step for the status line and the error.
@@ -3561,12 +3647,14 @@ async function runCityTemplate(sdk: any, context: any, check: () => void, advanc
   if (!cue) throw new Error("no bundled music in assets/cues/manifest.json");
 
   const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const aliasFailures: Array<{ rid: string; message: string }> = [];
   let projectTitle: string | null = null;
   const resolveFiles = async (list: Array<{ rid: string; kind: string }>, readTitle: boolean) => {
     for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
       const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH), readTitle: readTitle && i === 0 }));
       check();
       resolved.push(...(r.resolved || []));
+      aliasFailures.push(...(r.failed || []));
       if (readTitle && i === 0) projectTitle = r.title ?? null;
     }
   };
@@ -3575,6 +3663,8 @@ async function runCityTemplate(sdk: any, context: any, check: () => void, advanc
   const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
   if (unresolved.length) await resolveFiles(unresolved, false);
   const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const aliasFailure = templateAliasFailure(resolved, aliasFailures);
+  if (aliasFailure) throw new Error(aliasFailure);
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.

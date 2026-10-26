@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {topLevel} from './windows_host.mjs';
+import {loadPanelModule} from './panel_module_fixture.mjs';
 
 const multicam = fs.readFileSync(new URL('../plugins/multicam-generator/panel.tsx', import.meta.url), 'utf8');
 const doac = fs.readFileSync(new URL('../plugins/doac-style/panel.tsx', import.meta.url), 'utf8');
@@ -132,11 +132,24 @@ test('Multicam failed pre-effect checkpoint can safely retry the prior stage', a
   assert.equal(panel.latest.current.phase,'analyzed');
 });
 
-function captionCreation(persist, runScript) {
-  const files={getOrCreateTmpDirPath:async()=>'/tmp',join:(...parts)=>parts.join('/'),mkdir:async()=>{},writeFile:async()=>{},readFile:async()=>'{"signature":"none"}'};
-  const ctx=vm.createContext({console,TextDecoder,hostUseSdk:()=>{},hostSdk:{files},rendererCode:async()=>'<Caption/>',PLAN_VERSION:'v5-llm-editor'});
-  vm.runInContext(topLevel(doac,'captionSteps'),ctx);
-  return ctx.captionSteps({sdk:{runScript},currentProject:()=> 'project-a',onStatus:()=>{},persist});
+// Load the entire production module so caption operations keep their real
+// transitive helpers. Only local SDK/files, renderer loading and expensive
+// install/Worker operations are boundaries; caption payload/planning helpers
+// are never supplied by the fixture.
+function captionModule(overrides, source = doac) {
+  return loadPanelModule(source, {
+    names:['captionSteps','runCaptionTemplate'], overrides,
+    filename:'plugins/doac-style/panel.tsx',
+  });
+}
+function captionFiles() {
+  return {getOrCreateTmpDirPath:async()=>'/tmp',join:(...parts)=>parts.join('/'),mkdir:async()=>{},writeFile:async()=>{},
+    readFile:async path=>JSON.stringify(path==='/one'||path==='/two'?{signature:'none',y:100,h:20}:{signature:'none'})};
+}
+function captionCreation(persist, runScript, source = doac) {
+  const files=captionFiles();
+  const {captionSteps}=captionModule({panelLocalClient:sdk=>({...sdk,files}),rendererCode:async()=>'<Caption/>'},source);
+  return captionSteps({sdk:{runScript},currentProject:()=> 'project-a',onStatus:()=>{},persist});
 }
 const captionJob=()=>({projectId:'project-a',sourceId:'source',targetId:'target',next:0,baseCount:1,clipIds:[],editorial:[{},{}],input:{words:[]},manifest:{scenes:[{payload:'/one',start:0,end:10},{payload:'/two',start:10,end:20}]}});
 
@@ -188,14 +201,13 @@ test('Multicam archives the resumable request and current job in one checkpoint'
 
 function planningSteps(persist, replyText='[]') {
   let paidCalls=0;
-  const files={getOrCreateTmpDirPath:async()=>'/tmp',join:(...parts)=>parts.join('/'),mkdir:async()=>{},writeFile:async()=>{},readFile:async()=>'{"signature":"none"}'};
-  const ctx=vm.createContext({console,TextDecoder,hostUseSdk:()=>{},hostSdk:{files},PLAN_VERSION:'v5-llm-editor',
-    ensureRuntime:async()=>{},hostIsWindows:()=>true,panelEngine:async()=>({templates:[]}),planningPrompt:()=> 'Plan captions',completePlan:()=>[],
-    stepError:(code,message)=>Object.assign(Error(message),{code}),
+  const files=captionFiles();
+  const {captionSteps}=captionModule({
+    panelLocalClient:sdk=>({...sdk,files,environment:{platform:'win32'}}),
+    ensureRuntime:async()=>{},panelEngine:async()=>({templates:[]}),
   });
-  vm.runInContext(topLevel(doac,'captionSteps'),ctx);
   const sdk={askAI:async()=>{paidCalls++;return {text:replyText};},runScript:async()=>({result:{meta:{fps:30,frameSize:{width:1080,height:1920}},clips:[{trackKind:'main',endFrame:30}],words:[{text:'Hello',start:0,end:30}]}})};
-  return {steps:ctx.captionSteps({sdk,currentProject:()=> 'project-a',onStatus:()=>{},persist}),get paidCalls(){return paidCalls;}};
+  return {steps:captionSteps({sdk,currentProject:()=> 'project-a',onStatus:()=>{},persist}),get paidCalls(){return paidCalls;}};
 }
 
 test('DOAC cannot ask AI when the planning intent checkpoint fails',async()=>{
@@ -204,10 +216,11 @@ test('DOAC cannot ask AI when the planning intent checkpoint fails',async()=>{
   assert.equal(p.paidCalls,0);
 });
 
+// Template journal tests isolate the caption-stage side effects below. The
+// real captionSteps implementation and its helper chain are exercised above.
 test('DOAC template checkpoints before initial timeline mutation',async()=>{
   let created=0;
-  const ctx=vm.createContext({JSON,Error,captionSteps:()=>({createFromClip:async()=>{created++;return {id:'new-draft'};}}),stepError:(code,message)=>Object.assign(Error(message),{code})});
-  vm.runInContext(topLevel(doac,'runCaptionTemplate'),ctx);
+  const ctx=captionModule({captionSteps:()=>({createFromClip:async()=>{created++;return {id:'new-draft'};}})});
   await assert.rejects(ctx.runCaptionTemplate({
     sdk:{storage:{getItem:async()=>null,setItem:async()=>{throw Error('storage full');}}},
     context:{projectId:'project-a',template:{runId:'run-a',inputs:{speaker:[{kind:'video',resourceId:'resource'}]}}},currentProject:()=> 'project-a',onStatus:()=>{},
@@ -232,8 +245,7 @@ test('DOAC keeps acknowledged AI text before caching and reuses it without anoth
 
 test('DOAC template restores uncertain source creation without creating another draft',async()=>{
   let created=0;
-  const ctx=vm.createContext({JSON,Error,captionSteps:()=>({createFromClip:async()=>{created++;}}),stepError:(code,message)=>Object.assign(Error(message),{code})});
-  vm.runInContext(topLevel(doac,'runCaptionTemplate'),ctx);
+  const ctx=captionModule({captionSteps:()=>({createFromClip:async()=>{created++;}})});
   await assert.rejects(ctx.runCaptionTemplate({
     sdk:{storage:{getItem:async()=>JSON.stringify({projectId:'project-a',creatingSource:true,uncertain:true}),setItem:async()=>{}}},
     context:{projectId:'project-a',template:{runId:'run-a',inputs:{speaker:[{kind:'video',resourceId:'resource'}]}}},currentProject:()=> 'project-a',onStatus:()=>{},
@@ -243,8 +255,7 @@ test('DOAC template restores uncertain source creation without creating another 
 
 test('DOAC template preserves acknowledged source ID when its checkpoint fails',async()=>{
   let writes=0,created=0,prepared=0,latest,durable;
-  const ctx=vm.createContext({JSON,Error,captionSteps:()=>({createFromClip:async()=>{created++;return {id:'already-created'};},prepare:async()=>{prepared++;}}),stepError:(code,message)=>Object.assign(Error(message),{code})});
-  vm.runInContext(topLevel(doac,'runCaptionTemplate'),ctx);
+  const ctx=captionModule({captionSteps:()=>({createFromClip:async()=>{created++;return {id:'already-created'};},prepare:async()=>{prepared++;}})});
   await assert.rejects(ctx.runCaptionTemplate({
     sdk:{storage:{getItem:async()=>null,setItem:async(key,value)=>{assert.equal(key,'doac-style-template:["project-a","run-a"]');if(++writes===1)durable=JSON.parse(value);else throw Error('full');}}},
     context:{projectId:'project-a',template:{runId:'run-a',inputs:{speaker:[{kind:'video',resourceId:'resource'}]}}},currentProject:()=> 'project-a',onStatus:()=>{},onJob:job=>latest=job,
@@ -255,8 +266,7 @@ test('DOAC template preserves acknowledged source ID when its checkpoint fails',
 test('DOAC template awaits restore and resumes saved scenes without creating another source draft',async()=>{
   let resolveRead,created=0,continued=0;
   const saved={...captionJob(),sourceId:'already-created'};
-  const ctx=vm.createContext({JSON,Error,captionSteps:()=>({createFromClip:async()=>{created++;},prepare:async()=>{throw Error('Must reuse prepared plan');},create:async job=>{continued++;return {job};}}),stepError:(code,message)=>Object.assign(Error(message),{code})});
-  vm.runInContext(topLevel(doac,'runCaptionTemplate'),ctx);
+  const ctx=captionModule({captionSteps:()=>({createFromClip:async()=>{created++;},prepare:async()=>{throw Error('Must reuse prepared plan');},create:async job=>{continued++;return {job};}})});
   const result=ctx.runCaptionTemplate({
     sdk:{storage:{getItem:()=>new Promise(resolve=>resolveRead=resolve),setItem:async()=>{}}},
     context:{projectId:'project-a',template:{runId:'run-a',inputs:{speaker:[{kind:'video',resourceId:'resource'}]}}},currentProject:()=> 'project-a',onStatus:()=>{},
@@ -275,4 +285,25 @@ test('DOAC never automatically reissues an acknowledged empty AI reply',async()=
   const retry=planningSteps(async job=>{assert.equal(job.uncertain,false);throw Object.assign(Error('stop after recovery'),{storageFailure:true});});
   await assert.rejects(retry.steps.prepare({projectId:'project-a',sourceId:'source',resume:acknowledged}),/stop after recovery/);
   assert.equal(retry.paidCalls,0);
+});
+
+test('DOAC storage fixture preserves new transitive payload helpers and exposes their failures',async()=>{
+  const declaration='export function stableCaptionPayload(data){';
+  assert(doac.includes(declaration),'the production payload boundary must remain visible');
+  const expanded=doac.replace(declaration,
+    "function storagePayloadDependency(data){return {...data,h:data.h+10};}\n"+
+    declaration+'data=storagePayloadDependency(data);');
+  let commits=0;
+  const steps=captionCreation(async()=>{},async({script})=>{
+    commits++;assert.match(script,/"y":710/,'the real transitive helper must change the saved payload');
+    return {result:{clipId:1}};
+  },expanded);
+  await steps.create({...captionJob(),manifest:{scenes:[{payload:'/one',start:0,end:10}]}},{open:false});
+  assert.equal(commits,1);
+  const broken=expanded.replace('return {...data,h:data.h+10};',"throw Error('real transitive payload failure');");
+  let checkpoints=0;
+  const failed=captionCreation(async()=>checkpoints++,async()=>{commits++;return {result:{clipId:2}};},broken);
+  await assert.rejects(failed.create(captionJob(),{open:false}),/real transitive payload failure/);
+  assert.equal(checkpoints,0,'payload failure precedes a durable scene intent');
+  assert.equal(commits,1,'a failing real dependency must not be hidden by a fixture stub');
 });

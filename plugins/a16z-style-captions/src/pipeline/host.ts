@@ -118,6 +118,12 @@ export async function hostFF(tool: "runFFmpeg" | "runFFprobe", args: string[], t
   }
 }
 
+// Optional quality fallbacks may skip ordinary decoding, but cannot conceal a
+// native producer whose protocol/lifetime has become unconfirmed.
+export function isTerminalMediaFailure(error: any): boolean {
+  return error?.preserveTemporaryFiles === true || error?.terminal === true && typeof error.code === "string" && error.code.startsWith("LOCAL_MEDIA_");
+}
+
 // The last JSON object in a block of text (the assistant sometimes wraps it in prose or a code fence).
 export function lastJsonObject(text: string): any {
   const s = String(text || "");

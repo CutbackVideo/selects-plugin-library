@@ -7,6 +7,7 @@ const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 // Models Selects (extends city-weekend-vlog's mock):
 // - a Draft created in this run_script call has no saved audio inventory, so setAudioTracks throws until reopen();
 // - commitAll runs once per call; a new Draft adopts its first clip's frame size (`adopt`) and rate (`adoptFps`);
+//   setting the canvas before that first insert pins the default rate, matching the existing SDK contract;
 // - insertResource places round(end*fps) - round(start*fps) frames; photos hold at most 5 s; a window past a
 //   source's `durations` entry throws invalid_source_range;
 // - overlayResource puts resources in `audioRids` on audio tracks and everything else on video tracks; the applied
@@ -19,6 +20,7 @@ function mockDraft(fps, o = {}) {
     failOverlay = [], exposeSource = false, routeOverlays = false, routeLeaks = false, noRemove = false, rejectKeys = false } = o;
   let unsaved = !!o.unsaved;
   const log = [], clips = [], graphics = [], effects = {}, transforms = {}, audio = {}, src = {};
+  let settingsPinned = false;
   let committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false, nextId = 1;
   const mainEnd = () => clips.filter(c => c.trackKind === 'main').reduce((a, c) => Math.max(a, c.endFrame), 0);
   const row = c => ({ ...c, ...(exposeSource && src[c.clipId] != null ? { sourceStartSeconds: src[c.clipId] } : {}) });
@@ -38,9 +40,9 @@ function mockDraft(fps, o = {}) {
     kind: k => clips.filter(c => c.trackKind === k),
     d: {
       meta: async () => ({ fps, frameSize: { ...frameSize } }),
-      setFrameSize: async (s) => { frameSize = { ...s }; log.push(['size', s]); },
+      setFrameSize: async (s) => { settingsPinned = true; frameSize = { ...s }; log.push(['size', s]); },
       insertResource: async ({ resourceId, sourceRange }) => {
-        if (!inserted) { inserted = true; frameSize = { ...adopt }; if (adoptFps) fps = adoptFps; }
+        if (!inserted) { inserted = true; frameSize = { ...adopt }; if (adoptFps && !settingsPinned) fps = adoptFps; }
         if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
         if (durations[resourceId] != null && sourceRange.endSeconds > durations[resourceId] + 1e-9) throw Error('invalid_source_range');
         const len = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps);

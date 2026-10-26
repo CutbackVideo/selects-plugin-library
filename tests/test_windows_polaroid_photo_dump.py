@@ -64,30 +64,27 @@ class PolaroidPhotoDumpWindowsTest(unittest.TestCase):
     def test_no_shell_call(self):
         self.assertEqual(self.source.count("runShell"), 0)
 
-    def test_assets_unpack_through_the_host_before_the_draft(self):
-        unpack = body_of(self.runtime, "async function unpackAssets(")
-        self.assertIn("hostRoots(sdk,'polaroid-photo-dump','assets/manifest.json')", unpack)
-        self.assertIn("hostReadText(hostJoin(plugin,'assets','manifest.json'))", unpack)
-        self.assertIn("unpackBundled(", unpack)
-        self.assertIn("'host-missing'", unpack)
-        self.assertIn("HOST_TOO_OLD", unpack)
-        helper = body_of(self.runtime, "export async function unpackBundled(")
-        for part in ("/^[A-Za-z0-9][A-Za-z0-9._-]*$/", "atob(", "subtle.digest('SHA-256'", "seen.has("):
-            self.assertIn(part, helper, part)
-        self.assertNotRegex(helper, r"\+\s*'/'", "path built with '/'")
+    def test_assets_unpack_through_the_canonical_host_before_the_draft(self):
+        ensure = body_of(self.runtime, "async function ensureAssets(")
+        for part in ("hostRoots(sdk,'polaroid-photo-dump','assets/manifest.json')", "readBundledAssetBytes(", "65536", "prepareBundledAsset(", "encoding:'base64'", "expectedSha256:spec.sha256", "isCurrent"):
+            self.assertIn(part, ensure)
+        self.assertIn("globalThis.crypto?.subtle", ensure)
+        self.assertIn("HOST_TOO_OLD", ensure)
+        self.assertNotIn("Without WebCrypto only the length", self.source)
+        self.assertNotIn("const UNPACKED=", self.source)
         create = body_of(self.runtime, "export async function createPhotoDraft(")
-        self.assertLess(create.index("ensureAssets("), create.index("createDraft("), "assets before the Draft")
-        ensure = body_of(self.runtime, "async function ensureAssets(")
-        self.assertIn("unpackAssets(sdk)", ensure)
+        self.assertLess(create.index("prepareNativeImages("), create.index("ensureAssets("))
+        self.assertLess(create.index("ensureAssets("), create.index("buildAtomicImageDraftScript("))
+        self.assertNotIn("commitAll(", create)
 
-    def test_imports_match_by_normalised_path(self):
+    def test_imports_match_through_the_bounded_resource_reader(self):
         ensure = body_of(self.runtime, "async function ensureAssets(")
-        self.assertNotIn("r.path===f.path", ensure)
-        self.assertEqual(ensure.count("samePath(r.path,f.path)"), 2)
-        same = self.runtime[self.runtime.index("const samePath="):]
-        same = same[: same.index("\n")]
-        for part in (".normalize('NFC')", "replace(/\\\\/g,'/')", "hostIsWindows()", "toLowerCase()"):
-            self.assertIn(part, same, part)
+        self.assertIn("prepareBundledAsset(", ensure)
+        self.assertIn("normalizeUnicode:true", ensure)
+        reader = body_of(self.runtime, "async function readBundledAssetResource(")
+        for part in (".normalize('NFC')", "toLowerCase()", "matches.length>=2", "path:n.path"):
+            self.assertIn(part, reader)
+        self.assertIn("'win32'", reader)
 
     def test_host_too_old_message(self):
         m = re.search(r"const HOST_TOO_OLD='([^']+)'", self.runtime)

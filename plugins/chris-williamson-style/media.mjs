@@ -20,7 +20,7 @@ async function inspect(file, ffmpeg, ffprobe, run) {
   }
   let delta=0;
   for(const p of pixels.slice(1)) {if(p.length!==pixels[0].length)throw Error('Invalid sampled pixels');delta=Math.max(delta,p.reduce((s,x,i)=>s+Math.abs(x-pixels[0][i]),0)/p.length);}
-  return {width:v.width,height:v.height,duration,kind:still||delta<2?'still':'video',motionDelta:Number(delta.toFixed(3))};
+  return {width:v.width,height:v.height,duration,kind:still?'still':'video',motionDelta:Number(delta.toFixed(3))};
 }
 async function preview(file, out, info, ffmpeg, run, t=0) {
   const vf="split[a][b];[a]scale=256:456:force_original_aspect_ratio=decrease,pad=256:456:(ow-iw)/2:(oh-ih)/2,setsar=1[a1];[b]scale=256:456:force_original_aspect_ratio=increase,crop=256:456,setsar=1[b1];[a1][b1]hstack";

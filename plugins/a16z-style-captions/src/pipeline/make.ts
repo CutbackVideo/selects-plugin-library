@@ -1,7 +1,7 @@
 // One click: a talking-head Draft -> a finished 9:16 Short in the a16z house style. The work is kept in
 // a job folder (~/.selects/plugin-data/a16z-style-captions/shorts/<short id>) with a job.json record, so
 // the captions and graphics can be rebuilt in place on the same cut.
-import { dataRoot, fs, hostRoots, hostVersion, versionBelow, script, J, PANEL_ID, type Sdk } from "./host";
+import { isTerminalMediaFailure, dataRoot, fs, hostRoots, hostVersion, versionBelow, script, J, PANEL_ID, type Sdk } from "./host";
 import { readDraft, type DraftInfo } from "./source";
 import { semanticPass, type Semantic, type TWord } from "./semantic";
 import { trackFaces, type SourceFaces } from "./faces";
@@ -102,12 +102,16 @@ export async function makeShort(sdk: Sdk, ctx: { projectId: string; sequenceId: 
       onStep("faces", "done", n + " shot" + (n === 1 ? "" : "s") + " with a face");
       return faces;
     } catch (e: any) {
+      if (isTerminalMediaFailure(e)) throw e;
       notes.push("Speaker framing was skipped (" + String(e?.message || e).slice(0, 160) + "), so shots are centred.");
       onStep("faces", "fail", "centred");
       return {};
     }
   })();
-  const [semantic, faces] = await Promise.all([think, facesJob]);
+  const observed = await Promise.allSettled([think, facesJob] as const);
+  if (observed[0].status === "rejected") throw observed[0].reason;
+  if (observed[1].status === "rejected") throw observed[1].reason;
+  const semantic = observed[0].value, faces = observed[1].value;
 
   onStep("cut", "run", "Tightening pauses…");
   const cut = planPauses(src.words, fps, src.endFrame, semantic?.tags || {});
@@ -209,6 +213,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
       const cover = insertTimes.reduce((n, x) => n + x.b - x.a, 0) / prep.duration;
       onStep("broll", got.shots.length ? "done" : "skip", placed.length + " shots, " + Math.round(cover * 100) + "% of the Short");
     } catch (e: any) {
+      if (isTerminalMediaFailure(e)) { await Promise.allSettled([musicJob]); throw e; }
       notes.push("B-roll: " + String(e?.message || e).slice(0, 200));
       onStep("broll", "fail", String(e?.message || e).slice(0, 80));
     }
@@ -260,6 +265,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
       onStep("music", "done", "bed " + (musicLufs != null && job.voiceLufs != null ? "9 dB under the voice" : "added"));
     }
   } catch (e: any) {
+    if (isTerminalMediaFailure(e)) { await Promise.allSettled([musicJob]); throw e; }
     notes.push("Levels: " + String(e?.message || e).slice(0, 160));
   }
   await saveJob(job);

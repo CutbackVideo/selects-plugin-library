@@ -36,7 +36,7 @@ The video follows a fixed template, counted in beats of the music:
   shorter than the reference's 5.6 s.
 - The opening, credit and final shots are always video clips. Photos fill
   about a third of the montage, never more than two in a row.
-- So a build needs at least two video clips, one of them long enough for the
+- So a build needs at least two different video clips, one of them long enough for the
   opening shot; photos alone cannot make one. When the clips fall short, the
   panel says what is missing (for example how long the opening clip must be).
 - The opening shot prefers a moving moment (people walking, traffic, a moving
@@ -44,6 +44,18 @@ The video follows a fixed template, counted in beats of the music:
 - Every video clip after the opening gets a gentle **Shot motion** (a slow
   push-in or a sideways drift, alternating), every photo a **Photo motion**
   (push, pull, drift, tilt or push and drift).
+
+For a selected-file template run, choose at least **2 different video clips** and
+up to **50 files in total**; photos are optional. The selection is checked before
+loading the template assets, and the actual Project Resource kinds are confirmed
+before inventory/scene analysis or music import. Repeated entries of one Resource
+do not count as different clips. An existing unresolved saved run is confirmed
+using its original inputs before a new selection is considered.
+
+In the panel, replacing a selected video refreshes its local shot analysis even
+when its path, file size and modification time stay the same. A missing or changed
+original stops the build. An ordinary decoder failure keeps the existing fallback
+windows; an unconfirmed media job stops and preserves its workspace for inspection.
 
 ## Default path
 
@@ -207,7 +219,13 @@ Selects:
   `beat-detect.cjs` in a background worker inside the panel; no shell
   commands, Node.js or ffmpeg install are needed. The decoded audio is a
   temporary file in the plugin's data folder, deleted right after decoding.
-- Section previews play the track's own file; nothing is written to disk.
+- Section previews stream the track's own file through the existing local media
+  URL, preserving the original section position and fade; nothing is written to
+  disk or copied into a whole-track browser Blob. Preparation (source checks,
+  metadata, seek and play) has a 60-second deadline. Stop, Project replacement
+  and closing the panel settle its waits and detach only its Audio source.
+  Unconfirmed browser cleanup stops further previews in that panel until it is
+  closed and reopened. Chromium buffering is not a strict disk-read-byte budget.
 
 If the Selects build is too old for the panel's file access, the panel says
 "Archive Vlog needs a newer version of Selects." instead of failing.

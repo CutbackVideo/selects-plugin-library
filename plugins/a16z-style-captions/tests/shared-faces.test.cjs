@@ -7,7 +7,7 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 function pure(file, symbols, context = {}) {
   const source = fs.readFileSync(path.join(root, file), 'utf8').replace(/^import .*$/gm, '').replace(/^export type \{.*$/gm, '').replace(/^export /gm, '');
-  const ctx = vm.createContext(context);
+  const ctx = vm.createContext({crypto:require("node:crypto").webcrypto,...context});
   vm.runInContext(stripTypeScriptTypes(source, {mode:'strip'}) + '\nthis.api = {' + symbols.join(',') + '};', ctx);
   return ctx.api;
 }

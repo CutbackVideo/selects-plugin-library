@@ -197,7 +197,8 @@ export function placements(scenes:Scene[],words:W[],fps:number,total:number){
   const card=scene.layout==='card';
   const circleAt=card?(words[scene.lines[2].from].startFrame-first.startFrame)/fps:0;
   const expandAt=card?(words[scene.lines[3].from].startFrame-first.startFrame)/fps:0;
-  if(card)cards.push({start:first.startFrame,end,parameters:{cream:STYLE.cream,red:STYLE.red,fadeSeconds:Math.min(.43,(words[scene.lines[1].from].startFrame-first.startFrame)/fps),circleAt,expandAt}});
+  // Hide the source face before centered card type appears; retain circle and word clocks.
+  if(card)cards.push({start:first.startFrame,end,parameters:{cream:STYLE.cream,red:STYLE.red,fadeSeconds:0,circleAt,expandAt}});
   shots.push({start:first.startFrame,end,layout:scene.layout});
   const side=scene.layout==='left'||scene.layout==='right',tilt=scene.layout==='left'?TILT.degrees:0,align=scene.layout==='left'?'left':scene.layout==='right'?'right':'center';
   const rows=scene.lines.map((line,li)=>{
@@ -211,7 +212,7 @@ export function placements(scenes:Scene[],words:W[],fps:number,total:number){
   rows.forEach((r,li)=>{
    const ws=words.slice(r.line.from,r.line.to+1),start=ws[0].startFrame;
    const stop=card&&li+1<scene.lines.length?words[scene.lines[li+1].from].startFrame:end;
-   captions.push({start,end:Math.max(start+1,stop),parameters:{text:r.text,serif:r.serif,fontFamily:'',
+   captions.push({start,end:Math.max(start+1,stop),parameters:{text:r.text,serif:r.serif,fontFamily:r.serif?'Jude Serif':'Jude Sans',
     ...(card?{fontSize:r.size,x:50,y:50}:boxParams(boxes[li],r.serif,align,r.boxWidth)),
     color:card?(li<2?STYLE.red:'#ffffff'):(r.hero?'#ffffff':r.serif?STYLE.accent:'#ffffff'),
     boxWidth:r.boxWidth,align,tracking:r.tracking,tilt,risePx:card?0:STYLE.rise,riseLead:+((start-first.startFrame)/fps).toFixed(3),behind:false,
@@ -338,6 +339,12 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
   env.status('Placing side captions behind the speaker…');
   await placeBehind(env,src,draftId,items,jobDir).then(w=>report.warnings.push(...w),(e:any)=>report.warnings.push('Side captions stay in front of the speaker: '+String(e?.message||e).slice(0,200)));
  }
+ let captionFaces:any={};
+ try{captionFaces=await judeSharedCaptionFaces(env,projectId,src,segments,jobDir);}catch(error:any){if(env.signal?.aborted)throw error;report.warnings.push('Caption face observations could not be verified; original wording was preserved for review.');}
+ report.faceSafety=await judeProtectObservedFaces(env,src,draftId,items,segments,captionFaces);
+ if(report.faceSafety.movedGroups)report.warnings.push(`${report.faceSafety.movedGroups} caption stack(s) moved outside observed faces. Review the saved result for face-detector errors and composition.`);
+ if(report.faceSafety.splitGroups)report.warnings.push(`${report.faceSafety.splitGroups} tall caption stack(s) use two ordered groups above and below observed faces; review their composition.`);
+ if(report.faceSafety.unresolvedGroups)report.warnings.push(`${report.faceSafety.unresolvedGroups} caption stack(s) need face-clearance review: observed geometry could not provide a readable placement.`);
  // A caption that carries a mask sprite travels alone, so every host call stays small.
  const add=async(rows:any[],code:string,params:any[],kind:string)=>{
   const batches:any[][]=[];
@@ -361,6 +368,148 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
 }
 // Gives left-hand captions a person mask so they pass behind the speaker, as the reference's "absence" does.
 // Masks are made from the source picture through each Main clip's own framing. Returns warnings; changes only `items`.
+// Caption protection observes every decoded source frame, rather than only the
+// midpoint used to choose camera framing. Source PTS are mapped through each
+// Main clip's source offset and playback rate before applying its output transform.
+export function judeCaptionFaceSamples(data:any,metrics:any,segments:any[],fps:number,resourceId:string){
+ const result:any={};
+ const w=Number(data?.frameSize?.width),h=Number(data?.frameSize?.height),samples=data?.samples,range=data?.parameters?.sourceRange;
+ const valid=data?.task==='faces.detect'&&data.coordinateSpace==='display-pixels'&&data.boxFormat==='xyxy'&&w>0&&h>0&&Array.isArray(samples)&&samples.length>0&&metrics?.decodedFrames===samples.length&&range&&Number.isFinite(range.startSeconds)&&Number.isFinite(range.endSeconds);
+ if(!valid)return result;
+ let previous=-Infinity;
+ for(let i=0;i<samples.length;i++){
+  const sample=samples[i];
+  if(sample.index!==i||!Number.isFinite(sample.sourceTimeSeconds)||sample.sourceTimeSeconds<=previous||sample.sourceTimeSeconds<range.startSeconds||sample.sourceTimeSeconds>=range.endSeconds||!Array.isArray(sample.faces))return {};
+  previous=sample.sourceTimeSeconds;
+  for(const face of sample.faces){const b=face.box;if(!b||![face.score,b.xmin,b.ymin,b.xmax,b.ymax].every(Number.isFinite)||b.xmin<0||b.ymin<0||b.xmax>w||b.ymax>h||b.xmax<=b.xmin||b.ymax<=b.ymin)return {};}
+ }
+ segments.forEach((segment,i)=>{
+  if(segment.aiResourceId!==resourceId||!Number.isFinite(segment.sourceStartSeconds))return;
+  const from=segment.sourceStartSeconds,to=from+(segment.endFrame-segment.startFrame)/fps*(segment.playbackRate||1);
+  if(!(to>from)||from<samples[0].sourceTimeSeconds||to>range.endSeconds+.00001)return;
+  // A displayed VFR frame lasts until its next PTS. Include both boundary
+  // neighbours conservatively, including repeated frames in a CFR timeline.
+  const selected=samples.filter((sample,j)=>sample.sourceTimeSeconds<=to&&(samples[j+1]?.sourceTimeSeconds??range.endSeconds)>from);
+  const faces=selected.flatMap(sample=>sample.faces.filter(f=>f.score>=.8).map(f=>[f.box.xmin/w,f.box.ymin/h,(f.box.xmax-f.box.xmin)/w,(f.box.ymax-f.box.ymin)/h]));
+  if(!selected.length||selected.some(sample=>!sample.faces.some(f=>f.score>=.8)))return;
+  result[String(i)]={w,h,faces,coverage:{scope:'all-decoded-source-frames',sourceFrames:metrics.decodedFrames,selectedFrames:selected.length,sourceFrom:from,sourceTo:to,complete:true}};
+ });
+ return result;
+}
+async function judeSharedCaptionFaces(env:Env,projectId:string,src:any,segments:any[],jobDir:string){
+ const resources=[...new Set(segments.map(s=>s.aiResourceId).filter(Boolean))],detected:any={};
+ const client=videoAiClient(env.sdk,projectId,'jude-kinetic-style:caption-faces:'+projectId);
+ for(const resourceId of resources){
+  const mains=segments.filter(s=>s.aiResourceId===resourceId&&Number.isFinite(s.sourceStartSeconds));
+  if(!mains.length)continue;
+  const sourceRange={startSeconds:Math.min(...mains.map(s=>s.sourceStartSeconds)),endSeconds:Math.max(...mains.map(s=>s.sourceStartSeconds+(s.endFrame-s.startFrame)/src.fps*(s.playbackRate||1)))};
+  const sourceFps=Math.max(src.fps,...mains.map(s=>Number(s.sourceFps)||0));
+  const result=await client.run({task:'faces.detect',resourceId,sourceRange,options:{sampleEverySeconds:.5/sourceFps,scoreThreshold:.8,provider:'cpu'}},{identity:'caption-face-frames:'+resourceId+':'+JSON.stringify(sourceRange),signal:env.signal,onProgress:()=>env.status('Checking caption clearance on every source frame…')});
+  const data=await readFaceResultPages(env.runScript,result.result.files.detections,projectId);
+  Object.assign(detected,judeCaptionFaceSamples(data,result.result.metrics,segments,src.fps,resourceId));
+ }
+ await env.writeText(hostJoin(jobDir,'caption-face-results.json'),JSON.stringify({detected}));return detected;
+}
+export function judeProjectObservedFace(box:number[],source:{width:number;height:number},t:any){
+ if(!box||box.length!==4||!box.every(Number.isFinite)||box[0]<0||box[1]<0||box[2]<=0||box[3]<=0||box[0]+box[2]>1.000001||box[1]+box[3]>1.000001||!(source.width>0&&source.height>0)||!t||t.rotation||t.anchor?.x||t.anchor?.y)return null;
+ const sx=t.enabled?t.scale?.x:1,sy=t.enabled?t.scale?.y:1;
+ if(!(sx>0&&sy>0)||Math.abs(sx-sy)>.001)return null;
+ const fit=Math.min(1080/source.width,1920/source.height),w=source.width*fit*sx,h=source.height*fit*sy;
+ const dx=t.enabled?Number(t.position?.x||0)/100*1920:0,dy=t.enabled?Number(t.position?.y||0)/100*1920:0;
+ if(!Number.isFinite(dx)||!Number.isFinite(dy))return null;
+ const x=540+dx+(box[0]-.5)*w,y=960-dy+(box[1]-.5)*h;
+ const mx=box[2]*w*.1+16,my=box[3]*h*.1+16;
+ return {x:x-mx,y:y-my,w:box[2]*w+mx*2,h:box[3]*h+my*2};
+}
+export function judeCaptionInk(p:any){
+ const size=Math.min(Number(p.fontSize),Number(p.boxWidth)/Math.max(.01,textEm(p.text,!!p.serif,Number(p.tracking)||0)));
+ const ink=inkOf(p.text,!!p.serif,Number(p.tracking)||0,size),centre=Number(p.x)*10.8;
+ const left=p.align==='left'?centre-p.boxWidth/2:p.align==='right'?centre+p.boxWidth/2-ink.width:centre-ink.width/2;
+ const box={size,left,width:ink.width,baseline:Number(p.y)*19.2+fontOf(!!p.serif).k*size};
+ const [x,y,w,h]=inkRect({text:p.text,serif:!!p.serif,tracking:Number(p.tracking)||0},box,Number(p.tilt)||0);
+ // Entrance rise is downward, decaying over the lifetime of each line. Include
+// its maximum from the first displayed frame rather than only resting ink.
+ const rise=Math.max(0,Number(p.risePx)||0)*Math.exp(-Math.max(0,Number(p.riseLead)||0)/.24);
+ // Unbundled glyphs (including Korean) use the system fallback font. Its
+ // true ink can extend beyond our Latin-only metrics; reserve a conservative
+ // edge without changing known embedded glyph placement.
+ const fallback=[...String(p.text)].some(c=>!fontOf(!!p.serif).glyphs[c]),edge=fallback?size*.04:0;
+ return {x:x-edge,y:y-edge,w:w+edge*2,h:h+rise+edge*2,fontSize:size};
+}
+export function judeAvoidObservedFaces(items:any,segments:any[],faces:any,clips:any[],files:any){
+ const projected=segments.flatMap((segment,i)=>{
+  const observed=faces[String(i)],source=files[segment.resourceId]?.frameSize;
+  return clips.filter(c=>c.startFrame<segment.endFrame&&c.endFrame>segment.startFrame).map(c=>({start:Math.max(c.startFrame,segment.startFrame),end:Math.min(c.endFrame,segment.endFrame),boxes:source&&observed?.w===source.width&&observed?.h===source.height?(observed?.faces||[]).map(box=>judeProjectObservedFace(box,source,c.t)).filter(Boolean):[]}));
+ });
+ const hits=(a:any,b:any)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+ let moved=0,unresolved=0,splitGroups=0,independentGroups=0;
+ for(const scene of items.shots){
+  if(scene.layout==='card')continue;
+  const rows=items.captions.filter(c=>c.start>=scene.start&&c.start<scene.end&&!c.parameters.behind);
+  const observations=projected.filter(p=>p.start<scene.end&&p.end>scene.start),boxes=observations.flatMap(p=>p.boxes);
+  if(!rows.length)continue;
+  if(!boxes.length||observations.some(p=>!p.boxes.length)){unresolved++;continue;}
+  if(!rows.some(row=>boxes.some(face=>hits(judeCaptionInk(row.parameters),face))))continue;
+  const top=Math.min(...boxes.map(b=>b.y)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
+  // Only a few boundary-aligned translations are needed. Measure each final
+  // candidate again, including perspective and the maximum entrance rise.
+  const place=(parameters:any[],side?:'above'|'below')=>{
+   const ink=parameters.map(judeCaptionInk),hi=Math.min(...ink.map(b=>b.y)),lo=Math.max(...ink.map(b=>b.y+b.h));
+   const offsets=side==='above'?[top-lo-2]:side==='below'?[bottom-hi+2]:[0,bottom-hi+2,top-lo-2].sort((a,b)=>Math.abs(a)-Math.abs(b));
+   for(const dy of offsets){
+    const trial=parameters.map(p=>({...p,y:p.y+dy/19.2})),bounds=trial.map(judeCaptionInk);
+    if(bounds.every(b=>b.x>=0&&b.x+b.w<=1080&&b.y>=1920*.02&&b.y+b.h<=1920*.98&&!boxes.some(face=>hits(b,face))))return trial;
+   }
+   return null;
+  };
+  const actualSize=(p:any)=>Number(judeCaptionInk(p).fontSize??p.fontSize);
+  const floors=new Map(rows.map(row=>[row,Math.min(actualSize(row.parameters),1080*.04)]));
+  const readable=(parameters:any[],group:any[])=>parameters.every((p,i)=>actualSize(p)+.001>=floors.get(group[i]));
+  const scaledGroup=(group:any[],scale:number)=>{const origin=Math.min(...group.map(row=>Number(row.parameters.y)));return group.map(row=>({...row.parameters,fontSize:row.parameters.fontSize*scale,...(Number.isFinite(row.parameters.boxWidth)?{boxWidth:row.parameters.boxWidth*scale}:{}),...(Number.isFinite(row.parameters.risePx)?{risePx:row.parameters.risePx*scale}:{}),x:50+(row.parameters.x-50)*scale,y:origin+(row.parameters.y-origin)*scale}));};
+  const scaled=(scale:number)=>scaledGroup(rows,scale);
+  let chosen:any[]=null;
+  // Preserve the interlocked block if it fits at a readable size.
+  for(let step=0;step<=8&&!chosen;step++){const parameters=scaled(1-step*.05);if(readable(parameters,rows))chosen=place(parameters);}
+  // A tall stack may fit as two ordered groups on opposite sides of a close-up
+  // face. Keep every original line, font, reveal and timing; never hide text.
+  if(!chosen&&scene.layout==='stack')for(let step=0;step<=8&&!chosen;step++){
+   const parameters=scaled(1-step*.05);if(!readable(parameters,rows))continue;
+   for(let cut=1;cut<rows.length&&!chosen;cut++){
+    const upper=place(parameters.slice(0,cut),'above'),lower=place(parameters.slice(cut),'below');
+    if(upper&&lower){chosen=[...upper,...lower];splitGroups++;}
+   }
+  }
+  // Last resort: the two bands may need different scales. Limit actual font
+  // sizes directly, so a large hero cannot force a reading line below 43.2px.
+  const fitBand=(group:any[],side:'above'|'below')=>{for(let step=0;step<=28;step++){const parameters=scaledGroup(group,1-step*.025);if(!readable(parameters,group))break;const trial=place(parameters,side);if(trial)return trial;}return null;};
+  if(!chosen&&scene.layout==='stack')for(let cut=1;cut<rows.length&&!chosen;cut++){const upper=fitBand(rows.slice(0,cut),'above'),lower=fitBand(rows.slice(cut),'below');if(upper&&lower){chosen=[...upper,...lower];splitGroups++;independentGroups++;}}
+  // If the original interlocked gaps cannot fit, retain each whole line and
+  // compact only those gaps in each readable band before reducing its type.
+  const fitPackedBand=(group:any[],side:'above'|'below')=>{
+   const parameters=scaledGroup(group,1);
+   for(let attempt=0;attempt<120;attempt++){
+    let bottom=-Infinity;const packed=parameters.map(p=>{const box=judeCaptionInk(p),dy=Number.isFinite(bottom)?bottom+10-box.y:0,next={...p,y:p.y+dy/19.2};const ink=judeCaptionInk(next);bottom=ink.y+ink.h;return next;});
+    const trial=place(packed,side);if(trial)return trial;
+    // A giant emphasis word must not force the smaller reading line below
+    // the same absolute type-size floor. Reduce only the largest eligible line.
+    const eligible=parameters.map((p,i)=>({p,i,size:actualSize(p)})).filter(v=>v.size>floors.get(group[v.i])+.01).sort((a,b)=>b.size-a.size);
+    if(!eligible.length)break;const {p,i,size}=eligible[0],scale=Math.max(.9,floors.get(group[i])/size);parameters[i]={...p,fontSize:p.fontSize*scale,boxWidth:p.boxWidth*scale,risePx:p.risePx*scale};
+   }
+   return null;
+  };
+  if(!chosen&&scene.layout==='stack')for(let cut=1;cut<rows.length&&!chosen;cut++){const upper=fitPackedBand(rows.slice(0,cut),'above'),lower=fitPackedBand(rows.slice(cut),'below');if(upper&&lower){chosen=[...upper,...lower];splitGroups++;independentGroups++;}}
+  if(!chosen){unresolved++;continue;}
+  rows.forEach((row,i)=>{row.parameters=chosen[i];});
+  moved++;
+ }
+ const expectedSegmentKeys=segments.map((_,i)=>String(i)),unknownSegmentKeys=expectedSegmentKeys.filter(key=>faces[key]?.coverage?.complete!==true);
+ const verifiedSegments=expectedSegmentKeys.length-unknownSegmentKeys.length,complete=expectedSegmentKeys.length>0&&unknownSegmentKeys.length===0;
+ return {scope:complete?'all-decoded-source-frames':'observed-framing-samples',movedGroups:moved,splitGroups,independentGroups,unresolvedGroups:unresolved,requiredSegments:expectedSegmentKeys.length,verifiedSegments,unknownSegmentKeys,motionBetweenSamples:complete?'source-frame-observed':'unverified'};
+}
+async function judeProtectObservedFaces(env:Env,src:any,draftId:string,items:any,segments:any[],faces:any){
+ const clips=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const out=[];for(const c of await d.clips({trackScope:'main'})){if(c.resourceId)out.push({startFrame:c.startFrame,endFrame:c.endFrame,t:await d.clipTransform(c)});}return out;`,'Check caption clearance against observed faces');
+ return judeAvoidObservedFaces(items,segments,faces,clips,src.files);
+}
 export async function placeBehind(env:Env,src:any,draftId:string,items:any,jobDir:string):Promise<string[]>{
  const warnings:string[]=[],fps=src.fps;
  const clips:any[]=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const out:any[]=[];for(const c of (await d.clips({trackScope:'main'})).filter((c:any)=>c.resourceId))out.push({startFrame:c.startFrame,endFrame:c.endFrame,t:await d.clipTransform(c)});return out;`,'Read the speaker framing');
@@ -609,7 +758,7 @@ type AnalysisState = "checking" | "ready" | "analyzing" | "needs-analysis";
 
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
 async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
-  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
+  const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const pm=await project.meta();if(!pm.draftIds.includes(${JSON.stringify(sequenceId)}))throw Error("The Draft belongs to another Project.");const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,projectName:pm.title,projectId:${JSON.stringify(projectId)},sequenceId:${JSON.stringify(sequenceId)},words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
   if (r.isError || !r.result) throw new Error(r.output || "Selects could not read this draft.");
   return r.result;
 }
@@ -625,41 +774,51 @@ function StylePanel({ sdk, context, ui }: any) {
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string } | null>(null);
   const [setupIssue, setSetupIssue] = useState("");
-  const [sourceName, setSourceName] = useState("");
+  const [sourceInfo, setSourceInfo] = useState(null), [runningTarget, setRunningTarget] = useState(null);
+  const sourceKey=JSON.stringify([projectId,sequenceId]),sourceCurrent=useRef(sourceKey);sourceCurrent.current=sourceKey;
+  const TARGET_LABELS={"en":{"project":"Project","current":"Current draft","running":"Caption source draft","loading":"Reading target\u2026","unavailable":"Name unavailable.","noDraft":"Open a draft to begin.","noProject":"Open a project to begin."},"ko":{"project":"\ud504\ub85c\uc81d\ud2b8","current":"\ud604\uc7ac Draft","running":"\uc790\ub9c9 \uc6d0\ubcf8 Draft","loading":"\ub300\uc0c1\uc744 \ud655\uc778\ud558\ub294 \uc911\u2026","unavailable":"\uc774\ub984\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.","noDraft":"Draft\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.","noProject":"\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694."}};
+  const targetLabels=TARGET_LABELS[String(context.language||"").toLowerCase().startsWith("ko")?"ko":"en"];
+  const currentInfo=sourceInfo?.key===sourceKey&&sourceInfo?.sdk===sdk?sourceInfo:null;
   const [alreadyStyled, setAlreadyStyled] = useState(false);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
-  const aiObserver=useRef<AbortController|null>(null);
+  const aiObserver=useRef<AbortController|null>(null),aiScope=useRef("");
   useEffect(()=>()=>aiObserver.current?.abort(),[]);
 
   useEffect(() => {
+    let live=true;
     pluginPaths(sdk)
-      .then((p) => { setPaths(p); setSetupIssue(""); })
-      .catch((e: any) => setSetupIssue(hostMessage(e)));
-  }, []);
+      .then((p) => { if(live){setPaths(p);setSetupIssue("");} })
+      .catch((e: any) => {if(live)setSetupIssue(hostMessage(e));});
+    return()=>{live=false;};
+  }, [sdk]);
 
   useEffect(() => {
+    let live=true;const capturedKey=sourceKey;
     mounted.current = true;
-    setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
-    if (!sequenceId) return () => { mounted.current = false; };
+    setResult(null); setError(""); setStatus(""); setSourceInfo(null); setAlreadyStyled(false); setAnalysisState("checking");
+    if (!sequenceId) return () => { live=false;mounted.current = false; };
     readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then((d: any) => {
-      if (!mounted.current) return;
+      if (!live||sourceCurrent.current!==capturedKey) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
-      setSourceName(name);
+      setSourceInfo({key:capturedKey,sdk,name,projectName:d.projectName});
       setAlreadyStyled(name.endsWith(SUFFIX));
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
-    }).catch(() => { if (mounted.current) setAnalysisState("needs-analysis"); });
-    return () => { mounted.current = false;aiObserver.current?.abort(); };
-  }, [projectId, sequenceId]);
+    }).catch(() => { if (live&&sourceCurrent.current===capturedKey) {setSourceInfo({key:capturedKey,sdk,failed:true});setAnalysisState("needs-analysis");} });
+    return () => { live=false;mounted.current = false;const observer=aiObserver.current;if(aiScope.current===capturedKey)observer?.abort(); };
+  }, [projectId, sequenceId, sdk]);
 
   // Without a transcript there is nothing to style: start analysis of the Draft's footage and wait for its words.
   async function ensureTranscript(draftId: string, signal?:AbortSignal) {
-    if(signal?.aborted)throw new DOMException("Aborted","AbortError");
+    const current=()=>mounted.current&&!signal?.aborted&&aiObserver.current?.signal===signal&&sourceCurrent.current===sourceKey;
+    const attached=()=>{if(!current())throw new DOMException("Aborted","AbortError");};
+    attached();
     let d = await readOpenDraft(sdk, projectId, draftId, "Read draft transcript");
+    attached();
     if (d.words) return;
     if (!d.sourceResourceId || !d.resource) throw new Error("Selects could not find analyzable source footage for this draft.");
     const state = d.resource.status;
@@ -669,14 +828,15 @@ function StylePanel({ sdk, context, ui }: any) {
       if (r.isError) throw new Error(r.output || "Selects could not start transcript analysis.");
     }
     for (let attempt = 0; attempt < 180; attempt += 1) {
-      if(signal?.aborted)throw new DOMException("Aborted","AbortError");
+      attached();
       d = await readOpenDraft(sdk, projectId, draftId, "Check transcript analysis");
-      if (d.words) { if (mounted.current) setAnalysisState("ready"); return; }
+      attached();
+      if (d.words) { setAnalysisState("ready"); return; }
       const s = d.resource?.status;
       if (s === "samplingFailed" || s === "analyzingFailed") throw new Error("Transcript analysis failed. Open the Project workflows to see the reason, then try again.");
       if (s === "analysisNotApplicable") throw new Error("This source cannot be transcribed by Selects.");
       const percent = typeof d.workflow?.progress === "number" ? ` ${Math.round(d.workflow.progress * 100)}%` : "";
-      if (mounted.current) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
+      if (current()) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error("Transcript analysis is still running. Wait for it to finish, then run the style again.");
@@ -685,20 +845,23 @@ function StylePanel({ sdk, context, ui }: any) {
   async function create() {
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
-    const controller=new AbortController();aiObserver.current=controller;
+    const controller=new AbortController();aiScope.current=sourceKey;aiObserver.current=controller;
+    const current=()=>mounted.current&&aiObserver.current===controller&&!controller.signal.aborted&&sourceCurrent.current===sourceKey;
+    setRunningTarget({projectId,sequenceId,projectName:currentInfo?.projectName,name:currentInfo?.name});
     locked.current = true; setBusy(true); setError(""); setResult(null);
     try {
       setStatus("Checking the transcript…");
       await ensureTranscript(from,controller.signal);
-      const env = panelEnv(sdk, paths, (m) => { if (mounted.current) setStatus(m); });
+      if(!current())throw new DOMException("Aborted","AbortError");
+      const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); });
       env.signal=controller.signal;env.retryAi=true;
       const report = await runPipeline(env, projectId, from, { copy: false });
       judeAttached(env);
-      if (mounted.current) { setResult({ id: report.draftId }); setStatus("Your Jude Kinetic draft is ready."); }
-      if (!onScreen.current || onScreen.current === from) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Jude Kinetic draft" });
+      if (current()) { setResult({ id: report.draftId }); setStatus("Your Jude Kinetic draft is ready."); }
+      if (current() && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Jude Kinetic draft" });
     } catch (e: any) {
-      if (mounted.current) { setError(hostMessage(e)); setStatus(""); }
-    } finally { if(aiObserver.current===controller)aiObserver.current=null;locked.current = false; if (mounted.current) setBusy(false); }
+      if (current()) { setError(hostMessage(e)); setStatus(""); }
+    } finally { if(aiObserver.current===controller){aiObserver.current=null;locked.current=false;if(mounted.current){setBusy(false);setRunningTarget(null);}} }
   }
 
   const actionLabel = alreadyStyled
@@ -715,7 +878,9 @@ function StylePanel({ sdk, context, ui }: any) {
 
   return <ui.Section title="Jude Kinetic"><ui.Stack>
     <p>Turn a talking-head draft into red and cream kinetic typography.</p>
-    {sourceName ? <p><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
+    <p><strong>{targetLabels.project}</strong>: {!projectId?targetLabels.noProject:currentInfo?(currentInfo.projectName||targetLabels.unavailable):targetLabels.loading}</p>
+    <p><strong>{targetLabels.current}</strong>: {!sequenceId?targetLabels.noDraft:currentInfo?(currentInfo.name||targetLabels.unavailable):targetLabels.loading}</p>
+    {runningTarget&&<p><strong>{targetLabels.running}</strong>: {runningTarget.projectName||targetLabels.unavailable} / {runningTarget.name||targetLabels.unavailable}</p>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
@@ -756,6 +921,7 @@ function TemplateRun({ sdk, context }: any) {
   currentRunId.current = runId;
   const startedRunId = useRef<string | null>(null);
   const [status, setStatus] = useState("Getting ready…");
+  const [finishedRun, setFinishedRun] = useState<string | null>(null);
   useEffect(() => {
     if (startedRunId.current === runId) return;
     startedRunId.current = runId;
@@ -767,6 +933,7 @@ function TemplateRun({ sdk, context }: any) {
     const finish = (result: { sequenceId: string } | { error: string }) => {
       if (finished || superseded()) return;
       finished = true;
+      setFinishedRun(runId);
       setStatus("sequenceId" in result ? "Done." : result.error);
       sdk.finishTemplate(result);
     };
@@ -799,7 +966,7 @@ function TemplateRun({ sdk, context }: any) {
     })();
     return ()=>controller.abort();
   }, [runId]);
-  return <small>{status}</small>;
+  return <TemplateProgressView runId={runId} status={status} terminal={finishedRun===runId}/>;
 }
 
 /** A template run (`context.template`) builds out of sight; otherwise the panel as a person uses it. */
@@ -818,7 +985,7 @@ async function judeSharedFaces(env:Env,projectId:string,src:any,segments:any[],s
   const result=await client.run({task:'faces.detect',resourceId:main.aiResourceId,sourceRange:{startSeconds:start,endSeconds:end},
    options:{sampleEverySeconds:end-start+1/main.sourceFps,scoreThreshold:0.8,provider:'cpu'}},
    {identity:main.aiResourceId+':'+start,signal:env.signal,retryTerminal:env.retryAi===true,onProgress:()=>env.status('Measuring the speaker framing…')});
-  const data=await env.runScript(`const data=await selects.ai.readJSON(${JSON.stringify(result.result.files.detections)},${JSON.stringify(projectId)});return data;`,'Read source face measurements');
+  const data=await readFaceResultPages(env.runScript,result.result.files.detections,projectId);
   if(data?.task!=='faces.detect'||!Array.isArray(data.samples)||data.samples.length!==1||!(data.frameSize?.width>0)||!(data.frameSize?.height>0))throw new Error('Invalid shared face result.');
   const w=data.frameSize.width,h=data.frameSize.height;
   const faces=data.samples[0].faces.map((f:any)=>[f.box.xmin/w,f.box.ymin/h,(f.box.xmax-f.box.xmin)/w,(f.box.ymax-f.box.ymin)/h])
@@ -835,7 +1002,7 @@ async function judeFFmpegStdout(args:string[],signal?:AbortSignal) {
 async function judeRunFFmpeg(args:string[],signal?:AbortSignal) {
  await hostNeed('Runtime','runFFmpeg').runFFmpeg(['-nostdin',...args],true,signal);
 }
-// The cropped RGB picture, mask timing, inverted WebP tiles and ink coverage use
+// The cropped RGB picture, mask timing, inverted PNG tiles and ink coverage use
 // the existing caption contract; inference is the shared RVM task on either OS.
 async function judeSharedSprites(env:Env,projectId:string,m:any,dir:string) {
  const W=540,H=960,q=W/1080,step=Math.max(1,m.step||2),out:any={};
@@ -873,16 +1040,106 @@ async function judeSharedSprites(env:Env,projectId:string,m:any,dir:string) {
    const stats=await judeFFmpegStdout([...input,'-frames:v',String(count),'-vf',`crop=${ink.join(':')},format=gray,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-`,'-f','null','-'],env.signal);
    const levels=[...stats.matchAll(/YAVG=([0-9.]+)/g)].map(v=>Number(v[1])/255);
    if(levels.length!==count)throw new Error('Mask measurement failed.');
-   const sprite=hostJoin(work,line.key+'.webp');
+   const sprite=hostJoin(work,line.key+'.png');
    await judeRunFFmpeg([...input,'-filter_complex',`[0:v]crop=${w}:${h}:${x}:${y},format=gray,negate,tile=${cols}x${rows}:nb_frames=${count}[m];color=white:s=${cols*w}x${rows*h}:r=1:d=1,format=rgb24[c];[c][m]alphamerge`,
-    '-frames:v','1','-c:v','libwebp','-lossless','1',sprite],env.signal);
+    '-frames:v','1','-c:v','png',sprite],env.signal);
    const bytes=await hostReadBytes(sprite),data=hostJoin(work,line.key+'.b64');let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-   await env.writeText(data,'data:image/webp;base64,'+btoa(binary));
+   await env.writeText(data,'data:image/png;base64,'+btoa(binary));
    out[line.key]={spritePath:data,bytes:(await fs.stat(data)).size,cols,rows,count,fps:m.fps/step,coverage:levels.reduce((a,b)=>a+b,0)/levels.length,peak:Math.max(...levels)};
   }
  }
  await env.writeText(hostJoin(dir,'matte-result.json'),JSON.stringify({lines:out}));return out;
 }
+
+// face-result-pages-adapter:start
+const sharedFaceResultPages=(()=>{const module={exports:{}};
+// face-result-pages:start
+// Keep face observations below the existing script-result limit. Projection
+// drops unused landmarks, never frames/faces or their source clock/coordinates.
+const FACE_RESULT_PAGE_BYTES = 65536;
+const FACE_RESULT_PAGE_SAMPLES = 128;
+
+// Self-contained: this function is serialized into the existing read-only SDK.
+function faceResultPage(data, options) {
+  const {offset, maxSamples, maxBytes} = options || {};
+  const invalid = () => new Error('FACE_RESULT_PAGE_INVALID: face observations do not match the source contract.');
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(maxSamples) || maxSamples < 1 || maxSamples > 128 ||
+      !Number.isSafeInteger(maxBytes) || maxBytes < 512 || maxBytes > 65536) throw invalid();
+  const w = data?.frameSize?.width, h = data?.frameSize?.height, range = data?.parameters?.sourceRange;
+  if (data?.contractVersion !== 1 || data.task !== 'faces.detect' || (data.sourceKind !== undefined && data.sourceKind !== 'video') ||
+      data.coordinateSpace !== 'display-pixels' || data.boxFormat !== 'xyxy' || !Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w <= 0 || h <= 0 ||
+      !data.parameters || typeof data.parameters !== 'object' ||
+      (range !== undefined && (!range || !Number.isFinite(range.startSeconds) || !Number.isFinite(range.endSeconds) || range.startSeconds < 0 || range.endSeconds <= range.startSeconds)) ||
+      (data.parameters.sampleEverySeconds !== undefined && (!Number.isFinite(data.parameters.sampleEverySeconds) || data.parameters.sampleEverySeconds <= 0)) ||
+      (data.parameters.scoreThreshold !== undefined && (!Number.isFinite(data.parameters.scoreThreshold) || data.parameters.scoreThreshold < 0 || data.parameters.scoreThreshold > 1)) ||
+      !Array.isArray(data.samples) || data.samples.length > 1000000 || offset > data.samples.length) throw invalid();
+  const header = {contractVersion: 1, task: 'faces.detect', ...(data.sourceKind === undefined ? {} : {sourceKind: 'video'}),
+    coordinateSpace: 'display-pixels', boxFormat: 'xyxy', frameSize: {width: w, height: h},
+    parameters: {...(range === undefined ? {} : {sourceRange: {startSeconds: range.startSeconds, endSeconds: range.endSeconds}}),
+      ...(data.parameters.sampleEverySeconds === undefined ? {} : {sampleEverySeconds: data.parameters.sampleEverySeconds}),
+      ...(data.parameters.scoreThreshold === undefined ? {} : {scoreThreshold: data.parameters.scoreThreshold})}};
+  let totalFaces = 0, emptySamples = 0;
+  for (const row of data.samples) {
+    if (!Array.isArray(row?.faces)) throw invalid();
+    totalFaces += row.faces.length; if (!row.faces.length) emptySamples++;
+  }
+  const page = {header, totalSamples: data.samples.length, totalFaces, emptySamples, offset, nextOffset: offset, done: offset === data.samples.length, samples: []};
+  for (let i = offset; i < data.samples.length && page.samples.length < maxSamples; i++) {
+    const row = data.samples[i];
+    if (!Number.isSafeInteger(row.index) || row.index < 0 || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds < 0 || (range && (row.sourceTimeSeconds < range.startSeconds || row.sourceTimeSeconds >= range.endSeconds))) throw invalid();
+    const faces = row.faces.map(face => {
+      const b = face?.box;
+      if (!b || ![face.score, b.xmin, b.ymin, b.xmax, b.ymax].every(Number.isFinite) || face.score < 0 || face.score > 1 ||
+          b.xmin < 0 || b.ymin < 0 || b.xmax > w || b.ymax > h || b.xmax <= b.xmin || b.ymax <= b.ymin) throw invalid();
+      return {box: {xmin: b.xmin, ymin: b.ymin, xmax: b.xmax, ymax: b.ymax}, score: face.score};
+    });
+    const sample = {index: row.index, sourceTimeSeconds: row.sourceTimeSeconds, faces};
+    page.samples.push(sample); page.nextOffset = i + 1; page.done = page.nextOffset === data.samples.length;
+    // Every returned string is a validated fixed ASCII contract value, so the
+    // JSON character count is its exact UTF-8 byte count, including the envelope.
+    if (JSON.stringify(page).length > maxBytes) {
+      page.samples.pop(); page.nextOffset = i; page.done = false;
+      if (!page.samples.length) throw new Error('FACE_RESULT_FRAME_TOO_LARGE: one complete face frame exceeds the read budget.');
+      break;
+    }
+  }
+  if (JSON.stringify(page).length > maxBytes) throw invalid();
+  return page;
+}
+
+async function readFaceResultPages(readScript, artifact, projectId, options = {}) {
+  const maxBytes = options.maxBytes ?? FACE_RESULT_PAGE_BYTES, maxSamples = options.maxSamples ?? FACE_RESULT_PAGE_SAMPLES;
+  if (typeof readScript !== 'function' || !artifact || typeof projectId !== 'string' || !projectId ||
+      !Number.isSafeInteger(maxBytes) || maxBytes < 512 || maxBytes > FACE_RESULT_PAGE_BYTES ||
+      !Number.isSafeInteger(maxSamples) || maxSamples < 1 || maxSamples > FACE_RESULT_PAGE_SAMPLES) throw new Error('FACE_RESULT_PAGE_INVALID: invalid read budget or source.');
+  let offset = 0, metadata, header, totals, previousTime = -Infinity, previousIndex = -1;
+  const samples = [];
+  for (;;) {
+    const script = `const data:any = await selects.ai.readJSON(${JSON.stringify(artifact)}, ${JSON.stringify(projectId)});return (${faceResultPage.toString()})(data, ${JSON.stringify({offset, maxSamples, maxBytes})});`;
+    const page = await readScript(script, 'Read source face observations ' + (offset + 1));
+    if (!page || JSON.stringify(page).length > maxBytes || !page.header || !Array.isArray(page.samples) ||
+        !Number.isSafeInteger(page.totalSamples) || page.totalSamples < 0 || page.totalSamples > 1000000 ||
+        !Number.isSafeInteger(page.totalFaces) || page.totalFaces < 0 || !Number.isSafeInteger(page.emptySamples) || page.emptySamples < 0 || page.emptySamples > page.totalSamples ||
+        page.offset !== offset || page.samples.length > maxSamples || page.nextOffset !== offset + page.samples.length || page.nextOffset > page.totalSamples ||
+        page.done !== (page.nextOffset === page.totalSamples) || (!page.done && !page.samples.length)) throw new Error('FACE_RESULT_PAGE_INVALID: incomplete or out-of-order face page.');
+    const stamp = JSON.stringify({header: page.header, totalSamples: page.totalSamples, totalFaces: page.totalFaces, emptySamples: page.emptySamples});
+    if (metadata !== undefined && stamp !== metadata) throw new Error('FACE_RESULT_PAGE_INVALID: face artifact changed between pages.');
+    metadata = stamp; header = page.header; totals = page;
+    for (const sample of page.samples) {
+      if (!Number.isSafeInteger(sample?.index) || sample.index <= previousIndex || !Number.isFinite(sample.sourceTimeSeconds) || sample.sourceTimeSeconds <= previousTime || !Array.isArray(sample.faces)) throw new Error('FACE_RESULT_PAGE_INVALID: face frame clock changed between pages.');
+      previousIndex = sample.index; previousTime = sample.sourceTimeSeconds; samples.push(sample);
+    }
+    offset = page.nextOffset;
+    if (page.done) break;
+  }
+  if (samples.length !== totals.totalSamples || samples.reduce((n, sample) => n + sample.faces.length, 0) !== totals.totalFaces || samples.filter(sample => !sample.faces.length).length !== totals.emptySamples) throw new Error('FACE_RESULT_PAGE_INVALID: face observations were lost while reading.');
+  return {...header, samples};
+}
+module.exports = {FACE_RESULT_PAGE_BYTES, FACE_RESULT_PAGE_SAMPLES, faceResultPage, readFaceResultPages};
+// face-result-pages:end
+return module.exports;})();
+const {readFaceResultPages}=sharedFaceResultPages;
+// face-result-pages-adapter:end
 
 // video-ai:start
 function videoAiClient(sdk, projectId, scope) {
@@ -901,6 +1158,7 @@ function videoAiClient(sdk, projectId, scope) {
 
 // shared-ai-job-client:start
 const sharedAiJobs=(()=>{const module={exports:{}};
+// ai-job-client:start
 // Plugin-private durable orchestration of the existing public AI SDK.
 // This module is bundled into panels; it has no Node or renderer-global dependencies.
 const STATUS = new Set(['queued', 'running', 'canceling', 'succeeded', 'failed', 'canceled']);
@@ -944,6 +1202,72 @@ function createSharedAiJobClient(env) {
       ![runScript, load, save].every(f => typeof f === 'function')) throw invalid();
   const storageKey = stable({ projectId, scope });
   const fresh = () => ({ version: 1, projectId, scope, records: [] });
+  // Observe one saved job; timing out a read never cancels or resubmits it.
+  // Use the monotonic clock when available, rather than the user's wall clock.
+  function observation(options, cancel = false) {
+    const timing = (value, fallback, max, zero = false) => {
+      const n = value ?? fallback;
+      if (!Number.isFinite(n) || n < (zero ? 0 : 1) || n > max) throw invalid();
+      return n;
+    };
+    const maxWaitMs = timing(options.maxWaitMs ?? env.maxWaitMs, cancel ? 60000 : 1800000, 86400000);
+    const pollMs = timing(options.pollMs ?? env.pollMs, 500, 60000, true);
+    const readTimeoutMs = timing(options.readTimeoutMs ?? env.readTimeoutMs, 30000, 60000);
+    const readRetryMs = timing(options.readRetryMs ?? env.readRetryMs, 500, 60000, true);
+    const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? () => performance.now() : () => Date.now();
+    const deadline = now() + maxWaitMs, signal = options.signal;
+    const pending = (record, cause) => {
+      const message = cancel ? 'AI cancellation could not be confirmed. Cancellation is saved; reopen to recover it.'
+        : 'AI progress or results could not be confirmed. Reopen to recover the saved job.';
+      return Object.assign(error(cancel ? 'SHARED_AI_CANCEL_PENDING' : 'SHARED_AI_OBSERVATION_PENDING', message),
+        { publicMessage: message, workflowId: record?.workflowId, projectId, ...(cause === undefined ? {} : { cause }) });
+    };
+    const check = record => { attached(signal); if (now() >= deadline) throw pending(record); };
+    // Late read replies are ignored. This helper is never used for a write.
+    function wait(task, milliseconds, onTimeout) {
+      return new Promise((resolve, reject) => {
+        let done = false;
+        const finish = (fn, value) => {
+          if (done) return;
+          done = true; clearTimeout(timer); signal?.removeEventListener('abort', abort); fn(value);
+        };
+        const abort = () => { try { attached(signal); } catch (cause) { finish(reject, cause); } };
+        const timer = setTimeout(() => task ? finish(reject, onTimeout()) : finish(resolve), milliseconds);
+        signal?.addEventListener('abort', abort, { once: true });
+        if (signal?.aborted) { abort(); return; }
+        if (task) Promise.resolve().then(task).then(value => finish(resolve, value), cause => finish(reject, cause));
+      });
+    }
+    async function pause(milliseconds, record) {
+      check(record);
+      const remaining = Math.max(0, deadline - now());
+      await wait(null, Math.min(milliseconds, remaining));
+      // Timers may round fractional milliseconds down. A capped delay consumes
+      // the budget; do not squeeze another request into that rounding gap.
+      if (milliseconds >= remaining) throw pending(record);
+      check(record);
+    }
+    async function read(record, script, summary) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        check(record);
+        let value;
+        try {
+          const remaining = Math.max(0, deadline - now());
+          value = await wait(() => runScript(script, summary, false), Math.min(readTimeoutMs, remaining),
+            () => readTimeoutMs >= remaining ? pending(record) : error('SHARED_AI_READ_TIMEOUT', 'The AI observation read timed out.'));
+        } catch (cause) {
+          if (['SHARED_AI_DETACHED','SHARED_AI_OBSERVATION_PENDING','SHARED_AI_CANCEL_PENDING'].includes(cause?.code)) throw cause;
+          check(record);
+          if (attempt === 2) throw pending(record, cause);
+          await pause(Math.min(60000, readRetryMs * 2 ** attempt), record);
+          continue;
+        }
+        check(record); return value;
+      }
+    }
+    return { check, read, pause: record => pause(pollMs, record) };
+  }
   async function read() {
     let journal;
     try { journal = await load(); }
@@ -989,24 +1313,26 @@ function createSharedAiJobClient(env) {
     // Preserve an acknowledgment even when a panel detached during submit.
     await update(record); attached(signal);
   }
-  async function status(record, cancel = false) {
-    const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel ? 'cancel' : 'status'}();`, cancel ? 'Cancel shared AI analysis' : 'Read shared AI progress', cancel);
+  async function status(record, observer, cancel = false) {
+    observer.check(record);
+    const script = `return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel ? 'cancel' : 'status'}();`;
+    // A cancellation is a write, so its transport failure is never retried here.
+    const value = cancel ? await runScript(script, 'Cancel shared AI analysis', true)
+      : await observer.read(record, script, 'Read shared AI progress');
     if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== 'selects-ai-runtime' || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
     record.status = value.status; await update(record); return value;
   }
-  async function stop(record, options = {}) {
+  async function stop(record, options, observer) {
     record.cancelRequested = true; await update(record); await ack(record, options.signal);
-    if (!terminal(record.status)) await status(record, true);
-    const deadline = Date.now() + (options.maxWaitMs ?? 60000);
+    if (!terminal(record.status)) await status(record, observer, true);
     while (!terminal(record.status)) {
-      attached(options.signal);
-      if (Date.now() >= deadline) throw error('SHARED_AI_CANCEL_PENDING', 'AI is still stopping. Cancellation is saved; reopen to recover it.');
-      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
-      await status(record);
+      await observer.pause(record);
+      await status(record, observer);
     }
   }
   async function run(request, options = {}) {
     attached(options.signal);
+    const observer = observation(options);
     const input = inputFor(projectId, request), identity = options.identity ?? '';
     if (typeof identity !== 'string') throw invalid();
     const journal = await read();
@@ -1015,9 +1341,9 @@ function createSharedAiJobClient(env) {
     // A detached panel can have saved 'running' while Main has since stopped.
     // Refresh only during recovery; failure of a newly submitted job is not retried.
     if (record?.workflowId && options.retryTerminal) {
-      attached(options.signal); await status(record); attached(options.signal);
+      attached(options.signal); await status(record, observer); attached(options.signal);
     }
-    if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+    if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options, observer);
     if (!record || options.retryTerminal && (['failed', 'canceled'].includes(record.status) || record.cancelRequested && terminal(record.status))) {
       const attempt = record ? record.attempt + 1 : 0;
       if (attempt > 255) throw invalid();
@@ -1029,31 +1355,33 @@ function createSharedAiJobClient(env) {
       attached(options.signal);
       const latest = (await read()).records.find(r => r.input.requestKey === record.input.requestKey);
       if (!latest) throw invalid(); Object.assign(record, latest);
-      const value = await status(record, record.cancelRequested && !terminal(record.status));
+      const value = await status(record, observer, record.cancelRequested && !terminal(record.status));
       attached(options.signal);
       if (record.cancelRequested || record.status === 'canceled') throw error('SHARED_AI_CANCELED', 'AI analysis was canceled. Start again to retry.');
       if (record.status === 'failed') throw error('SHARED_AI_FAILED', 'AI analysis failed. ' + String(value.lastErrorMessage || '').slice(0, 300));
       if (record.status === 'succeeded') {
-        const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, 'Read shared AI result');
+        const result = await observer.read(record, `return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, 'Read shared AI result');
         attached(options.signal);
         if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== 'object') throw invalid();
         return { workflowId: record.workflowId, input: clone(record.input), result };
       }
       options.onProgress?.(value);
-      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+      await observer.pause(record);
     }
   }
   async function cancel(options = {}) {
+    const observer = observation(options, true);
     const journal = await read();
     for (const record of journal.records) {
       if (options.identity !== undefined && record.identity !== options.identity || terminal(record.status)) continue;
       if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
-      await stop(record, options);
+      await stop(record, options, observer);
     }
   }
   return { run, cancel };
 }
 module.exports = { createSharedAiJobClient };
+// ai-job-client:end
 
 return module.exports;})();
 const {createSharedAiJobClient}=sharedAiJobs;
@@ -1582,3 +1910,50 @@ function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: 
   }, [sdk?.updates]);
 }
 // app-update-guard:end
+
+// template-progress-adapter:start
+const sharedTemplateProgress=(()=>{const module={exports:{}};
+// template-progress:start
+// Read-only progress presentation. Existing consumer callbacks remain the only
+// source of stage information; clock ticks never imply work or completion.
+function createTemplateProgressView(React, timing = {}) {
+  const now = timing.now || (() => typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const schedule = timing.schedule || ((fn, ms) => setInterval(fn, ms));
+  const cancel = timing.cancel || (id => clearInterval(id));
+  const thresholdSeconds = 120;
+  return function TemplateProgressView({runId, status, busy = true, terminal = false}) {
+    const message = typeof status === 'string' && status.trim() ? status.trim() : 'Waiting for the first step…';
+    const snapshot = React.useRef(null);
+    const [, tick] = React.useState(0);
+    const stamp = now();
+    if (!snapshot.current || snapshot.current.runId !== runId) {
+      snapshot.current = {runId, message, changedAt: stamp, terminal: false};
+    }
+    const current = snapshot.current;
+    if (!current.terminal) {
+      if (current.message !== message) { current.message = message; current.changedAt = stamp; }
+      if (terminal || !busy) current.terminal = true;
+    }
+    const running = !current.terminal;
+    React.useEffect(() => {
+      if (!running) return;
+      let attached = true;
+      const timer = schedule(() => { if (attached) tick(value => value + 1); }, 1000);
+      return () => { attached = false; cancel(timer); };
+    }, [runId, running]);
+    const seconds = Math.floor(Math.max(0, stamp - current.changedAt) / 1000);
+    const h = React.createElement;
+    return h('section', {'aria-label': 'Template run progress', style: {display: 'grid', gap: 4, padding: '8px 0'}},
+      h('small', {role: 'status'}, running ? 'Current step: ' + current.message : current.message),
+      running && h('small', {'data-progress-age': true}, 'Last step change: ' + seconds + ' s ago.'),
+      running && seconds >= thresholdSeconds && h('p', {role: 'status', style: {margin: 0}},
+        'No new step update for ' + seconds + ' s. Completion has not been confirmed.'),
+      !running && h('small', null, 'Run finished.'),
+    );
+  };
+}
+module.exports = {createTemplateProgressView};
+// template-progress:end
+return module.exports;})();
+const TemplateProgressView=sharedTemplateProgress.createTemplateProgressView(React);
+// template-progress-adapter:end

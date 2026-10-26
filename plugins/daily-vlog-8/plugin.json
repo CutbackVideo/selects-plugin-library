@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "daily-vlog-8",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "name": "8-Clip Daily Vlog",
   "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled audio.",
   "status": "experimental",
@@ -18,7 +18,10 @@
     "assets/shutter-s2.wav",
     "assets/shutter-c2.wav",
     "assets/shutter-s6-1.wav",
-    "assets/typing-k3.wav"
+    "assets/typing-k3.wav",
+    "assets/fonts/chelseamarket/ChelseaMarket-Regular.ttf.b64",
+    "assets/fonts/chelseamarket/OFL.txt",
+    "assets/fonts/chelseamarket/METADATA.pb"
   ],
   "preview": {
     "video": "preview.mp4",
@@ -52,7 +55,7 @@
     {
       "id": "clips",
       "label": "Clips",
-      "hint": "The first eight fill the vlog in order; with seven, the opening clip returns once.",
+      "hint": "Pick at least seven distinct clips other than Opening; Opening and duplicate picks are excluded. Seven clips replay Opening before the closing shot. With eight or nine, the first eight distinct clips are used in order; the ninth is not used.",
       "accepts": [
         "video"
       ],

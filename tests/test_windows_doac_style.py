@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """DOAC Style on Windows: the caption build runs in the panel.
 
 macOS keeps the Python caption engine (runtime.sh, a venv, compile-captions.py
@@ -18,7 +19,7 @@ from windows_static import assert_no_shell_token, shell_token_present
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/doac-style'
 PANEL = Path(os.environ.get('DOAC_PANEL') or PLUGIN / 'panel.tsx')
-REFERENCE = ROOT / 'plugins/archive-vlog/panel.tsx'
+REFERENCE = ROOT / 'plugins/city-weekend-vlog/panel.tsx'
 HOST_BLOCK = re.compile(r'// av-host:start\n.*?// av-host:end', re.S)
 MAC_ONLY = re.compile(r'^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*$', re.S | re.M)
 FORBIDDEN = ['mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', 'base64 ', '| base64', 'shasum',
@@ -45,9 +46,9 @@ class DoacStyleWindowsTest(unittest.TestCase):
         cls.portable = MAC_ONLY.sub('', cls.text)
         cls.manifest = json.loads((PLUGIN / 'plugin.json').read_text())
 
-    def test_host_block_matches_archive_vlog(self):
+    def test_host_block_matches_legacy_reference(self):
         mine = HOST_BLOCK.search(self.text)
-        self.assertIsNotNone(mine, 'copy the av-host block from archive-vlog')
+        self.assertIsNotNone(mine, 'copy the av-host block from city-weekend-vlog')
         self.assertEqual(mine.group(0), HOST_BLOCK.search(REFERENCE.read_text(encoding='utf-8')).group(0))
 
     def test_no_posix_shell_outside_mac_only_regions(self):

@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {loadPanelModule,disposePanelModule} from './panel_module_fixture.mjs';
+const source=fs.readFileSync(new URL('../plugins/chris-williamson-style/panel.tsx',import.meta.url),'utf8');
+const api=loadPanelModule(source,{names:['verifyDraft']});
+test.after(()=>disposePanelModule(api));
+const verify=api.verifyDraft;
+const manifest={items:{},cues:Array.from({length:12},(_,i)=>({kind:'phrase',start:i*20,end:i*20+20}))};
+function fixture({metadata='valid',captureError,sourceError,sourcePresent=true,visualOk=true,captureAvailable=true}={}){
+ const calls={native:[],legacy:[],review:[]},artifacts=[];
+ const env={pluginDir:'/owned',status:()=>{},runScript:async(script,summary)=>{if(summary==='Read back the saved style')return {meta:{durationFrames:300},clips:[],graphics:[]};if(sourceError)throw sourceError;const frames=JSON.parse(script.match(/frames:(\[[^\]]+\])/)[1]);calls.native.push(frames);calls.legacy.push(frames);return {frames:frames.map(frameNumber=>({frameNumber,hasSourceImage:sourcePresent}))};},imageData:async()=>{throw Error('No reference');},askAI:async(prompt,_timeout,images)=>{calls.review.push({prompt,images});return JSON.stringify({ok:visualOk,issues:visualOk?[]:['Unreadable actual glyph']});}};
+ if(captureAvailable)env.capture=async(_draft,frames)=>{if(captureError)throw captureError;calls.native.push(frames);const image={dataUrl:'data:image/jpeg;base64,actual-'+artifacts.length,name:'saved'};if(metadata!=='missing')image.frames=frames.map(frameNumber=>({frameNumber,hasSourceImage:metadata==='false'?false:true}));if(metadata==='wrong-frame')image.frames[0].frameNumber=-1;if(metadata==='unknown-source')delete image.frames[0].hasSourceImage;artifacts.push(image);return [image];};
+ return {env,calls,artifacts};
+}
+test('N native batches validate source images and reuse the exact same image bytes for one visual review',async()=>{const f=fixture(),result=await verify(f.env,'owned-project','draft',manifest);assert.equal(result.render,'passed');assert.equal(result.visual.status,'passed');assert.equal(f.calls.native.length,2);assert.equal(f.calls.legacy.length,0);assert.equal(f.calls.review.length,1);assert.deepEqual(Array.from(f.calls.review[0].images,image=>image.dataUrl),f.artifacts.map(image=>image.dataUrl));assert.deepEqual(f.calls.native.flat(),Array.from(result.frames));});
+test('missing metadata keeps the legacy check, requiring 2N calls instead of assuming source success',async()=>{for(const metadata of ['missing','wrong-frame','unknown-source']){const f=fixture({metadata}),result=await verify(f.env,'owned-project','draft',manifest);assert.equal(result.render,'passed');assert.equal(f.calls.native.length,4);assert.equal(f.calls.legacy.length,2);assert.equal(f.calls.review.length,1);}});
+test('a known missing source image fails before AI review even if the contact sheet exists',async()=>{const f=fixture({metadata:'false'});await assert.rejects(verify(f.env,'owned-project','draft',manifest),/could not be rendered/);assert.equal(f.calls.review.length,0);assert.equal(f.calls.legacy.length,0);});
+test('capture errors propagate rather than turning a source-render failure into visual unknown',async()=>{const failure=Error('Native source capture failed'),f=fixture({captureError:failure});await assert.rejects(verify(f.env,'owned-project','draft',manifest),error=>error===failure);assert.equal(f.calls.review.length,0);});
+test('legacy source check errors and false attestation still fail',async()=>{for(const options of [{metadata:'missing',sourceError:Error('Legacy source error')},{metadata:'missing',sourcePresent:false}]){const f=fixture(options);await assert.rejects(verify(f.env,'owned-project','draft',manifest),/Legacy source error|could not be rendered/);assert.equal(f.calls.review.length,0);}});
+test('source success does not promote a failed visual review',async()=>{const f=fixture({visualOk:false}),result=await verify(f.env,'owned-project','draft',manifest);assert.equal(result.render,'passed');assert.equal(result.visual.status,'failed');assert.equal(f.calls.native.length,2);});
+test('an environment with no contact-sheet capture retains source checks and marks visual unknown',async()=>{const f=fixture({captureAvailable:false}),result=await verify(f.env,'owned-project','draft',manifest);assert.equal(result.render,'passed');assert.equal(result.visual.status,'unverified');assert.equal(f.calls.legacy.length,2);assert.equal(f.calls.review.length,0);});

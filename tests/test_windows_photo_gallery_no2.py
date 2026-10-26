@@ -22,8 +22,7 @@ PANEL = os.environ.get("PHOTO_GALLERY_NO2_PANEL") or os.path.join(PLUGIN, "panel
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*\n", re.S | re.M)
-HOST_FUNCTIONS = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes",
-                  "hostReadBytes", "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds"]
+HOST_FUNCTIONS = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostRoots"]
 FORBIDDEN = [
     "mkdir -p", "printf", "$HOME", "$SELECTS_USER", "SELECTS_USER_SKILLS_ROOT", "rm -f", "base64 ", "| base64",
     "shasum", "command -v", "export PATH", 'cat "', "2>/dev/null", "/usr/bin/", 'sh "', "sh '", "runtime.sh",
@@ -77,10 +76,12 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     def test_bundled_music_is_found_through_the_host(self):
         music = body(self.runtime, "async function prepareBundledMusic(")
-        self.assertIn("hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')", music)
-        self.assertIn("hostJoin(plugin, 'assets', 'music.mp3')", music)
-        self.assertIn("exists(", music)
-        self.assertLess(music.index("exists("), music.index("onImportStarted()"))
+        self.assertIn("hostRoots(sdk,'photo-gallery-no2','SKILL.md')", music)
+        self.assertIn("hostJoin(plugin,'assets','music.mp3')", music)
+        self.assertIn("prepareBundledAsset(", music)
+        self.assertIn("expectedSha256:GALLERY_MUSIC.sha256", music)
+        self.assertIn("minimumSeconds", music)
+        self.assertIn("await onImportStarted()", music)
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("SKILL.md", manifest["files"])
         self.assertIn("assets/music.mp3", manifest["files"])
@@ -102,11 +103,13 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertIn("hostNeed('Runtime', kind)", hold)
         for tool in ("'runFFmpeg'", "'runFFprobe'"):
             self.assertIn(tool, hold, tool)
-        self.assertIn("hostJoin(dataDir, 'held-v2')", hold)
+        self.assertIn("files.join(dataDir, 'held-v3')", hold)
+        self.assertIn("prepareDerivedAsset(", hold)
+        self.assertIn("readAssetFileIdentity(", hold)
         self.assertNotIn("pattern_type", hold)
         self.assertNotIn("runShell", hold)
         visuals = body(self.runtime, "async function prepareVisuals(")
-        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data)", visuals)
+        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent,client})", visuals)
         self.assertNotIn("hold_video", self.runtime)
         self.assertNotIn("shortMacOnly", self.source, "short videos work on Windows")
 
@@ -114,11 +117,16 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         tempo = re.search(r"// tempo:start\n.*?// tempo:end\n", self.source, re.S)
         self.assertIsNotNone(tempo, "panel has no tempo block")
         tempo = tempo.group(0)
-        self.assertIn("hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS", tempo)
+        self.assertIn("prepareDerivedAsset(files", tempo)
+        self.assertIn("readAssetFileIdentity(files", tempo)
+        self.assertIn("extension:'f32'", tempo)
+        self.assertIn("'-f','f32le'", tempo)
         self.assertIn("TEMPO_RATE = 11025", tempo)
         self.assertIn("TEMPO_SECONDS = 30", tempo)
-        estimate = body(self.runtime, "  async function estimateMusic(audio) {", "\n  }\n")
-        self.assertIn("tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data)", estimate)
+        estimate = body(self.runtime, "  async function estimateMusic(audio,scope) {", "\n  }\n")
+        self.assertIn("analyzeMusicFile(before.path,roots.data,scope)", estimate)
+        self.assertIn("operation:'verifyMusic'", estimate)
+        self.assertNotIn("estimated?.resourceId", estimate)
         strings = json.loads(re.search(r"const STRINGS = (\{.*?\n\});\n", self.source, re.S).group(1))
         self.assertEqual(sorted(strings), sorted(LANGUAGES))
         self.assertNotIn("MacOnly", self.source, "every feature works on Windows")
@@ -153,10 +161,22 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "node runs operation-builder.mjs")
     def test_chat_skill_recipe_matches_the_panel_prefix(self):
+        facts_source = read(os.path.join(PLUGIN, "input-facts.generated.mjs"))
+        facts = facts_source.split("export ", 1)[1].strip().replace("\nexport ", "\n")
+        # The installed recipe follows the same explicit declaration order as the builder.
+        boundary = facts.index("\nasync function nativeImageSources(")
+        fingerprint, rest = facts[:boundary], facts[boundary + 1:]
+        boundary = rest.index("\nfunction requireSourceFileSupport(")
+        image, support = rest[:boundary], rest[boundary + 1:]
+        facts = image + "\n" + fingerprint + "\n" + support
+        packaged = read(os.path.join(PLUGIN, "authoring.generated.mjs"))
+        authoring = json.loads(re.search(r"export const IMAGE_AUTHORING_SOURCE = (.*);", packaged).group(1))
+        serializer = json.loads(re.search(r"export const TEMPLATE_RUN_SOURCE = (.*);", packaged).group(1))
+        asset_reader = json.loads(re.search(r"export const ASSET_RESOURCE_SOURCE = (.*);", packaged).group(1))
         recipe = (
             read(os.path.join(PLUGIN, "format.mjs")).replace("export const REFERENCE", "const REFERENCE", 1)
             .replace("export function planGallery", "function planGallery", 1)
-            + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
+            + "\n" + facts + "\n" + authoring + "\n" + serializer + "\n" + asset_reader + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
         )
         out = subprocess.run(
             ["node", "--input-type=module", "-e",

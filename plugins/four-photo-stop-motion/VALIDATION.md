@@ -1,5 +1,34 @@
 # Validation
 
+## Current repair checkpoint: 0.1.13
+
+The canonical original-Image source is now an explicit `.mjs` build input
+shared with Photo Grid Reveal. This panel has only the synchronized function
+export prefix; its source-check behavior, public interface and recipe are
+unchanged. See `docs/template-repair/gallery-input.md` for packaging and
+existing-consumer regressions.
+
+## Earlier repair checkpoint: 0.1.12
+
+The shared run feature now checks hashing/text codecs and callable new-claim
+capabilities before preparation. Saved recovery still needs no new UUID or SDK
+file writes. The four-consumer regression checkpoint is
+`docs/template-repair/polaroid-run.md`; timing, design and receipt format remain.
+
+The MP3 compatibility entry now delegates to the generalized bundled-asset
+feature with the existing IDs, paths, summaries and error codes. No design or
+save lifecycle change is introduced by this source synchronization.
+
+The historical reference/export runs below belong to their stated versions.
+They do not validate the current shared authoring/run migration in an installed
+app. The current checkpoint uses one complete working-copy commit and durable
+app-run recovery, with independent saved-state verification. Local regression
+and actual SDK/renderer/Storyboard source-clock probes are documented in
+`docs/template-repair/stop-motion-atomic.md` in the source repository. Installed
+execution, complete AV playback/export, original-versus-changed-input evaluation
+and Windows checks remain unverified. Client PR #7828's SDK rollout is required
+before publishing this version.
+
 ## Reference
 
 A trending "stopmotion #closer" short-form template (30 fps, 347 frames, 1080x1440, 3:4), measured with ffmpeg:

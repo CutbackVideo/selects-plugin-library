@@ -28,14 +28,38 @@ async function readState(env:Env,id:string) {
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
 // ffmpeg's signalstats, so the letter fill can be chosen from the picture instead of guessed. The values are printed
 // to ffmpeg's log (no file paths inside the filter graph).
-async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string):Promise<{y:number;sat:number}|null> {
+async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string,startSeconds?:number):Promise<{y:number;sat:number}|null> {
   const vf="crop=iw*0.76:ih*0.135:iw*0.12:ih*0.4325,signalstats,metadata=print:key=lavfi.signalstats.YAVG,metadata=print:key=lavfi.signalstats.SATAVG";
   try {
-    const log=(await ffmpegRun(["-nostdin","-v","info","-y","-t",Math.max(0.2,seconds).toFixed(2),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
+    if(!Number.isFinite(seconds)||seconds<=0||startSeconds!==undefined&&(!Number.isFinite(startSeconds)||startSeconds<0))return null;
+    // Phrase observations stay on this cutaway's local clock and cannot spill
+    // beyond a short phrase. Existing keyword observations retain their minimum.
+    const seek=startSeconds===undefined?[]:["-ss",startSeconds.toFixed(6)];
+    const duration=startSeconds===undefined?Math.max(0.2,seconds):seconds;
+    const log=(await ffmpegRun(["-nostdin","-v","info","-y",...seek,"-t",duration.toFixed(startSeconds===undefined?2:6),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
     const mean=(key:string)=>{const v=[...log.matchAll(new RegExp("lavfi\\.signalstats\\."+key+"=([0-9.]+)","g"))].map(m=>Number(m[1]));return v.length?v.reduce((a,b)=>a+b,0)/v.length:NaN;};
     const y=mean("YAVG"),sat=mean("SATAVG");
     return Number.isFinite(y)&&Number.isFinite(sat)?{y:Math.round(y),sat:Math.round(sat)}:null;
   } catch { return null; }
+}
+// Reuse the measured band only when a verified cutaway covers the whole phrase.
+// The asset starts at b.start, not at the phrase's Draft position.
+export function phraseBackdrop(cue:Cue,brolls:Broll[],assets:any[],fps:number) {
+  if(cue.kind!=='phrase'||!Number.isFinite(fps)||fps<=0||!(cue.end>cue.start))return null;
+  const overlaps=brolls.filter(b=>b.start<cue.end&&b.end>cue.start&&assets.some(a=>a.keyStart===b.key.start));
+  if(overlaps.length!==1)return null;
+  const b=overlaps[0],asset=assets.find(a=>a.keyStart===b.key.start);
+  if(b.start>cue.start||b.end<cue.end||typeof asset?.path!=='string')return null;
+  return {path:asset.path,startSeconds:(cue.start-b.start)/fps,seconds:(cue.end-cue.start)/fps};
+}
+export function phraseColor(band:{y:number;sat:number}|null) {
+  if(!band||!Number.isFinite(band.y)||band.y<0||band.y>255)return null;
+  // signalstats returns limited-range Y. Pick the better of the existing white
+  // and a dark fill; typography, reveal, position and inverted keywords stay put.
+  const gray=Math.max(0,Math.min(1,(band.y-16)/219));
+  const linear=(v:number)=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;
+  const luminance=linear(gray),dark=linear(17/255);
+  return (luminance+0.05)/(dark+0.05)>1.05/(luminance+0.05)?'#111111':'#ffffff';
 }
 async function inventory(env:Env,id:string) {
   return await env.runScript(`const d=selects.draft(${JSON.stringify(id)});const clips=await d.clips({trackScope:'all'});const graphics=await d.motionGraphics();const effects=[];for(const c of clips)if(c.resourceId&&(c.trackKind==='main'||c.trackKind==='video'))for(const e of await d.videoEffects(c))effects.push({clipId:c.clipId,name:e.name});return {clips,graphics,effects};`,"Inspect existing edits");
@@ -68,7 +92,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   env = attachedPipelineEnv(env);
   const t0=Date.now(), report:any={warnings:[]};
   if(!env.imageData)throw new Error("Image inspection is unavailable in this Selects host.");
-  env.status("Checking the Draft and previous edits…");
+  env.status(cwProgressText(env,"Checking the Draft and previous edits…","Draft\uc640 \uae30\uc874 \ud3b8\uc9d1 \ud655\uc778 \uc911…"));
   setMeasuredEm(env.textMeasure?await env.textMeasure().catch(()=>null):null);
   const src=await readDraft(env,projectId,sequenceId),fps=src.fps,total=src.endFrame;
   await probeFrameSizes(env,src.files);
@@ -136,7 +160,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   };
   // Replanning is explicit. Captions-only and B-roll-only updates retain the established keyword slots.
   if(!state.keys || scope==='all' && !state.completed.includes('plan')) {
-    env.status("Planning keywords…");
+    env.status(cwProgressText(env,"Planning keywords…","\uac15\uc870 \ub2e8\uc5b4 \uacc4\ud68d \uc911…"));
     let plan=options.planOverride;
     if(!plan)plan=parseJsonLoose(await env.askAI(planPrompt(words,fps,total,options.instructions||""),240000));
     const keys=keysFromPlan(plan,words,fps);
@@ -149,15 +173,15 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   const needsAssets=(!state.assets && scope!=='captions')||scope==='all'||scope==='broll';
   if(needsAssets&&!state.assetsReady) {
     const firstWarnings:string[]=[];
-    const freshAssets=await chooseAssets(env,jobDir,mediaFolder,reel,fps,projectId,options,firstWarnings);
+    const freshAssets=await chooseAssets(env,jobDir,mediaFolder,reel,fps,projectId,options,firstWarnings,"b",words);
     // Cutaways must stay evenly spread: every keyword whose picture was not found gets one more search with the
     // planner's broader query (or the keyword itself), so gaps are not left wherever the first search failed.
     const missing=reel.brolls.filter(b=>!freshAssets.some((a:any)=>a.keyStart===b.key.start));
     if(missing.length&&!options.searchOverride) {
-      env.status(`Searching again for ${missing.length} missing B-roll…`);
+      env.status(cwProgressText(env,`Starting alternative search for ${missing.length} missing B-roll…`,`\ud655\ubcf4\ud558\uc9c0 \ubabb\ud55c B-roll ${missing.length}\uac1c \ub300\uccb4 \uac80\uc0c9 \uc2dc\uc791…`));
       const again=missing.map(b=>({...b,query:b.key.alt&&b.key.alt!==b.query?b.key.alt:b.key.text.replace(/[^\p{L}\p{N}' -]/gu,"").trim()}));
       const retryWarnings:string[]=[];
-      freshAssets.push(...await chooseAssets(env,jobDir,mediaFolder,{brolls:again},fps,projectId,options,retryWarnings,"r"));
+      freshAssets.push(...await chooseAssets(env,jobDir,mediaFolder,{brolls:again},fps,projectId,options,retryWarnings,"r",words));
       const filled=missing.filter(b=>freshAssets.some((a:any)=>a.keyStart===b.key.start)).map(b=>b.query);
       report.warnings.push(...firstWarnings.filter(w=>!filled.some(query=>w.includes("“"+query+"”"))),...retryWarnings);
     } else report.warnings.push(...firstWarnings);
@@ -206,6 +230,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     // Main-only splitting is not exposed by this SDK. Never razor unrelated overlays.
     const hasOverlays=existing.clips.some((c:any)=>c.trackKind==='video'||c.trackKind==='audio')||existing.graphics.length>0;
     if(!hasOverlays && !state.completed.includes('shots')) {
+      env.status(cwProgressText(env,"Finding source camera changes…","\uc6d0\ubcf8 \uc601\uc0c1\uc758 \uc7a5\uba74 \uc804\ud658 \ud655\uc778 \uc911…"));
       const shotsFile=hostJoin(jobDir,'shots.json');
       await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[{key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:sourceClipSeconds(m,fps)}])}}));
       await engine('shots',shotsFile,'Find source camera changes',240000);
@@ -234,15 +259,16 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const m=await d.meta();if(m.frameSize.width!==1080||m.frameSize.height!==1920){await d.setFrameSize({width:1080,height:1920});await d.commitAll('Chris Williamson Style: vertical frame');}return true;`,"Check vertical frame",true);
   const putGraphic=async(id:string,category:string,a:number,b:number,label:string,tsxCode:string,parameters:any,defs:any[])=>{
     const prev=state.items[id];if(prev && prev.status!=='pending')return;
-    env.status('Saving '+label+'…');
+    env.status(cwProgressText(env,'Saving caption: '+label+'…','\uc790\ub9c9 \uc800\uc7a5 \uc911: '+label+'…'));
     state.items[id]={category,status:'pending'};await save();
     const made=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const found=(await d.motionGraphics()).find(g=>g.name===${JSON.stringify(label)});if(found)return {clipId:found.clip.clipId};const made=await d.addMotionGraphic({within:await d.rangeAtFrames(${a},${b}),label:${JSON.stringify(label)},tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(parameters)},editableParameters:${JSON.stringify(defs)}});await d.commitAll('Chris Williamson Style: editable element');return {clipId:made.clipId};`,"Add "+label,true);
     state.items[id]={category,status:'applied',clipId:made.clipId,label};await save();
   };
   // Place only a verified asset. Existing clips and deliberate deletions survive Preserve.
-  for(const b of reel.brolls) {
+  for(const [brollIndex,b] of reel.brolls.entries()) {
     const id='broll:'+b.key.start,old=state.items[id];if(old&&old.status!=='pending')continue;
     const asset=assets.find(a=>a.keyStart===b.key.start);if(!asset)continue;
+    env.status(cwProgressText(env,`Saving verified B-roll ${brollIndex+1}/${reel.brolls.length}…`,`\uac80\ud1a0\ud55c B-roll \uc800\uc7a5 \uc911 ${brollIndex+1}/${reel.brolls.length}…`));
     const label=cueLabel(id,b.query);
     state.items[id]={category:'broll',status:'pending'};await save();
     const made=await env.runScript(`const S:any=selects;const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
@@ -253,7 +279,7 @@ if(found)return {clipId:found.clipId};const resource=idByPath[__pk(${JSON.string
   // Background music under the speech: one shared file in the plugin data folder, imported once, placed
   // across the whole Draft at a low level with fades. Kept on Preserve; replaced on Rebuild all.
   if(options.music!==false && !(state.items['music']&&state.items['music'].status!=='pending')) {
-    env.status('Adding the background music…');
+    env.status(cwProgressText(env,"Adding the background music…","\ubc30\uacbd \uc74c\uc545 \ucd94\uac00 \uc911…"));
     const musicPath=hostJoin(env.dataDir,'music',MUSIC.file);
     await fetchMusic(env,hostJoin(env.dataDir,'music'),musicPath);
     const label=PREFIX+MUSIC.title+' [cws:music]';
@@ -294,7 +320,18 @@ const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw 
 await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:${JSON.stringify({keywordOnly:true,text:cue.text,keyStart:0,keyEnd:cue.end-cue.start,clipFrames:(reel.brolls.find(b=>b.start===cue.start)?.end||cue.end)-cue.start,zoom:asset.kind==='video'?0:0.12,zoomIn:true,originX:50,originY:50,warmth:0.8,fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:sizeOf(cue),captionY:50,fillBlur:10,...fill,...(state.keywordCarry?.[cue.id]||{})})},editableParameters:${JSON.stringify(FOOTAGE_KEYWORD_PARAMS)}});await d.commitAll('Chris Williamson Style: editable footage keyword');return {clipId:c.clipId};`, 'Add editable footage keyword',true);
       state.items[cue.id]={category:'captions',status:'applied',clipId:made.clipId,label,resourceKeyword:true,band,fill};await save();return;
     }
-    await putGraphic(cue.id,'captions',cue.start,cue.end,cueLabel(cue.id,cue.text),CAPTIONS_TSX,{cueId:cue.id,text:cue.text,keyword:cue.kind==='keyword',wordStartsSeconds:cue.wordStartsSeconds,revealStartSeconds:cue.wordStartsSeconds[0]||0,revealSpanSeconds:(cue.wordStartsSeconds.at(-1)||0)-(cue.wordStartsSeconds[0]||0),fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:cue.kind==='keyword'?sizeOf(cue):STYLE.captions.phrase,captionY:STYLE.captions.line,trackingEm:-0.03,color:'#ffffff',dimSeconds:0.1,dimOpacity:0.55},CAPTION_V2_PARAMS);
+    if(state.items[cue.id]&&state.items[cue.id].status!=='pending')return;
+    let color='#ffffff';
+    const backdrop=phraseBackdrop(cue,reel.brolls,assets,fps);
+    if(backdrop) {
+      const band=await measureBand(env,jobDir,backdrop.path,backdrop.seconds,cue.id,backdrop.startSeconds);
+      const measured=phraseColor(band);
+      if(measured)color=measured;
+      else report.warnings.push(`Caption contrast could not be measured for “${cue.text}”; review this phrase in the saved Draft.`);
+    } else if(cue.kind==='phrase'&&reel.brolls.some(b=>b.start<cue.end&&b.end>cue.start&&assets.some(a=>a.keyStart===b.key.start))) {
+      report.warnings.push(`Caption “${cue.text}” crosses picture changes; review its contrast in the saved Draft.`);
+    }
+    await putGraphic(cue.id,'captions',cue.start,cue.end,cueLabel(cue.id,cue.text),CAPTIONS_TSX,{cueId:cue.id,text:cue.text,keyword:cue.kind==='keyword',wordStartsSeconds:cue.wordStartsSeconds,revealStartSeconds:cue.wordStartsSeconds[0]||0,revealSpanSeconds:(cue.wordStartsSeconds.at(-1)||0)-(cue.wordStartsSeconds[0]||0),fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:cue.kind==='keyword'?sizeOf(cue):STYLE.captions.phrase,captionY:STYLE.captions.line,trackingEm:-0.03,color,dimSeconds:0.1,dimOpacity:0.55},CAPTION_V2_PARAMS);
   
   };
   for(const cue of cues)await placeCue(cue);
@@ -306,8 +343,9 @@ await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.str
     try {
       for(let k=0;k<kws.length;k+=6) {
         const part=kws.slice(k,k+6);
-        env.status(`Checking that keywords fit ${k+1}–${k+part.length} / ${kws.length}…`);
+        env.status(cwProgressText(env,`Rendering keyword preview ${k+1}–${k+part.length}/${kws.length} (check ${round+1}/2)…`,`\uac15\uc870 \ub2e8\uc5b4 \ubbf8\ub9ac\ubcf4\uae30 \ub80c\ub354 \uc911 ${k+1}–${k+part.length}/${kws.length} (\ud655\uc778 ${round+1}/2)…`));
         const images=await env.capture(draftId,part.map(c=>Math.min(c.end-1,c.start+Math.round(0.2*fps))));
+        env.status(cwProgressText(env,`Reviewing keyword preview ${k+1}–${k+part.length}/${kws.length} (check ${round+1}/2)…`,`\uac15\uc870 \ub2e8\uc5b4 \ubbf8\ub9ac\ubcf4\uae30 \uac80\ud1a0 \uc911 ${k+1}–${k+part.length}/${kws.length} (\ud655\uc778 ${round+1}/2)…`));
         const verdict=parseJsonLoose(await env.askAI(`Only inspect the supplied image. Do not use tools, edit anything, or ask questions. It is a contact sheet of ${part.length} frames of a vertical video in reading order (left to right, then top to bottom), numbered 1-${part.length}. Each shows one big keyword: ${JSON.stringify(part.map((c,i)=>[i+1,c.text]))}. For each frame decide whether any letter of that keyword is cut off by the left or right edge of the frame or runs outside it. Return only {"clipped":[frame numbers]}.`,120000,images));
         for(const n of Array.isArray(verdict?.clipped)?verdict.clipped:[])if(part[Number(n)-1])clipped.push(part[Number(n)-1]);
       }
@@ -340,5 +378,6 @@ await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.str
   report.counts.longestSpeakerSeconds=Math.round(longest/fps*10)/10;
   if(longest/fps>8)report.warnings.push(`The speaker stays on screen for ${report.counts.longestSpeakerSeconds} s without B-roll at one point; no usable picture was found there.`);
   report.seconds=Math.round((Date.now()-t0)/1000);report.jobDir=jobDir;report.name=src.name;
+  env.status(cwProgressText(env,"Saving the completed run report…","\uc644\ub8cc\ub41c \uc791\uc5c5 \uae30\ub85d \uc800\uc7a5 \uc911…"));
   await env.writeText(hostJoin(jobDir,'report.json'),JSON.stringify(report,null,2));return report;
 }
