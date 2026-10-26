@@ -881,7 +881,21 @@ function faceSafeCoverFocus(source, frame, observation, manualFocus = null) {
     observedBounds: bounds, cropWidth: cropW, cropHeight: cropH };
 }
 
-module.exports = { faceSafeCoverFocus };
+// Project a normalized xywh observation using the existing SDK's contain fit,
+// scale and height-relative position coordinates. Preserve unsupported geometry as unknown.
+function projectObservedFace(box,source,t,frame={width:1080,height:1920}) {
+ if(!box||box.length!==4||!box.every(Number.isFinite)||box[0]<0||box[1]<0||box[2]<=0||box[3]<=0||box[0]+box[2]>1.000001||box[1]+box[3]>1.000001||!(source?.width>0&&source?.height>0)||!t||t.rotation||t.anchor?.x||t.anchor?.y||!(frame.width>0&&frame.height>0))return null;
+ const sx=t.enabled?t.scale?.x:1,sy=t.enabled?t.scale?.y:1;
+ if(!(sx>0&&sy>0)||Math.abs(sx-sy)>.001)return null;
+ const fit=Math.min(frame.width/source.width,frame.height/source.height),w=source.width*fit*sx,h=source.height*fit*sy;
+ const dx=t.enabled?Number(t.position?.x||0)/100*frame.height:0,dy=t.enabled?Number(t.position?.y||0)/100*frame.height:0;
+ if(!Number.isFinite(dx)||!Number.isFinite(dy))return null;
+ const x=frame.width/2+dx+(box[0]-.5)*w,y=frame.height/2-dy+(box[1]-.5)*h;
+ const mx=box[2]*w*.1+16,my=box[3]*h*.1+16;
+ return {x:x-mx,y:y-my,w:box[2]*w+mx*2,h:box[3]*h+my*2};
+}
+
+module.exports = { faceSafeCoverFocus, projectObservedFace };
 // cover-focus:end
 return module.exports;})();
 const recapFaceFocus=sharedCoverFocus.faceSafeCoverFocus;

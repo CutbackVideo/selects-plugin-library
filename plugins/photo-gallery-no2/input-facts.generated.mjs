@@ -138,8 +138,18 @@ export function requireSourceFileSupport(files) {
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
 }
-export async function observeSourceFiles(files,paths,expected=null) {
+export async function observeSourceFiles(files,paths,expected=null,options=null) {
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
+ options=options??{};
+ if(!options||typeof options!=='object'||options.check!==undefined&&typeof options.check!=='function'||options.onProgress!==undefined&&typeof options.onProgress!=='function')throw issue('source-file-input','The source observation options are invalid.');
+ const check=()=>{if(options.signal?.aborted)throw Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'});options.check?.();};
+ // The SDK cannot abort a range read already dispatched. Stop caller waiting
+ // immediately; the original promise stays handled and its next check stops it.
+ const observe=operation=>new Promise((resolve,reject)=>{
+  const abort=()=>reject(Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'}));
+  options.signal?.addEventListener('abort',abort,{once:true});
+  Promise.resolve().then(()=>{check();return operation();}).then(value=>{check();return value;}).then(resolve,reject).finally(()=>options.signal?.removeEventListener('abort',abort));
+ });
  if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
  const selected=[...new Set(paths)];
  const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
@@ -148,14 +158,17 @@ export async function observeSourceFiles(files,paths,expected=null) {
  requireSourceFileSupport(files);
  const observed=[];
  for(const path of selected){
+  check();
+  options.onProgress?.({path,index:observed.length+1,total:selected.length,bytesRead:0,complete:false});
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{fingerprint=await observe(()=>options.native===true&&typeof files.fingerprint==='function'?files.fingerprint(path,{native:true,signal:options.signal}):fingerprintTemplateFile(files,path,check));}catch(cause){check();if(cause?.name==='AbortError')throw cause;throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
   const before=expected?.find(row=>row.path===path);
   if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
   observed.push({path,size:row.size,sha256:row.sha256});
+  check();options.onProgress?.({path,index:observed.length,total:selected.length,bytesRead:row.size,complete:true});
  }
  return observed;
 }
