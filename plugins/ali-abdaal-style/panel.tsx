@@ -130,7 +130,7 @@ export default function Camera({Source,data}) {
   const {zoom,y}=cameraAt(f,data);
   const slot=(data.layouts||[]).find(row=>f>=row.startFrame&&f<row.endFrame)?.sourceSlot;
   const move=<div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+y+'%) scale('+zoom+')'}}><Source/></div>;
-  if(slot)return <div style={{position:'absolute',inset:0,overflow:'hidden',background:'#161a18'}}><div style={{position:'absolute',inset:0,transformOrigin:'0 0',transform:'translate('+slot.x*width/1080+'px,'+slot.y*height/1920+'px) scale('+slot.scale+')'}}>{move}</div></div>;
+  if(slot)return <div style={{position:'absolute',inset:0,overflow:'hidden',background:'linear-gradient(to bottom,#eef0e8 0px,#eef0e8 '+slot.bodyTop*height/1920+'px,#161a18 '+slot.bodyTop*height/1920+'px)'}}><div style={{position:'absolute',inset:0,transformOrigin:'0 0',transform:'translate('+slot.x*width/1080+'px,'+slot.y*height/1920+'px) scale('+slot.scale+')'}}>{move}</div></div>;
   return <div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+y+'%) scale('+zoom+')'}}><Source/></div>;
 }
 `;

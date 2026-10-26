@@ -39,3 +39,13 @@ test('reserved title space contains the entire moving source below the header at
 test('invalid source clock never treats null trim as zero',()=>{
  assert.throws(()=>api.aliFaceWindows([{start:0,end:1}],[{startFrame:0,endFrame:24}],[{startFrame:0,endFrame:24,sourceStartSeconds:null,sourceFps:24,sourceDurationSeconds:3,aiResourceId:'r'}],24),/source interval/);
 });
+
+test('reserved title header uses the existing light paper without changing the source image colours',()=>{
+ const panel=loadPanelModule(fs.readFileSync(new URL('../plugins/ali-abdaal-style/panel.tsx',import.meta.url),'utf8'),{names:['CAMERA_EFFECT']});
+ const React={createElement:(type,props,...children)=>({type,props:{...props,children}})};
+ const renderer=loadPanelModule(panel.CAMERA_EFFECT,{names:['Camera'],React,modules:{remotion:{useCurrentFrame:()=>40,useVideoConfig:()=>({width:1080,height:1920})}}});
+ try{const slot={scale:.64,x:195,y:588,bodyTop:493,bodyBottom:1844};const root=renderer.Camera({Source:()=>null,data:{camera:[],layouts:[{startFrame:3,endFrame:93,sourceSlot:slot}]}});
+ assert.match(root.props.style.background,/^linear-gradient\(to bottom,#eef0e8 0px,#eef0e8 493px,#161a18 493px\)$/);
+ const source=root.props.children[0].props.children[0];assert.equal(source.props.style.filter,undefined);assert.equal(root.props.children[0].props.style.transform,'translate(195px,588px) scale(0.64)');
+ }finally{disposePanelModule(panel);disposePanelModule(renderer)}
+});
