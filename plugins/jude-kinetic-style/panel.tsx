@@ -575,11 +575,11 @@ export async function placeMusic(env:Env,projectId:string,draftId:string,fps:num
  const trackSeconds=Number(await hostProbeSeconds(path));
  if(!(trackSeconds>1))throw Error('The music file could not be read.');
  const inventory=`const project=selects.project(${JSON.stringify(projectId)});
-// Host paths compare after NFC and \\ to / (and case on Windows); a file of the same name and length counts when no path matches.
-let rid=undefined as string|undefined,named=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
-const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)}),base=(p:string)=>p.slice(p.lastIndexOf('/')+1);
-const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else{const p=norm(n.path);if(p===want)rid=n.resourceId;else if(base(p)===base(want)&&Math.abs(Number(n.durationSeconds)-${trackSeconds})<=0.5)named??=n.resourceId;}}};
-const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);rid??=named;};
+// Reuse only the verified local file's path, after NFC and \\ to / (and case on Windows).
+let rid=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
+const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)});
+const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else if(norm(n.path)===want)rid=n.resourceId;}};
+const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);};
 await read();`;
  // Importing/grouping media persists Project state. Finish that script before
  // the separate Draft edit, so the SDK can commit the audio overlay atomically.
