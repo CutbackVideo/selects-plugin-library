@@ -9733,7 +9733,7 @@ async function createSceneMainDraft(sdk:any,projectId:string,clip:any,sourceEvid
     limitations:['Main is not completed visual production. Existing source offsets require the unchanged final host source-plan verification; public clip references expose timeline frames, not original offsets. Start a separate run_script call for further edits.']};
 }
 
-async function createSceneMediaTools(sdk:any,p:any,d:any,descriptors:any[],styles:any=undefined) {
+async function createSceneMediaTools(selects:any,p:any,d:any,descriptors:any[],styles:any=undefined) {
   styles ||= {};
   const requireValue=(v:any,message:string)=>{if(!v)throw Error(message);};
   const finite=(v:any)=>typeof v==='number'&&Number.isFinite(v);
@@ -9850,7 +9850,7 @@ async function createSceneMediaTools(sdk:any,p:any,d:any,descriptors:any[],style
     const geometry=transform({width:W,height:H},{x:placement.x,y:placement.y,width:W*scale,height:H*scale,rotation:placement.rotation});
     requireValue(geometry.supported,'Text placement exceeds SDK transform limits');
     if(!textPreset) {
-      const preset=await sdk.effectPresets.get('text-default');
+      const preset=await selects.effectPresets.get('text-default');
       requireValue(preset.kind==='generator'&&typeof preset.tsxCode==='string'&&preset.tsxCode.trim(),'Text generator preset unavailable');
       textPreset=preset;
     }
@@ -9928,7 +9928,7 @@ export default function Article({data}) {
     if(highlight)requireValue(highlight.x>=to.x-1e-9&&highlight.y>=to.y-1e-9&&highlight.x+highlight.width<=to.x+to.width+1e-9&&highlight.y+highlight.height<=to.y+to.height+1e-9,'Page view must contain the complete highlight');
     const dimOpacity=styles.page?.dimOpacity??.21,paperColor=styles.page?.paperColor??'#F4F3EE',moveSeconds=view.from?(styles.page?.moveSeconds??.8):0;
     requireValue(finite(dimOpacity)&&dimOpacity>=0&&dimOpacity<=1&&/^#[0-9a-f]{6}$/i.test(paperColor)&&finite(moveSeconds)&&moveSeconds>=0&&moveSeconds<=5,'Invalid page style');
-    const values:any={src:await sdk.files.localUrl(item.path),pageWidth:item.width,pageHeight:item.height,dimOpacity,paperColor,moveSeconds,highlightOn:!!highlight};
+    const values:any={src:await selects.files.localUrl(item.path),pageWidth:item.width,pageHeight:item.height,dimOpacity,paperColor,moveSeconds,highlightOn:!!highlight};
     for(const [prefix,r] of [['from',from],['to',to],['highlight',highlight||to]] as any[])for(const key of ['x','y','width','height'])values[prefix+key[0].toUpperCase()+key.slice(1)]=r[key];
     const tsxCode=`import {AbsoluteFill,Img,useCurrentFrame,useVideoConfig} from "remotion";
 export default function Page({data:d}) {
