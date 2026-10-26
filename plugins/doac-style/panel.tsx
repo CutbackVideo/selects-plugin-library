@@ -168,14 +168,21 @@ const RUNTIME_VARS=[
 ];
 const RUNTIME_CHECK=[...RUNTIME_VARS,'if [ -x "$PY" ] && [ -s "$FONT" ] && "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then echo ready; else echo missing; fi'].join('\n');
 const shellQuote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
+// Keep the lock file outside the directory venv --clear replaces. lockf -k
+// retains that inode, so every cold caller waits on the same OS-owned lock.
+// Recheck imports only after acquiring it; the first caller may have finished.
 const runtimeSetup=python=>[
  'set -e',
  ...RUNTIME_VARS,
- 'if [ ! -x "$PY" ] || ! "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then',
- '  '+shellQuote(python)+' -m venv --clear "$ROOT/.runtime"',
- '  "$PY" -m pip install --quiet --disable-pip-version-check -r "$ROOT/approved/requirements.txt"',
- 'fi',
- '"$PY" -c "import PIL, numpy, scipy"',
+ '/usr/bin/lockf -k -t 280 "$ROOT/.runtime-setup.lock" /bin/sh -c '+shellQuote([
+  'set -e',
+  ...RUNTIME_VARS,
+  'if [ ! -x "$PY" ] || ! "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then',
+  '  '+shellQuote(python)+' -m venv --clear "$ROOT/.runtime"',
+  '  "$PY" -m pip install --quiet --disable-pip-version-check -r "$ROOT/approved/requirements.txt"',
+  'fi',
+  '\"$PY\" -c "import PIL, numpy, scipy"',
+ ].join('\n')),
 ].join('\n');
 async function macRuntime(sdk,say){
   hostUseSdk(sdk);
