@@ -267,6 +267,27 @@ async function probeFrameSizes(env:Env,files:Record<string,any>){
  }
 }
 function judeAttached(env:Env) { if(env.signal?.aborted)throw new DOMException('Aborted','AbortError'); }
+// addMotionGraphic reuses only the outermost free video lane. Author each
+// simultaneous depth across the timeline before proceeding to the next depth,
+// instead of climbing one fresh lane for every new scene's overlapping lines.
+function judeGraphicGroups(items:any){
+ const entries=[...items.cards.map((row:any)=>({kind:'Card',row})),...items.captions.map((row:any)=>({kind:'Caption',row}))]
+  .map((entry:any,index:number)=>({...entry,index})).sort((a:any,b:any)=>a.row.start-b.row.start||(a.kind===b.kind?a.index-b.index:a.kind==='Card'?-1:1));
+ const ends:number[]=[],lanes:any[][]=[];
+ for(const entry of entries){
+  // Keep later overlapping material above earlier material, including the
+  // opaque card below its words. A finished scene frees every depth for reuse.
+  let depth=0;for(let i=0;i<ends.length;i++)if(ends[i]>entry.row.start)depth=i+1;
+  (lanes[depth]??=[]).push(entry);ends[depth]=entry.row.end;
+ }
+ const groups:any[]=[];
+ for(const entry of lanes.flat()){
+  const last=groups.at(-1);
+  if(last?.kind===entry.kind)last.rows.push(entry.row);else groups.push({kind:entry.kind,rows:[entry.row]});
+ }
+ return groups;
+}
+
 export async function runPipeline(env:Env,projectId:string,sequenceId:string,options:Options){
  judeAttached(env);env.status('Reading the Draft…');
  const src=await readDraft(env,projectId,sequenceId);
@@ -354,7 +375,7 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
    await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const tsx=${JSON.stringify(code)};const defs=${JSON.stringify(params)};for(const row of ${JSON.stringify(batch)}){await d.addMotionGraphic({within:await d.rangeAtFrames(row.start,row.end),label:${JSON.stringify(PREFIX+kind+' · ')}+String((row.parameters as any).text||'Cream / circle').slice(0,60),tsxCode:tsx,parameters:row.parameters,editableParameters:defs as any});}await d.commitAll(${JSON.stringify('Jude Kinetic: '+kind)})${COMMIT_OK};return true;`,'Add editable '+kind,true);
   }
  };
- await add(items.cards,CARD_TSX,CARD_PARAMS,'Card');await add(items.captions,LINE_TSX,LINE_PARAMS,'Caption');
+ for(const group of judeGraphicGroups(items))await add(group.rows,group.kind==='Card'?CARD_TSX:LINE_TSX,group.kind==='Card'?CARD_PARAMS:LINE_PARAMS,group.kind);
  judeAttached(env);
  if(options.music===true){env.status('Adding the background music…');await placeMusic(env,projectId,draftId,src.fps).then(m=>{report.music=m;if(m.shortBySeconds>0)report.warnings.push(`The music (${MUSIC.title}, ${m.trackSeconds} s) ends ${m.shortBySeconds} s before the Draft does.`);},(e:any)=>report.warnings.push('Background music was not added: '+String(e?.message||e).slice(0,200)));}
  judeAttached(env);
