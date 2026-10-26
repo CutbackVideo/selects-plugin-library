@@ -28,7 +28,7 @@ jobs:
       - name: Check complete template module delivery without rewriting artifacts
         run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" npm run templates:check
       - name: Test missed template synchronization and generation
-        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs
+        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs tests/panel_version_delivery.test.mjs
       - name: Test complete panel module fixtures
         run: node --test tests/panel_module_fixture.test.mjs
       - name: Test SDK-free template observation and saved-result compatibility
