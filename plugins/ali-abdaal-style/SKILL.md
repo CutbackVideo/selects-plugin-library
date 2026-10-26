@@ -15,3 +15,5 @@ fixed word-timed captions, and editable editorial graphics. Use **Handoff → Ex
 for final delivery. Requires a video source that Selects can analyze.
 
 Camera movement preserves the source colours. Video and graphics share a continuous camera path, including overlapping moves.
+
+Headlines use source face observations only during their own scene intervals. Existing empty space is preferred, with a minimal vertical move when needed. When no readable space remains, or observations cannot be verified, that scene reserves a title area and fits the entire moving video below it. The camera motion and source colours are retained. Missing observations are labelled separately on the timeline and in the panel; they are not treated as an absent face. Select a headline to adjust its top position in Inspector. The last layout statuses are saved in plugin storage. This uses the existing shared AI runtime; no new SDK calls are required.

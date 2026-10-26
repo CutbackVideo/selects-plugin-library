@@ -5,7 +5,7 @@ import {loadPanelModule,disposePanelModule} from './panel_module_fixture.mjs';
 const panel=loadPanelModule(fs.readFileSync(new URL('../plugins/ali-abdaal-style/panel.tsx',import.meta.url),'utf8'),{names:['CAMERA_EFFECT','GRAPHIC','makeCamera']});
 const React={createElement:(type,props,...children)=>({type,props:{...props,children}})};
 let frame=0;
-const video=loadPanelModule(panel.CAMERA_EFFECT,{names:['Camera'],React,modules:{remotion:{useCurrentFrame:()=>frame}}});
+const video=loadPanelModule(panel.CAMERA_EFFECT,{names:['Camera'],React,modules:{remotion:{useCurrentFrame:()=>frame,useVideoConfig:()=>({width:1080,height:1920})}}});
 const graphic=loadPanelModule(panel.GRAPHIC,{names:['Camera'],React,modules:{remotion:{useCurrentFrame:()=>frame,useVideoConfig:()=>({width:1080,height:1920})}}});
 const keys=panel.makeCamera([{start:0,end:1,kind:'headline'}],[{text:'test',startFrame:0,endFrame:180}],300);
 const render=(at,data={camera:keys})=>{frame=at;return video.Camera({Source:()=>null,data}).props.style};
