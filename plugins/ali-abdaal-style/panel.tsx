@@ -60,6 +60,30 @@ function aliReserveTitleSpace(scene:any) {
  const scale=Math.min(1080/(bounds.right-bounds.x),Math.max(1,bodyBottom-bodyTop)/(bounds.bottom-bounds.y));
  return {top,height:scene.height,sourceSlot:{scale,x:(1080-(bounds.right-bounds.x)*scale)/2-bounds.x*scale,y:bodyTop+(bodyBottom-bodyTop-(bounds.bottom-bounds.y)*scale)/2-bounds.y*scale,bodyTop,bodyBottom},bounds};
 }
+// A six-frame approach/release happens outside visible headline intervals.
+// Nearby reservations share one conservative box so their animations cannot
+// fight over the source framing or expose a face underneath a visible title.
+function aliSourceLayouts(scenes:any[],words:Word[],camera:any[]) {
+ const rows=scenes.filter(s=>s.layout?.reserved).map(s=>({startFrame:words[s.start].startFrame,endFrame:words[s.end-1].endFrame,height:s.layout.height})).sort((a,b)=>a.startFrame-b.startFrame);
+ const groups:any[]=[];
+ for(const row of rows){const last=groups.at(-1);if(last&&row.startFrame-last.endFrame<=12){last.endFrame=Math.max(last.endFrame,row.endFrame);last.height=Math.max(last.height,row.height);}else groups.push({...row});}
+ return groups.map(group=>({...group,...aliReserveTitleSpace({height:group.height,camera,startFrame:Math.max(0,group.startFrame-6),endFrame:group.endFrame+6})}));
+}
+// Self-contained because the portable camera effect embeds this function.
+function aliSourceSlotAt(f,layouts) {
+ for(const row of layouts||[]){
+  const start=Number(row.startFrame),end=Number(row.endFrame),early=start<=6,from=early?0:start-6,to=end+6;
+  if(f<from||f>to||!row.sourceSlot)continue;
+  let p=f<start&&!early?(f-from)/6:f>end?1-(f-end)/6:1;
+  p=Math.max(0,Math.min(1,p));p=p*p*(3-2*p);
+  if(p<=0)return null;
+  const slot=row.sourceSlot;
+  return {scale:1+(slot.scale-1)*p,x:slot.x*p,y:slot.y*p,bodyTop:slot.bodyTop*p,bodyBottom:1920+(slot.bodyBottom-1920)*p};
+ }
+ return null;
+}
+const SOURCE_LAYOUT_SAMPLER='const sourceSlotAt='+aliSourceSlotAt.toString()+';';
+
 function aliGraphicHeight(scene:any) {
  const canvas=typeof document!=='undefined'?document.createElement('canvas'):null,ctx=canvas?.getContext('2d');
  const measure=(text:string,size:number,family:string,weight:number)=>{if(ctx){ctx.font=weight+' '+size+'px '+family;return ctx.measureText(text).width;}return [...String(text)].length*size;};
@@ -125,10 +149,11 @@ const CAMERA_EFFECT = String.raw`
 import React from 'react';
 import {useCurrentFrame,useVideoConfig} from 'remotion';
 ${CAMERA_SAMPLER}
+${SOURCE_LAYOUT_SAMPLER}
 export default function Camera({Source,data}) {
   const f=useCurrentFrame()+Number(data.start||0),{width,height}=useVideoConfig();
   const {zoom,y}=cameraAt(f,data);
-  const slot=(data.layouts||[]).find(row=>f>=row.startFrame&&f<row.endFrame)?.sourceSlot;
+  const slot=sourceSlotAt(f,data.layouts);
   const move=<div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+y+'%) scale('+zoom+')'}}><Source/></div>;
   if(slot)return <div style={{position:'absolute',inset:0,overflow:'hidden',background:'linear-gradient(to bottom,#eef0e8 0px,#eef0e8 '+slot.bodyTop*height/1920+'px,#161a18 '+slot.bodyTop*height/1920+'px)'}}><div style={{position:'absolute',inset:0,transformOrigin:'0 0',transform:'translate('+slot.x*width/1080+'px,'+slot.y*height/1920+'px) scale('+slot.scale+')'}}>{move}</div></div>;
   return <div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+y+'%) scale('+zoom+')'}}><Source/></div>;
@@ -363,7 +388,7 @@ function clipVerifyScript(words: Word[], durationFrames: number) {
 /** Camera movement, visual beats, and captions on `d`. */
 function styleScript(words: Word[], plan: Plan) {
   const {camera, scenes, captions} = plan;
-  const layouts=scenes.filter((s:any)=>s.layout?.reserved).map((s:any)=>({...s.layout,startFrame:words[s.start].startFrame,endFrame:words[s.end-1].endFrame}));
+  const layouts=aliSourceLayouts(scenes,words,camera);
   return `const words=${JSON.stringify(words)};const codeCamera=${JSON.stringify(CAMERA_EFFECT)};const camera=${JSON.stringify(camera)};for(let clipIndex=0;;clipIndex++){const clip=(await d.clips({trackScope:'main'})).filter(c=>c.resourceId)[clipIndex];if(!clip)break;await d.addVideoEffect({clip,label:'Ali Abdaal Style · camera movement',tsxCode:codeCamera,parameters:{start:clip.startFrame,camera,layouts:${JSON.stringify(layouts)}},editableParameters:[]});}const codeGraphic=${JSON.stringify(GRAPHIC)};const scenes=${JSON.stringify(scenes)};for(const scene of scenes){const start=words[scene.start].startFrame;const end=words[scene.end-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · '+scene.title+(scene.layout?.status==='unavailable'?' · Face scan unavailable: title space reserved':scene.layout?.reserved?' · Title space reserved':''),within:await d.rangeAtFrames(start,end),tsxCode:codeGraphic,parameters:{...scene,start,enter:2,end,camera,top:scene.layout?.top,fixedGraphic:!!scene.layout?.reserved,graphicScale:scene.layout?.graphicScale},editableParameters:[{key:'title',label:'Headline',type:'text',defaultValue:scene.title},{key:'body',label:'Note',type:'text',defaultValue:scene.body},{key:'top',label:'Headline top (1080 canvas px)',type:'number',defaultValue:scene.layout?.top??(scene.kind==='list'?250:307),min:0,max:1600,step:1}]});}const codeCaption=${JSON.stringify(CAPTION)};const captions=${JSON.stringify(captions)};for(const group of captions){const start=group[0].startFrame;const end=group[group.length-1].endFrame;await d.addMotionGraphic({label:'Ali Abdaal Style · Caption · '+group.map(w=>w.text).join(' '),within:await d.rangeAtFrames(start,end),tsxCode:codeCaption,parameters:{text:group.map(w=>w.text).join(' '),starts:group.map(w=>w.startFrame-start)},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:group.map(w=>w.text).join(' ')}]});}`;
 }
 
