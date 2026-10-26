@@ -23,6 +23,7 @@ for (const module of registry.modules) for (const target of module.buildTimeTarg
 }
 const localConsumers = 'no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump,photo-gallery-no2,mini-vlog,archive-vlog';
 const steps = [
+  [process.execPath, ['tools/sync_panel_versions.mjs']],
   [process.execPath, ['tools/build_file_observation.mjs']],
   [process.execPath, ['tools/sync_panel_modules.mjs']],
   [process.execPath, ['tools/sync_media_durations.mjs']],

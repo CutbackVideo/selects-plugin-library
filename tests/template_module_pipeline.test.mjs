@@ -52,8 +52,17 @@ test('one command rebuilds all managed delivery paths, is repeatable, and leaves
   // Drift inside a managed block must be repaired along with downstream artifacts.
   const recap = file('plugins/recap-2026/panel.tsx');
   fs.writeFileSync(recap, fs.readFileSync(recap, 'utf8').replace('// cover-focus:start\n', '// cover-focus:start\n// stale shared copy\n'));
+  for(const id of ['mini-vlog','archive-vlog']) {
+    const panel=file('plugins/'+id+'/panel.tsx');
+    fs.writeFileSync(panel,fs.readFileSync(panel,'utf8').replace(/const PLUGIN_VERSION = "[^"]+";/,'const PLUGIN_VERSION = "0.0.0";'));
+  }
   const first = f.run();
   assert.equal(first.status, 0, first.stdout + first.stderr);
+  for(const id of ['mini-vlog','archive-vlog']) {
+    const manifest=JSON.parse(fs.readFileSync(file('plugins/'+id+'/plugin.json'),'utf8'));
+    const version=/const PLUGIN_VERSION = "([^"]+)";/.exec(fs.readFileSync(file('plugins/'+id+'/panel.tsx'),'utf8'))?.[1];
+    assert.equal(version,manifest.version,'prepare must deliver the manifest version before panel source fingerprints are used');
+  }
   const prepared = f.contents();
   const check = f.run('--check');
   assert.equal(check.status, 0, check.stdout + check.stderr);
@@ -69,6 +78,8 @@ test('check rejects missed generation at each boundary without rewriting the che
   const clean = f.run();
   assert.equal(clean.status, 0, clean.stdout + clean.stderr);
   const cases = [
+    ['Mini version', 'plugins/mini-vlog/panel.tsx', source => source.replace(/const PLUGIN_VERSION = "[^"]+";/,'const PLUGIN_VERSION = "0.0.0";')],
+    ['Archive version', 'plugins/archive-vlog/panel.tsx', source => source.replace(/const PLUGIN_VERSION = "[^"]+";/,'const PLUGIN_VERSION = "0.0.0";')],
     ['shared block', 'plugins/recap-2026/panel.tsx', source => source.replace('// cover-focus:start\n', '// cover-focus:start\n// missed sync\n')],
     ['duration block', 'plugins/gongju-gallery/panel.tsx', source => source.replace('// media-duration:start\n', '// media-duration:start\n// missed sync\n')],
     ['private Panel adapter', 'plugins/camera-shutter-dump/panel.tsx', source => source.replace('// local-sdk:start\n', '// local-sdk:start\n// missed adapter sync\n')],
@@ -108,4 +119,10 @@ test('unknown options fail before any builder changes files', t => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Usage:/);
   assert.deepEqual(f.contents(), before);
+});
+
+test('invalid version provenance stops prepare before any other artifact generation',t=>{
+ const f=fixture(t),manifestFile=path.join(f.directory,'plugins/archive-vlog/plugin.json');
+ const manifest=JSON.parse(fs.readFileSync(manifestFile,'utf8'));manifest.version='not-a-version';fs.writeFileSync(manifestFile,JSON.stringify(manifest));
+ const before=f.contents(),result=f.run();assert.notEqual(result.status,0);assert.match(result.stderr,/Invalid manifest version/);assert.deepEqual(f.contents(),before);
 });
