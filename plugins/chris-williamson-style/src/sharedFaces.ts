@@ -28,6 +28,25 @@ const cwFaceInvalid = () => cwFaceError("CW_FACE_CONTRACT_INVALID", "The saved f
 function cwFaceAttached(signal?: AbortSignal) {
   if (signal?.aborted) throw cwFaceError("CW_FACE_DETACHED", "Face observation stopped. Reopen the panel to recover the saved analysis.");
 }
+const cwFacePending = () => cwFaceError("CW_FACE_OBSERVATION_PENDING", "Face analysis has not finished or its status could not be confirmed. Progress is saved. Open Chris Williamson Style on this saved draft and choose Resume styling to continue the same analysis.");
+// Bound read-only observation, not the durable host workflow. A late reply stays
+// handled, but cannot resume this caller or authorize framing/commit after exit.
+async function cwObserveFaceRead<T>(read: () => Promise<T>, deadline: number, signal?: AbortSignal): Promise<T> {
+  cwFaceAttached(signal);
+  if (Date.now() >= deadline) throw cwFacePending();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort: (() => void) | undefined;
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      abort = () => reject(cwFaceError("CW_FACE_DETACHED", "Face observation stopped. Reopen the panel to recover the saved analysis."));
+      signal?.addEventListener("abort", abort, {once:true});
+      timer = setTimeout(() => reject(cwFacePending()), Math.max(1, deadline-Date.now()));
+      Promise.resolve().then(read).then(value => {
+        cwFaceAttached(signal);if(Date.now()>=deadline)throw cwFacePending();return value;
+      }).then(resolve,reject);
+    });
+  } finally { if(timer!==undefined)clearTimeout(timer);if(abort)signal?.removeEventListener("abort",abort); }
+}
 function cwValidateFaceSample(sample: CwFaceSample): void {
   if (!sample || typeof sample.key !== "string" || !sample.key || ["__proto__", "constructor", "prototype"].includes(sample.key) ||
       (sample.groupKey !== undefined && (typeof sample.groupKey !== "string" || !sample.groupKey)) ||
@@ -199,36 +218,40 @@ export function cwAdaptFaceResult(value: any, input: CwFaceInput, samples: CwFac
   return out;
 }
 async function cwObserveFaceRecord(env: CwFaceEnvironment, path: string, record: CwFaceRecord,
-  options: { signal?: AbortSignal; pollMs?: number; onProgress?: (message: string) => void }): Promise<Record<string, CwFaceObservation>> {
+  options: { signal?: AbortSignal; pollMs?: number; onProgress?: (message: string) => void; deadline: number }): Promise<Record<string, CwFaceObservation>> {
   await cwFaceAck(env, path, record, options.signal);
   while (true) {
     cwFaceAttached(options.signal);
-    const latest = (await cwReadFaceJournal(env, path, record.input.projectId)).records.find(r => r.input.requestKey === record.input.requestKey);
+    const latest = (await cwObserveFaceRead(()=>cwReadFaceJournal(env, path, record.input.projectId),options.deadline,options.signal)).records.find(r => r.input.requestKey === record.input.requestKey);
     if (!latest) throw cwFaceInvalid();
     Object.assign(record, latest);
-    const value = await cwFaceCall(env, cwFaceJobScript(record, record.cancelRequested && !cwFaceTerminal(record.status) ? "cancel" : "status"), "Read shared face analysis", !!record.cancelRequested);
+    const value = await cwObserveFaceRead(()=>cwFaceCall(env, cwFaceJobScript(record, record.cancelRequested && !cwFaceTerminal(record.status) ? "cancel" : "status"), "Read shared face analysis", !!record.cancelRequested),options.deadline,options.signal);
     cwFaceAttached(options.signal);
     record.status = cwCheckFaceStatus(value, record);
     await cwSaveFaceRecord(env, path, record);
     if (record.cancelRequested || record.status === "canceled") throw cwFaceError("CW_FACE_CANCELED", "Face analysis was canceled. Start again to request a new analysis.");
     if (record.status === "failed") throw cwFaceError("CW_FACE_FAILED", "Face analysis failed. Start again to retry. " + String(value.lastErrorMessage || "").slice(0, 300));
     if (record.status === "succeeded") {
-      const result = await cwFaceCall(env, cwFaceResultScript(record), "Read measured speaker faces");
+      const result = await cwObserveFaceRead(()=>cwFaceCall(env, cwFaceResultScript(record), "Read measured speaker faces"),options.deadline,options.signal);
       cwFaceAttached(options.signal);
       return cwAdaptFaceResult(result, record.input, record.samples);
     }
     options.onProgress?.("Measuring speaker framing" + (value.progress != null ? " · " + Math.round(value.progress * 100) + "%" : ""));
-    await new Promise(resolve => setTimeout(resolve, options.pollMs ?? 500));
+    await cwObserveFaceRead(()=>new Promise(resolve => setTimeout(resolve, Math.min(options.pollMs ?? 500,Math.max(1,options.deadline-Date.now())))),options.deadline,options.signal);
   }
 }
 export async function cwSharedFaces(env: CwFaceEnvironment, projectId: string, journalPath: string, samples: CwFaceSample[],
-  options: { signal?: AbortSignal; retryTerminal?: boolean; pollMs?: number; onProgress?: (message: string) => void } = {}
+  options: { signal?: AbortSignal; retryTerminal?: boolean; pollMs?: number; onProgress?: (message: string) => void; observeTimeoutMs?: number } = {}
 ): Promise<{ detected: Record<string, CwFaceObservation>; sampled: number; readable: number }> {
   if (!journalPath || typeof journalPath !== "string" || !projectId || typeof projectId !== "string") throw cwFaceInvalid();
+  const timeoutMs=options.observeTimeoutMs??120000;
+  if(!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>300000||options.pollMs!==undefined&&(!Number.isFinite(options.pollMs)||options.pollMs<0||options.pollMs>10000))throw cwFaceInvalid();
+  const deadline=Date.now()+timeoutMs,groups=cwFaceGroups(projectId,samples);
   const detected: Record<string, CwFaceObservation> = {};
-  for (const group of cwFaceGroups(projectId, samples)) {
+  for (const [index,group] of groups.entries()) {
     cwFaceAttached(options.signal);
-    const journal = await cwReadFaceJournal(env, journalPath, projectId);
+    options.onProgress?.("Measuring speaker framing · "+(index+1)+"/"+groups.length);
+    const journal = await cwObserveFaceRead(()=>cwReadFaceJournal(env, journalPath, projectId),deadline,options.signal);
     let record = journal.records.filter(r => JSON.stringify(r.samples) === JSON.stringify(group)).sort((a, b) => b.attempt - a.attempt)[0];
     if (record && record.input.requestKey !== await cwFaceRequestKey(journalPath, projectId, group, record.attempt)) throw cwFaceInvalid();
     if (record && options.retryTerminal && record.cancelRequested && !cwFaceTerminal(record.status)) {
@@ -251,7 +274,7 @@ export async function cwSharedFaces(env: CwFaceEnvironment, projectId: string, j
     record.input.requestKey = key;
     cwFaceAttached(options.signal);
     await cwSaveFaceRecord(env, journalPath, record); // Stable input/key precede the first possible submission.
-    Object.assign(detected, await cwObserveFaceRecord(env, journalPath, record, options));
+    Object.assign(detected, await cwObserveFaceRecord(env, journalPath, record, {...options,deadline,onProgress:message=>options.onProgress?.(message+" · "+(index+1)+"/"+groups.length)}));
   }
   return { detected, sampled: samples.length, readable: Object.keys(detected).length };
 }

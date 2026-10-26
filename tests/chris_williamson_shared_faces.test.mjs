@@ -17,6 +17,32 @@ const samples = (fps = 24000 / 1001) => [12, 14, 16].map((seconds, i) => ({
 const waitOptions = {pollMs: 0};
 const code = expected => error => error.code === expected;
 
+for(const status of ['queued','running'])test('bounded '+status+' observation preserves the workflow for explicit resume',async()=>{
+ const h=host({initialStatus:status}),controller=new AbortController();
+ const stop=setTimeout(()=>controller.abort(),250);
+ try{await assert.rejects(cwSharedFaces(h.env,pid,journalPath,samples(),{pollMs:1,observeTimeoutMs:20,signal:controller.signal}),code('CW_FACE_OBSERVATION_PENDING'));}
+ finally{clearTimeout(stop);}
+ assert.equal(h.jobs.size,1);assert.equal(h.cancelCount,0);assert.equal(h.journal().records[0].cancelRequested,false);
+ [...h.jobs.values()][0].status='succeeded';
+ const resumed=await cwSharedFaces(h.env,pid,journalPath,samples(),waitOptions);
+ assert.equal(resumed.sampled,3);assert.equal(h.jobs.size,1);assert.equal(h.calls.filter(c=>c.script.includes('ai.submit(')).length,1);
+});
+test('a stalled status response ends observation without cancelling the saved job or applying late output',async()=>{
+ let release;const h=host({initialStatus:'running',onStatus:()=>new Promise(r=>{release=r;})});
+ const late=setTimeout(()=>release?.(),250);
+ try{await assert.rejects(cwSharedFaces(h.env,pid,journalPath,samples(),{pollMs:1,observeTimeoutMs:20}),code('CW_FACE_OBSERVATION_PENDING'));}
+ finally{clearTimeout(late);release?.();}
+ assert.equal(h.cancelCount,0);assert.equal(h.readCount,0);assert.equal(h.journal().records[0].workflowId,'workflow-0');
+});
+test('an aborted stalled observer detaches immediately and preserves host analysis',async()=>{
+ let release;const h=host({initialStatus:'running',onStatus:()=>new Promise(r=>{release=r;})}),controller=new AbortController();
+ const pending=cwSharedFaces(h.env,pid,journalPath,samples(),{signal:controller.signal,observeTimeoutMs:500});
+ while(!release)await new Promise(r=>setImmediate(r));controller.abort();
+ const late=setTimeout(()=>release(),250);
+ try{await assert.rejects(pending,code('CW_FACE_DETACHED'));}finally{clearTimeout(late);release();}
+ assert.equal(h.cancelCount,0);assert.equal(h.readCount,0);
+});
+
 function host(options = {}) {
   const files = new Map(), jobs = new Map(), calls = [], writes = [];
   let loseAck = !!options.loseAck, readCount = 0, cancelCount = 0;

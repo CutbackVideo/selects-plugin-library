@@ -636,6 +636,12 @@ const FACE_UI: Record<string, string[]> = {
   zh: ['\u7ee7\u7eed\u6837\u5f0f\u5904\u7406','\u53d6\u6d88 AI \u4efb\u52a1','AI \u4efb\u52a1\u5df2\u53d6\u6d88\u3002\u7ee7\u7eed\u6837\u5f0f\u5904\u7406\u53ef\u91cd\u8bd5\u3002','\u6b63\u5728\u53d6\u6d88 AI \u4efb\u52a1\u2026'],
 };
 function faceUI(context: any) { return FACE_UI[String(context?.language || 'en').toLowerCase().split('-')[0]] || FACE_UI.en; }
+function facePendingNotice(context: any) {
+  const resume=faceUI(context)[0];
+  return String(context?.language||'en').toLowerCase().split('-')[0]==='ko'
+    ? '얼굴 분석이 아직 끝나지 않았거나 상태를 확인하지 못했습니다. 진행 내용은 저장되어 있습니다. 이 타임라인에서 Chris Williamson Style을 열고 ‘'+resume+'’를 누르면 같은 분석을 이어갑니다.'
+    : 'Face analysis has not finished or its status could not be confirmed. Progress is saved. Open Chris Williamson Style on this draft and choose '+resume+' to continue the same analysis.';
+}
 
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
 async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string, includeTarget = false) {
@@ -752,7 +758,7 @@ function StylePanel({ sdk, context, ui }: any) {
       if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId, warnings: Array.isArray(report.warnings) ? report.warnings.filter((text:any)=>typeof text==='string'&&text.trim()) : [] }); setStatus("Your Chris Williamson Style draft is ready."); }
       if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
-      if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
+      if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_OBSERVATION_PENDING'?facePendingNotice(context):e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
     } finally { if(observer.current===controller){locked.current = false;if(mounted.current){setBusy(false);setFaceActive(false);}} }
   }
 
@@ -867,6 +873,7 @@ function TemplateRun({ sdk, context }: any) {
     // A newer run from the app reports instead of this one.
     const superseded = () => controller.signal.aborted || currentRunId.current !== runId;
     let finished = false;
+    let resumeDraftId: string | null = null;
     const report = (text: string) => { if (!finished && !superseded()) setStatus(text); };
     const finish = (result: { sequenceId: string } | { error: string }) => {
       if (finished || superseded()) return;
@@ -886,6 +893,7 @@ function TemplateRun({ sdk, context }: any) {
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
+        resumeDraftId = draftId;
         if (superseded()) return;
         const result = await runPipeline(env, projectId, draftId, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
         // Only real completed-run warnings open the host dialog. Dismissal never
@@ -895,6 +903,13 @@ function TemplateRun({ sdk, context }: any) {
         catch(error:any){console.warn('Saved Chris draft notification could not be confirmed:',error?.message||error);}
         finish({ sequenceId: result.draftId });
       } catch (e: any) {
+        if(e?.code==='CW_FACE_OBSERVATION_PENDING') {
+          if(resumeDraftId&&!superseded()) {
+            try { await sdk.runScript({script:"return await selects.editor.openDraft("+JSON.stringify(resumeDraftId)+");",summary:"Open the saved Chris Williamson Style draft"}); }
+            catch(error) { console.warn('Saved Chris draft could not be opened:',error); }
+          }
+          finish({error:facePendingNotice(context)});return;
+        }
         finish({ error: String(e?.publicMessage || e?.message || e || "").slice(0, 300) || TEMPLATE_FAILED });
       } finally {
         finish({ error: TEMPLATE_FAILED });

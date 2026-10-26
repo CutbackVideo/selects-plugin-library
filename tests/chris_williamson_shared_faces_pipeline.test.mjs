@@ -169,7 +169,7 @@ test('a pending face journal resumes before look commits; only a user click perm
 // operations are controlled; UI strings, target helpers, readState, panelEnv,
 // transcript polling, controller guards and JSX rendering remain production code.
 function templateHarness() {
-  const runs=[],finished=[];
+  const runs=[],finished=[],opened=[];
   const paths={data:'/data',plugin:'/plugin',ffmpeg:'ffmpeg'};
   const {Panel,panelLocalClients}=loadUiPanel(production,{
     names:['Panel','panelLocalClients'],React,
@@ -177,11 +177,19 @@ function templateHarness() {
       const gate=deferred();runs.push({env,...gate});return gate.promise;
     }},filename:'plugins/chris-williamson-style/panel.tsx',
   });
-  const sdk={finishTemplate:result=>finished.push(result)};
+  const sdk={finishTemplate:result=>finished.push(result),runScript:async request=>{assert.equal(request.summary,'Open the saved Chris Williamson Style draft');opened.push(request);return {result:true};}};
   panelLocalClients.set(sdk,{files:{writeFile:async()=>{},join:(...parts)=>parts.join('/')}});
-  return {runs,finished,mount:strict=>render(h(strict?React.StrictMode:React.Fragment,null,
+  return {runs,finished,opened,mount:strict=>render(h(strict?React.StrictMode:React.Fragment,null,
     h(Panel,{sdk,context:{projectId:'project',template:{runId:'run',inputs:{speaker:[{kind:'timeline',sequenceId:'draft'}]}}}})))};
 }
+
+test('template observation expiry opens the saved draft and reports resume rather than success',async()=>{
+ const f=templateHarness(),view=f.mount(false);await tick();
+ await tick(()=>f.runs[0].reject(Object.assign(Error('private status read detail'),{code:'CW_FACE_OBSERVATION_PENDING'})));
+ assert.equal(f.opened.length,1);assert.match(f.opened[0].script,/openDraft\("draft"\)/);
+ assert.equal(f.finished.length,1);assert.match(f.finished[0].error,/Progress is saved/);assert.match(f.finished[0].error,/Resume styling/);
+ assert.equal(f.finished[0].sequenceId,undefined);assert.doesNotMatch(view.container.textContent,/private status read detail/);
+});
 
 test('template unmount detaches and prevents a late finishTemplate response',async()=>{
   const f=templateHarness(),view=f.mount(false);await tick();assert.equal(f.runs.length,1);
@@ -253,6 +261,20 @@ test('reopening a pending styled Draft offers Resume; explicit AI cancel detache
   await tick(()=>run.resolve({draftId:'draft'}));
   assert.deepEqual(f.editorCalls,[],'canceled observation cannot open a late result');
   assert.equal(f.view.getByRole('button',{name:'Resume styling'}).disabled,false);
+});
+
+test('panel observation expiry keeps Resume available and never cancels the saved AI job',async()=>{
+ const f=styleHarness();await tick();await f.click('Resume styling');
+ await tick(()=>f.runs[0].reject(Object.assign(Error('private status read detail'),{code:'CW_FACE_OBSERVATION_PENDING'})));
+ assert.equal(f.view.getByRole('button',{name:'Resume styling'}).disabled,false);
+ assert.match(f.view.container.textContent,/Progress is saved/);assert.deepEqual(f.cancelCalls,[]);assert.deepEqual(f.editorCalls,[]);
+ await f.click('Resume styling');assert.equal(f.runs.length,2);assert.equal(f.runs[1].sid,'draft');
+ f.view.unmount();
+});
+test('pending observation notice names the actual localized Resume button',()=>{
+ const {facePendingNotice,faceUI}=loadUiPanel(production,{names:['facePendingNotice','faceUI'],React});
+ for(const language of ['en','ko-KR','de'])assert.ok(facePendingNotice({language}).includes(faceUI({language})[0]));
+ assert.match(facePendingNotice({language:'ko-KR'}),/진행 내용은 저장/);
 });
 
 test('normal panel unmount detaches without calling cancel and ignores late completion',async()=>{
