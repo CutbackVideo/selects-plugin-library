@@ -68,10 +68,20 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   for (const x of t) { assert.ok(Math.abs(x[2].x - (1920 / 1080) / (1080 / 1920)) < 1e-6, 'cover scale ' + x[2].x); assert.equal(x[2].y, x[2].x); }
   assert.equal(m.log.filter(x => x[0] === 'mute').length, 0, 'assemble leaves muting to decorate');
   assert.equal(m.log.find(x => x[0] === 'music')[1], 4.847);
-  assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.12]);
+  assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 1]);
   assert.equal(m.log.filter(x => x[0] === 'commit').length, 1);
   assert.deepEqual(Object.keys(r).sort(), ['ambientClips', 'fps', 'notes', 'placed', 'sequenceId', 'totalFrames']);
   assert.equal(m.log.filter(x => x[0] === 'volume').length, 0, 'no clipSound: the clips keep their level');
+
+  // A very short output clamps the release to its actual duration without shifting the music.
+  for (const duration of [0.1, 0.5, 1, 2]) {
+    const short = mockDraft(30);
+    const shortSelects = { project: () => ({ createDraft: async () => short.d, resource: id => ({ id }) }) };
+    await load('assemble.js', { projectId: 'p', draftName: 'short', picks: [{ rid: 'r0', startSeconds: 4, endSeconds: 4 + duration }], boundaries: [0, duration], crops: { r0: { width: 1080, height: 1920 } }, music: { resourceId: 'music', sectionStart: 2 } })(shortSelects);
+    assert.deepEqual(short.log.find(x => x[0] === 'fade').slice(1), [99, 0, Math.min(1, duration)]);
+    assert.equal(short.log.find(x => x[0] === 'music')[1], 2);
+    assert.equal(short.clips[0].endFrame, Math.round(duration * 30));
+  }
 
   // The next call reopens the saved Draft: decorate mutes the Main clips, then adds the title and look, in one commit.
   m.reopen();

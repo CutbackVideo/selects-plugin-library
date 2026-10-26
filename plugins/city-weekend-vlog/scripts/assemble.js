@@ -86,7 +86,7 @@ if (cfg.music) {
   // Find the clip the overlay just created: new audio clips only, preferring the music resource.
   const added = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio' && !audioBefore.has(c.clipId));
   const music = added.find(c => c.resourceId === cfg.music.resourceId) || added[0];
-  if (music) await d.setClipAudio({ clip: music, fadeInSeconds: 0, fadeOutSeconds: 0.12 });
+  if (music) await d.setClipAudio({ clip: music, fadeInSeconds: 0, fadeOutSeconds: Math.min(1, Math.max(0, (music.endFrame - music.startFrame) / fps)) });
   else notes.push('music fade not applied');
 }
 const commit = await d.commitAll('City Weekend Vlog: assemble');

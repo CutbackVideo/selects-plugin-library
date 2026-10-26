@@ -356,7 +356,7 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  };
  await add(items.cards,CARD_TSX,CARD_PARAMS,'Card');await add(items.captions,LINE_TSX,LINE_PARAMS,'Caption');
  judeAttached(env);
- if(options.music!==false){env.status('Adding the background music…');await placeMusic(env,projectId,draftId,src.fps).then(m=>{report.music=m;if(m.shortBySeconds>0)report.warnings.push(`The music (${MUSIC.title}, ${m.trackSeconds} s) ends ${m.shortBySeconds} s before the Draft does.`);},(e:any)=>report.warnings.push('Background music was not added: '+String(e?.message||e).slice(0,200)));}
+ if(options.music===true){env.status('Adding the background music…');await placeMusic(env,projectId,draftId,src.fps).then(m=>{report.music=m;if(m.shortBySeconds>0)report.warnings.push(`The music (${MUSIC.title}, ${m.trackSeconds} s) ends ${m.shortBySeconds} s before the Draft does.`);},(e:any)=>report.warnings.push('Background music was not added: '+String(e?.message||e).slice(0,200)));}
  judeAttached(env);
  await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});const foot=await p.readFootage();const old=foot.folders.find(x=>x.name===${JSON.stringify(FOLDER)}&&!x.path.includes('/'));const folder=old?.folderId||(await p.createFolder({name:${JSON.stringify(FOLDER)}})).folderId;await p.moveToFolder({targetFolderId:folder,draftIds:[${JSON.stringify(draftId)}]});return true;`,'File the Draft under Jude Kinetic',true).catch((e:any)=>report.warnings.push('Draft saved, but folder placement failed: '+e.message));
  judeAttached(env);
@@ -782,6 +782,7 @@ function StylePanel({ sdk, context, ui }: any) {
   const [alreadyStyled, setAlreadyStyled] = useState(false);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking");
   const [busy, setBusy] = useState(false);
+  const [music, setMusic] = useState("none");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
@@ -855,7 +856,7 @@ function StylePanel({ sdk, context, ui }: any) {
       if(!current())throw new DOMException("Aborted","AbortError");
       const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); });
       env.signal=controller.signal;env.retryAi=true;
-      const report = await runPipeline(env, projectId, from, { copy: false });
+      const report = await runPipeline(env, projectId, from, { copy: false, music: music === "bundled" });
       judeAttached(env);
       if (current()) { setResult({ id: report.draftId }); setStatus("Your Jude Kinetic draft is ready."); }
       if (current() && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Jude Kinetic draft" });
@@ -874,7 +875,7 @@ function StylePanel({ sdk, context, ui }: any) {
   const busyLabel = analysisState === "needs-analysis" || analysisState === "analyzing" ? "Analyzing transcript…" : "Styling this draft…";
   const helperText = analysisState === "needs-analysis"
     ? "This draft has no transcript yet. The first click analyzes its source footage, then continues automatically. Analysis may use your Selects analysis credits."
-    : "One click turns this draft into 9:16 with bold white captions, red italic emphasis, a cream card with an expanding red circle, lines that pass behind the speaker, and background music. The open draft itself is changed; no copy is made.";
+    : "One click turns this draft into 9:16 with bold white captions, red italic emphasis, a cream card with an expanding red circle, lines that pass behind the speaker. Original speech is preserved; background music is added only when selected below. The open draft itself is changed; no copy is made.";
 
   return <ui.Section title="Jude Kinetic"><ui.Stack>
     <p>Turn a talking-head draft into red and cream kinetic typography.</p>
@@ -882,6 +883,8 @@ function StylePanel({ sdk, context, ui }: any) {
     <p><strong>{targetLabels.current}</strong>: {!sequenceId?targetLabels.noDraft:currentInfo?(currentInfo.name||targetLabels.unavailable):targetLabels.loading}</p>
     {runningTarget&&<p><strong>{targetLabels.running}</strong>: {runningTarget.projectName||targetLabels.unavailable} / {runningTarget.name||targetLabels.unavailable}</p>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
+    <ui.Select label="Background music" value={music} onChange={setMusic} disabled={busy}
+      options={[{value:"none",label:"Original audio only"},{value:"bundled",label:"Add Dark Hallway (distressed)"}]} />
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
@@ -956,7 +959,7 @@ function TemplateRun({ sdk, context }: any) {
         const draftId = speaker.kind === "video" ? previous?.draftId || await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
         await sdk.storage.setItem(runKey,JSON.stringify({status:"ready",draftId}));
         if (superseded()) return;
-        const result = await runPipeline(env, projectId, draftId, { copy: false });
+        const result = await runPipeline(env, projectId, draftId, { copy: false, music: context.template.options?.music === "bundled" });
         finish({ sequenceId: result.draftId });
       } catch (e: any) {
         finish({ error: hostMessage(e || "").slice(0, 300) || TEMPLATE_FAILED });

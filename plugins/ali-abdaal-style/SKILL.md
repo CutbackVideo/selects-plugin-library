@@ -13,3 +13,5 @@ Draft remains untouched.
 The treatment reframes the source to 9:16, adds smooth scene-aware camera movement,
 fixed word-timed captions, and editable editorial graphics. Use **Handoff → Export**
 for final delivery. Requires a video source that Selects can analyze.
+
+Camera movement preserves the source colours. Video and graphics share a continuous camera path, including overlapping moves.

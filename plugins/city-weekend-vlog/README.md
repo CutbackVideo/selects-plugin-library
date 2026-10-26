@@ -29,7 +29,7 @@ or any source file.
 - **Photos** fill shots too (see [Photos](#photos)).
 - Hard cuts only, never between two shots of the same clip while other
   footage fits. There are no transitions and no end card. The picture stops
-  on the last beat, and the music ends there with a short 0.12 s fade.
+  on the last beat, and the music ends there with a 1 s fade (clamped to the music clip duration for very short outputs).
 - A subtle warm colour look on every clip and photo (strength 0.35). The
   title is not tinted.
 - The clips' own sound plays quietly under the music by default (**Clip

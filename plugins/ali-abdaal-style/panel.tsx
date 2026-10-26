@@ -3,22 +3,30 @@
 // Turn a talking-head draft into a concise, editable Ali Abdaal-inspired short.
 import React, { useEffect, useRef, useState } from "react";
 
+// Both renderers embed this one sampler: an overlapping move starts at the current
+// position, rather than jumping to the unfinished move's target.
+const CAMERA_SAMPLER = String.raw`
+function cameraAt(f,data) {
+  const keys=Array.isArray(data.camera)?data.camera:[];
+  let from={zoom:1,y:0},active=null;
+  const sample=at=>{
+    if(!active)return from;
+    const t=Math.max(0,Math.min(1,(at-Number(active.at))/Math.max(1,Number(active.frames)||1)));
+    const p=t*t*(3-2*t);
+    return {zoom:from.zoom+(Number(active.zoom)-from.zoom)*p,y:from.y+(Number(active.y||0)-from.y)*p};
+  };
+  for(const key of keys){if(f<key.at)break;from=sample(Number(key.at));active=key;}
+  return sample(f);
+}
+`;
+
 const CAMERA_EFFECT = String.raw`
 import React from 'react';
 import {useCurrentFrame} from 'remotion';
-const clamp=x=>Math.max(0,Math.min(1,x));
-const ease=x=>{x=clamp(x);return x*x*(3-2*x)};
+${CAMERA_SAMPLER}
 export default function Camera({Source,data}) {
-  const f=useCurrentFrame()+Number(data.start||0),keys=Array.isArray(data.camera)?data.camera:[];
-  let zoom=1,y=0;
-  for(let i=0;i<keys.length;i++) {
-    const k=keys[i]; if(f<k.at) break;
-    const from=i?keys[i-1]:{zoom:1,y:0};
-    const p=ease((f-k.at)/Math.max(1,Number(k.frames||1)));
-    zoom=Number(from.zoom)+(Number(k.zoom)-Number(from.zoom))*p;
-    y=Number(from.y||0)+(Number(k.y||0)-Number(from.y||0))*p;
-  }
-  return <div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+y+'%) scale('+zoom+')',filter:'contrast(1.28) brightness(1.3) saturate(1.18)'}}><Source/></div>;
+  const {zoom,y}=cameraAt(useCurrentFrame()+Number(data.start||0),data);
+  return <div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+y+'%) scale('+zoom+')'}}><Source/></div>;
 }
 `;
 
@@ -27,16 +35,7 @@ import React from 'react';
 import {useCurrentFrame,useVideoConfig} from 'remotion';
 const clamp=x=>Math.max(0,Math.min(1,x));
 const ease=x=>{x=clamp(x);return 1-Math.pow(1-x,3)};
-function cameraAt(f,data) {
-  const keys=Array.isArray(data.camera)?data.camera:[];let zoom=1,y=0;
-  for(let i=0;i<keys.length;i++) {
-    const k=keys[i];if(f<k.at)break;const from=i?keys[i-1]:{zoom:1,y:0};
-    const p=1-Math.pow(1-clamp((f-k.at)/Math.max(1,Number(k.frames||1))),3);
-    zoom=Number(from.zoom)+(Number(k.zoom)-Number(from.zoom))*p;
-    y=Number(from.y||0)+(Number(k.y||0)-Number(from.y||0))*p;
-  }
-  return {zoom,y};
-}
+${CAMERA_SAMPLER}
 function Camera({children,data,f}) {
   const c=cameraAt(f,data);
   return <div style={{position:'absolute',inset:0,willChange:'transform',transformOrigin:'50.9% 17%',transform:'translateY('+c.y+'%) scale('+c.zoom+')'}}>{children}</div>;
