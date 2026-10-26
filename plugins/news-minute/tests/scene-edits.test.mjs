@@ -101,6 +101,72 @@ test("parameter edits coerce types using the graphic's current controls", () => 
   assert.deepEqual(edit.parameters, { amount: 34, label: "34" });
 });
 
+test("focused replacements preserve unrelated code, clips and voice, and review normalized resolved code", async () => {
+  const h = host(), s = fixture();
+  const original = code + '\nconst hair = "gray"; const suit = "green"; // Preserve animation and wrapping';
+  h.state.programs[1].tsxCode = original;
+  const before = structuredClone(h.state), session = structuredClone(s), logs = [];
+  const proposed = { parameters: { amount: "34", label: 34 }, codeEdits: [{ find: 'hair = "gray"', replace: 'hair = "black"' }, { find: 'suit = "green"', replace: 'suit = "blue"' }], editableParameters: [{ key: "amount", type: "number" }, { key: "label", type: "text" }], sources: [] };
+  h.replies = [{ scenes: [1] }, proposed, { ok: true, errors: [] }];
+  const out = await reviseGraphics(h.sdk, s, "Change the colors", k => logs.push(k), newRunRecord("chosun", ""), []);
+  const expected = original.replace('hair = "gray"', 'hair = "black"').replace('suit = "green"', 'suit = "blue"');
+  assert.equal(h.state.programs[1].tsxCode, expected);
+  assert.deepEqual(h.state.clips, before.clips);
+  assert.deepEqual(h.state.programs[2], before.programs[2]);
+  assert.deepEqual(s, session);
+  assert.equal(out.plan.narrationId, s.plan.narrationId);
+  assert.equal(h.state.programs[1].parameters.fontCss, before.programs[1].parameters.fontCss);
+  const reviewed = JSON.parse(h.prompts[2].prompt.split("\nPROPOSAL: ")[1]);
+  assert.equal(reviewed.tsxCode, expected);
+  assert.deepEqual(reviewed.parameters, { amount: 34, label: "34" });
+  assert.equal(h.commits, 1);
+  assert.ok(logs.includes("graphicChecking"));
+});
+
+test("invalid fragments reject the whole edit before any writes and report match counts on the single retry", async () => {
+  for (const [find, count] of [["missing", 0], ["div", 2]]) {
+    const h = host(), s = fixture(), before = structuredClone(h.state), logs = [];
+    const proposed = { parameters: {}, codeEdits: [{ find: "News", replace: "Headline" }, { find, replace: "new" }], sources: [] };
+    h.replies = [{ scenes: [1] }, proposed, proposed];
+    await assert.rejects(reviseGraphics(h.sdk, s, "adjust", k => logs.push(k), newRunRecord("chosun", ""), []), /graphicCodePatchMismatch/);
+    assert.match(h.prompts[2].prompt, new RegExp(`codeEdits\\[1\\].find matched ${count} times`));
+    assert.equal(h.prompts.length, 3);
+    assert.equal(logs.filter(k => k === "graphicRetrying").length, 1);
+    assert.deepEqual(h.state, before);
+    assert.equal(h.writes, 0); assert.equal(h.commits, 0);
+  }
+});
+
+test("fragment retries cannot silently switch to a whole-program rewrite", async () => {
+  const h = host(), s = fixture();
+  h.replies = [{ scenes: [1] }, { parameters: {}, codeEdits: [{ find: "missing", replace: "new" }], sources: [] }, { parameters: {}, tsxCode: code + "// rewrite", sources: [] }];
+  await assert.rejects(reviseGraphics(h.sdk, s, "adjust", () => {}, newRunRecord("chosun", ""), []), /graphicCodePatchMismatch/);
+  assert.match(h.prompts[2].prompt, /full tsxCode rewrite is not allowed/);
+  assert.equal(h.writes, 0); assert.equal(h.commits, 0);
+});
+
+test("fragment edits still fail fidelity review without changing the draft", async () => {
+  const h = host(), s = fixture(), before = structuredClone(h.state);
+  const proposed = { parameters: {}, codeEdits: [{ find: "News", replace: "Invented fact" }], sources: [] };
+  h.replies = [{ scenes: [1] }, proposed, { ok: false, errors: ["unsupported fact"] }, proposed, { ok: false, errors: ["unsupported fact"] }];
+  await assert.rejects(reviseGraphics(h.sdk, s, "adjust", () => {}, newRunRecord("chosun", ""), []), /unsupported fact/);
+  assert.deepEqual(h.state, before);
+  assert.equal(h.writes, 0); assert.equal(h.commits, 0);
+});
+
+test("fragment matching uses original offsets and rejects overlaps, mixed formats, empty and oversized programs", () => {
+  const s = fixture(), snapshot = { index: 0, program: { tsxCode: code, editableParameters: [] } };
+  const check = (codeEdits, extra = {}) => checkGraphicReply({ parameters: {}, codeEdits, sources: [], ...extra }, snapshot, s, []);
+  // A replacement may contain another find; it must not become the next target.
+  assert.equal(check([{ find: "Graphic", replace: "News" }, { find: "News", replace: "Changed" }]).tsxCode, code.replace("Graphic", "News").replace(">News<", ">Changed<"));
+  assert.throws(() => check([{ find: "News", replace: "New" }, { find: ">News<", replace: ">Other<" }]), /graphicCodePatchMismatch/);
+  assert.throws(() => check([{ find: "News", replace: "New" }], { tsxCode: code }), /graphicCodePatchMismatch/);
+  assert.throws(() => check([{ find: "", replace: "New" }]), /graphicCodePatchMismatch/);
+  assert.throws(() => check([{ find: code, replace: "" }]), /graphicInvalidReply/);
+  assert.throws(() => check([{ find: "News", replace: "x".repeat(60001) }]), /graphicInvalidReply/);
+  assert.throws(() => check([{ find: "News", replace: "News" }]), /graphicNoChanges/);
+});
+
 test("failure in a later scene commits none of the scene edits", async () => {
   const h = host(), s = fixture(), before = structuredClone(h.state);
   const snapshots = await readSceneSnapshots(h.sdk, s.preview, s.plan);
