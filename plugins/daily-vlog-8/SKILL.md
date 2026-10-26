@@ -44,8 +44,8 @@ Bed" from 36.04 s into the song. The song is not measured.
 
 Also: a whoosh at 0–34 and typing at 119–152 and 451–485. The music dips under the sound effects.
 
-A template run uses the clips in the order given (a ninth is not used; with seven, the opening clip returns for
-411–451). The panel uses its seven picks for clips 1–6 and 8 and one more clip from the folder for clip 7.
+A template run takes seven or eight distinct clips besides Opening, using them all in the order given. With seven,
+the opening clip returns for 411–451. More than eight other distinct clips are refused before any SDK media work. The panel uses its seven picks for clips 1–6 and 8 and one more clip from the folder for clip 7.
 Before creating a Draft, each picked video is checked against its slot's visible duration, with a small allowance
 for frame rounding. If a video is too short, the error names its slot, available duration and required duration.
 Clip 3 needs about 3.26 seconds of unique footage. Its two pieces never overlap: shorter usable sources reduce

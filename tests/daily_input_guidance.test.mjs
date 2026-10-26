@@ -46,14 +46,20 @@ test('input guidance counts distinct clips other than Opening, as the complete t
   assert.match(hint, /duplicate/i);
 });
 
-test('guidance explains the real seven-clip reprise and the first-eight cap', async () => {
+test('manifest and guidance match seven or eight other clips without an unused ninth', async () => {
   const seven = await runTemplate([1, 2, 3, 4, 5, 6, 7]);
   assert.deepEqual(Array.from(seven.input.order), ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', null, 'r7']);
+  const eight = await runTemplate([8, 7, 6, 5, 4, 3, 2, 1]);
+  assert.deepEqual(Array.from(eight.input.order), ['r8', 'r7', 'r6', 'r5', 'r4', 'r3', 'r2', 'r1']);
   const nine = await runTemplate([9, 8, 7, 6, 5, 4, 3, 2, 1]);
-  assert.deepEqual(Array.from(nine.input.order), ['r9', 'r8', 'r7', 'r6', 'r5', 'r4', 'r3', 'r2']);
+  assert.equal(nine.input, undefined);
+  assert.match(nine.result.error, /at most eight/i);
+  assert.equal(manifest.inputs.find(input => input.id === 'opening').max, 1);
+  assert.equal(manifest.inputs.find(input => input.id === 'clips').min, 7);
+  assert.equal(manifest.inputs.find(input => input.id === 'clips').max, 8);
   assert.match(hint, /seven.*Opening/i);
-  assert.match(hint, /first eight distinct/i);
-  assert.match(hint, /ninth.*not used/i);
+  assert.match(hint, /seven or eight distinct/i);
+  assert.doesNotMatch(hint, /ninth.*not used|first eight/i);
 });
 
 test('install guidance names the fallback actually embedded by the complete builder', async () => {

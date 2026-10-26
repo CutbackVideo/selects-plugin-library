@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "daily-vlog-8",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "name": "8-Clip Daily Vlog",
   "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled audio.",
   "status": "experimental",
@@ -55,12 +55,12 @@
     {
       "id": "clips",
       "label": "Clips",
-      "hint": "Pick at least seven distinct clips other than Opening; Opening and duplicate picks are excluded. Seven clips replay Opening before the closing shot. With eight or nine, the first eight distinct clips are used in order; the ninth is not used.",
+      "hint": "Pick seven or eight distinct clips other than Opening; Opening and duplicate picks are excluded. Seven clips replay Opening before the closing shot. Eight clips are all used in the order picked.",
       "accepts": [
         "video"
       ],
       "min": 7,
-      "max": 9,
+      "max": 8,
       "minSeconds": 2.6,
       "query": "everyday moments"
     }

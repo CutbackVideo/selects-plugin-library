@@ -782,8 +782,8 @@ return {draftId:saved.createdDraftId,name,frames:endFrame,fps:(await draft.meta(
 }
 
 // A template run (Clip highlights): the app hands over the opening clip and seven
-// to nine more; the first eight fill the reference shots in order (with seven, the
-// opening clip returns before the closing shot; a ninth is not used).
+// to eight more; every distinct clip fills the reference shots in order (with seven,
+// the opening clip returns before the closing shot).
 const TEMPLATE_FAILED = "8-Clip Daily Vlog could not make the timeline; try again.";
 const templateIssue = message => Object.assign(new Error(message), { publicMessage: message });
 // The app hands a template its own Resource ids, but every run_script read
@@ -827,6 +827,7 @@ function DailyTemplateRun({ sdk, context }) {
         const seen = new Set([opening.resourceId]);
         clips = clips.filter(pick => { if (seen.has(pick.resourceId)) return false; seen.add(pick.resourceId); return true; });
         if (clips.length < 7) throw templateIssue("Pick at least seven more clips, then try again.");
+        if (clips.length > 8) throw templateIssue("Pick at most eight distinct clips other than Opening, then try again.");
         say("Finding your clips…");
         const ids = await scriptResourceIds(sdk, projectId, [opening, ...clips].map(x => x.resourceId));
         const own = pick => pick && { ...pick, resourceId: ids.get(pick.resourceId) ?? pick.resourceId };
@@ -841,7 +842,7 @@ function DailyTemplateRun({ sdk, context }) {
           projectId,
           titleId: opening.resourceId,
           // With seven clips the shot before the closing one has no clip of its own (the opening clip returns).
-          order: clips.length < 8 ? [...clips.slice(0, 6), null, clips[6]].map(x => x && x.resourceId) : clips.slice(0, 8).map(x => x.resourceId),
+          order: clips.length < 8 ? [...clips.slice(0, 6), null, clips[6]].map(x => x && x.resourceId) : clips.map(x => x.resourceId),
         });
         finish({ sequenceId: result.draftId });
       } catch (e) {
