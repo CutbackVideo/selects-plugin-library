@@ -43,11 +43,11 @@ class MulticamGeneratorWindowsTest(unittest.TestCase):
         self.assertIsNone(re.search(r"\bnode\s+[\"'$]", self.runtime), "node spawn")
         self.assertEqual(self.runtime.count("runShell("), 0)
 
-    def test_inspection_sheet_reads_a_numbered_sequence(self):
+    def test_inspection_sheet_reads_an_explicit_sequence(self):
         body = self.runtime[self.runtime.index("export async function buildInspectionSheet("):]
         body = body[: body.index("\n}\n")]
         self.assertIn('"insp" + i + ".jpg"', body)
-        self.assertIn('"-start_number","0","-i", fs.join(dir, "insp%d.jpg")', body)
+        self.assertIn('"-f","concat","-safe","0","-i", list', body)
 
     def test_diagnostic_log_uses_the_host_file_service(self):
         body = self.runtime[self.runtime.index("export async function writeLocalDiagnostic("):]
