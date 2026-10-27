@@ -23,6 +23,19 @@ const MAX_SCENE_SEC = 10;
 // How far past its type's limit a scene may run before the plan falls back.
 export const PLAN_LENGTH_GRACE_SEC = 2;
 
+// The planner owns grouping, assets and template parameters, not custom code.
+// Keep a program only for an unambiguous scene with the same type and sentences;
+// a type/group change must not carry a different scene's custom renderer over.
+export function retainPlanPrograms(json: any, previous: PlanScene[]): any {
+  if (!json || !Array.isArray(json.scenes)) return json;
+  return { ...json, scenes: json.scenes.map((scene: any) => {
+    if (!scene || typeof scene !== "object" || Array.isArray(scene)) return scene;
+    const matches = previous.filter(p => p.type === scene.type && JSON.stringify(p.sentenceIds) === JSON.stringify(scene.sentenceIds));
+    const { program: _ignored, ...planned } = scene;
+    return matches.length === 1 && matches[0].program ? { ...planned, program: matches[0].program } : planned;
+  }) };
+}
+
 // Settles a plan that still has errors after repair: number callouts without a number become text cards
 // (then the plan is checked again), and a plan whose only remaining errors are scenes at most
 // PLAN_LENGTH_GRACE_SEC over their type's limit, or text that does not fit (LAYOUT_ERROR: the reviewer shortens
@@ -122,7 +135,7 @@ export function sceneClips(plan: PlanScene[], sentences: Sentence[], times: Span
     }
     const type = sc.type === "news_photo" && !asset ? "text_card" : sc.type;
     if (type === "text_card" && !params.text) params.text = captionChunks(sentences[first[k]].text, 12).slice(0, 2).join("\n");
-    return { type, label: `${labels[type]?.label ?? type} ${String(k + 1).padStart(2, "0")}`, params, startSec: wins[k].startSec, endSec: wins[k].endSec, disclaimer: !!sc.disclaimer };
+    return { type, label: `${labels[type]?.label ?? type} ${String(k + 1).padStart(2, "0")}`, params, startSec: wins[k].startSec, endSec: wins[k].endSec, disclaimer: !!sc.disclaimer, program: sc.program };
   });
 }
 
@@ -136,7 +149,7 @@ export function stableJson(v: unknown): string {
 }
 
 const sceneKey = (sc: PlanScene) => (sc.sentenceIds || []).join(",");
-const sceneLook = (sc: PlanScene) => stableJson({ type: sc.type, params: sc.params ?? {}, assetRef: sc.assetRef ?? null, hideCaption: !!sc.hideCaption });
+const sceneLook = (sc: PlanScene) => stableJson({ type: sc.type, params: sc.params ?? {}, program: sc.program, assetRef: sc.assetRef ?? null, hideCaption: !!sc.hideCaption });
 
 // Indexes of scenes in next that differ from previous: no scene over the same sentences before, or a different
 // type, params, assetRef or hideCaption.

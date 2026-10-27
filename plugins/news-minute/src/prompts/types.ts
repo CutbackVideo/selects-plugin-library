@@ -42,5 +42,7 @@ export type PlanScene = {
   hideCaption: boolean;
   disclaimer: boolean;
   assetRef?: string;
+  // A validated scene-specific program can exceed the starting template's controls.
+  program?: { tsxCode: string; editableParameters: any[]; sources: Array<{ ref: string; quote: string }> };
 };
 export type PlanJson = { scenes: PlanScene[] };

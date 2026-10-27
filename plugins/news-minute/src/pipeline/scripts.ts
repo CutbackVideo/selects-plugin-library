@@ -108,9 +108,11 @@ return { ids: r.addedResourceIds };`,
 });
 
 // --- narration ---
-export const voicesScript = (): ScriptCall => ({
+// One page of narration voices; query and cursor are sent only when set (the host input is strict).
+export const voicesScript = (query = "", cursor: string | null = null, limit = 30): ScriptCall => ({
   summary: "List narration voices",
-  script: `const r = await selects.narration.voices({ limit: 50 }); return r.items.map((v) => ({ voiceId: v.voiceId, name: v.name }));`,
+  script: `const r = await selects.narration.voices({ limit: ${J(limit)}${query.trim() ? `, query: ${J(query.trim().slice(0, 200))}` : ""}${cursor ? `, cursor: ${J(cursor)}` : ""} });
+return { items: r.items.map((v) => ({ voiceId: v.voiceId, name: v.name, description: v.description ?? null, previewUrl: v.previewUrl ?? null })), nextCursor: r.nextCursor ?? null };`,
 });
 
 // One paid step per call: this script only submits.

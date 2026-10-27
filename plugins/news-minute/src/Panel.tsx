@@ -6,10 +6,13 @@ import { PRESETS } from "./preset.ts";
 import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
-import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
-import { renameDraft } from "./pipeline/preview.ts";
+import { openDraftScript } from "./pipeline/scripts.ts";
+import { VoicePicker } from "./VoicePicker.tsx";
+import { renameDraft, spaceClickGuard } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
+import { reviseGraphics } from "./pipeline/visual-editor.ts";
+import { feedbackRoute, revisePlanPreview } from "./pipeline/feedback.ts";
 import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
@@ -86,6 +89,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const T = (k: string, v?: Record<string, string | number>) => t(lang, k, v);
   const [s, setS] = useState<F.Session | null>(null);
   const [busy, setBusy] = useState(false);
+  const [narrationRecovery, setNarrationRecovery] = useState(false);
   const [status, setStatus] = useState("");
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -96,7 +100,6 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [tts, setTts] = useState<TtsRecord | null>(null);
-  const [voices, setVoices] = useState<Array<{ voiceId: string; name: string }>>([]);
   const [feedback, setFeedback] = useState("");
   const [jsonErr, setJsonErr] = useState<Record<number, string>>({});
   const [openRow, setOpenRow] = useState<number | null>(null);
@@ -107,6 +110,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
   latest.current = s;
   // Draft mutations stay ordered with navigation and thumbnails; navigation need not wait for a thumbnail.
   const onDraft = useRef(F.draftQueue()).current;
+  // Space on a focused scene row plays the Draft; it must not also re-pick the row.
+  const rowKeys = useRef(spaceClickGuard()).current;
   const renameNow = (projectId: string, draftId: string, name: string) => renameDraft(sdk, { projectId, draftId, name });
   const viewer = F.previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
   const openNow = (projectId: string, draftId: string) => viewer.open(projectId, draftId).then((ok) => { if (!ok) log("previewNotOpened"); }, () => log("previewNotOpened"));
@@ -116,6 +121,12 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const log: F.Log = (k, v) => { setStatus(T(k, v)); note(k, v); };
   const finish = async (rec: F.RunRecord) => { const path = await F.saveRunRecord(sdk, env.current!, rec); if (path) log("record", { path }); };
   const update = async (next: F.Session) => { latest.current = next; setS(next); await save(sdk, F.sessionKey(env.current?.projectId ?? next.projectId), next); };
+  const keepPartialDraft = async (sess: F.Session, error: F.PartialDraftError) => {
+    await update(F.retainPartialDraft(sess, error));
+    // Restore the completed Draft the user actually had open, including an
+    // older retained candidate. Never choose the newest one as a substitute.
+    if (error.previousView) await openNow(error.previousView.projectId, error.previousView.draftId);
+  };
 
   const refreshProviders = async () => {
     const id = ++providerRead.current;
@@ -144,7 +155,6 @@ function NewsMinutePanel({ sdk, context }: Props) {
         const sess = saved ?? F.emptySession();
         setS(sess);
         if (sess.projectId) setTts(await F.readTts(sdk, sess.projectId));
-        run<Array<{ voiceId: string; name: string }>>(sdk, voicesScript()).then(setVoices).catch(() => {});
       } catch (e: any) { setError(String(e?.message || e)); }
     })();
   }, []);
@@ -155,7 +165,9 @@ function NewsMinutePanel({ sdk, context }: Props) {
     try { await fn(); } catch (e: any) {
       const message = String(e?.message || e);
       if (message === "providerNotConnected" || message === "providerUnavailable" || message === "providerReadFailed") await refreshProviders();
-      setError(T("error", { error: MESSAGES[message] ? T(message) : message }));
+      const key = message.split(":")[0];
+      if (key === "narrationReferenceLost") setNarrationRecovery(true);
+      setError(T("error", { error: MESSAGES[key] ? T(key) : message }));
     }
     finally { setBusy(false); setStatus(""); }
   };
@@ -291,6 +303,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     finally { await finish(rec); }
     const next2 = { ...selected, plan };
     await update(next2);
+    setNarrationRecovery(false);
     setFeedback(""); setJsonErr({}); setOpenRow(null); setPicked(null);
     if (plan.timing === "ratio") setError(T("timingRatio"));
     await previewInto(next2);
@@ -303,14 +316,16 @@ function NewsMinutePanel({ sdk, context }: Props) {
     if (blocking.length) { setError(T("previewBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") })); return; }
     const rec = F.newRunRecord(preset.id, sess.article?.url ?? "");
     try {
-      const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec));
-      await update({ ...sess, preview: r.preview });
+      const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec, { incompleteLabel: T("incompleteDraft") }));
+      await update(F.acceptPreview(sess, r.preview));
       await openNow(sess.projectId!, r.preview.draftId);
       log("previewReady");
     } catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError && e.preview) await update({ ...sess, preview: e.preview });
-      setError(T("previewFailed", { error: String(e?.message || e) }));
+      if (e instanceof F.PartialDraftError) await keepPartialDraft(sess, e);
+      const message = String(e?.message || e), key = message.split(":")[0];
+      if (key === "narrationReferenceLost") setNarrationRecovery(true);
+      setError(T("previewFailed", { error: MESSAGES[key] ? T(key) : message }));
     } finally { await finish(rec); }
   };
   const refreshPreview = () => guard(async () => { if (latest.current?.plan) await previewInto(latest.current); });
@@ -318,18 +333,46 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const revise = () => guard(async () => {
     const note = feedback.trim();
     if (!note || !s.plan) return;
-    const selected = await startAi();
+    let selected: F.Session = await startAi();
     log("revising");
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     let r;
-    try { r = await F.revisePlan(aiSdk, env.current!, selected, preset, note, log, rec, selected.scriptProvider); }
-    catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
+    try {
+      const route = await feedbackRoute(aiSdk, selected, note, selected.scriptProvider!, picked);
+      if (route.kind === "plan") {
+        if (route.candidateOnly) log("feedbackCandidate");
+        const request = picked == null ? note : note + "\nHighlighted scene (a hint; explicit references take precedence): " + (picked + 1);
+        const revised = await onDraft(() => revisePlanPreview(aiSdk, env.current!, selected, preset, request, T("previewPrefix"), log, rec, selected.scriptProvider!, { candidateOnly: route.candidateOnly, incompleteLabel: T("incompleteDraft") }));
+        await update(revised.session);
+        if (revised.kept) {
+          log(route.candidateOnly && (selected.preview || selected.video) ? "feedbackLegacyUnchanged" : "reviseKept");
+          return;
+        }
+        setJsonErr({}); setFeedback(""); setOpenRow(null); setPicked(null);
+        log("revised", { n: revised.session.plan!.changed.length, of: revised.session.plan!.scenes.length });
+        await openNow(selected.projectId!, revised.session.preview!.draftId);
+        return;
+      }
+      if ((selected.preview ?? selected.video)?.planRev !== F.previewRev(selected)) {
+        await previewInto(selected);
+        selected = latest.current!;
+        if (!F.previewFresh(selected)) throw new Error(T("graphicPreviewRequired"));
+      }
+      const photos = await F.prepPhotos(sdk, env.current!, selected.article!, log);
+      r = await onDraft(() => reviseGraphics(aiSdk, selected, note, log, rec, photos, selected.scriptProvider, picked));
+      const next2 = { ...selected, plan: r.plan };
+      const placed = { ...r.preview, planRev: F.previewRev(next2), structureRev: F.previewStructureRev(next2), scenes: r.preview.scenes.map((sc, i) => ({ ...sc, revision: F.sceneRevision(r.plan!.scenes[i]), params: r.plan!.scenes[i].params, type: r.plan!.scenes[i].type, assetRef: r.plan!.scenes[i].assetRef, programRev: F.programRevision(r.plan!.scenes[i]) })) };
+      await update(selected.preview ? { ...next2, preview: placed } : { ...next2, video: placed });
+      setJsonErr({}); setFeedback("");
+      log("revised", { n: r.plan!.changed.length, of: r.plan!.scenes.length });
+      await openNow(selected.projectId!, placed.draftId);
+    }
+    catch (e: any) {
+      rec.notes.push("error: " + String(e?.message || e));
+      if (e instanceof F.PartialDraftError) await keepPartialDraft(selected, e);
+      throw e;
+    }
     finally { await finish(rec); }
-    const next2 = { ...selected, plan: r.plan };
-    await update(next2);
-    setJsonErr({});
-    if (r.kept) setError(T("reviseKept"));
-    else { setFeedback(""); log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length }); await previewInto(next2); }
   });
 
   // "Use this layout": only the preview the reviewer has seen becomes the video; a changed plan updates the preview first.
@@ -367,7 +410,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
     }
     catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
-      if (e instanceof F.PartialDraftError) await update({ ...s, preview: { ...e.draft, name, planRev: "", at: new Date().toISOString() } });
+      if (e instanceof F.PartialDraftError) {
+        e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+        await keepPartialDraft(s, e);
+      }
       throw e;
     }
     finally { await finish(rec); }
@@ -386,8 +432,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
     update({ ...s, plan: { ...plan, scenes, edited } });
   };
 
-  // Starting over keeps the preview record, so the next run refills that Draft instead of adding another.
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
+  // Starting over keeps records of earlier previews/candidates for recovery.
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, voiceName: s.voiceName, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos, retainedDrafts: s.retainedDrafts }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
 
   const pick = (i: number) => {
     setPicked(i);
@@ -403,7 +449,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const next = approved ? F.ttsNext(tts, s.approved!) : null;
   const quote = creditQuote(chars);
   const liveErrors = sc && s.article && touched ? F.checkEdited(sc, s.article).errors : s.scriptErrors;
-  const plan = approved && next?.kind === "ready" && s.plan && s.plan.narrationId === next.resourceId ? s.plan : null;
+  const plan = approved && next?.kind === "ready" && s.plan && F.planUsesNarration(s.plan, next) ? s.plan : null;
 
   const renderPlan = (plan: F.ScenePlan) => {
     const v = F.checkPlan(plan);
@@ -464,7 +510,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
           return (
             <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : undefined }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button style={{ ...rowSelect, cursor: canPick ? "pointer" : "default" }} aria-pressed={picked === i} aria-disabled={!canPick} title={canPick ? undefined : T("rowNoSeek")} onClick={() => pick(i)}>
+                <button style={{ ...rowSelect, cursor: canPick ? "pointer" : "default" }} aria-pressed={picked === i} aria-disabled={!canPick} title={canPick ? undefined : T("rowNoSeek")} onKeyDown={(e) => rowKeys.keyDown(e.key)} onBlur={rowKeys.reset} onClick={(e) => { if (rowKeys.allows(e.detail)) pick(i); }}>
                 <div style={thumbBox}>
                   <strong style={thumbNumber}>{String(i + 1).padStart(2, "0")}</strong>
                   {still?.state === "ready" ? <img src={still.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -536,6 +582,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
                       }} />
                     {jsonErr[i] ? <span style={warn}>{jsonErr[i]}</span> : null}
                   </details>
+                  {scene.program?.sources.length ? <details>
+                    <summary style={muted}>{T("graphicSources")}</summary>
+                    {scene.program.sources.map((source, k) => <p key={k} style={muted}>{source.ref}: {source.quote}</p>)}
+                  </details> : null}
                 </div>
               ) : null}
             </div>
@@ -548,6 +598,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
               <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
             </label>
             <span style={muted}>{aiUsage}</span>
+            <span style={muted}>{T("graphicEditHint")}</span>
             <button {...SECONDARY} disabled={busy || !providerReady || !feedback.trim()} onClick={revise}>{T("revise")}</button>
           </div>
         </details>
@@ -569,6 +620,14 @@ function NewsMinutePanel({ sdk, context }: Props) {
     // Korean breaks between words, not inside one; a word longer than the line still wraps.
     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13, wordBreak: "keep-all", overflowWrap: "break-word" }}>
       <strong>{T("title")}</strong>
+      {s.retainedDrafts?.length ? <details style={box}>
+        <summary style={{ cursor: "pointer" }}>{T("retainedDrafts", { n: s.retainedDrafts.length })}</summary>
+        <p style={muted}>{T("retainedDraftsHint")}</p>
+        {s.retainedDrafts.map(d => <div key={d.draftId} style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
+          <span style={{ ...muted, flex: 1 }}>{d.name + " · " + T(d.status === "incomplete" ? "incompleteDraft" : "previousDraft")}</span>
+          <button {...SECONDARY} style={rowButton} disabled={busy} onClick={() => guard(() => openNow(d.projectId, d.draftId))}>{T("openRetainedDraft")}</button>
+        </div>)}
+      </details> : null}
       <label>{T("preset")}{" "}
         <select value={s.presetId} disabled={busy} onChange={(e) => update({ ...s, presetId: e.target.value })}>
           {Object.values(PRESETS).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
@@ -632,12 +691,11 @@ function NewsMinutePanel({ sdk, context }: Props) {
       )}
 
       {approved && next ? (
-        <Step done={!!plan && next.kind === "ready"} summary={next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : ""}>
-          <label>{T("voice")}{" "}
-            <select value={s.voiceId} disabled={busy || next.kind === "poll" || next.kind === "ready"} onChange={(e) => update({ ...s, voiceId: e.target.value, approved: F.revisionOf(sc!, e.target.value) })}>
-              {(voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name}</option>)}
-            </select>
-          </label>
+        <Step done={!!plan && next.kind === "ready" && !narrationRecovery} summary={next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : ""}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><span style={muted}>{T("voice")}</span>
+            <VoicePicker sdk={sdk} T={T} voiceId={s.voiceId} voiceName={s.voiceName} disabled={busy || next.kind === "poll" || next.kind === "ready"}
+              onPick={(v) => update({ ...s, voiceId: v.voiceId, voiceName: v.name, approved: F.revisionOf(sc!, v.voiceId) })} />
+          </div>
           {next.kind === "none" || next.kind === "stale" ? (
             <>
               <span style={muted}>{T("credits", { chars, est: quote.estimated, held: quote.held })}</span>
@@ -658,11 +716,16 @@ function NewsMinutePanel({ sdk, context }: Props) {
             </>
           ) : (
             <>
-              {plan ? null : <>
+              {plan && !narrationRecovery ? null : <>
                 <span>{"\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) })}</span>
                 <span style={muted}>{aiUsage}</span>
                 <button disabled={busy || !providerReady} onClick={makePlan}>{T("makePlan")}</button>
               </>}
+              {narrationRecovery ? <>
+                <span style={warn}>{T("narrationReferenceLost")}</span>
+                <span style={muted}>{T("credits", { chars, est: quote.estimated, held: quote.held })}</span>
+                <button {...SECONDARY} disabled={busy} onClick={narrate}>{T("newNarration")}</button>
+              </> : null}
             </>
           )}
         </Step>

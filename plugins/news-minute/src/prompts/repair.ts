@@ -1,10 +1,11 @@
 import { JSON_ONLY } from "./script.ts";
 import { TARGET_CHARS, totalChars } from "./text.ts";
+import { planMetadata } from "./planner.ts";
 
 // Builds the follow-up prompt for a failed validation. `basePrompt` is the original script, fidelity or
 // planner prompt, `previous` the parsed reply that failed, `errors` the validator's error list.
 export function repairPrompt(basePrompt: string, previous: any, errors: string[]): string {
-  const lines = ["", "YOUR PREVIOUS REPLY:", JSON.stringify(previous), "", "IT FAILED VALIDATION. Fix every problem below and change nothing else:"];
+  const lines = ["", "YOUR PREVIOUS REPLY:", JSON.stringify(planMetadata(previous)), "", "IT FAILED VALIDATION. Fix every problem below and change nothing else:"];
   for (const e of errors) lines.push(`- ${e}`);
   const texts = Array.isArray(previous?.sentences) ? previous.sentences.map((s: any) => String(s?.text ?? "")) : null;
   if (texts && errors.some((e) => e.startsWith("narration is "))) {

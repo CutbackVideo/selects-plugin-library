@@ -13,8 +13,11 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { bandsScript, baseDraftScript, fitControls, overlayTextScripts, refillDraftScript, sceneScripts } from "./assemble.ts";
+import { resolveNarration, resolvePlanNarration, type NarrationReference } from "./narration-reference.ts";
+import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, retainPlanPrograms, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
+import { bandsScript, baseDraftScript, linkedSourceScript, type LinkedSource, fitControls, fitEditableControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { applySceneEdits, readSceneSnapshots, supportsSceneEditing } from "./scene-edits.ts";
+import { TEMPLATES } from "../templates/generated.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
 import { clearPreviewCache, entranceSec, FPS, openPreview, renameDraft, sceneFrames, sceneStill, seekScene } from "./preview.ts";
@@ -27,6 +30,8 @@ export type Session = {
   scriptProvider?: AiProvider;
   presetId: string;
   voiceId: string;
+  // The picked voice's display name, so a library voice reads by name before the list loads.
+  voiceName?: string;
   article: Article | null;
   script: Script | null;
   scriptErrors: string[];
@@ -41,7 +46,10 @@ export type Session = {
   videos?: string[];
   // Where the scenes sit on the Draft that became the video (draftId), so its rows still go to each scene.
   video?: PreviewDraft | null;
+  // Older and incomplete candidates remain accessible; never delete user work.
+  retainedDrafts?: RetainedDraft[];
 };
+export type RetainedDraft = Pick<PreviewDraft, "draftId" | "projectId" | "name" | "at"> & { status: "previous" | "incomplete"; error?: string };
 
 // What the preview Draft was built from. planRev differs from previewRev(...) once the plan changes (an outdated
 // preview); the rest says whether the Draft can be refilled in place and where each scene sits on it.
@@ -57,8 +65,9 @@ export type PreviewDraft = {
   plateImage: boolean;
   bandsId: string | null;
   frames: number; // Main length in frames at 30000/1001
+  structureRev?: string;
   // The scene graphics as placed, in plan order; enterSec is when each card has come in (seeking lands there).
-  scenes: Array<{ startSec: number; endSec: number; enterSec?: number }>;
+  scenes: Array<{ startSec: number; endSec: number; enterSec?: number; clipId?: number; revision?: string; params?: Record<string, any>; type?: string; assetRef?: string; programRev?: string }>;
   at: string;
 };
 
@@ -66,6 +75,7 @@ export type PreviewDraft = {
 export type PlanRound = { round: number; feedback: string; changed: number; scenes: number; ms: number; fallback: boolean; at: string };
 export type ScenePlan = {
   narrationId: string;
+  narrationWorkflowId?: string; // stable identity; rN is reassigned after app restart
   durationSeconds: number;
   sentences: TimedSentence[];
   times: Span[];
@@ -237,7 +247,7 @@ async function embeddedFont(sdk: PanelSdk, env: Env): Promise<EmbeddedFont> {
 const photoCache = new Map<string, PhotoAsset[]>();
 const photoKey = (article: Article) => article.url + "|" + article.photos.map((p) => p.url).join("|");
 
-async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): Promise<PhotoAsset[]> {
+export async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): Promise<PhotoAsset[]> {
   if (!article.photos.length) return [];
   const cached = photoCache.get(photoKey(article));
   if (cached) return cached;
@@ -346,10 +356,11 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
   let scenes: PlanScene[] | null = null;
   let summaries: AssetSummary[] = [];
   try {
-    const check = (j: any) => P.validatePlan(j, base.sentences, base.assets);
+    const preserve = (j: any) => revision ? retainPlanPrograms(j, revision.previous.scenes) : j;
+    const check = (j: any) => P.validatePlan(preserve(j), base.sentences, base.assets);
     const prompt = P.plannerPrompt({ headline: script.headline, sentences: base.sentences, assets: base.assets, language: preset.scriptLanguage, feedback: revision?.feedback, previous: revision?.previous });
     const r = await askValid<any>(sdk, revision ? "plan revision" : "plan", prompt, check, log, rec, 1, images);
-    const settled = settlePlan(r.json, r.errors, base.sentences, check);
+    const settled = settlePlan(preserve(r.json), r.errors, base.sentences, check);
     scenes = settled.scenes;
     if (scenes && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a: any) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
     if (settled.demoted) { rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards"); log("planDemoted", { n: settled.demoted }); }
@@ -359,12 +370,19 @@ async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "
   return { scenes, summaries, images };
 }
 
+// A resolved plan and its saved TTS record can carry different process aliases.
+// Prefer the durable job; only legacy plans without one compare saved ids.
+export function planUsesNarration(plan: Pick<ScenePlan, "narrationId" | "narrationWorkflowId">, narration: Pick<NarrationReference, "resourceId" | "workflowId">): boolean {
+  return plan.narrationWorkflowId ? plan.narrationWorkflowId === narration.workflowId : plan.narrationId === narration.resourceId;
+}
+
 // Timing, photos and the first scene plan. Nothing is added to the Project here; the panel builds the preview
 // Draft from the plan next.
-export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord, provider: AiProvider, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
+export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: NarrationReference, log: Log, rec: RunRecord, provider: AiProvider, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
   sdk = await selectedAi(sdk, provider);
   rec.notes.push("scene planning provider: " + provider);
   const script = s.script!, article = s.article!, projectId = s.projectId!;
+  narration = await resolveNarration(sdk, projectId, narration);
   const total = narration.durationSeconds;
   if (!(total > 0)) throw new Error("narration length unknown");
   if (plateSeconds(total) > PLATE_MAX_SECONDS) throw new Error("narration longer than " + PLATE_MAX_SECONDS + " s");
@@ -381,7 +399,7 @@ export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   const assets: PlanAsset[] = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo" as const, caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
   const thumbs: Record<string, string> = {};
   if (thumb) for (const p of photos) { try { thumbs[p.ref] = await thumb(p.dataUrl); } catch { /* no thumbnail */ } }
-  const base = { narrationId: narration.resourceId, durationSeconds: total, sentences, times, timing: source, chars, assets, thumbs };
+  const base = { narrationId: narration.resourceId, narrationWorkflowId: narration.workflowId, durationSeconds: total, sentences, times, timing: source, chars, assets, thumbs };
 
   const r = await askPlan(sdk, base, script, preset, photos, log, rec);
   let plan: ScenePlan;
@@ -434,6 +452,9 @@ export function sceneSpans(sp: Pick<ScenePlan, "scenes" | "sentences" | "times" 
 // The plan as the preview shows it: scenes, look, headline and narration.
 export const previewRev = (s: Pick<Session, "presetId" | "script" | "plan">) =>
   ttsRevision(JSON.stringify([s.presetId, s.script?.headline ?? null, s.plan?.narrationId ?? null, s.plan?.scenes ?? null]), "preview");
+export const sceneRevision = (sc: PlanScene) => ttsRevision(JSON.stringify(sc), "scene");
+export const programRevision = (sc: PlanScene) => ttsRevision(JSON.stringify(sc.program ?? null), "program");
+export const previewStructureRev = (s: Session) => ttsRevision(JSON.stringify([s.presetId, s.script?.headline, s.plan?.narrationId, s.plan?.durationSeconds, s.plan?.times, s.plan?.scenes.map(sc => [sc.sentenceIds, sc.disclaimer])]), "structure");
 export const previewFresh = (s: Session) => !!(s.preview && s.plan && s.preview.planRev && s.preview.planRev === previewRev(s) && !s.videos?.includes(s.preview.draftId));
 // The Draft the scene rows show and go to: a placed preview, else the confirmed video while it still shows this plan.
 export function rowsDraft(s: Session): PreviewDraft | null {
@@ -470,16 +491,43 @@ return out;` });
   return Array.isArray(names) ? names : [];
 }
 
-// The Draft a recorded preview can be refilled into: same Project, look and plate length (the narration is put
-// back on, so a new narration of the same length still fits).
-export const canRefill = (p: PreviewDraft | null | undefined, projectId: string, presetId: string, plateLen: number, videos: string[] = []): p is PreviewDraft =>
-  !!p && p.projectId === projectId && p.presetId === presetId && Math.abs(p.plateSeconds - plateLen) < 1e-6 && p.frames > 0 && !videos.includes(p.draftId);
-
-// A build that stopped after the Draft was saved; the Draft is kept and recorded as an outdated preview.
+type DraftView = { projectId: string; draftId: string };
+// A build that stopped after the Draft was saved; keep the candidate and the
+// complete Draft that was on screen immediately before candidate creation.
 export class PartialDraftError extends Error {
   draft: Omit<PreviewDraft, "name" | "planRev" | "at">;
   preview: PreviewDraft | null = null;
+  previousView: DraftView | null = null;
   constructor(message: string, draft: Omit<PreviewDraft, "name" | "planRev" | "at">) { super(message); this.draft = draft; }
+}
+
+async function completeDraftOnScreen(sdk: PanelSdk, s: Session): Promise<DraftView | null> {
+  try {
+    const state = await run(sdk, { summary: "Remember the visible complete news Draft", script: "return await selects.editor.state();" });
+    const id = state?.onScreenTab?.kind === "draft" ? state.onScreenTab.sequenceId : null;
+    if (!id || state.projectId !== s.projectId || !state.draftIds?.includes(id)) return null;
+    const complete = [s.preview, s.video].some(d => d?.projectId === s.projectId && d.draftId === id && d.planRev) ||
+      s.retainedDrafts?.some(d => d.projectId === s.projectId && d.draftId === id && d.status === "previous");
+    return complete ? { projectId: s.projectId!, draftId: id } : null;
+  } catch { return null; } // Unavailable presentation state must not block building or guess a target.
+}
+
+export function retainDraft(s: Session, draft: PreviewDraft, status: RetainedDraft["status"], error?: string): Session {
+  const record: RetainedDraft = { draftId: draft.draftId, projectId: draft.projectId, name: draft.name, at: draft.at, status, ...(error ? { error } : {}) };
+  return { ...s, retainedDrafts: [...(s.retainedDrafts ?? []).filter(d => d.draftId !== draft.draftId), record] };
+}
+
+export function acceptPreview(s: Session, preview: PreviewDraft): Session {
+  let next = s;
+  if (s.preview && s.preview.draftId !== preview.draftId) next = retainDraft(s, s.preview, s.preview.planRev ? "previous" : "incomplete");
+  return { ...next, preview };
+}
+
+export function retainPartialDraft(s: Session, error: PartialDraftError): Session {
+  if (!error.preview) return s;
+  // Even on a first failure, the incomplete candidate belongs only in the
+  // recovery list. It must not become the preview or enable scene navigation.
+  return retainDraft(s, error.preview, "incomplete", error.message);
 }
 
 // Mutations (build, refill, rename) wait for all earlier work. Navigation and stills each
@@ -522,14 +570,13 @@ export function previewViewer(sdk: PanelSdk, env: () => Env | null, queue: Retur
 export type AssembleTarget = { name: string; reuse?: PreviewDraft | null };
 export type Assembled = { draftId: string; timing: string; fallbackPlan: boolean; refilled: boolean; draft: Omit<PreviewDraft, "name" | "planRev" | "at"> };
 
-// Builds the Draft from the reviewed plan, or fills the recorded preview Draft again when it can.
+// A full build always uses a new candidate. Resolve media for this app process.
 export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Preset, log: Log, rec: RunRecord, target?: AssembleTarget): Promise<Assembled> {
   const script = s.script!, article = s.article!, projectId = s.projectId!, sp = s.plan!;
+  const narration = await resolvePlanNarration(sdk, s);
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
   const texts = sentences.map((x) => x.text);
   const plateLen = plateSeconds(total);
-  const reuse = canRefill(target?.reuse, projectId, preset.id, plateLen, s.videos) ? target!.reuse! : null;
-  if (target?.reuse && !reuse && s.videos?.includes(target.reuse.draftId)) rec.notes.push("preview: Draft " + target.reuse.draftId + " is a video, not refilled");
   const photos = await prepPhotos(sdk, env, article, log);
   const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
   if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
@@ -568,45 +615,46 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   // Every sentence keeps its caption, number scenes included (style spec 1); a plan's hideCaption is ignored.
   const captions = captionTimes(texts, times, chars);
 
-  // A refill keeps the plate and bands Resources it was built with (importing them again adds duplicates).
-  if (reuse) rec.notes.push("plate: reused " + (reuse.plateImage ? "image" : "colour") + " Resource " + reuse.plateId, "bands: " + (reuse.bandsId ? "reused image Resource " + reuse.bandsId : "frame graphic"));
-  const bg = reuse ? { id: reuse.plateId, image: reuse.plateImage } : await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  // Cached files are safe to import again; persisted rN Resource aliases are
+  // not. They may now name an unrelated file after a complete app restart.
+  const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;
   // Scenes draw in the layout's window; over a background image they leave their own fill off so it shows.
   // "transparent" fails the colour control's check (addMotionGraphic rejects it); a zero-alpha hex passes.
   const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: CLEAR_PAPER } : {}) };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
-  const bandsId = reuse ? reuse.bandsId ?? undefined : await bands(sdk, env, projectId, preset, rec);
+  const bandsId = await bands(sdk, env, projectId, preset, rec);
   const headFont = await findHeadlineFont(preset.headlineFonts);
   rec.notes.push(headlineFontNote(headFont));
   log("assembling");
-  const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
+  const x = { projectId, draftName: target?.name || finalName(s), plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate,
     headlineFont: headFont?.kind === "installed" ? headFont.params : undefined };
-  let draftId: string | null = null, frames = 0, refilled = false;
+  let draftId: string | null = null, frames = 0;
+  const placed: Array<{ clipId: number }> = [];
   // A scene whose entrance cannot be worked out (or that has no graphic) is entered at its first frame.
   const enterSec = (sc: (typeof scenes)[number]) => {
     try { const f = sceneFrames(frames, sc); return Number(entranceSec(sc.type, fitControls(sc.type, sc.params), f.end - f.start).toFixed(3)); }
     catch { return 0; }
   };
-  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames,
-    scenes: scenes.map((sc) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc) })) });
+  const record = () => ({ draftId: draftId!, projectId, presetId: preset.id, narrationId: narration.resourceId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, structureRev: previewStructureRev(s),
+    scenes: scenes.map((sc, i) => ({ startSec: sc.startSec, endSec: sc.endSec, enterSec: enterSec(sc), clipId: placed[i]?.clipId, revision: sceneRevision(plan[i]), params: plan[i].params, type: plan[i].type, assetRef: plan[i].assetRef, programRev: programRevision(plan[i]) })) });
+  const previousView = await completeDraftOnScreen(sdk, s);
   try {
-    if (reuse) {
-      // Stills rendered from the Draft before this refill must not come back from the cache.
-      clearPreviewCache(sdk);
-      const call = refillDraftScript(reuse.draftId, reuse.frames, x);
-      rec.notes.push("script bytes: refill " + scriptBytes(call));
-      const r = await run<{ refilled: boolean; reason: string; frames: number; removed?: number }>(sdk, call);
-      if (r.refilled) { draftId = reuse.draftId; frames = r.frames; refilled = true; rec.notes.push("preview: refilled Draft " + draftId + " (" + (r.removed ?? 0) + " clips removed)"); }
-      else rec.notes.push("preview: Draft " + reuse.draftId + " not refilled (" + r.reason + "); building a new Draft, the old one stays in the Project");
-    }
+    if (target?.reuse) rec.notes.push("preview: kept previous Draft " + target.reuse.draftId + "; building a new candidate");
     if (!draftId) {
-      const baseCall = baseDraftScript(x);
+      const source = await run<LinkedSource>(sdk, linkedSourceScript(x));
+      const baseCall = baseDraftScript(x, source);
       rec.notes.push("script bytes: base " + scriptBytes(baseCall));
-      const base = await run<{ draftId: string | null; frames: number }>(sdk, baseCall);
+      const base = await run<{ draftId: string | null; frames: number; narrationFrames: number }>(sdk, baseCall);
       if (!base.draftId) throw new Error("the Draft was not created");
       draftId = base.draftId;
       frames = base.frames;
+      // The imported source grid can differ from the job's seconds by a
+      // frame. End the final scene/caption at the actual placed audio, while
+      // frame/bands/headline use the full Draft including its 0.5 s gap.
+      const audioEnd = base.narrationFrames / FPS;
+      if (scenes.length) scenes[scenes.length - 1].endSec = audioEnd;
+      if (captions.length) captions[captions.length - 1].endSec = audioEnd;
     }
     // Stacking follows call order: scenes above the frame, the bands above the scenes, then headline and captions.
     const calls = [
@@ -617,29 +665,75 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
     rec.notes.push("script bytes: " + calls.map((k) => k.what.split(" ")[0] + " " + Math.round(scriptBytes(k.c) / 1024) + " KB").join(", "));
     for (let i = 0; i < calls.length; i++) {
       log("assemblingStep", { n: i + 1, of: calls.length });
-      try { await run(sdk, calls[i].c); }
+      try {
+        const out = await run(sdk, calls[i].c);
+        if (calls[i].what === "scene" && out?.placed) placed.push(...out.placed);
+      }
       catch (e: any) { throw new PartialDraftError(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`, record()); }
     }
+  } catch (e) {
+    if (draftId) {
+      const partial = e instanceof PartialDraftError ? e : new PartialDraftError(String((e as any)?.message || e), record());
+      partial.previousView = previousView;
+      throw partial;
+    }
+    throw e;
   } finally {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
   rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback, refilled, draft: record() };
+  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback, refilled: false, draft: record() };
 }
 
 // The preview Draft for the current plan: built (or refilled) and named "Preview \u00b7 <article title>".
-export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: Preset, prefix: string, log: Log, rec: RunRecord): Promise<{ preview: PreviewDraft; refilled: boolean }> {
-  const name = previewName(s, prefix);
+export async function buildPreview(sdk: PanelSdk, env: Env, s: Session, preset: Preset, prefix: string, log: Log, rec: RunRecord, options: { candidateOnly?: boolean; incompleteLabel?: string } = {}): Promise<{ preview: PreviewDraft; refilled: boolean }> {
+  let name = previewName(s, prefix);
   const planRev = previewRev(s);
   log("previewBuilding");
   const t0 = Date.now();
+  const p = s.preview;
+  if (!options.candidateOnly && p?.planRev && p.projectId === s.projectId && p.structureRev === previewStructureRev(s) && p.scenes.every(sc => sc.clipId != null && sc.revision && sc.params) && !s.videos?.includes(p.draftId) && await supportsSceneEditing(sdk, p.draftId)) {
+    const changed = s.plan!.scenes.map((sc, i) => sceneRevision(sc) !== p.scenes[i]?.revision ? i : -1).filter(i => i >= 0);
+    if (changed.length) {
+      const photos = await prepPhotos(sdk, env, s.article!, log);
+      const clips = sceneClips(s.plan!.scenes, s.plan!.sentences, s.plan!.times, s.plan!.durationSeconds, photos);
+      const snapshots = await readSceneSnapshots(sdk, p, s.plan!);
+      await applySceneEdits(sdk, p.draftId, snapshots, changed.map(index => {
+        const sc = s.plan!.scenes[index], before = p.scenes[index], template = (TEMPLATES as any)[sc.type];
+        const parameters: Record<string, any> = {};
+        for (const key of new Set([...Object.keys(before.params!), ...Object.keys(sc.params)])) {
+          if (JSON.stringify(before.params![key]) !== JSON.stringify(sc.params[key])) parameters[key] = sc.params[key] ?? (sc.program?.editableParameters ?? template.editableParameters).find((d: any) => d.key === key)?.defaultValue ?? null;
+        }
+        if (before.assetRef !== sc.assetRef) {
+          const imageKey = sc.type === "quote_card" ? "headshot" : "image";
+          parameters[imageKey] = clips[index].params[imageKey] ?? "";
+          if (sc.type === "news_photo") parameters.credit = clips[index].params.credit ?? "";
+        }
+        const program = before.type !== sc.type ? (sc.program ?? template) : before.programRev !== programRevision(sc) ? sc.program : undefined;
+        const controls = program?.editableParameters ?? snapshots[index].program.editableParameters;
+        return { index, parameters: fitEditableControls(controls, parameters), ...(program ? { tsxCode: program.tsxCode, editableParameters: program.editableParameters } : {}) };
+      }));
+      clearPreviewCache(sdk);
+    }
+    return { preview: { ...p, planRev, at: new Date().toISOString(), scenes: p.scenes.map((sc, i) => ({ ...sc, revision: sceneRevision(s.plan!.scenes[i]), params: s.plan!.scenes[i].params, type: s.plan!.scenes[i].type, assetRef: s.plan!.scenes[i].assetRef, programRev: programRevision(s.plan!.scenes[i]) })) }, refilled: true };
+  }
+  // Give every retained candidate a distinct visible name, even when the last
+  // one failed. Never rename or delete older drafts to make room for a new one.
+  try { name = uniqueName(name, await draftNames(sdk, s.projectId!, null)); }
+  catch { name += " · " + new Date().toISOString(); }
   try {
     const r = await assemble(sdk, env, s, preset, log, rec, { name, reuse: s.preview });
     rec.notes.push("preview: " + (r.refilled ? "refilled" : "built") + " in " + ((Date.now() - t0) / 1000).toFixed(1) + " s");
     return { preview: { ...r.draft, name, planRev, at: new Date().toISOString() }, refilled: r.refilled };
   } catch (e) {
-    // The partly built Draft is kept as an outdated preview, so the next build fills it again.
-    if (e instanceof PartialDraftError) e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+    if (e instanceof PartialDraftError) {
+      let incomplete = name + " · " + (options.incompleteLabel ?? "Incomplete");
+      try { incomplete = uniqueName(incomplete, await draftNames(sdk, s.projectId!, e.draft.draftId)); }
+      catch { incomplete += " · " + new Date().toISOString(); }
+      try { await renameDraft(sdk, { projectId: s.projectId!, draftId: e.draft.draftId, name: incomplete }); name = incomplete; }
+      catch { rec.notes.push("incomplete candidate: could not rename " + e.draft.draftId); }
+      e.preview = { ...e.draft, name, planRev: "", at: new Date().toISOString() };
+    }
     throw e;
   }
 }

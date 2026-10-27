@@ -6,6 +6,7 @@ import { ffmpegScript, mediaJobScript, readChunksScript, writeChunkScript } from
 
 export type PanelSdk = {
   confirm(input: { title: string; message?: string }): Promise<boolean>;
+  call?(method: "listProjectResources", projectId: string): Promise<any>;
   runScript(input: { summary: string; script: string; allowCommit?: boolean }): Promise<{ isError?: boolean; output?: string; result?: any }>;
   askAI?(input: { prompt: string; provider?: AiProvider; timeoutMs?: number; ephemeral?: boolean; images?: AskImage[] }): Promise<{ text: string }>;
   aiProviders?(): Promise<AiProviders>;

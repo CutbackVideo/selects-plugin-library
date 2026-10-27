@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { stripTypeScriptTypes } from "node:module";
-import { sceneFrames, entranceSec, openPreview, seekScene, renameDraft, sceneStill, clearPreviewCache, FPS } from "../src/pipeline/preview.ts";
+import { sceneFrames, entranceSec, openPreview, seekScene, renameDraft, sceneStill, clearPreviewCache, spaceClickGuard, FPS } from "../src/pipeline/preview.ts";
 import { ENTRANCE } from "../src/templates/entrance.generated.ts";
 import { SCENE_TYPES } from "../src/prompts/index.ts";
 import { draftQueue, previewViewer } from "../src/pipeline/flow.ts";
@@ -228,4 +228,19 @@ test("seeking lands where the scene's card has come in", async () => {
   const x = { ...scene, scene: { startSec: 1, endSec: 9, enterSec: 2 } };
   assert.deepEqual(await seekScene(h.sdk, x), { confirmed: true, frame: 90 });
   assert.equal(h.state.playhead.resolvedFrame, 90);
+});
+
+test("a scene row ignores the click Space makes, so Space playback is not sent back to the scene start", () => {
+  const g = spaceClickGuard();
+  g.keyDown(" ");
+  assert.equal(g.allows(0), false); // keyup click after Space played the Draft
+  assert.equal(g.allows(1), true); // a later pointer click still picks
+  g.keyDown("Enter");
+  assert.equal(g.allows(0), true); // Enter still picks the row
+  g.keyDown(" ");
+  assert.equal(g.allows(1), true); // a pointer click right after Space still picks
+  assert.equal(g.allows(0), true); // and the Space mark is used up
+  g.keyDown(" ");
+  g.reset(); // focus left the row before the key came up
+  assert.equal(g.allows(0), true);
 });
