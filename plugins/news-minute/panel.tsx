@@ -6038,7 +6038,7 @@ function NewsMinutePanel({ sdk, context }) {
   const setHead = (k, v) => s.script && update({ ...s, script: { ...s.script, headline: { ...s.script.headline, [k]: v } }, approved: null });
   const approve = () => guard(async () => {
     if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
-    if (liveErrors.length && !window.confirm(T("approveAnyway") + "\n\n" + liveErrors.slice(0, 8).join("\n"))) return;
+    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
     const projectId = await ensureProject(sdk, env.current, s);
     await update({ ...s, projectId, approved: revisionOf(s.script, s.voiceId) });
     setTts(await readTts(sdk, projectId));
@@ -6126,7 +6126,7 @@ function NewsMinutePanel({ sdk, context }) {
     const v = checkPlan(plan2);
     const blocking = v.errors.filter((e) => BLOCKING_PLAN_ERROR.test(e) || LAYOUT_ERROR.test(e));
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
-    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n"))) return;
+    if (v.errors.length && !await sdk.confirm({ title: T("planAnyway"), message: v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n") })) return;
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
     const name = uniqueName(finalName(s), await draftNames(sdk, s.projectId, s.preview?.draftId ?? null).catch(() => []));
     let draftId, placed;
