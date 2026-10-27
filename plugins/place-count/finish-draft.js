@@ -9,5 +9,5 @@ if(cfg.music&&!cs.some(c=>c.trackKind==='audio')){
  if(musicEnd>0)await d.overlayResource({resource:p.resource(music.resourceId),over:await d.rangeAtFrames(0,musicEnd),sourceStartSeconds:0});
 }
 await d.commitAll('Finish editable Place Count layers');
-const latest=await d.clips({trackScope:'all'});const link=await selects.editor.linkToDraftFrame(cfg.sequenceId,0);
-return {status:'ready',sequenceId:cfg.sequenceId,deepLinkUrl:link.deepLinkUrl,clipCount:latest.filter(c=>c.trackKind==='main').length,graphicCount:latest.filter(c=>c.trackKind==='video').length,audioCount:latest.filter(c=>c.trackKind==='audio').length,seconds:end/(await d.meta()).fps};
+const latest=await d.clips({trackScope:'all'});
+return {status:'ready',sequenceId:cfg.sequenceId,clipCount:latest.filter(c=>c.trackKind==='main').length,graphicCount:latest.filter(c=>c.trackKind==='video').length,audioCount:latest.filter(c=>c.trackKind==='audio').length,seconds:end/(await d.meta()).fps};
