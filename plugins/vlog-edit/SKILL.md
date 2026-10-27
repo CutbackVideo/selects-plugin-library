@@ -40,8 +40,20 @@ transcript, scene search, or `resource()` handle for them. Do not offer or
 promise photo analysis, and do not quietly drop photos from planning because
 they carry no metadata.
 
-Inspect them directly instead — build contact sheets and look at **every**
-photo. A photo you have not seen cannot be ranked, so it cannot be left out of
+Inspect them directly and look at **every** photo. Use the host's advertised
+`view_image` tool on each photo's actual Project source path when available.
+On the web, this reads browser storage or files the user has granted; it needs
+no shell or local HTTP server. Keep a filename-by-filename shortlist and hero
+list, and count every viewed photo. Never invent OS paths from browser paths.
+For video or Draft frames, use the supported `captureFrames` SDK operation and
+`display(artifact)` in the same script after reading its declarations.
+
+For large desktop archives, contact sheets are another way to complete the
+same full visual survey. Use the following local-server procedure only when
+the host advertises shell and browser tools; it is not a web prerequisite. A
+host without those tools must use direct image inspection instead.
+
+When using contact sheets, inspect every photo. A photo you have not seen cannot be ranked, so it cannot be left out of
 the edit either:
 
 1. Tile **all** photos of each group, in timestamp order, into as many sheets
