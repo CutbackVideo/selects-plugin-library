@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-three packages have passed actual installation, core creation or interaction,
+Twenty-four packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip and 8-Clip Daily Vlog.
-They declare `web`. Of the other 27 packages, 18 have identified current blockers
-and 9 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip 8-Clip Daily Vlog and Polaroid Photo Dump.
+They declare `web`. Of the other 26 packages, 18 have identified current blockers
+and 8 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -56,7 +56,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `photo-gallery-no2` | **Web verified after host fixes** | Actual 20-photo/1-video creation succeeded, 21 saved slots read back, sequential reveal and monochrome-to-color playback visible with music. Full reload playback at6:13 passed. Normal-gate reinstall passed at `aa5c693`. |
 | `place-count` | Pending creation retest | Earlier actual creation failed during initial asset/media preparation. Current-host retest and visible saved output are required. |
 | `podcast-hook-captions` | Blocked | [plugin.json](../plugins/podcast-hook-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
-| `polaroid-photo-dump` | Pending corrected-plugin retest | Current live retry reproduced Graphic placement could not be confirmed. addMotionGraphic returns clipId/interval without trackId; fixed the plugin to resolve its live clip in `b6f3aa5`. Correcting the fixture receipt reproduced the failure; 88 existing authoring tests pass after the fix. Complete live output/reopening still required. |
+| `polaroid-photo-dump` | **Web verified after caption receipt fix** | Reinstalled `b6f3aa5`, selected17 PNGs and saved13.9s Polaroid web verified with individual photos, satin frame, caption, zoom/grade and bundled audio. Playback reached13:21; full reload playback at7:09 showed the photo/frame/caption composition. Normal-gate reinstall pending. |
 | `portrait-beat-montage` | Blocked | [plugin.json](../plugins/portrait-beat-montage/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `postcard-cutout-studio` | Native operation present | [panel.tsx](../plugins/postcard-cutout-studio/panel.tsx#L216): Bundled runtime invokes shell for cutout processing. A complete browser alternative has not been verified. |
 | `recap-2026` | Pending live retest | Last run failed source identity verification. Optional face analysis alone does not prove a native requirement; retest the 20s hero and 15-clip workflow after the shared identity fix. |
@@ -169,7 +169,7 @@ their individual verification and normal-install limitations are recorded above.
 | `photo-gallery-no2` | **passed / failed-file-identity**. Retested with all 21 fresh current-session photos explicitly assigned; Create Draft failed runtime_error: The file's size or identity could not be confirmed (line146,column20). |
 | `place-count` | **passed / failed-local-media-support**. Panel reports Plugin assets or local-media support are unavailable. Reinstall Place Count or update Selects.; Choose folder clicked; no progress beyond initial blocked panel. |
 | `podcast-hook-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
-| `polaroid-photo-dump` | Pending corrected-plugin retest | Current live retry reproduced Graphic placement could not be confirmed. addMotionGraphic returns clipId/interval without trackId; fixed the plugin to resolve its live clip in `b6f3aa5`. Correcting the fixture receipt reproduced the failure; 88 existing authoring tests pass after the fix. Complete live output/reopening still required. |
+| `polaroid-photo-dump` | **Web verified after caption receipt fix** | Reinstalled `b6f3aa5`, selected17 PNGs and saved13.9s Polaroid web verified with individual photos, satin frame, caption, zoom/grade and bundled audio. Playback reached13:21; full reload playback at7:09 showed the photo/frame/caption composition. Normal-gate reinstall pending. |
 | `portrait-beat-montage` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `postcard-cutout-studio` | **passed / failed-native-shell**. Native folder chooser selected authorized fixtures folder; Could not open this folder. Details: Web adapter not implemented: PanelShellRunnerAdapter.run |
 | `recap-2026` | **passed / failed-file-identity**. After footage loading completed, selected imported 20-second hero and 15 original fixture videos.; Actual 12-second sample creation failed: The file's size or identity could not be confirmed, line 146 column 20. No completed Draft. |
@@ -295,3 +295,7 @@ The installed panel used one20s original video plus21 PNGs, Short/defaultSummer 
 ### Daily Vlog admission after current-host retry
 
 Opened the installed panel, selected fixtures, opening clip01 and seven automatically chosen original8s clips. Unlike the earlier timeout, creation completed. `8-Clip Daily Vlog — 2026. 10. 27. 오전 10:22:07` (20:14 displayed) contains10 Main pieces, three editable titles, transitions, bundled music and SFX. Initial playback crossed the transition at4:09 and ended20:13. After full-page reload, explicitly selected the saved Draft tab; playback at3:03 showed the animated yellow DAILY VLOG text over original footage. Proof: `daily-playing.png`, `daily-reopened.png`. Admit web; normal-gate reinstall pending. Totals:23 admitted,18 blocked,9 unresolved.
+
+## Polaroid caption receipt correction and web admission
+
+A current-host run reproduced Graphic placement could not be confirmed. The plugin expected trackId in addMotionGraphic’s return value, which only provides clipId and interval. Commit `b6f3aa5` resolves the live clip after authoring. Correcting the fixture to the real receipt reproduced18 failed checks before the fix; all88 selected authoring checks pass after it. The actual fixed package then completed the17-photo UI workflow and saved replay. Evidence: `/tmp/web-plugin-verification/round2/polaroid-playing.png` and `polaroid-reopened.png`.
