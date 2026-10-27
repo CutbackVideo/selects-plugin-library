@@ -1,6 +1,7 @@
 import {sdkFreeHelpersSource,vlogOperation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import fsp from 'node:fs/promises';import vm from 'node:vm';import {webcrypto} from 'node:crypto';
 import {holdFixture} from './gallery_hold_fixture.mjs';
+import {MessageChannel} from 'node:worker_threads';
 const source=sdkFreeHelpersSource()+'\n'+fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8'),assemble=vlogOperation('mini-vlog','assemble'),decorate=vlogOperation('mini-vlog','decorate');
 const clone=v=>JSON.parse(JSON.stringify(v));
 export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=assemble,decorationSource=decorate,probeName='Mini source timing check'}={}){
@@ -51,7 +52,11 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
  },runScript:async input=>{
   requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,editor:{linkToDraftFrame:async()=>({deepLinkUrl:'selects://fixture'}),openDraft:async()=>{}},project:()=>({importFiles:async input=>{if(!hooks.importFiles)throw Error('Unexpected import in save fixture');return hooks.importFiles(input);},resources:async()=>hooks.resources??[],resource:rid=>({rid}),sourceFiles:async()=>hooks.sourceFiles?hooks.sourceFiles():({fileTree:[{type:"video",resourceId:"r0",path:f.source}]}),meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name===probeName?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
   selects.media=nativeMedia(input.allowCommit===true);
-  const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){if(input.summary==='Assemble template with owned receipt')t.diagnostic?.(JSON.stringify({fixture:'assembly-cause',summary:input.summary,message:error.message,cause:error.cause?.message,stack:error.stack}));return {isError:true,output:error.message};}})();
+  // A real SDK host owns an open IPC connection while a script is running.
+  // Model that transport lifetime: Atomics.waitAsync alone does not retain
+  // Node's loop after FFmpeg exits between two status observations.
+  const channel=new MessageChannel();channel.port1.on('message',()=>{});
+  const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){if(input.summary==='Assemble template with owned receipt')t.diagnostic?.(JSON.stringify({fixture:'assembly-cause',summary:input.summary,message:error.message,cause:error.cause?.message,stack:error.stack}));return {isError:true,output:error.message};}finally{channel.port1.close();channel.port2.close();}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'||hooks.lostAssembly&&input.summary==='Assemble template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;
  }};
  const mount=()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(source,box);return box;};

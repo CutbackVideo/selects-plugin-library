@@ -2272,12 +2272,12 @@
     {
       "path": "tests/mini_look_fixture.mjs",
       "role": "validation",
-      "sha256": "57c8610ec7174d8c8e4868eac16e70954aa163b5dab7c215b525c3feaae6d6a7",
+      "sha256": "fc652047b30dcce9dfe4904d534976680445a5f3ec9e4153b2502391910b9010",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 63,
+          "endLine": 68,
           "feature": "test-harness"
         }
       ]
