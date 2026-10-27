@@ -2,14 +2,13 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Eight packages have passed actual installation, core creation or interaction, visible
-output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
-Cinema Vlog Studio, Thank You Recap, pov: you open my gallery Vox Style Explainer, Four Photo Stop Motion and Camera Shutter Dump. They declare
-`web`. The four newly admitted video templates also passed normal-metadata
-reinstallation from published commit `1892039`. Short Form Safe Zones passed its
-initial install and core checks; its same-version update check reports latest, so
-a fresh normal-gate reinstall remains unverified. The other 42
-retain macOS/Windows pending complete verification.
+Eleven packages have passed actual installation, core creation or interaction,
+visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
+Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity Torn Paper Love and News in One Minute.
+They declare `web`. Of the other 39 packages, 18 have identified current blockers
+and 21 remain under active verification. These counts are not a completed audit.
+Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
 - **Blocked**: a declared native dependency or required unavailable host path is identified.
@@ -128,10 +127,10 @@ Inputs are the built-in sample project (footage downloaded through the app),
 21 generated PNG test images (plus 21 newly imported copies for file-access retests),
 15 generated eight-second test-pattern videos, and one 20-second landscape video.
 They exercise media handling, not the artistic quality of travel/couple/portrait
-editing. User-authorized test budget: 500 credits total. One analysis request for
+editing. The initial 500-credit cap was explicitly lifted by the user for completion of all verification. Avoid duplicate generation; actual charged usage remains unconfirmed. One analysis request for
 15 clips displayed 15 credits; final charged usage is not yet independently
 confirmed. Card News Maker also generated three Nano Banana Pro images; their
-charged usage still needs reconciliation before further paid testing. Installation setup uses the app's normal assistant flow.
+charged usage remains unconfirmed, but further paid testing is authorized. Installation setup uses the app's normal assistant flow.
 
 This is an **incomplete checkpoint**, not certification of all packages. The
 source-review table above is not runtime proof. Live outcomes are recorded below;
@@ -204,10 +203,10 @@ history into the existing IndexedDB metadata store with durable migration. New
 project creation, imports and history reopening worked after the fix. Fresh PNG
 source previews still render black; imported video and generated video Drafts
 render correctly. The account usage dashboard displays unlimited analysis but
-no generation credit ledger, so further paid generation is held. The Mac was unlocked and the longer test clip imported successfully. None of these is
+no generation credit ledger, so actual charges remain unconfirmed; further paid generation is now authorized. The Mac was unlocked and the longer test clip imported successfully. None of these is
 a substitute for a completed core-workflow test.
 
-Final accounting check: expanded AI image history entries also expose no charged-credit amounts. Further paid generation remains on hold; no zero-cost claim is made.
+Final accounting check: expanded AI image history entries also expose no charged-credit amounts. The user has authorized further paid generation beyond 500 credits; no zero-cost claim is made.
 
 ## Round 2 follow-up (2026-10-27)
 
@@ -230,3 +229,13 @@ Final accounting check: expanded AI image history entries also expose no charged
 ### Torn Paper admission
 
 `torn-paper-love`: actual installation and six-second photo edit creation were already verified; the bare-blob image preview bug caused gray source photos. With the shared browser image fix, the saved 6.2s Draft reopens and plays at4:10 with actual photos, torn-paper frame and MY LOVE graphics. Evidence: `/tmp/web-plugin-verification/round2/torn-paper-reopened.png`. Add web: 10 verified plugins total.
+
+### News workflow follow-up
+
+- Actual text generation produced a 337-character fictional news script. Automated source checking timed out twice; its source-aligned sentences were manually reviewed.
+- The iframe's native `window.confirm` prevented approval. The panel now uses `sdk.confirm`; the actual web confirmation dialog and approval completed after reinstalling `f3a0e41`.
+- Paid narration completed (48.3 seconds; UI quote 4.85 credits, not independently confirmed charge). Seven visual scenes were generated; one overflowing card was shortened through the panel editor.
+- Preview initially failed with `browser_ffmpeg_input_must_be_local`: the host allowed only black `lavfi` color sources. Client commit `499f9cd862` also accepts a strictly bounded six-digit hex color; file and graph restrictions remain. Actual Chrome media tests: 22 passed. Preview creation is being retried; news is not yet admitted.
+- Photo template shader-preset receipt support is fixed in `85e2ee8` (59 tests passed); No.14 live retest remains required.
+
+- News follow-up completed: the corrected background rendered, all seven scenes were saved, and the 48.3s editable Draft was finalized. After full page reload playback reached 12:03 with visible headline, flow cards and captions. Evidence: `/tmp/web-plugin-verification/round2/news-reopened.png`. Admit `news-minute` (11 verified); normal-gate reinstall of its new manifest remains pending.

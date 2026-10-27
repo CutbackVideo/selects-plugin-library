@@ -70,5 +70,5 @@
       "summary": "Bir haber makalesinden bir dakikal\u0131k dikey haber videosu yapar: makaleyle kar\u015f\u0131la\u015ft\u0131r\u0131lm\u0131\u015f metin, edit\u00f6r onay\u0131, seslendirme, makale foto\u011fraflar\u0131 ve veri kartlar\u0131, altyaz\u0131lar, d\u00fczenlenebilir bir Draft i\u00e7inde."
     }
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }
