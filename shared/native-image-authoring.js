@@ -124,8 +124,10 @@ function imageProgramsFeature(selects,config=null,format=null){
   if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
   const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
  };
- const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
- const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ const source=program=>program.shader?{shader:program.shader}:{tsxCode:program.tsxCode};
+ const validSource=program=>program&&((typeof program.tsxCode==='string'&&program.tsxCode.length>0&&!program.shader)||(!program.tsxCode&&program.shader?.graph?.schema==='Cutback.ShaderEffect.1'));
+ const normalized=program=>({...source(program),editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
+ const matches=(actual,wanted)=>actual&&same(source(actual),source(wanted))&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
  // Reconcile a caller-owned program intent on Main or overlay visuals. Names
  // only locate candidates; code, values, controls, intervals and order prove a
  // match. Preflight the whole intent before the caller's optional mutation.
@@ -136,11 +138,11 @@ function imageProgramsFeature(selects,config=null,format=null){
   const intent=JSON.parse(text),names=value=>Array.isArray(value)&&value.length<=32&&new Set(value).size===value.length&&value.every(name=>typeof name==='string'&&name.length>0&&name.length<=256);
   if(!intent||!names(intent.graphicNames)||!names(intent.effectNames)||!Array.isArray(intent.graphics)||intent.graphics.length>256||!Array.isArray(intent.clips)||intent.clips.length>256||new Set(intent.graphics.map(g=>g.name)).size!==intent.graphics.length||new Set(intent.clips.map(c=>c.clipId)).size!==intent.clips.length||beforeApply!==null&&typeof beforeApply!=='function')throw issue('Program intent is incomplete.');
   const prepare=program=>{
-   if(!program||typeof program.tsxCode!=='string'||!program.tsxCode||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
+   if(!validSource(program)||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
    return normalized(program);
   };
   const graphicPlans=intent.graphics.map(g=>{
-   if(!g||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
+   if(!g||typeof g.tsxCode!=='string'||g.shader||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
    return {...g,program:prepare(g)};
   });
   const clipPlans=intent.clips.map(c=>{
@@ -184,7 +186,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   for(const c of clipPlans){
    for(const [index,e] of c.effects.entries()){
     if(index<c.before.count){effects[e.name].kept++;continue;}
-    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,tsxCode:e.program.tsxCode,parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
+    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,...source(e.program),parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
    }
   }
   // Writer acknowledgements are not evidence that a program was applied.
@@ -200,7 +202,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
   if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');
   const sources=[],clips=[];
-  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
+  const pack=program=>{const p=normalized(program);const value=p.shader||p.tsxCode;let source=sources.findIndex(s=>same(s,value));if(source<0){source=sources.length;sources.push(value);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
   for(const wanted of expected){
    const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');
    const effects=await draft.videoEffects(clip);
@@ -234,8 +236,8 @@ function imageProgramsFeature(selects,config=null,format=null){
   if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
   clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
   const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
-  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});
-  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({...source(program||{}),parameters:definition.parameters,editableParameters:definition.editableParameters});
+  if(!validSource(program)||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
   const value={name:definition.label,...expected};presets.set(id,value);return value;
  };
  const confirm=details=>{
@@ -245,7 +247,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   // journal envelope and ASCII encoding before the only persistence boundary.
   try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
  };
- const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
+ const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({...typeof receipt.sources[p.source]==='string'?{tsxCode:receipt.sources[p.source]}:{shader:receipt.sources[p.source]},parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
  return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};
 }
 async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format,bindPlacement){
