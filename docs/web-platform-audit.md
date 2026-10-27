@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-four packages have passed actual installation, core creation or interaction,
+Twenty-five packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip 8-Clip Daily Vlog and Polaroid Photo Dump.
-They declare `web`. Of the other 26 packages, 18 have identified current blockers
-and 8 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump and Place Count.
+They declare `web`. Of the other 25 packages, 18 have identified current blockers
+and 7 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -54,7 +54,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `news-minute` | **Web verified after fixes** | Actual pinned install, 337-character script, 48.3s narration, seven scenes, finalized editable Draft and full-page reopening/playback at12:03 passed. Fixed iframe confirmation and browser literal-color background preparation. Automatic source checking timed out; sentences were manually reviewed. Normal-gate reinstall passed at `a4e059a`. |
 | `no14-still-video` | **Web verified after fixes** | Actual install `0d5c289`, four original PNGs, eight editable Image clips plus music, and saved Draft `12f0165b-1efc-4f6f-8556-606c7d625942` passed. After full reload and Mac unlock, playback showed the photo composition/transitions at4:21 (`no14-unlocked-playback.png`). Fixed preset-parameter and optional-shader-field receipt comparisons; companion client avoids font embedding for text-free photo effects. Normal-gate reinstall passed at `a4e059a`. |
 | `photo-gallery-no2` | **Web verified after host fixes** | Actual 20-photo/1-video creation succeeded, 21 saved slots read back, sequential reveal and monochrome-to-color playback visible with music. Full reload playback at6:13 passed. Normal-gate reinstall passed at `aa5c693`. |
-| `place-count` | Pending creation retest | Earlier actual creation failed during initial asset/media preparation. Current-host retest and visible saved output are required. |
+| `place-count` | **Web verified after fixes** | Installed `15f37a5`; imported three30s official sample clips grouped by folder, completed all three AI scene analyses, and saved/recovered London (236frames,7.875s) with five source pieces, three editable titles and music. Playback reached7:24; full reload played actual footage/title at3:12. Fixed opaque-origin blob previews, concurrent contact writes, request-owned cache identity, unused desktop link creation and empty recovery commits. Synthetic color bars were not a reliable AI selection fixture. Normal-gate reinstall pending. |
 | `podcast-hook-captions` | Blocked | [plugin.json](../plugins/podcast-hook-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `polaroid-photo-dump` | **Web verified after caption receipt fix** | Reinstalled `b6f3aa5`, selected17 PNGs and saved13.9s Polaroid web verified with individual photos, satin frame, caption, zoom/grade and bundled audio. Playback reached13:21; full reload playback at7:09 showed the photo/frame/caption composition. Normal-gate reinstall passed at `95f24e3`. |
 | `portrait-beat-montage` | Blocked | [plugin.json](../plugins/portrait-beat-montage/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |

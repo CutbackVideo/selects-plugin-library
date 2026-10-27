@@ -58,5 +58,5 @@
     "Trip clips from 3 or more places",
     "Tip: Original camera or phone files work best. Their time and location data helps tell places apart."
   ],
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }
