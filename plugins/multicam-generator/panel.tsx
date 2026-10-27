@@ -921,8 +921,9 @@ export async function placeDirect(plan, resourceId, sdk) {
     const prior=rows.filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame);
     if(prior.length===1)return {alreadyAdded:true,clipId:prior[0].clipId,trackId:prior[0].trackId};
     if(prior.length)throw new Error("placement_check_3");
-    if(plan.replaces){
-      const r=plan.replaces;
+    const replacement = ${JSON.stringify(plan.replaces || null)} as {resourceId:string;startFrame:number;endFrame:number}|null;
+    if(replacement){
+      const r=replacement;
       const candidates=rows.filter(c=>c.trackKind==="video"&&c.resourceId===r.resourceId&&c.startFrame===r.startFrame&&c.endFrame===r.endFrame&&rows.filter(x=>x.trackId===c.trackId).length===1);
       if(candidates.length!==1)throw new Error("draft_changed");
       await d.removeClips(candidates);
@@ -1385,6 +1386,10 @@ function Session({ sdk, context }) {
           throw new Error("submission_unknown");
         j = { ...j, generationId: response.selects.jobId, phase: "queued" };
         await save(j);
+      } else if (j.phase === "placing" && /typecheck_error/.test(j.lastError?.cause || "")) {
+        // The SDK rejects type errors before executing any timeline mutation.
+        j = {...j, phase:"imported"};
+        await save(j);
       } else if (["submitting", "lip_submitting", "placing"].includes(j.phase)) {
         throw new Error("submission_unknown");
       } else if (["queued", "lip_queued"].includes(j.phase)) {
@@ -1622,7 +1627,8 @@ function Session({ sdk, context }) {
   const active = job && !["placed", "failed"].includes(job.phase);
   const disabled = !restored || busy || !!active;
   const lengthError = !active ? durationError(modelKey,duration) : "";
-  const unknown = ["submitting", "lip_submitting", "placing"].includes(job?.phase);
+  const unknown = ["submitting", "lip_submitting", "placing"].includes(job?.phase)
+    && !(job?.phase === "placing" && /typecheck_error/.test(job.lastError?.cause || ""));
   const stepIndex = PHASE_STEP[job?.phase] ?? 0;
   return localizeUI(((
     <div
