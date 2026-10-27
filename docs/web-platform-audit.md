@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty packages have passed actual installation, core creation or interaction,
+Twenty-one packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer and City Weekend Vlog.
-They declare `web`. Of the other 30 packages, 18 have identified current blockers
-and 12 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog and THE END Credits.
+They declare `web`. Of the other 29 packages, 18 have identified current blockers
+and 11 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -70,7 +70,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `tang-poetry-explainer` | **Web verified after fix** | Actual UI reinstall of `8a73a60`, paid job resume, six generated videos, three narration clips, music and editable captions produced a 21.1s Draft. Saved result reopened after full reload and played at4:21. Sequential music persistence fixed overlapping Project writes. Normal-gate reinstall passed at `a4e059a`. |
 | `tetris` | Blocked for complete workflow | Actual single-player move/rotate/drop, score 16, pause and menu passed. Multiplayer Connect failed with `PanelShellRunnerAdapter.run` unavailable. Desktop-install guidance was also missing on that caught error. |
 | `thank-you-recap` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
-| `the-end-credits` | Pending photo workflow | Saved video-only24.9s Draft now replays to the end. Reopened14:21 frame visibly shows scrolling test credits beside original footage; first-title animation also displays. Photo-input creation/replay remain unchecked. |
+| `the-end-credits` | **Web verified including full-frame photos** | Earlier Classic/video replay passed. Full-frame Short mixed run selected one20s video plus21 PNGs, replaced10 placeholder names and created six shots with three actual photos and scrolling credits. Full reload playback at20:04 showed photo21/credits. One cut rounded one frame late; later cuts and total duration match the plan, and existing logic aligns credits to actual boundaries. Normal-gate reinstall pending. |
 | `timeline-shorts-builder` | Pending | [panel.tsx](../plugins/timeline-shorts-builder/panel.tsx#L32): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | Blocked | [plugin.json](../plugins/travel-beat-vlog/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
@@ -183,7 +183,7 @@ their individual verification and normal-install limitations are recorded above.
 | `tang-poetry-explainer` | **Web verified after fix** | Actual UI reinstall of `8a73a60`, paid job resume, six generated videos, three narration clips, music and editable captions produced a 21.1s Draft. Saved result reopened after full reload and played at4:21. Sequential music persistence fixed overlapping Project writes. Normal-gate reinstall pending. |
 | `tetris` | **passed / partial-failed**. Normal game started; move/rotate/drop increased score to 16; pause and main menu worked; Play a friend > New code > Connect failed: Web adapter not implemented: PanelShellRunnerAdapter.run; No desktop-install dialog on this caught panel error |
 | `thank-you-recap` | **passed / passed**. Selected 15 original 8-second videos and a 20-second hero; excluded zero-duration generated outputs. Create produced 49 cuts in a 20.6-second Draft.; Playback visibly showed actual footage and the 2026 / THANK YOU overlay.; After reopening the project, saved Draft played to 20:17 / 20:19. Screenshots: thank-you-title.png and thank-you-reopened.png.; Actual UI reinstall from published commit 1892039 succeeded with the production platform guard unchanged; setup confirms browser install success.; Reinstalled published manifest commit 1892039 through the actual web UI with the normal platform guard unchanged; browser installation success confirmed. |
-| `the-end-credits` | **passed / created-visible-partial-source-skip**. Six analyzed original videos selected; photosoff; ten credit names edited toTest1..10.; ActualCreate produced24.7secondDraft ratherthan33s: one selectedvideo couldnotbechecked andwasskipped.; Playbackat8.5s showed THEEND,scrollingcreditroles/names,andactualvideo inwindow; end-credits-visible.png. Reopen/photos/fullframe remainunverified. |
+| `the-end-credits` | **Web verified including full-frame photos** | Earlier Classic/video replay passed. Full-frame Short mixed run selected one20s video plus21 PNGs, replaced10 placeholder names and created six shots with three actual photos and scrolling credits. Full reload playback at20:04 showed photo21/credits. One cut rounded one frame late; later cuts and total duration match the plan, and existing logic aligns credits to actual boundaries. Normal-gate reinstall pending. |
 | `timeline-shorts-builder` | **passed / failed-native-dimensions**. Selected real sample Short 1 (30.1s), Prepare thumbnails clicked; Native dimensions unavailable for 12 video/image clips; preparation stopped; no Draft created. |
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
@@ -281,3 +281,9 @@ Existing paid job `mxmvqrqjjy` was resumed without duplicate scene generation. A
 ### City Weekend photo workflow admission
 
 The installed panel selected no videos and21 original PNGs, with default Sunny Soul Strut music and A day title. All five stages completed and saved `City Weekend Vlog 2026-10-27 17:12` (13:08 displayed). Playback at10:23 showed the actual photo montage; full-page reload and playback at3:00 showed original photos and the animated title. Earlier video-only playback had already passed. Proof: `city-photo-playing.png`, `city-photo-reopened.png`. Admit web; normal-gate reinstall pending. Totals:20 admitted,18 blocked,12 unresolved.
+
+### THE END Credits mixed/full-frame admission
+
+Selected Full frame, Short, Last Light Ballad,21 PNGs and one20s original video. All10 placeholder names became Web Test. Full-frame photo-only selection could not fill the5.1s opening under the plugin photo-hold limit; adding the video enabled the valid mixed workflow. Saved `THE END Credits 2026-10-27 17:15` (`ffd20c07-912a-4680-832c-01416ff8f119`) has six shots including three photos, music and scrolling editable credits. Actual replay passed; after full reload15:20 showed footage/credits and20:04 showed photo21/credits. Proof: `end-full-photo-playing.png`, `end-full-photo-reopened.png`, `end-full-photo-reopened-late.png`.
+
+The panel reported a planned-frame warning. Read-only SDK inspection found fps24000/1001 and actual boundaries `[0,122,215,308,401,493,598]`; the62BPM/default4.698s music-offset grid is `[0,122,215,308,400,493,598]`. Only one cut is one frame late (about0.042s); following cuts and duration recover. Existing assembly logic/test explicitly handles this source-range rounding and places credits using actual boundaries. Record this timing limitation rather than conceal it. Admit web; normal-gate reinstall pending. Totals:21 admitted,18 blocked,11 unresolved.
