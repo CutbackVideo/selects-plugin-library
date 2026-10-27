@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Eighteen packages have passed actual installation, core creation or interaction,
+Nineteen packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog and Vlog Edit.
-They declare `web`. Of the other 32 packages, 18 have identified current blockers
-and 14 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit and Medical Explainer.
+They declare `web`. Of the other 31 packages, 18 have identified current blockers
+and 13 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -47,7 +47,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `imessage-generator` | Native operation present | [panel.tsx](../plugins/imessage-generator/panel.tsx#L234): Local Kokoro setup and speech use Python/shell. Alternative cloud or silent paths have not been certified for web. |
 | `jared-vox-editorial` | **Web verified after fix** | Actual install `8a73a60`, 21s generation from fictional article, five browser-rendered pan/zoom clips, three narrations, music, editable evidence cards/headings/captions. Full reload and saved playback at3:11 passed (`jared-reopened.png`). One image was automatically remade after checking. Normal-gate reinstall passed at `a4e059a`. |
 | `jude-kinetic-style` | Blocked | [plugin.json](../plugins/jude-kinetic-style/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
-| `medical-explainer` | Pending paid workflow | Nine narrations, eighteen keyframes and eighteen scene clips generated. An isolated resume completed all nine scene strips (last strip/frame saved16:35UTC) and began transition generation. Final composition, editable Draft and replay remain pending; reuse the existing paid job. |
+| `medical-explainer` | **Web verified after sequential resume** | Actual installation, nine narrations, eighteen keyframes, eighteen scene clips, sixteen transition candidates, nine composed cards and eight transitions produced a 45.9s editable Draft. Full playback reached45:22; after full reload playback at11:08 showed video, heading and captions. Two unseen pointer labels were explicitly omitted. Normal-gate reinstall pending. |
 | `mini-vlog` | **Web verified after host fix** | Actual mixed video/photo creation, title and bundled music succeeded. Full reload playback at5:20 showed photo-04 and title; Chrome reported audio playback. Browser app-owned file identity fixed; one scene-search failure was explicitly skipped. See Mini admission below. Normal-gate reinstall passed at `aa5c693`. |
 | `multicam-generator` | Pending failure retest | A nested source was rejected; the raw C0005 talking-head retry failed during audio preparation. Retry a short actual-person source and verify the completed camera edits. |
 | `music` | Blocked | [panel.tsx](../plugins/music/panel.tsx#L10): EpidemicSound and Artlist providers are unimplemented web adapters in the client. |
@@ -160,7 +160,7 @@ their individual verification and normal-install limitations are recorded above.
 | `imessage-generator` | **passed / failed-shell-and-sdk-contract**. Set up free voices: Web adapter not implemented: PanelShellRunnerAdapter.run; Silent > Apply to Draft 16.7s: Panels cannot call canAuthorGeneratedMedia; sdk.call reads; use sdk.runScript to change the project |
 | `jared-vox-editorial` | **Web verified after fix** | Actual install `8a73a60`, 21s generation from fictional article, five browser-rendered pan/zoom clips, three narrations, music, editable evidence cards/headings/captions. Full reload and saved playback at3:11 passed (`jared-reopened.png`). One image was automatically remade after checking. Normal-gate reinstall pending. |
 | `jude-kinetic-style` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
-| `medical-explainer` | **passed / generation-unverified-credit-accounting**. Actual install succeeded and core input panel rendered. Paid final generation not yet run; account dashboard does not expose generation charges. |
+| `medical-explainer` | **Web verified after sequential resume** | Actual installation, nine narrations, eighteen keyframes, eighteen scene clips, sixteen transition candidates, nine composed cards and eight transitions produced a 45.9s editable Draft. Full playback reached45:22; after full reload playback at11:08 showed video, heading and captions. Two unseen pointer labels were explicitly omitted. Normal-gate reinstall pending. |
 | `mini-vlog` | **passed / failed-source-confirmation**. Selected eight analyzed original videos with photos disabled; actual Create failed at step 1/5: The selected source file could not be confirmed. Check the Project file and try again. |
 | `multicam-generator` | **passed / failed-preparation**. Nested source rejected; prepared new Draft 2 from raw single-person C0005.mp4 and retried; New angle generation and Continue retry both failed in video/audio preparation with generic retry alert; no completed output, backend charge not observed. |
 | `music` | **passed / failed-initialization**. Actual panel shows music loading failure for both Epidemic Sound and Artlist; search UI never becomes available |
@@ -273,3 +273,7 @@ Actual installed `a4e059a` UI created `Archive Vlog CINEMATIC 2026-10-27 09:01:4
 ### Vlog Edit admission after transition fix
 
 Installed plugin skill was read directly despite a discovery-name collision; all four source photos were inspected with view_image. Actual editing created `Vlog Edit web verified` (`1b833c80-35de-467c-b5cb-ab031eb38332`), 15s at540x960/24fps, four videos alternating with four original PNGs, seven0.5s dissolves, editable Korean title, generated32-character Korean narration and reused Buant music with ducking/fade. Initial replay repeatedly froze at1:20. Diagnostics proved WebGPU rejected a transition input canvas without a rendering context. The host now initializes that transparent input. After full reload the same saved Draft played through14:23; a second replay showed photo-03 at10:08 and seeking2:12 showed the dissolve blending video/photo beneath the title. Proof: `vlog-edit-fixed-playback.png`, `vlog-edit-fixed-replay.png`, `vlog-edit-dissolve-fixed.png`. Admit web; normal-gate reinstall pending. Totals:18 admitted,18 blocked,14 unresolved.
+
+### Medical admission after sequential resume
+
+Existing paid job `mxmvqrqjjy` was resumed without duplicate scene generation. All nine strips and sixteen transition candidates completed. A Chrome tab crash (code5) interrupted the run; the saved job resumed again. Browser composition created nine scene cards and eight transitions, then editable headings, labels, captions and nine narration clips in `심장 펌프 혈액의 길 · Medical` (45:23 displayed). The isolated resume took roughly21minutes, largely local rendering. The app reported all sentence/scene checks passed and explicitly omitted two pointer labels whose target was not found. Actual playback reached45:22; full-page reload and playback at11:08 passed. Proof: `medical-playing.png`, `medical-reopened.png`. This verifies the software workflow, not medical factual accuracy. Admit web; normal-gate reinstall pending. Totals:19 admitted,18 blocked,13 unresolved.
