@@ -105,5 +105,5 @@
       "default": "mute"
     }
   ],
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }

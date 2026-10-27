@@ -2,9 +2,11 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Short Form Safe Zones passed actual installation, guide creation, visible overlay,
-configuration, removal and reopening. It is the sole web candidate; the other 49
-retain macOS/Windows only pending complete verification.
+Five packages have passed actual installation, core creation or interaction, visible
+output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
+Cinema Vlog Studio, Thank You Recap and pov: you open my gallery. They declare
+`web`; their final normal-metadata reinstall checks are pending. The other 45
+retain macOS/Windows pending complete verification.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
 - **Blocked**: a declared native dependency or required unavailable host path is identified.
@@ -128,33 +130,33 @@ charged usage still needs reconciliation before further paid testing. Installati
 
 This is an **incomplete checkpoint**, not certification of all packages. The
 source-review table above is not runtime proof. Live outcomes are recorded below;
-untested packages remain pending. Only Short Form Safe Zones declares `web`;
-its final normal-metadata installation check is still pending.
+untested packages remain pending. The five candidates listed above declare `web`; final normal-metadata
+installation checks are still pending.
 
 | Plugin | Actual browser outcome so far |
 | --- | --- |
 | `a16z-style-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `ali-abdaal-style` | **passed / failed-edit-commit**. Actual Create Ali Abdaal Style draft clicked for 30-second sample Draft; Transcript and visual-planning steps completed; editable draft creation failed; stale_clip_target: the draft changed after clips() was read; read clips() again; Uncommitted edit reported; failure is not proven browser-specific |
-| `archive-vlog` | **passed / core-pending**.  |
+| `archive-vlog` | **passed / failed-source-confirmation**. In the new test project, selected eight analyzed original videos, disabled photos and edited the archive credit name.; Actual Create stopped at step 1/5: The selected source file could not be confirmed. Check the Project file and try again. No completed Draft. |
 | `camera-shutter-dump` | **passed / created-but-preview-black**. Actual imported PNG sources selected and Create Draft completed; editable image and audio clips visible in timeline; Preview remained black at populated image frames; reload verification pending; After reload imported file references require renewed access; preview reports SourceFileAccessError browser_source_permission-required. Separate host persistence limitation; do not declare web based on Saved status. |
 | `card-news-maker` | **passed / failed-export-timeout**. Text planning and three Nano Banana Pro images succeeded; editable three-card Draft created; Export retried after other edit settled; first card rendering failed: signal timed out, duration31286ms. |
 | `chris-williamson-style` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
-| `cinema-vlog-studio` | **passed / blocked-input-retry-pending**. Actual fixtures folder selected with15videos. Required title8.9s and other slots8.6-10.1s exceed existing8s fixtures. Prepared20s source; native chooser blocked by Mac lock. |
-| `city-weekend-vlog` | **passed / core-pending**. Actual install success message confirmed. |
+| `cinema-vlog-studio` | **passed / passed-core-normal-install-pending**. Imported a 20-second landscape test source through the native file chooser. Assigned it to the required slots using the plugin's explicitly supported source reuse.; Actual Create produced a 21.35-second Draft with 23 cuts, bundled music and title. Seeking to 5:02 visibly rendered the source and scramble title.; After reload, reopened the saved Draft. Playback advanced from 3:18 to 8:01; the inset card was visible at 8:00. Screenshots: cinema-title-visible.png and cinema-reopened-playing.png.; Reopened saved Draft again and played from the beginning through 21:07 / 21:08; screenshot cinema-complete.png. Normal-metadata reinstall pending. |
+| `city-weekend-vlog` | **passed / created-visible-pending-reopen**. Opened installed plugin through Video Templates; automatically selected 15 already analyzed original clips, cancelled extra analysis for generated files.; Actual Apply completed a 13.3-second City Weekend Vlog Draft.; Playback advanced to 9:13 / 13:08 and showed actual source video. Title animation and reopening still need verification. |
 | `cutout-beat-gallery` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `daily-vlog-8` | **passed / failed-script-timeout**. Selected fixtures folder, 8 valid videos assigned. Create clicked.; Script deadline of 120s exceeded; uncommitted edits, no completed Draft. |
 | `depth-type-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `doac-style` | **passed / failed-native-shell**. Create captions on analyzed vertical 9:16 30s sample Draft failed: Web adapter not implemented: PanelShellRunnerAdapter.run |
 | `eo-shorts` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `epidemic-sound-search` | **passed / failed-native-shell**. Panel initialization and actual ambient Search display Web adapter not implemented: PanelShellRunnerAdapter.run |
-| `fast-switching-stopmotion` | **passed / created-visible-pending-reopen**. Actual UI install and Create Draft with 15 imported 8s test videos completed; editable 5.9s vertical Draft; rendered color bars visible and playback advanced. Synthetic inputs verify mechanics, not selfie shot-selection quality. |
+| `fast-switching-stopmotion` | **passed / passed-core-normal-install-pending**. Actual UI install and Create Draft with 15 imported 8s test videos completed; editable 5.9s vertical Draft; rendered color bars visible and playback advanced. Synthetic inputs verify mechanics, not selfie shot-selection quality.; After leaving and reopening the project, saved Draft played from the beginning through 5:25 / 5:27 with actual source video. Screenshot fast-stopmotion-reopened.png. |
 | `four-photo-stop-motion` | **passed / created-but-preview-black**. Actual imported PNG sources selected and Create Draft completed; editable image and audio clips visible in timeline; Preview remained black at populated image frames; reload verification pending; After reload imported file references require renewed access; preview reports SourceFileAccessError browser_source_permission-required. Separate host persistence limitation; do not declare web based on Saved status. |
-| `gongju-gallery` | **passed / created-visible-pending-reopen**. Actual Create new draft with fixtures folder and 15 videos completed. 11.4s Draft, title visible at start and cropped color-bar video visible during playback at5.7s. Reopen and random mode pending. |
+| `gongju-gallery` | **passed / passed-core-normal-install-pending**. Actual Create new draft with fixtures folder and 15 videos completed. 11.4s Draft, title visible at start and cropped color-bar video visible during playback at5.7s. Reopen and random mode pending.; After reopening the project, the saved montage rendered actual cropped video and played through 11:07 / 11:09. Screenshot gongju-gallery-reopened.png. Generated resource list durations show zero even though Draft playback works; downstream reuse metadata remains a separate limitation. |
 | `imessage-generator` | **passed / failed-shell-and-sdk-contract**. Set up free voices: Web adapter not implemented: PanelShellRunnerAdapter.run; Silent > Apply to Draft 16.7s: Panels cannot call canAuthorGeneratedMedia; sdk.call reads; use sdk.runScript to change the project |
 | `jared-vox-editorial` | **passed / generation-unverified-credit-accounting**. Actual install succeeded and core input panel rendered. Paid final generation not yet run; account dashboard does not expose generation charges. |
 | `jude-kinetic-style` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `medical-explainer` | **passed / generation-unverified-credit-accounting**. Actual install succeeded and core input panel rendered. Paid final generation not yet run; account dashboard does not expose generation charges. |
-| `mini-vlog` | **passed / core-pending**.  |
+| `mini-vlog` | **passed / failed-source-confirmation**. Selected eight analyzed original videos with photos disabled; actual Create failed at step 1/5: The selected source file could not be confirmed. Check the Project file and try again. |
 | `multicam-generator` | **passed / failed-preparation**. Nested source rejected; prepared new Draft 2 from raw single-person C0005.mp4 and retried; New angle generation and Continue retry both failed in video/audio preparation with generic retry alert; no completed output, backend charge not observed. |
 | `music` | **passed / failed-initialization**. Actual panel shows music loading failure for both Epidemic Sound and Artlist; search UI never becomes available |
 | `news-minute` | **passed / generation-unverified-credit-accounting**. Installed and input panel ready. UI states script writing/checking also spends Selects credits; connected ChatGPT/Claude subscriptions unavailable. No further generation started. |
@@ -165,23 +167,23 @@ its final normal-metadata installation check is still pending.
 | `polaroid-photo-dump` | **passed / failed-graphic-placement**. Fresh current-session 00-audit-01..17 photos selected; Create Draft failed: Graphic placement could not be confirmed. |
 | `portrait-beat-montage` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `postcard-cutout-studio` | **passed / failed-native-shell**. Native folder chooser selected authorized fixtures folder; Could not open this folder. Details: Web adapter not implemented: PanelShellRunnerAdapter.run |
-| `recap-2026` | **passed / core-pending**.  |
+| `recap-2026` | **passed / failed-file-identity**. After footage loading completed, selected imported 20-second hero and 15 original fixture videos.; Actual 12-second sample creation failed: The file's size or identity could not be confirmed, line 146 column 20. No completed Draft. |
 | `selects-ai-runtime` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
-| `selfie-aesthetic` | **passed / core-pending**.  |
+| `selfie-aesthetic` | **passed / created-synthetic-input-only**. Actual Create with photos disabled completed a 25-shot, approximately 10-second Draft.; One likely close-up reused; three sources fell back to ordinary shots. Synthetic footage verifies mechanics only; real-person framing is not validated.; Playback reached 9:13/9:14 with actual source video and visible color treatment; screenshot selfie-synthetic-visible.png. |
 | `short-form-safe-zones` | **passed / passed-core-normal-install-pending**. Panel opened through Apps after real installer succeeded; Show guides toggle creates visible fuchsia guide clip on timeline; Source footage download pending before preview verification; Sample source footage downloaded through built-in confirmation UI; Guide visibly rendered over video with fuchsia timeline clip; Centre lines change completed; Toggle off removed guide and restored unobstructed preview; Re-added for persistence check; After page reload, reopened panel detected saved guide and rendered overlay; Removed guide after validation; final admission awaits normal metadata gate retest |
 | `shortform-clips` | **rejected-platform-policy / blocked-native-runtime**. Actual built-in app install showed desktop-required dialog; Package dependency selects-ai-runtime is native; direct pinned-package attempt still pending |
 | `shortform-cloner` | **passed / partial-failed**. Analyzed project C0001.mp4 produced two editable shorts of 34.1s and 33.3s with visible video, headlines and timed captions; Actual YouTube link Create failed during downloader preparation: Web adapter not implemented: PanelShellRunnerAdapter.run |
-| `six-clip-velocity` | **passed / created-visible-pending-reopen**. Six 8-second videos selected; 23.2s Draft with editable 114 pieces generated; Actual source pattern visible at3:02, title graphic present; reopen and effect checks pending |
-| `summer-trip` | **passed / created-visible-pending-reopen**. Six original 8s test videos, photos off, short length, default Surf Indie music. Actual Create completed with17.7s Draft and visible source video. One scene-search fallback reported; title/effects/reopen pending.; Playback advanced to11.9s with SUMMER VLOG overlay visible. |
+| `six-clip-velocity` | **passed / created-visible-pending-reopen**. Six 8-second videos selected; 23.2s Draft with editable 114 pieces generated; Actual source pattern visible at3:02, title graphic present; reopen and effect checks pending; Saved Draft reopened and rendered source footage, but playback remained at 00:00 on this retry. Full playback remains unverified. |
+| `summer-trip` | **passed / created-visible-reopened-photo-path-unverified**. Six original 8s test videos, photos off, short length, default Surf Indie music. Actual Create completed with17.7s Draft and visible source video. One scene-search fallback reported; title/effects/reopen pending.; Playback advanced to11.9s with SUMMER VLOG overlay visible.; Reloaded project restored actual video and populated timeline; screenshot summer-trip-reopened.png. |
 | `tang-poetry-explainer` | **passed / generation-unverified-credit-accounting**. Actual install succeeded and core input panel rendered. Paid final generation not yet run; account dashboard does not expose generation charges. |
 | `tetris` | **passed / partial-failed**. Normal game started; move/rotate/drop increased score to 16; pause and main menu worked; Play a friend > New code > Connect failed: Web adapter not implemented: PanelShellRunnerAdapter.run; No desktop-install dialog on this caught panel error |
-| `thank-you-recap` | **passed / core-pending**.  |
-| `the-end-credits` | **passed / core-pending**.  |
+| `thank-you-recap` | **passed / passed-core-normal-install-pending**. Selected 15 original 8-second videos and a 20-second hero; excluded zero-duration generated outputs. Create produced 49 cuts in a 20.6-second Draft.; Playback visibly showed actual footage and the 2026 / THANK YOU overlay.; After reopening the project, saved Draft played to 20:17 / 20:19. Screenshots: thank-you-title.png and thank-you-reopened.png. |
+| `the-end-credits` | **passed / created-visible-partial-source-skip**. Six analyzed original videos selected; photosoff; ten credit names edited toTest1..10.; ActualCreate produced24.7secondDraft ratherthan33s: one selectedvideo couldnotbechecked andwasskipped.; Playbackat8.5s showed THEEND,scrollingcreditroles/names,andactualvideo inwindow; end-credits-visible.png. Reopen/photos/fullframe remainunverified. |
 | `timeline-shorts-builder` | **passed / failed-native-dimensions**. Selected real sample Short 1 (30.1s), Prepare thumbnails clicked; Native dimensions unavailable for 12 video/image clips; preparation stopped; no Draft created. |
 | `torn-paper-love` | **passed / created-but-photo-render-unconfirmed**. Selected seven fresh 00-audit photos, videos disabled; 6.2 second editable Draft created; At 2:05 text and torn-paper border visible, photo content appears solid gray; no full visual pass |
 | `travel-beat-vlog` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `vlog-edit` | **passed / blocked-skill-discovery**. Installer succeeded. Setup reports plugin skill name conflicts with built-in vlog-edit and is hidden in discovery; referenced SDK resource could not be read. End-to-end editing not verified. |
-| `vlog-opening` | **passed / blocked-input-retry-pending**. Actual Build opening returned No analysed landscape video in this project yet. Retry with already analysed landscape sample project pending; not a browser incompatibility. |
+| `vlog-opening` | **passed / created-but-playback-stalled**. Retried with the existing analyzed landscape sample project; Whip style Build opening succeeded: 15.55 seconds, 12 clips, three graphic layers and bundled music.; After reload, the saved Draft and clips reappeared, but playback stayed at 00:00 and the preview remained black after 12 seconds. Do not declare web. |
 | `vox-explainer` | **passed / plan-passed-generation-unverified**. Standalone retry completed20.1s Korean plan with3scenes and5shots, accurately labeling fictional input. Final paid video generation untested pending credit accounting. |
 
 Do not treat an input validation error, missing file permission, absent credentials,
@@ -197,6 +199,5 @@ history into the existing IndexedDB metadata store with durable migration. New
 project creation, imports and history reopening worked after the fix. Fresh PNG
 source previews still render black; imported video and generated video Drafts
 render correctly. The account usage dashboard displays unlimited analysis but
-no generation credit ledger, so further paid generation is held. A Mac lock
-currently blocks the native picker for a longer test clip. None of these is
+no generation credit ledger, so further paid generation is held. The Mac was unlocked and the longer test clip imported successfully. None of these is
 a substitute for a completed core-workflow test.
