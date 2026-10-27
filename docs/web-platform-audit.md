@@ -239,3 +239,7 @@ Final accounting check: expanded AI image history entries also expose no charged
 - Photo template shader-preset receipt support is fixed in `85e2ee8` (59 tests passed); No.14 live retest remains required.
 
 - News follow-up completed: the corrected background rendered, all seven scenes were saved, and the 48.3s editable Draft was finalized. After full page reload playback reached 12:03 with visible headline, flow cards and captions. Evidence: `/tmp/web-plugin-verification/round2/news-reopened.png`. Admit `news-minute` (11 verified); normal-gate reinstall of its new manifest remains pending.
+
+### Tang Poetry live retest — 2026-10-27
+
+Installed commit `8a73a60` through the web UI and resumed the existing paid job `vxmvqpki6u`. Serializing music persistence before scene writes fixed the concurrent Project write failure. All six generated video clips, three narration clips, music, headings and captions were assembled into a 21.1-second editable Draft. Playback showed the generated imagery and captions; after a full page reload, the saved Draft reopened and played at 4:21. Evidence: `tang-playback.png`, `tang-reopened.png` in the task evidence directory. Web admitted only after this retest. Normal metadata-gate reinstall remains pending. Current checkpoint: 12 verified, 18 unsupported, 20 unresolved.
