@@ -6575,9 +6575,10 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
 
  if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
  const observe=async operation=>{check();const result=await operation();check();return result;};
+ const identity=stat=>typeof stat?.sourceIdentity==='string'&&stat.sourceIdentity?stat.sourceIdentity:Number.isFinite(stat?.ino)?stat.ino:null;
  const before=await observe(()=>files.stat(path));
  if(before===null)return null;
- if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||!Number.isFinite(before.ino))throw Error("The file's size or identity could not be confirmed.");
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||identity(before)===null)throw Error("The file's size or identity could not be confirmed.");
  const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
  for(let offset=0;offset<before.size;){
   const length=Math.min(49152,before.size-offset);
@@ -6595,7 +6596,7 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
   hash.update(bytes);check();offset+=length;
  }
  const after=await observe(()=>files.stat(path));
- if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The file changed while its contents were read.');
+ if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||identity(before)!==identity(after))throw Error('The file changed while its contents were read.');
  const digest=hash.digest();check();
  let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
  return {size:before.size,sha256:hex};
