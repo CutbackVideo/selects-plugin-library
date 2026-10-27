@@ -9,8 +9,8 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
  // Assembly runs in the real SDK-script shape, including its existing native
  // media port. Keep native jobs owned by this fixture; execute actual FFmpeg so
  // source mutation and complete-byte verification remain meaningful.
- const nativeJobs=new Map();let nativeSerial=0;
- t.after(async()=>{for(const job of nativeJobs.values())if(job.state==='running')job.controller.abort();await Promise.all([...nativeJobs.values()].map(job=>job.done));});
+ const nativeJobs=new Map(),scriptScopes=new Set();let nativeSerial=0;
+ t.after(async()=>{try{for(const job of nativeJobs.values())if(job.state==='running')job.controller.abort();await Promise.all([...nativeJobs.values()].map(job=>job.done));}finally{for(const {channel} of scriptScopes){channel.port1.close();channel.port2.close();}scriptScopes.clear();}});
  const nativeMedia=authorized=>({
   startFFmpeg:async({args})=>{
    assert.equal(authorized,true,'native media start requires allowCommit');
@@ -55,8 +55,10 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
   // A real SDK host owns an open IPC connection while a script is running.
   // Model that transport lifetime: Atomics.waitAsync alone does not retain
   // Node's loop after FFmpeg exits between two status observations.
-  const channel=new MessageChannel();channel.port1.on('message',()=>{});
-  const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){if(input.summary==='Assemble template with owned receipt')t.diagnostic?.(JSON.stringify({fixture:'assembly-cause',summary:input.summary,message:error.message,cause:error.cause?.message,stack:error.stack}));return {isError:true,output:error.message};}finally{channel.port1.close();channel.port2.close();}})();
+  // V8 may discard a context whose only pending work is waitAsync. The host
+  // must retain the execution space, not just an unrelated open transport.
+  const channel=new MessageChannel(),context=vm.createContext({selects}),scope={channel,context};scriptScopes.add(scope);channel.port1.on('message',()=>{});
+  const work=(async()=>{try{const result=await vm.runInContext('(async()=>{'+input.script+'})()',context);await hooks.reply?.(input,result);return {result};}catch(error){if(input.summary==='Assemble template with owned receipt')t.diagnostic?.(JSON.stringify({fixture:'assembly-cause',summary:input.summary,message:error.message,cause:error.cause?.message,stack:error.stack}));return {isError:true,output:error.message};}finally{channel.port1.close();channel.port2.close();scriptScopes.delete(scope);}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'||hooks.lostAssembly&&input.summary==='Assemble template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;
  }};
  const mount=()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(source,box);return box;};

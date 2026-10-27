@@ -25,6 +25,14 @@ all four photo wrappers and Mini. The577 affected checks pass without skips.
 Ownership classifications and acceptance flags are unchanged; only source hashes
 and coordinates are refreshed.
 
+CI host-lifetime regressions also retain each executing VM context until its
+script settles and close owned transports on fixture teardown. Forced GC made
+the prior async wait remain pending; retaining the context restores completion.
+An unfinished-script teardown probe independently caught an open transport.
+Both counterexamples now pass, as do 175 related Archive/Mini cases on Node22.
+The unchanged app's real query executor also completes the same forced-GC wait
+probe on Node22.23.3 and Node24.10.0; this correction is confined to the test host.
+
 Actual installed-app comparison used the same4GiB MP4 bytes, second video,
 default bundled music/options, three sustained legacy full-byte readers and two
 Claude-subscription Chris runs. Targets started80s after the readers in both arms.

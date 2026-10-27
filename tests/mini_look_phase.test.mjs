@@ -1,7 +1,35 @@
 import assert from 'node:assert/strict';import test from 'node:test';
 import {lookPhaseFixture as fixture} from './mini_look_fixture.mjs';
 import {vlogOperation} from './sdk_free_helpers.mjs';
+import {spawnSync} from 'node:child_process';
 const clone=v=>JSON.parse(JSON.stringify(v));
+test('the SDK fixture releases its transport when a pending script outlives the test',()=>{
+ // Probe in a child: the old leak must fail explicitly rather than leaving
+ // the test runner itself open forever after the assertion has failed.
+ const probe=`import {lookPhaseFixture} from ${JSON.stringify(new URL('./mini_look_fixture.mjs',import.meta.url).href)};
+ const after=[],f=await lookPhaseFixture({after:fn=>after.push(fn)});
+ const ports=()=>process.getActiveResourcesInfo().filter(x=>x==='MessagePort').length;
+ const before=ports();f.hooks.lostAssembly=true;
+ await f.sdk.runScript({summary:'Assemble template with owned receipt',script:'await new Promise(()=>{});'});
+ await new Promise(setImmediate);const active=ports();
+ for(const cleanup of after)await cleanup();
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ const afterDispose=ports();console.log(JSON.stringify({before,active,afterDispose}));
+ process.exit(active>before&&afterDispose===before?0:1);`;
+ const result=spawnSync(process.execPath,['--input-type=module','-e',probe],{encoding:'utf8',timeout:30000});
+ assert.equal(result.status,0,result.stdout+'\n'+result.stderr);
+});
+test('the SDK fixture retains a waiting VM context across garbage collection',()=>{
+ const probe=`import {lookPhaseFixture} from ${JSON.stringify(new URL('./mini_look_fixture.mjs',import.meta.url).href)};
+ const after=[],f=await lookPhaseFixture({after:fn=>after.push(fn)});
+ const pending=f.sdk.runScript({summary:'Wait across GC',script:'for(let i=0;i<20;i++)await Atomics.waitAsync(new Int32Array(new SharedArrayBuffer(4)),0,0,5).value;return true;'});
+ const pressure=setInterval(()=>global.gc(),1);
+ const result=await Promise.race([pending,new Promise(resolve=>setTimeout(()=>resolve(null),3000))]);
+ clearInterval(pressure);for(const cleanup of after)await cleanup();
+ console.log(JSON.stringify(result));process.exit(result?.result===true?0:1);`;
+ const result=spawnSync(process.execPath,['--expose-gc','--input-type=module','-e',probe],{encoding:'utf8',timeout:30000});
+ assert.equal(result.status,0,result.stdout+'\n'+result.stderr);
+});
 test('Mini workflow: losing the look reply recovers one exact saved Draft with no second decoration',async t=>{
  const f=await fixture(t);f.hooks.reply=input=>{if(input.summary==='Decorate template with owned receipt')throw Error('lost reply after save');};const result=await (await f.open()).workflow(f.root,f.prepare);
  assert.equal(result.sequenceId,'d1');assert.equal(result.decorationConfirmed,true);assert.equal(f.commits(),2);assert.equal(f.requests.filter(r=>r.summary==='Decorate template with owned receipt').length,1);assert.equal(await (await f.open()).read(),null);
