@@ -1758,6 +1758,7 @@ function Panel({ sdk, context, ui }: any) {
       }
 
       setStep(5);
+      setStatus(S.steps[5]);
       const failedClips = STYLE.style === "editorial"
         ? ((await readJson(hostJoin(dir,"timeline.json"))).segments || []).map((x:any)=>({id:x.shot}))
         : await generate(st, sc, (await run("requests", dir, ["clips"], "Motion requests")).requests, S.steps[5], "keep");

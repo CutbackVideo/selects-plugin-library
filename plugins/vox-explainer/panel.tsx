@@ -1720,6 +1720,7 @@ function Panel({ sdk, context, ui }: any) {
       }
 
       setStep(5);
+      setStatus(S.steps[5]);
       const failedClips = await generate(st, sc, (await run("requests", dir, ["clips"], "Motion requests")).requests, S.steps[5], "keep");
       if (failedClips.length) {
         // LESSON: a refused clip is refused again on every retry; the pan-and-zoom fallback is immediate.
