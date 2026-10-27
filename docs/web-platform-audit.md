@@ -217,3 +217,12 @@ Final accounting check: expanded AI image history entries also expose no charged
 - Other Round 1 failures and outstanding checks are not reclassified by these partial results.
 - Four Photo Stop Motion passed its photo-only main path after the shared browser preview fix: actual install, four source photos, 11.6-second creation, visible playback, full reload and playback to 8:03.
 - Camera Shutter Dump also passed actual creation and reopening after the same preview fix: twelve editable photos and shutter sound clips, visible 10-second collage, reopened playback at 9:22.
+
+- Normal platform validation remained enabled when Camera Shutter Dump and Four Photo Stop Motion were reinstalled successfully from `e0df75b`. Vox same-version reinstallation remains pending.
+- Music is currently unsupported: both provider services are explicitly unimplemented in the web adapter (`EpidemicSoundAdapter.execute/connect`, `ArtlistMusicAdapter.execute`). This explains the two observed initialization failures independently of account credentials.
+
+### Sample-project playback guard and Six Clip admission
+
+- Sample playback incorrectly tested every imported resource before playing any Draft. An unrelated revoked browser file handle prevented all playback. The guard now checks only the footage directory restored by the sample download.
+- `six-clip-velocity`: previously installed and generated 114 editable pieces, 23.2s. Reopened result now plays with visible source footage and vertical blur at 10:17. Evidence: `/tmp/web-plugin-verification/round2/six-playback.png`. Add `web` (9 admitted plugins total).
+- `vlog-opening`: saved Whip15.55s now plays visible original footage at3:24. Motion and Quotes still pending; do not add web yet.
