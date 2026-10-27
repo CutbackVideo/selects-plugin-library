@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Thirteen packages have passed actual installation, core creation or interaction,
+Fourteen packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer and Jared Vox Editorial.
-They declare `web`. Of the other 37 packages, 18 have identified current blockers
-and 19 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial and Four Photo Reveal.
+They declare `web`. Of the other 36 packages, 18 have identified current blockers
+and 18 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -52,7 +52,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `multicam-generator` | Pending | [panel.tsx](../plugins/multicam-generator/panel.tsx#L578): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `music` | Blocked | [panel.tsx](../plugins/music/panel.tsx#L10): EpidemicSound and Artlist providers are unimplemented web adapters in the client. |
 | `news-minute` | **Web verified after fixes** | Actual pinned install, 337-character script, 48.3s narration, seven scenes, finalized editable Draft and full-page reopening/playback at12:03 passed. Fixed iframe confirmation and browser literal-color background preparation. Automatic source checking timed out; sentences were manually reviewed. Normal-gate reinstall of the new manifest remains pending. |
-| `no14-still-video` | Pending | [panel.tsx](../plugins/no14-still-video/panel.tsx#L1814): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
+| `no14-still-video` | **Web verified after fixes** | Actual install `0d5c289`, four original PNGs, eight editable Image clips plus music, and saved Draft `12f0165b-1efc-4f6f-8556-606c7d625942` passed. After full reload and Mac unlock, playback showed the photo composition/transitions at4:21 (`no14-unlocked-playback.png`). Fixed preset-parameter and optional-shader-field receipt comparisons; companion client avoids font embedding for text-free photo effects. Normal-gate reinstall pending. |
 | `photo-gallery-no2` | Native operation present | [panel.tsx](../plugins/photo-gallery-no2/panel.tsx#L494): Uses selects.ai without declaring selects-ai-runtime. Browser workers have no native AI host; review dependency declaration before enabling web. |
 | `place-count` | Pending | [panel.tsx](../plugins/place-count/panel.tsx#L919): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `podcast-hook-captions` | Blocked | [plugin.json](../plugins/podcast-hook-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
@@ -164,7 +164,7 @@ their individual verification and normal-install limitations are recorded above.
 | `multicam-generator` | **passed / failed-preparation**. Nested source rejected; prepared new Draft 2 from raw single-person C0005.mp4 and retried; New angle generation and Continue retry both failed in video/audio preparation with generic retry alert; no completed output, backend charge not observed. |
 | `music` | **passed / failed-initialization**. Actual panel shows music loading failure for both Epidemic Sound and Artlist; search UI never becomes available |
 | `news-minute` | **Web verified after fixes** | Actual pinned install, 337-character script, 48.3s narration, seven scenes, finalized editable Draft and full-page reopening/playback at12:03 passed. Fixed iframe confirmation and browser literal-color background preparation. Automatic source checking timed out; sentences were manually reviewed. Normal-gate reinstall of the new manifest remains pending. |
-| `no14-still-video` | **passed / failed-effect-program**. Loaded 21 actual imported PNG images; photo A-D resolved to photo-01 through photo-04; Create new Draft passed image-source and bundled-music stages then failed: Effect preset reference program could not be confirmed. |
+| `no14-still-video` | **Web verified after fixes** | Actual install `0d5c289`, four original PNGs, eight editable Image clips plus music, and saved Draft `12f0165b-1efc-4f6f-8556-606c7d625942` passed. After full reload and Mac unlock, playback showed the photo composition/transitions at4:21 (`no14-unlocked-playback.png`). Fixed preset-parameter and optional-shader-field receipt comparisons; companion client avoids font embedding for text-free photo effects. Normal-gate reinstall pending. |
 | `photo-gallery-no2` | **passed / failed-file-identity**. Retested with all 21 fresh current-session photos explicitly assigned; Create Draft failed runtime_error: The file's size or identity could not be confirmed (line146,column20). |
 | `place-count` | **passed / failed-local-media-support**. Panel reports Plugin assets or local-media support are unavailable. Reinstall Place Count or update Selects.; Choose folder clicked; no progress beyond initial blocked panel. |
 | `podcast-hook-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
