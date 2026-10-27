@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-five packages have passed actual installation, core creation or interaction,
+Twenty-six packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump and Place Count.
-They declare `web`. Of the other 25 packages, 18 have identified current blockers
-and 7 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump, Place Count and Timeline Shorts Builder.
+They declare `web`. Of the other 24 packages, 18 have identified current blockers
+and 6 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -71,7 +71,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `tetris` | Blocked for complete workflow | Actual single-player move/rotate/drop, score 16, pause and menu passed. Multiplayer Connect failed with `PanelShellRunnerAdapter.run` unavailable. Desktop-install guidance was also missing on that caught error. |
 | `thank-you-recap` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
 | `the-end-credits` | **Web verified including full-frame photos** | Earlier Classic/video replay passed. Full-frame Short mixed run selected one20s video plus21 PNGs, replaced10 placeholder names and created six shots with three actual photos and scrolling credits. Full reload playback at20:04 showed photo21/credits. One cut rounded one frame late; later cuts and total duration match the plan, and existing logic aligns credits to actual boundaries. Normal-gate reinstall passed at `b6f3aa5`. |
-| `timeline-shorts-builder` | Pending | [panel.tsx](../plugins/timeline-shorts-builder/panel.tsx#L32): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
+| `timeline-shorts-builder` | **Web verified** | Selected London with actual source media, prepared12 thumbnails using a worker, and created Timeline Shorts web verified (7.875s) with six embedded thumbnail images and one timeline graphic. Playback showed the video and moving timeline at4:05; full reload replayed both at3:15. Collection emitted six warnings but image preparation and saved output passed. Export remains separate and untested. Normal-gate reinstall pending. |
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | Blocked | [plugin.json](../plugins/travel-beat-vlog/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `vlog-edit` | **Web verified after host fix** | Direct installed skill read, actual four-video/four-photo edit, generated Korean narration, existing music, editable title and seven dissolves. Browser WebGPU rejected context-free transparent transition inputs; after the host fix the reopened 15s Draft played to14:23 and the dissolve at2:12 visibly blended both sources. Normal-gate reinstall passed at `aa5c693`. |

@@ -26,5 +26,5 @@
     "width": 576,
     "height": 1024
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }
