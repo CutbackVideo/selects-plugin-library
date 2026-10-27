@@ -585,7 +585,7 @@
         "dependencies": "Existing input/catalog/assets/analysis/durable owners; Archive two-video and hidden-run defaults. Standalone locally scores unanalysed videos; hidden search supplies evenly spaced candidates for usable unanalysed input, without running local frame scoring.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Recovery is admitted before new selections; one run epoch/single-flight. Parallel scene/local jobs settle/cancel before error returns.",
-        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "build/buildAnother/finishTitle/decorate, runArchiveVlogTemplate, archiveRecoveryOptions/archiveWorkflowResult.",
@@ -1013,13 +1013,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "322759d9d86cedafeaf6b41cd4f45f5258ac0bc714c363e0df7a134ef69665b1",
+      "sha256": "5e55f87ecf18a20648c9e65357e2deb2bbbd3271f2dc9346b29fe291de26ccae",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8170,
+          "endLine": 8179,
           "feature": "panel-ui"
         },
         {
@@ -1053,18 +1053,18 @@
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 4379,
-          "endLine": 4459,
+          "startLine": 4382,
+          "endLine": 4462,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7631,
-          "endLine": 8122,
+          "startLine": 7634,
+          "endLine": 8131,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8124,
-          "endLine": 8169,
+          "startLine": 8133,
+          "endLine": 8178,
           "feature": "app-guard"
         },
         {
@@ -1088,128 +1088,128 @@
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4462,
-          "endLine": 4465,
+          "startLine": 4465,
+          "endLine": 4468,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4471,
-          "endLine": 4506,
+          "startLine": 4474,
+          "endLine": 4509,
           "feature": "music-policy"
         },
         {
-          "startLine": 4576,
-          "endLine": 4591,
+          "startLine": 4579,
+          "endLine": 4594,
           "feature": "music-policy"
         },
         {
-          "startLine": 4593,
-          "endLine": 4596,
+          "startLine": 4596,
+          "endLine": 4599,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5293,
-          "endLine": 5306,
+          "startLine": 5296,
+          "endLine": 5309,
           "feature": "music-policy"
         },
         {
-          "startLine": 5308,
-          "endLine": 5333,
+          "startLine": 5311,
+          "endLine": 5336,
           "feature": "program-policy"
         },
         {
-          "startLine": 5349,
-          "endLine": 5371,
+          "startLine": 5352,
+          "endLine": 5374,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5376,
-          "endLine": 5384,
+          "startLine": 5379,
+          "endLine": 5387,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5386,
-          "endLine": 5399,
+          "startLine": 5389,
+          "endLine": 5402,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5404,
-          "endLine": 5428,
+          "startLine": 5407,
+          "endLine": 5431,
           "feature": "music-policy"
         },
         {
-          "startLine": 5430,
-          "endLine": 5437,
+          "startLine": 5433,
+          "endLine": 5440,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5458,
-          "endLine": 5468,
+          "startLine": 5461,
+          "endLine": 5471,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5764,
-          "endLine": 5787,
+          "startLine": 5767,
+          "endLine": 5790,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5788,
-          "endLine": 5806,
+          "startLine": 5791,
+          "endLine": 5809,
           "feature": "title-policy"
         },
         {
-          "startLine": 5881,
-          "endLine": 5931,
+          "startLine": 5884,
+          "endLine": 5934,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5970,
-          "endLine": 6011,
+          "startLine": 5973,
+          "endLine": 6014,
           "feature": "music-policy"
         },
         {
-          "startLine": 6020,
-          "endLine": 6111,
+          "startLine": 6023,
+          "endLine": 6114,
           "feature": "title-policy"
         },
         {
-          "startLine": 6114,
-          "endLine": 6144,
+          "startLine": 6117,
+          "endLine": 6147,
           "feature": "music-policy"
         },
         {
-          "startLine": 6187,
-          "endLine": 6199,
+          "startLine": 6190,
+          "endLine": 6202,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6216,
-          "endLine": 6414,
+          "startLine": 6219,
+          "endLine": 6417,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6445,
-          "endLine": 6473,
+          "startLine": 6448,
+          "endLine": 6476,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6752,
-          "endLine": 6765,
+          "startLine": 6755,
+          "endLine": 6768,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6774,
-          "endLine": 6776,
+          "startLine": 6777,
+          "endLine": 6779,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6785,
-          "endLine": 6812,
+          "startLine": 6788,
+          "endLine": 6815,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7306,
-          "endLine": 7466,
+          "startLine": 7309,
+          "endLine": 7469,
           "feature": "workflow-policy"
         },
         {
@@ -1218,38 +1218,38 @@
           "feature": "audio-preview"
         },
         {
-          "startLine": 5755,
-          "endLine": 5760,
+          "startLine": 5758,
+          "endLine": 5763,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6146,
-          "endLine": 6184,
+          "startLine": 6149,
+          "endLine": 6187,
           "feature": "audio-preview"
         },
         {
           "startLine": 3841,
-          "endLine": 4377,
+          "endLine": 4380,
           "feature": "asset-owner"
         },
         {
-          "startLine": 7014,
-          "endLine": 7287,
+          "startLine": 7017,
+          "endLine": 7290,
           "feature": "source-input"
         },
         {
-          "startLine": 4598,
-          "endLine": 5289,
+          "startLine": 4601,
+          "endLine": 5292,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4507,
-          "endLine": 4575,
+          "startLine": 4510,
+          "endLine": 4578,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7515,
-          "endLine": 7629,
+          "startLine": 7518,
+          "endLine": 7632,
           "feature": "catalog-read"
         },
         {
@@ -1258,8 +1258,8 @@
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 4380,
-          "endLine": 4441,
+          "startLine": 4383,
+          "endLine": 4444,
           "feature": "host-file-facade"
         },
         {
@@ -1268,13 +1268,13 @@
           "feature": "text-runtime"
         },
         {
-          "startLine": 6816,
-          "endLine": 6918,
+          "startLine": 6819,
+          "endLine": 6921,
           "feature": "file-observation"
         },
         {
-          "startLine": 6919,
-          "endLine": 7013,
+          "startLine": 6922,
+          "endLine": 7016,
           "feature": "draft-observation"
         }
       ]
@@ -1351,13 +1351,13 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/assemble.js",
-      "sha256": "6128b249785eb8c73fcc9f0fdc735910794bfb9f120a8575a8919c85dbf06aff",
+      "sha256": "5779793c73bd49218d4579c2872c1da1104ae3b1715d07eb51afc8c260755783",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 570,
+          "endLine": 577,
           "feature": "assembly-policy"
         },
         {
@@ -1367,32 +1367,32 @@
         },
         {
           "startLine": 104,
-          "endLine": 164,
+          "endLine": 171,
           "feature": "native-source-verification"
         },
         {
-          "startLine": 165,
-          "endLine": 173,
+          "startLine": 172,
+          "endLine": 180,
           "feature": "draft-observation"
         },
         {
-          "startLine": 174,
-          "endLine": 355,
+          "startLine": 181,
+          "endLine": 362,
           "feature": "source-input"
         },
         {
-          "startLine": 356,
-          "endLine": 435,
+          "startLine": 363,
+          "endLine": 442,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 474,
-          "endLine": 474,
+          "startLine": 481,
+          "endLine": 481,
           "feature": "native-source-verification"
         },
         {
-          "startLine": 475,
-          "endLine": 478,
+          "startLine": 482,
+          "endLine": 485,
           "feature": "source-input"
         }
       ]
@@ -1824,13 +1824,13 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "6bdc4001ac6ab42379652948662e78b146cb28d6965ec9f18250c3f325599015",
+      "sha256": "c37cf40bca7004ec9d2d68876e5dd4d3ecd17717929157aa43acef5d82c4f7a2",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 493,
+          "endLine": 499,
           "feature": "local-sdk"
         }
       ]
@@ -1850,13 +1850,13 @@
     },
     {
       "path": "shared/bundled-assets.js",
-      "sha256": "96c3859e85676419fba660e13c8e7e2efafde328bf208d2eb4cabbfb0a188f07",
+      "sha256": "ed13cd1e1e2e9dbb280ed2653ff0fcfbcb1d25a1d3554cb6de4668fbc02d931d",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 536,
+          "endLine": 539,
           "feature": "asset-owner"
         }
       ]
@@ -2173,13 +2173,13 @@
     },
     {
       "path": "tests/vlog_native_hash_cancel.test.mjs",
-      "sha256": "df17d89f8384aa561270a0432b147b84d4b23f29d149af4df55f7f5aefbe817b",
+      "sha256": "8e685ef0bb8742fe53515b9a202037f11501328e29643397d7a50be59fb022f6",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 126,
+          "endLine": 145,
           "feature": "test-harness"
         }
       ]
@@ -2187,12 +2187,12 @@
     {
       "path": "shared/native-source-files.js",
       "role": "runtime",
-      "sha256": "55041e2425932f14a6cf7d5c39da14d7519b5f9a243b8ddfe4372b11f3cfebc6",
+      "sha256": "e9f8abda2553614c648c9d8156d086039c9bf26842401c69d4239f051350a67c",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 68,
+          "endLine": 75,
           "feature": "native-source-verification"
         }
       ]
@@ -2200,17 +2200,17 @@
     {
       "path": "tests/native_file_observation.test.mjs",
       "role": "validation",
-      "sha256": "399c811cee52682d0432a3b0fc435f4f721b1c4010d3ae9efac3a016258f57e4",
+      "sha256": "74fb8e44d477fa5ce1d19bf1704904e32b2a01816aba505d6d70a11d425562e1",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 110,
+          "endLine": 137,
           "feature": "local-sdk"
         },
         {
           "startLine": 72,
-          "endLine": 109,
+          "endLine": 136,
           "feature": "native-source-verification"
         }
       ]

@@ -1702,12 +1702,18 @@ async function createPanelLocalClient(sdk: any) {
       cause => finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.", cause)));
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, check?: () => void, observationDeadline?: number) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, ownerCheck?: () => void, observationDeadline?: number) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
-      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function" ||
+      ownerCheck !== undefined && typeof ownerCheck !== "function" || observationDeadline !== undefined && !Number.isFinite(observationDeadline))
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const check = () => {
+      if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      ownerCheck?.();
+      if (observationDeadline !== undefined && Date.now() >= observationDeadline)
+        throw mediaIssue("STATUS", "The media operation budget has expired.");
+    };
     check?.();
     const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
@@ -1757,7 +1763,7 @@ async function createPanelLocalClient(sdk: any) {
         check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
-        // Source verification already owns a total deadline. Keep its single
+        // An operation owner supplies a total deadline. Keep its single
         // pending read alive across a slow renderer turn, while checking scope
         // and cancellation; never replay the native job or the status request.
         const status = await statusAt(cancellationDeadline ?? observationDeadline ?? Date.now() + SETTLEMENT_MS,
@@ -1869,8 +1875,8 @@ async function createPanelLocalClient(sdk: any) {
     files,
     environment,
     media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void, owner?: { deadline: number; check?: () => void }) => process("FFmpeg", args, quiet, signal, stdout, stderr, owner?.check, owner?.deadline),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal, _stdout?: undefined, _stderr?: undefined, owner?: { deadline: number; check?: () => void }) => process("FFprobe", args, quiet, signal, undefined, undefined, owner?.check, owner?.deadline),
     },
     dialogs: {
       pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),

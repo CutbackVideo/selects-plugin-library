@@ -23,6 +23,12 @@ export function nativeSourceFiles(selects, deadline = Date.now() + 90000) {
     if(prefix.base64.startsWith('SUQz'))return fingerprintTemplateFile(files,path,check);
    }
    if(typeof selects.media?.startFFmpeg!=='function'||typeof selects.media?.job!=='function')throw Error('Update Selects to verify original media with native file reads.');
+   // The SDK sandbox has no browser timers. Yield without blocking its executor
+   // or flooding the renderer with identical running-status observations.
+   const wait=typeof Atomics==='object'?Object.getOwnPropertyDescriptor(Atomics,'waitAsync')?.value:null;
+   if(typeof wait!=='function'||typeof SharedArrayBuffer!=='function')throw Error('A nonblocking status scheduler is unavailable.');
+   const clock=new Int32Array(new SharedArrayBuffer(4));
+   const pause=async until=>{const ms=Math.min(150,until-Date.now());if(ms>0)await wait(clock,0,0,ms).value;};
    let job=null,settled=false;
    try{
     let started;
@@ -50,15 +56,16 @@ export function nativeSourceFiles(selects, deadline = Date.now() + 90000) {
       if(!valid(after)||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The original file changed during verification.');
       return {size:before.size,sha256:match[1].toLowerCase()};
      }
+     if(row.state==='running')await pause(deadline);
     }
    }finally{
     if(job&&!settled){
      // Cancel only this invocation's native process, then observe confirmed exit.
-     // Do not race a script-local timer: timers do not exist in the SDK sandbox.
+     // The same nonblocking scheduler bounds cancellation polling as well.
      const until=Date.now()+5000;
      try{
       await job.cancel();
-      for(;;){const row=await job.status();if(['succeeded','failed','cancelled'].includes(row?.state))break;if(Date.now()>=until)throw Error('Native source cancellation was not confirmed.');}
+      for(;;){const row=await job.status();if(['succeeded','failed','cancelled'].includes(row?.state))break;if(Date.now()>=until)throw Error('Native source cancellation was not confirmed.');await pause(until);}
      }catch(cause){throw Object.assign(Error('The native source job exit could not be confirmed.'),{cause,preserveTemporaryFiles:true});}
     }
    }

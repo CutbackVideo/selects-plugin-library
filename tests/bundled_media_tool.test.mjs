@@ -5,7 +5,7 @@ import test from 'node:test';
 const source=fs.readFileSync(new URL('../shared/bundled-assets.js',import.meta.url),'utf8');
 const load=()=>vm.runInNewContext(source+'\nrunAssetMediaTool',{AbortController,setTimeout,clearTimeout});
 test('shared asset media runner retains the receiver and completed response',async()=>{
- const run=load(),media={token:'owned',runFFmpeg:async function(args,quiet,signal){assert.equal(this.token,'owned');assert.deepEqual(Array.from(args),['-version']);assert.equal(quiet,true);assert.equal(signal.aborted,false);return {stdout:'complete'};}};
+ const run=load(),media={token:'owned',runFFmpeg:async function(args,quiet,signal,_out,_err,owner){assert.equal(this.token,'owned');assert.deepEqual(Array.from(args),['-version']);assert.equal(quiet,true);assert.equal(signal.aborted,false);assert.ok(Number.isFinite(owner.deadline));assert.ok(owner.deadline<=Date.now()+1000);owner.check();return {stdout:'complete'};}};
  assert.equal((await run(media,'runFFmpeg',['-version'],{timeoutMs:1000})).stdout,'complete');
 });
 test('shared asset media runner rejects pre-aborted work before dispatch',async()=>{

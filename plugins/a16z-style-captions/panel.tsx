@@ -869,10 +869,15 @@ async function createPanelLocalClient(sdk) {
     );
   });
   const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, check, observationDeadline) => {
-    if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, ownerCheck, observationDeadline) => {
+    if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function" || ownerCheck !== void 0 && typeof ownerCheck !== "function" || observationDeadline !== void 0 && !Number.isFinite(observationDeadline))
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const check = () => {
+      if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      ownerCheck?.();
+      if (observationDeadline !== void 0 && Date.now() >= observationDeadline)
+        throw mediaIssue("STATUS", "The media operation budget has expired.");
+    };
     check?.();
     const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
@@ -1069,8 +1074,8 @@ async function createPanelLocalClient(sdk) {
     files,
     environment,
     media: {
-      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
+      runFFmpeg: (args, quiet, signal, stdout, stderr, owner) => process("FFmpeg", args, quiet, signal, stdout, stderr, owner?.check, owner?.deadline),
+      runFFprobe: (args, quiet, signal, _stdout, _stderr, owner) => process("FFprobe", args, quiet, signal, void 0, void 0, owner?.check, owner?.deadline)
     },
     dialogs: {
       pickFilePath: (filters) => run2("editor.pickFile", [{ filters }]),

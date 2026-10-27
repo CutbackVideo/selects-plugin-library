@@ -2123,7 +2123,10 @@ async function runAssetMediaTool(media,kind,args,options={}){
  else timer=setTimeout(()=>{timedOut=true;controller.abort();},remaining);
  try{
   if(stopped||timedOut)throw Error('The media process was not dispatched.');
-  const result=await media[kind](args,true,controller.signal);
+  const result=await media[kind](args,true,controller.signal,undefined,undefined,{deadline:expiresAt,check:()=>{
+   if(!live()||Date.now()>=expiresAt)controller.abort();
+   if(controller.signal.aborted)throw Error('The media process ended after its scope.');
+  }});
   if(!live())stop();
   if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
   if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
@@ -2304,36 +2307,22 @@ async function hostRoots(sdk, id, marker) {
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
 // temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
 // throws when ffmpeg fails or `signal` (optional) aborts it.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
-  const rt = hostApi("Runtime", "runFFmpeg");
-  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
-  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
-  const controller = typeof AbortController === "undefined" ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const relay = () => { if (controller) controller.abort(); };
-  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
-  try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
-    const bytes = await hostReadBytes(tmp);
-    // A copy, so the samples sit on a 4-byte boundary.
-    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
-    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
-    return samples;
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    await hostRemove(tmp);
-  }
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000, client = hostSdk) {
+  if (!client?.media || typeof client.media.runFFmpeg !== "function" || !dataDir || typeof client?.files?.readFile !== "function") return null;
+  return decodeAssetPcm(client, { path, directory: dataDir, rate, maxSeconds, signal, timeoutMs });
 }
 // An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path) {
+async function hostProbeSeconds(path, client = hostSdk, signal) {
   try {
-    const rt = hostApi("Runtime", "runFFprobe");
-    if (!rt) return null;
-    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
-    const v = parseFloat(String(r?.stdout || "").trim());
-    return v > 0 ? v : null;
-  } catch { return null; }
+    const rt = client?.media;
+    if (typeof rt?.runFFprobe !== "function") return null;
+    const r = await runAssetMediaTool(rt, "runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], { signal, timeoutMs: 30000 });
+    const v = Number(String(r?.stdout || "").trim());
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch (error) {
+    if (error?.terminal || error?.preserveTemporaryFiles) throw error;
+    return null;
+  }
 }
 // av-host:end
 export const DEFAULT_DRAFT_NAME='Four photo stop motion';
@@ -2826,12 +2815,18 @@ async function createPanelLocalClient(sdk: any) {
       cause => finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.", cause)));
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, check?: () => void, observationDeadline?: number) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, ownerCheck?: () => void, observationDeadline?: number) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
-      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function" ||
+      ownerCheck !== undefined && typeof ownerCheck !== "function" || observationDeadline !== undefined && !Number.isFinite(observationDeadline))
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const check = () => {
+      if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      ownerCheck?.();
+      if (observationDeadline !== undefined && Date.now() >= observationDeadline)
+        throw mediaIssue("STATUS", "The media operation budget has expired.");
+    };
     check?.();
     const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
@@ -2881,7 +2876,7 @@ async function createPanelLocalClient(sdk: any) {
         check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
-        // Source verification already owns a total deadline. Keep its single
+        // An operation owner supplies a total deadline. Keep its single
         // pending read alive across a slow renderer turn, while checking scope
         // and cancellation; never replay the native job or the status request.
         const status = await statusAt(cancellationDeadline ?? observationDeadline ?? Date.now() + SETTLEMENT_MS,
@@ -2993,8 +2988,8 @@ async function createPanelLocalClient(sdk: any) {
     files,
     environment,
     media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void, owner?: { deadline: number; check?: () => void }) => process("FFmpeg", args, quiet, signal, stdout, stderr, owner?.check, owner?.deadline),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal, _stdout?: undefined, _stderr?: undefined, owner?: { deadline: number; check?: () => void }) => process("FFprobe", args, quiet, signal, undefined, undefined, owner?.check, owner?.deadline),
     },
     dialogs: {
       pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),

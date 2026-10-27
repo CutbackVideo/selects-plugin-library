@@ -37,6 +37,25 @@ function observationClock(){
   async advance(ms){const until=now+ms;for(;;){const due=[...timers.entries()].sort((a,b)=>a[1].at-b[1].at)[0];if(!due||due[1].at>until)break;now=due[1].at;timers.delete(due[0]);due[1].fn();await flush();}now=until;await flush();},get pending(){return timers.size;}};
 }
 
+test('owned generic media waits for one delayed reply within the operation budget',async t=>{
+ let release;const clock=observationClock(),wait=new Promise(r=>release=r),h=await fixture(t,{firstStatusWait:()=>wait,globals:clock.globals});
+ const pending=h.client.media.runFFmpeg([],true,undefined,undefined,undefined,{deadline:10000,check(){}});
+ const result=pending.then(value=>({value}),error=>({error}));await h.observed;
+ await clock.advance(5303);h.jobs.get('own').state='succeeded';release();const outcome=await result;
+ assert.equal(outcome.error,undefined);assert.equal(outcome.value.stdout,'SHA256='+digest+'\n');
+ assert.equal(h.statusCalls,2);assert.equal(h.dispatches,1);assert.deepEqual(h.cancelled,[]);assert.equal(clock.pending,0);
+});
+for(const reason of ['scope','abort','deadline'])test('owned generic pending media preserves '+reason+' and one cancellation',async t=>{
+ let release,live=true,finished=false;const clock=observationClock(),wait=new Promise(r=>release=r),h=await fixture(t,{firstStatusWait:()=>wait,globals:clock.globals}),controller=new AbortController(),sentinel=Error('owner ended');
+ const pending=h.client.media.runFFmpeg([],true,controller.signal,undefined,undefined,{deadline:reason==='deadline'?80:10000,check(){if(!live)throw sentinel;}});
+ const result=pending.then(value=>({value}),error=>({error})).then(row=>{finished=true;return row;});await h.observed;
+ if(reason==='scope')live=false;if(reason==='abort')controller.abort();
+ await clock.advance(reason==='deadline'?80:150);const observed=finished;h.jobs.get('own').state='succeeded';release();const row=await result;
+ assert.ok(observed,'the operation lifetime must interrupt the same pending observation');assert.ok(row.error);
+ if(reason==='scope')assert.equal(row.error,sentinel);
+ assert.equal(h.dispatches,1);assert.deepEqual(h.cancelled,['own']);assert.equal(h.jobs.get('foreign').state,'running');assert.equal(clock.pending,0);
+});
+
 test('native source observation accepts one valid delayed status within its existing total deadline',async t=>{
  let release;const clock=observationClock(),wait=new Promise(r=>release=r),h=await fixture(t,{firstStatusWait:()=>wait,globals:clock.globals});
  const pending=h.client.files.fingerprint('/music',{native:true,timeoutMs:10000});

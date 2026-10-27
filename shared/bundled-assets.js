@@ -425,7 +425,10 @@ async function runAssetMediaTool(media,kind,args,options={}){
  else timer=setTimeout(()=>{timedOut=true;controller.abort();},remaining);
  try{
   if(stopped||timedOut)throw Error('The media process was not dispatched.');
-  const result=await media[kind](args,true,controller.signal);
+  const result=await media[kind](args,true,controller.signal,undefined,undefined,{deadline:expiresAt,check:()=>{
+   if(!live()||Date.now()>=expiresAt)controller.abort();
+   if(controller.signal.aborted)throw Error('The media process ended after its scope.');
+  }});
   if(!live())stop();
   if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
   if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');

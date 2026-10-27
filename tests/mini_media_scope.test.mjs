@@ -132,10 +132,32 @@ for(const flag of ['terminal','preserveTemporaryFiles'])test('Mini duration prob
 test('Mini duration probe: ordinary native failure still returns unknown',async()=>{
  const f=fixture();f.clients[0].media.runFFprobe=async()=>{throw Error('unsupported codec');};assert.equal(await f.api.hostProbeSeconds('/music.wav'),null);
 });
-test('Shared PCM decoder: real FFmpeg and canonical asynchronous files preserve requested samples and remove staging',async t=>{
+for(const plugin of ['no14-still-video','camera-shutter-dump','four-photo-stop-motion','polaroid-photo-dump']){
+ test(plugin+': uncertain decoder retains owned output without reading it',async()=>{
+  const f=fixture(plugin),failure=Object.assign(Error('exit unknown'),{terminal:true,preserveTemporaryFiles:true});
+  f.hooks.afterProduce=()=>{throw failure;};
+  await assert.rejects(f.decode(),error=>error.preserveTemporaryFiles===true);
+  assert.ok(f.stores[0].size>0,'unconfirmed producer files remain reserved');
+  const produced=f.calls[0].findIndex(row=>row[0]==='ffmpeg');
+  assert.equal(f.calls[0].slice(produced+1).some(row=>['read','range','remove'].includes(row[0])),false);
+ });
+ test(plugin+': uncertain probe is never converted into absent duration',async()=>{
+  const f=fixture(plugin),failure=Object.assign(Error('exit unknown'),{terminal:true,preserveTemporaryFiles:true});
+  f.clients[0].media.runFFprobe=async()=>{throw failure;};
+  await assert.rejects(f.api.hostProbeSeconds('/music.wav'),error=>error.preserveTemporaryFiles===true);
+ });
+ test(plugin+': captured client owns samples and cleanup across rebinding',async()=>{
+  const f=fixture(plugin);f.hooks.afterProduce=output=>{
+   f.stores[1].set(output,new Uint8Array([9]));f.api.hostUseSdk(f.clients[1]);
+  };
+  assert.deepEqual(Array.from(await f.decode()),[.25,-.5,1]);
+  assert.equal(f.calls[1].length,0);assert.equal(f.stores[0].size,0);assert.equal(f.stores[1].size,1);
+ });
+}
+for(const plugin of ['mini-vlog','no14-still-video','camera-shutter-dump','four-photo-stop-motion','polaroid-photo-dump'])test(plugin+': real FFmpeg and canonical asynchronous files preserve PCM samples and remove staging',async t=>{
  const {holdFixture}=await import('./gallery_hold_fixture.mjs'),f=await holdFixture(t),rate=22050,frames=2205;
  const file=path.join(f.root,"music 'quote' $() \uc74c\uc545.wav"),wav=Buffer.alloc(44+frames*2);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(rate,24);wav.writeUInt32LE(rate*2,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(frames*2,40);
  for(let i=0;i<frames;i++)wav.writeInt16LE(Math.round(16384*Math.sin(i*2*Math.PI*440/rate)),44+i*2);fs.writeFileSync(file,wav);
- const api=fixture().api;api.hostUseSdk(f.local);const samples=await api.hostDecodePcm(file,f.data,rate,1,null);
+ const api=fixture(plugin).api;api.hostUseSdk(f.local);const samples=await api.hostDecodePcm(file,f.data,rate,1,null);
  assert.equal(samples.length,frames);assert.ok(Array.from(samples).every(Number.isFinite));assert.ok(Math.max(...samples)>.49);assert.equal(fs.readdirSync(f.data).length,0);assert.equal(f.calls.filter(c=>c.bin==='ffmpeg').length,1);
 });

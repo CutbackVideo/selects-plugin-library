@@ -70,6 +70,33 @@ test('invalid or relative paths fail before any process starts',async()=>{
  const h=host();try{const client=await h.client();for(const p of ['relative','/bad\0path','https://example.com/input'])await assert.rejects(client.files.fingerprint(p,{native:true}));assert.equal(h.calls.length,0);}finally{h.close();}
 });
 const sdkObserver=(h,globals={})=>vm.runInNewContext('('+nativeSourceFiles.toString()+')(selects)',{selects:h.selects,fingerprintTemplateFile,...globals});
+function pacedObserver({cancel=false}={}){
+ let now=0,reads=0,cancels=0;const waits=[],sha='a'.repeat(64),meta={size:1,mtimeMs:1,ino:1,isDirectory:false};
+ const selects={files:{stat:async()=>meta,readRange:async()=>({bytesRead:1,base64:'YQ=='})},media:{
+  startFFmpeg:async()=>({jobId:'own'}),job:()=>({cancel:async()=>{cancels++;},status:async({cursor=0}={})=>{
+   if(++reads>20)throw Error('status polling exceeded its budget');
+   const state=now<450?'running':cancel?'cancelled':'succeeded';
+   const events=state==='succeeded'&&!cursor?[{cursor:1,stream:'stdout',text:'SHA256='+sha+'\n'}]:[];
+   return {state,events,nextCursor:events.length?1:cursor,truncated:false};
+  }})}};
+ const Atomics={waitAsync:(_cell,_index,_expected,ms)=>{waits.push(ms);now+=ms;return {async:true,value:Promise.resolve('timed-out')};}};
+ const observer=sdkObserver({selects},{Date:{now:()=>now},Atomics});
+ return {observer,waits,sha,get reads(){return reads;},get cancels(){return cancels;}};
+}
+test('SDK source polling yields between running observations and drains terminal output',async()=>{
+ const h=pacedObserver(),row=await h.observer.fingerprint('/owned');
+ assert.equal(row.sha256,h.sha);assert.deepEqual(h.waits,[150,150,150]);assert.equal(h.reads,5);assert.equal(h.cancels,0);
+});
+test('SDK cancellation polling also yields without restarting its job',async()=>{
+ const h=pacedObserver({cancel:true});let checks=0;
+ await assert.rejects(h.observer.fingerprint('/owned',{check(){if(++checks>=4)throw Error('scope ended');}}),/scope ended/);
+ assert.equal(h.cancels,1);assert.deepEqual(h.waits,[150,150,150]);assert.equal(h.reads,4);
+});
+test('SDK source observer refuses an unavailable nonblocking scheduler before native dispatch',async()=>{
+ let starts=0;const meta={size:0,mtimeMs:1,ino:1,isDirectory:false};
+ const observer=sdkObserver({selects:{files:{stat:async()=>meta},media:{startFFmpeg:async()=>{starts++;},job(){}}}},{Atomics:{}});
+ await assert.rejects(observer.fingerprint('/owned'),/nonblocking|scheduler/i);assert.equal(starts,0);
+});
 for(const entry of ['panel','SDK'])test(entry+' ID3 originals preselect complete-byte hashing before a tag-stripping native reader',async()=>{
  const h=host({skipId3:true});try{
   const bytes=Buffer.concat([Buffer.from('ID3\x04\0\0\0\0\0\0'),Buffer.alloc(1024*1024+7,23)]);fs.writeFileSync(h.filename,bytes);

@@ -16,7 +16,7 @@ for (const id of common) test(`${id}: roots and media use the asynchronous SDK w
   const host = fakeHost();
   const source = panelSource(id);
   const sdk = asyncSdk(host.di);
-  const scopedMedia=['mini-vlog','archive-vlog'].includes(id);
+  const scopedMedia=['mini-vlog','archive-vlog','no14-still-video','camera-shutter-dump','four-photo-stop-motion','polaroid-photo-dump'].includes(id);
   if(scopedMedia)sdk.files=asyncMediaFiles(sdk.files).files;
   const marker = sdk.files.join(sdk.files.homedir(), '.selects', 'skills', id, 'planner.js');
   host.store.set(marker, host.RealmBytes.from([65]));

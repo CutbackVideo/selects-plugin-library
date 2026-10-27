@@ -85,8 +85,12 @@ Native pages contain at most eight events of 4096 UTF-16 code units each. Final
 output drains to its empty page before success. The limit covers stdout plus
 stderr; callbacks do not bypass it.
 
-Start and individual status observations are bounded at five seconds. Expiry is
-an unknown result, not evidence that work did not start or has exited. A start is
+Start observations and status reads without an operation owner are bounded at
+five seconds. An asset operation passes its existing absolute deadline and
+scope guard through a plugin-private sixth argument; status reads then wait for
+the same pending reply within that budget while observing abort/disposal.
+This does not change the public SDK. Expiry is an unknown result, not evidence
+that work did not start or has exited. A start is
 never replayed. If its original identity arrives after expiry, the late observer
 may cancel that original job once; it cannot turn the caller into success or
 authorize temporary cleanup. A permanently lost start identity cannot be found
@@ -108,3 +112,9 @@ on remount/age is added: a filename or elapsed observation budget is not proof o
 native exit or later file ownership. See
 [the checkpoint](../docs/template-repair/local-media-lifetime.md) for actual SDK
 fault/recovery evidence and remaining installed-app acceptance boundaries.
+
+SDK assembly source verification uses nonblocking 150 ms waits between running
+status observations and during cancellation settlement. It requires the runtime
+standard `Atomics.waitAsync`; an unavailable scheduler rejects before native
+dispatch rather than spinning or blocking the executor. Terminal output pages
+still drain without a processing delay.
