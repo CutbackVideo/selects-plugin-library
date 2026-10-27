@@ -518,7 +518,8 @@
         "tests/mini_assembly_receipts.test.mjs",
         "tests/mini_frozen_recovery.test.mjs",
         "tests/template_run_budget.test.mjs",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "tests/archive_save_recovery.test.mjs"
       ],
       "implementation": "implemented-extension"
     },
@@ -680,7 +681,7 @@
         "input": "Archive planner/render/script sources, numerical fixtures, declared SDK types and test doubles.",
         "output": "Assertions, developer diagnostics and test exit status.",
         "identity": "Disposable fixture/client/VM scopes; no production Project identities.",
-        "dependencies": "Node built-ins, FFmpeg, TypeScript and explicit fixture ownership.",
+        "dependencies": "Node built-ins, FFmpeg, TypeScript and explicit fixture ownership. The shared look-phase fixture models the existing SDK native media job port with actual FFmpeg, per-job identity, cursor pages, explicit allowCommit on start/cancel, terminal state and fixture-owned cleanup.",
         "effects": "Local test-only processes/temporary files and VM evaluation; some scripts deliberately inspect package bytes.",
         "lifetime": "One test process; fixture cleanup belongs to test harness.",
         "cleanup": "Remove only owned fixture paths after producers exit; never treat a failed assertion as permission to delete user data.",
@@ -692,7 +693,8 @@
       "evidence": [
         "plugins/archive-vlog/tests/panel.test.cjs",
         "plugins/archive-vlog/tests/scripts-types.test.cjs",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "tests/mini_look_fixture.mjs"
       ],
       "implementation": "specific"
     },
@@ -1001,7 +1003,8 @@
         "tests/archive_assembly_intent.test.mjs",
         "plugins/archive-vlog/operation-builder.mjs",
         "plugins/archive-vlog/dev/assemble.template.js",
-        "plugins/archive-vlog/scripts/assemble.js"
+        "plugins/archive-vlog/scripts/assemble.js",
+        "tests/mini_look_fixture.mjs"
       ]
     }
   ],
@@ -2263,6 +2266,32 @@
           "feature": "test-harness"
         }
       ]
+    },
+    {
+      "path": "tests/mini_look_fixture.mjs",
+      "role": "validation",
+      "sha256": "a1c9a6f9243e49511f0c741e05aa37ccfd24fa1e3039ebd7fde72d50e627df35",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 63,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_save_recovery.test.mjs",
+      "role": "validation",
+      "sha256": "867861c6648641dd47074c6c8b2538126d9e94240247b98eac847ca738c91487",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 32,
+          "feature": "workflow-owner"
+        }
+      ]
     }
   ],
   "assets": [
@@ -2780,5 +2809,5 @@
       ]
     }
   ],
-  "sourceEvidenceRevision": "734ce6a3cfac887cf3db91c9b2a825fb0fde5a24"
+  "sourceEvidenceRevision": "54e24f890eca9e2052de84d234451a175dbcfa81"
 }

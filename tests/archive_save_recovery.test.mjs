@@ -15,9 +15,9 @@ test('Archive save: a lost assembly reply cannot adopt an unrelated same-name Dr
  }finally{release();await Promise.all(f.pending);}
 });
 test('Archive save: another Build click confirms the same unknown request without resending',async t=>{
- const f=await fixture(t);let release;const hold=new Promise(resolve=>release=resolve);f.hooks.commit=(_id,reason)=>/assemble/.test(reason)?hold:null;f.hooks.lostAssembly=true;
+ const f=await fixture(t);let release,entered;const hold=new Promise(resolve=>release=resolve),committing=new Promise(resolve=>entered=resolve);f.hooks.commit=(_id,reason)=>{if(/assemble/.test(reason)){entered();return hold;}};f.hooks.lostAssembly=true;
  try{
-  await f.build();f.ui.box.inventory=null;f.ui.box.assets=null;await f.build(99);
+  await f.build();await Promise.race([committing,Promise.all(f.pending)]);f.ui.box.inventory=null;f.ui.box.assets=null;await f.build(99);
   assert.equal(f.requests.filter(r=>r.summary==='Assemble template with owned receipt').length,1);assert.equal(f.commits(),1);assert.equal(f.result(),null);
  }finally{release();await Promise.all(f.pending);}
  f.hooks.lostAssembly=false;await f.build(100);assert.equal(f.result()?.decorated,true);assert.equal(f.result().frozen.seed,1);assert.equal(f.commits(),2);
