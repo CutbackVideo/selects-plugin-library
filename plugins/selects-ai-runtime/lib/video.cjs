@@ -65,8 +65,8 @@ async function probeVideo(config, request, signal) {
   if (request.task === 'faces.detect' || request.task === 'speakers.detect') {
     const readFrames = async interval => {
       const result = JSON.parse(await collectTool(config.tools.ffprobe, [
-        // Match the bounded decoder used below. Automatic frame threading adds
-        // substantial scheduling cost to short timestamp probes on many-core hosts.
+        // Use two decoding threads for frame timestamp probes, matching the RGB
+        // decoder below. The default probe decoding is slower on long ranges.
         '-v', 'error', '-threads', '2', '-select_streams', 'v:0', '-read_intervals', interval,
         '-show_frames', '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
       ], { signal }));
