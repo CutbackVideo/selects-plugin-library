@@ -79,8 +79,8 @@ test('oversized program evidence is rejected before committing the Draft',async(
  await assert.rejects(f.create(),/receipt|limit/i);assert.equal(f.commits.length,0);
 });
 
-test('No.14 preserves shader preset code through authoring and saved receipt verification',async()=>{
- const shader={graph:{schema:'Cutback.ShaderEffect.1',passes:[{id:'fade',wgsl:'shader source',inputs:['source'],parameters:[]}],output:'fade'}};
+test('No.14 verifies shader programs compiled for the actual fade parameters',async()=>{
+ const shader=values=>({graph:{schema:'Cutback.ShaderEffect.1',passes:[{id:'fade',wgsl:'shader span '+values.span,inputs:['source'],parameters:[]}],output:'fade'}});
  const f=fixture('no14-still-video',{presetShader:shader}),result=await f.create({music:'on'});
  assert.ok(result.programs.sources.some(s=>s?.graph?.schema==='Cutback.ShaderEffect.1'));assert.equal(f.commits.length,1);
 });

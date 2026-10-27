@@ -180,7 +180,6 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
    if(rows.some(c=>c.trackKind==='audio'&&c.resourceId))throw Error('This new Draft already contains audio; inspect it before continuing');
   }
   const created=[],transforms=[],programTargets=[];
-  const preset=workingDraft&&plan.occurrences.some(o=>o.fadeDown)?await programs.preset('reveal-fade-down'):null;
   for(const occurrence of plan.occurrences){
    const placed=input.placements.find(p=>p.key===occurrence.key);
    const photo=input.photos['ABCD'.indexOf(occurrence.slot)];
@@ -214,7 +213,7 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
     const withEffect=(await d.clips({trackScope:'all'})).find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);
     const parameters={style:'fade',direction:'out',span:occurrence.fadeDown,amount:60};
     await d.applyEffectPreset({clip:withEffect,presetId:'reveal-fade-down',parameters});
-    if(workingDraft)target.effects.push({...preset,parameters:{...preset.parameters,...parameters}});
+    if(workingDraft)target.effects.push(await programs.preset('reveal-fade-down',parameters));
    }
   }
   // Semin's hand-edited clips overlap by other lengths than the effects' crossfade; only the plugin's own plan is checked.
@@ -945,11 +944,13 @@ function imageProgramsFeature(selects,config=null,format=null){
   return {sources,clips};
  };
  const presets=new Map();
- const preset=async id=>{
+ const preset=async (id,overrides={})=>{
   if(!config)throw issue('Effect preset preparation requires an authoring target.');
-  if(presets.has(id))return presets.get(id);
+  const key=JSON.stringify([id,overrides]);
+  if(presets.has(key))return presets.get(key);
   const definition=await selects.effectPresets.get(id);
   if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');
+  const parameters={...definition.parameters,...overrides};
   // The public preset definition omits effect TSX. Resolve a canonical program
   // in an isolated unsaved reference, never by adopting the target's output.
   const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});
@@ -957,13 +958,13 @@ function imageProgramsFeature(selects,config=null,format=null){
   await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});
   if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');
   let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');
-  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});
+  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters});
   if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
   clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
   const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
-  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({...source(program||{}),parameters:definition.parameters,editableParameters:definition.editableParameters});
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({...source(program||{}),parameters,editableParameters:definition.editableParameters});
   if(!validSource(program)||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
-  const value={name:definition.label,...expected};presets.set(id,value);return value;
+  const value={name:definition.label,...expected};presets.set(key,value);return value;
  };
  const confirm=details=>{
   if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');
