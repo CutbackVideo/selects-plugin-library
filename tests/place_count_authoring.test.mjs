@@ -111,3 +111,15 @@ test('browser preview owns its blob URL and releases it without revoking the hos
  assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),bytes);
  source.release();assert.deepEqual(revoked,['blob:panel/source']);
 });
+
+test('recovery leaves already finished typography and audio unchanged',async()=>{
+ const cfg={projectId:'p',sequenceId:'saved',sourceAudio:false,music:null,regions:[{place:0,startFrame:0,endFrame:60}]};
+ const clips=[{trackKind:'main',startFrame:0,endFrame:60},{trackKind:'video',resourceId:null,startFrame:0,endFrame:60},{trackKind:'audio',startFrame:0,endFrame:60}];
+ const d={clips:async()=>clips,rangeAtFrames:async()=>({}),setAudioTracks:async()=>({opCount:0}),meta:async()=>({fps:30}),commitAll:async()=>{throw Error('No working-copy edits to commit');}};
+ const selects={project:()=>({meta:async()=>({draftIds:['saved']})}),draft:()=>d};
+ for(const file of ['apply-design.js','finish-draft.js']){
+  const script=fs.readFileSync(new URL('../plugins/place-count/'+file,import.meta.url),'utf8').replace('__CONFIG__',JSON.stringify(cfg));
+  const result=await vm.runInNewContext('(async()=>{'+script+'})()',{selects});
+  assert.equal(result.sequenceId,'saved');
+ }
+});
