@@ -98,3 +98,16 @@ test('known unsupported authoring does not leave a false uncertain-save checkpoi
  }
  assert.deepEqual(configs.map(c=>c.recoverOnly),[false,false]);
 });
+
+test('browser preview owns its blob URL and releases it without revoking the host URL',async()=>{
+ const revoked=[];let blob;
+ const bytes=new Uint8Array([1,2,3]);
+ const api=loadPanelFunctions(panel,['previewSource'],{
+  getFS:()=>({pathToLocalURL:async()=> 'blob:host/source',readFile:async()=>bytes}),
+  Blob,URL:{createObjectURL:value=>{blob=value;return 'blob:panel/source';},revokeObjectURL:url=>revoked.push(url)},
+ });
+ const source=await api.previewSource('/clip.mp4');
+ assert.equal(source.url,'blob:panel/source');
+ assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),bytes);
+ source.release();assert.deepEqual(revoked,['blob:panel/source']);
+});
