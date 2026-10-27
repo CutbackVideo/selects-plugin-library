@@ -232,3 +232,29 @@ test('bounded face probing matches full decoding for B-frames, offset clocks, VF
     assert.deepEqual(Buffer.concat(frames.map(f => f.rgb)), Buffer.concat(baseline.frames.map(f => f.rgb)), filename);
   }
 });
+
+test('sparse face decoding preserves exact RGB, indices and times across B-frames, VFR, rotation and offset clocks', { skip: !configPath }, async () => {
+  const { sampleSelector, faceParameters } = require('../tasks/faces-detect.cjs');
+  const cfr = path.join(directory, 'sparse-bframes.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=size=96x64:rate=30000/1001:duration=4', '-c:v', 'libx264', '-bf', '3', '-g', '30', cfr]);
+  const shifted = path.join(directory, 'sparse-offset.mp4');
+  await ffmpeg(['-i', cfr, '-c', 'copy', '-output_ts_offset', '5', shifted]);
+  const rotated = path.join(directory, 'sparse-rotated.mp4');
+  await ffmpeg(['-i', cfr, '-c', 'copy', '-metadata:s:v:0', 'rotate=90', rotated]);
+  const vfr = path.join(directory, 'sparse-vfr.mp4');
+  await ffmpeg(['-i', cfr, '-vf', "select='not(between(n,20,40))'", '-fps_mode', 'vfr', '-c:v', 'libx264', vfr]);
+  for (const file of [cfr, shifted, rotated, vfr]) {
+    for (const start of [0, 0.373]) {
+      const input = { ...request(file, start, 3.7), task: 'faces.detect' };
+      const signal = new AbortController().signal;
+      const video = await probeVideo(config, input, signal);
+      const all = [];
+      for await (const frame of decodeFrames(config, input, video, signal, () => {}, {})) all.push(frame);
+      const select = sampleSelector(faceParameters(input));
+      const indices = video.frameTimes.flatMap((time, index) => select(time) ? [index] : []);
+      const sparse = [];
+      for await (const frame of decodeFrames(config, input, video, signal, () => {}, {}, { frameIndices: indices })) sparse.push(frame);
+      assert.deepEqual(sparse, indices.map(index => all[index]), `${path.basename(file)} / ${start}`);
+    }
+  }
+});
