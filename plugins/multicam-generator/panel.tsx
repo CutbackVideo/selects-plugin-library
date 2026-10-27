@@ -921,7 +921,7 @@ export async function placeDirect(plan, resourceId, sdk) {
     const prior=rows.filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame);
     if(prior.length===1)return {alreadyAdded:true,clipId:prior[0].clipId,trackId:prior[0].trackId};
     if(prior.length)throw new Error("placement_check_3");
-    const replacement = ${JSON.stringify(plan.replaces || null)} as {resourceId:string;startFrame:number;endFrame:number}|null;
+    const replacement = JSON.parse(${JSON.stringify(JSON.stringify(plan.replaces || null))});
     if(replacement){
       const r=replacement;
       const candidates=rows.filter(c=>c.trackKind==="video"&&c.resourceId===r.resourceId&&c.startFrame===r.startFrame&&c.endFrame===r.endFrame&&rows.filter(x=>x.trackId===c.trackId).length===1);
