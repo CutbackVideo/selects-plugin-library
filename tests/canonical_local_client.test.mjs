@@ -419,3 +419,15 @@ test('the private canonical read overload supports source observations without c
  assert.equal(Buffer.from(await client.files.readRange('/a',3,10)).toString(),'ha');
  const {observeSourceFiles}=await import('../shared/native-image-input.mjs');const rows=await observeSourceFiles(client.files,['/a']);assert.equal(rows[0].sha256,(await import('node:crypto')).createHash('sha256').update('alpha').digest('hex'));
 });
+
+test('panel source observations hash every byte in one script per file',async()=>{
+ const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/observed-original',bytes);
+ const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
+ const {observeSourceFiles}=await import('../shared/native-image-input.mjs');
+ const rows=await observeSourceFiles(client.files,['/observed-original']);
+ assert.equal(rows[0].sha256,(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex'));
+ assert.equal(h.calls.length-before,1);
+ assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,4);
+ h.files.set('/observed-original',Buffer.alloc(bytes.length,24));
+ await assert.rejects(observeSourceFiles(client.files,['/observed-original'],rows),error=>error.code==='source-file-changed');
+});
