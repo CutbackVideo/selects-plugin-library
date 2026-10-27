@@ -1747,6 +1747,23 @@ async function confirm(sdk, x, frame) {
   }
   return false;
 }
+function spaceClickGuard() {
+  let space = false;
+  return {
+    keyDown: (key) => {
+      space = key === " ";
+    },
+    reset: () => {
+      space = false;
+    },
+    // detail is 0 for a click the keyboard made, 1+ for a pointer click.
+    allows: (detail) => {
+      const fromSpace = space && detail === 0;
+      space = false;
+      return !fromSpace;
+    }
+  };
+}
 async function openPreview(sdk, x) {
   await run(sdk, { summary: "Open the preview Draft", script: `${ownership(x)}
 return await selects.editor.openDraft(${J2(x.draftId)});` });
@@ -6276,6 +6293,7 @@ function NewsMinutePanel({ sdk, context }) {
   const latest = useRef(null);
   latest.current = s;
   const onDraft = useRef(draftQueue()).current;
+  const rowKeys = useRef(spaceClickGuard()).current;
   const renameNow = (projectId, draftId, name) => renameDraft(sdk, { projectId, draftId, name });
   const viewer = previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
   const openNow = (projectId, draftId) => viewer.open(projectId, draftId).then((ok) => {
@@ -6712,7 +6730,9 @@ function NewsMinutePanel({ sdk, context }) {
         const nErr = rowErrors.get(i)?.length ?? 0, nWarn = rowWarnings.get(i)?.length ?? 0;
         return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : void 0 }, children: [
           /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
-            /* @__PURE__ */ jsxs("button", { style: { ...rowSelect, cursor: canPick ? "pointer" : "default" }, "aria-pressed": picked === i, "aria-disabled": !canPick, title: canPick ? void 0 : T("rowNoSeek"), onClick: () => pick(i), children: [
+            /* @__PURE__ */ jsxs("button", { style: { ...rowSelect, cursor: canPick ? "pointer" : "default" }, "aria-pressed": picked === i, "aria-disabled": !canPick, title: canPick ? void 0 : T("rowNoSeek"), onKeyDown: (e) => rowKeys.keyDown(e.key), onBlur: rowKeys.reset, onClick: (e) => {
+              if (rowKeys.allows(e.detail)) pick(i);
+            }, children: [
               /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
                 /* @__PURE__ */ jsx("strong", { style: thumbNumber, children: String(i + 1).padStart(2, "0") }),
                 still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
