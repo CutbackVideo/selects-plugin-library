@@ -129,3 +129,5 @@ the editor forward, open another saved Draft, and return. If a Panel refresh
 reports a reconnect error, refresh the saved job from Details.
 
 CPU face/speaker preparation also emits an optional `preparation-reuse.json` sidecar beside its output config, listing the native environment, pinned models and resolved tools. Supporting hosts may reuse that JSON config while runtime source, environment and dependency metadata are unchanged. Workers still hash pinned model bytes and create fresh sessions. Matte omits the sidecar so hardware availability is re-evaluated for every job; old hosts simply ignore it.
+
+Published runtime releases advance the plugin manifest SemVer whenever an app release pins new runtime source. App-managed upgrades use an immutable library commit and this version; an installed newer release is preserved. Different source at the same release version is repaired to the app pin, so published release versions must not be reused for changed source. The private npm package version does not identify the installed plugin release.
