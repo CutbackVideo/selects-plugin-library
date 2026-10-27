@@ -3479,9 +3479,15 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
         await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: job.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
         const rawPng = await store.fs.readFile(rawPath);
+        const still = await createImageBitmap(new Blob([rawPng], { type: "image/png" }));
         const role = job.plan.cards[i]?.role || "body";
         const pic = job.pictures?.[i];
-        const png = await finishCard(rawPng, t || BUILTIN_TEMPLATES[0], role, pic);
+        let png: Uint8Array;
+        try {
+          png = await finishCard(still, t || BUILTIN_TEMPLATES[0], role, pic);
+        } finally {
+          still.close();
+        }
         await store.fs.removeFile(rawPath);
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.png`);
         await store.fs.writeFile(out, png);
