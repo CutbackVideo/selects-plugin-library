@@ -36,5 +36,8 @@ export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=nu
    commitAll:async()=>{calls.commits++;return {createdDraftId:'d'+calls.creates};},
   };drafts.push({d,probe,rows:()=>clips});return d;
  }};
- return {cfg,calls,drafts,project:p,files,addFile,run:()=>vm.runInNewContext('(async()=>{'+scriptSource+'})()',{selects:{project:()=>p,files},__CONFIG__:cfg})};
+ const hashes=new Map();let hashId=0;
+ const media={startFFmpeg:async({args})=>{const path=args[args.indexOf('-i')+1].slice(5),entry=sourceFiles.get(path);entry.nativeReads=(entry.nativeReads??0)+1;const jobId='native-'+ ++hashId;hashes.set(jobId,createHash('sha256').update(entry.bytes).digest('hex'));return {jobId};},job:jobId=>({status:async({cursor=0}={})=>({state:'succeeded',events:cursor?[]:[{cursor:1,stream:'stdout',text:'SHA256='+hashes.get(jobId)+'\n'}],nextCursor:1,truncated:false}),cancel:async()=>{throw Error('Completed fixture hash was cancelled');}})};
+ const selects={project:()=>p,files,media};
+ return {cfg,calls,drafts,project:p,files,selects,addFile,run:()=>vm.runInNewContext('(async()=>{'+scriptSource+'})()',{selects,__CONFIG__:cfg})};
 }

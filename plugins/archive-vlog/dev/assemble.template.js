@@ -1,9 +1,10 @@
 const cfg = __CONFIG__;
 validateArchiveAssemblyConfig(cfg);
 const analysisSources=Object(cfg).analysisSources,sourceBindings=Object(cfg).sourceBindings;
+const sourceFiles=nativeSourceFiles(selects);
 const confirmAnalysisSources=async()=>{
  if(sourceBindings!==undefined)await confirmProjectSourcePaths(selects,cfg.projectId,sourceBindings);
- if(analysisSources!==undefined)await observeSourceFiles(selects.files,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources);
+ if(analysisSources!==undefined)await observeSourceFiles(sourceFiles,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources,{native:true});
 };
 await confirmAnalysisSources();
 

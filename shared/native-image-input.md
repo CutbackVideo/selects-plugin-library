@@ -137,6 +137,18 @@ its final read, or changes across distinct observations without an observable
 content difference, are not excluded. Unknown observations must not authorize
 creation. Post-save failure cannot undo a saved Draft and must retain its ID.
 
+Mini and Archive also use full observations inside their generated assembly
+scripts, before placement and immediately before commit. Those scripts wrap
+`selects` with `nativeSourceFiles` from `native-source-files.js` and pass
+`{native:true}` to this observer. The adapter uses the existing native media job
+API to hash every original byte; it never falls back to 48 KiB range reads.
+Both checks share a 90-second verification deadline, below the assembly's
+120-second script budget. Failures stop assembly; an unfinished owned job is
+cancelled and its terminal state checked. A nonresponsive SDK call still relies
+on the host script supervisor. The bounded state-JSON checks in `template-run`
+are unchanged. Rebuild both operation builders after editing this adapter;
+installed packages contain the generated declarations, not repository imports.
+
 
 ## Current Project source-path binding
 
