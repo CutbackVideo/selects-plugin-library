@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import {loadPanelOperation} from './panel_operation.mjs';
-import {hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
+import {hostBlock,hasCommonHostFiles,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
 const {scenePlan,normalizeFinish,buildFinishScript,authorFinish}=loadPanelOperation('camera-shutter-dump');
 
@@ -66,8 +66,9 @@ function soundHost(manifestText){
 }
 const panelText=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
 
-test('the host I/O block is Archive Vlog\'s, unchanged, and no POSIX shell is left',()=>{
- assert.equal(hostBlock(panelText),REFERENCE_BLOCK);
+test('common host files stay canonical and owned media uses no POSIX shell',()=>{
+ assert.ok(hasCommonHostFiles(panelText));
+ assert.deepEqual(posixHits(hostBlock(panelText).replace('// av-host:start','').replace('// av-host:end','')),[]);
  assert.deepEqual(posixHits(panelText),[]);
  assert.doesNotMatch(panelText,/runShell/,'no shell call at all');
 });

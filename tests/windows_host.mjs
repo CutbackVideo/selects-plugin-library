@@ -22,6 +22,13 @@ export function hostBlock(source) {
 
 // Unmigrated copies retain this baseline; Mini/Archive use the asset owner.
 export const REFERENCE_BLOCK = hostBlock(panelSource('city-weekend-vlog'));
+// Migrated media consumers retain this file-only source verbatim. Their PCM
+// and probe ownership are exercised in mini_media_scope.test.mjs instead.
+export const COMMON_HOST_FILES = fs.readFileSync(new URL('../shared/host-files.js', import.meta.url), 'utf8').trimEnd();
+
+export function hasCommonHostFiles(source) {
+  return hostBlock(source)?.startsWith(START + '\n' + COMMON_HOST_FILES + '\n') === true;
+}
 
 // Shell syntax that cmd.exe does not run. The copied host block is left out
 // (it is checked against the legacy baseline byte for byte instead).
