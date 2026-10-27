@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-nine packages have passed actual installation, core creation or interaction,
+Thirty packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump, Place Count, Timeline Shorts Builder 2026 Recap, Ali Abdaal Style and Selfie Aesthetic Edit.
-They declare `web`. Of the other 21 packages, 19 have identified current blockers
-and 2 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump, Place Count, Timeline Shorts Builder, 2026 Recap, Ali Abdaal Style, Selfie Aesthetic Edit and Vlog Opening.
+They declare `web`. Of the other 20 packages, 19 have identified current blockers
+and 1 remains under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -75,7 +75,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | Blocked | [plugin.json](../plugins/travel-beat-vlog/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `vlog-edit` | **Web verified after host fix** | Direct installed skill read, actual four-video/four-photo edit, generated Korean narration, existing music, editable title and seven dissolves. Browser WebGPU rejected context-free transparent transition inputs; after the host fix the reopened 15s Draft played to14:23 and the dissolve at2:12 visibly blended both sources. Normal-gate reinstall passed at `aa5c693`. |
-| `vlog-opening` | **Pending additional core styles** | Whip created a saved 15.55s Draft with 12 clips, graphics and music. After the client sample-playback guard fix, real footage played at3:24. Motion and Quotes styles remain unverified. |
+| `vlog-opening` | **Web verified: all three styles** | Installed `993daa0`. Whip15.55s, Motion graphics17.58s and Funny quotes6.6s completed, visibly replayed and reopened after full page reload. Quotes duration reflects limited available source dialogue. Normal-gate reinstall pending. |
 | `vox-explainer` | Web core verified | Installed web panel generated a 20.1-second Korean explainer from fictional text: five videos, three narration clips, music, editable headlines and captions. Visible playback reached 19:22, and after a full page reload the saved Draft played to 14:10. Normal-gate reinstall passed at `a4e059a`; URL-input variant and export remain untested. |
 
 
@@ -188,7 +188,7 @@ their individual verification and normal-install limitations are recorded above.
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `vlog-edit` | **Web verified after host fix** | Direct installed skill read, actual four-video/four-photo edit, generated Korean narration, existing music, editable title and seven dissolves. Browser WebGPU rejected context-free transparent transition inputs; after the host fix the reopened 15s Draft played to14:23 and the dissolve at2:12 visibly blended both sources. Normal-gate reinstall pending. |
-| `vlog-opening` | **Pending additional core styles** | Whip created a saved 15.55s Draft with 12 clips, graphics and music. After the client sample-playback guard fix, real footage played at3:24. Motion and Quotes styles remain unverified. |
+| `vlog-opening` | **Web verified: all three styles** | Installed `993daa0`. Whip15.55s, Motion graphics17.58s and Funny quotes6.6s completed, visibly replayed and reopened after full page reload. Quotes duration reflects limited available source dialogue. Normal-gate reinstall pending. |
 | `vox-explainer` | Web core verified | Installed web panel generated a 20.1-second Korean explainer from fictional text: five videos, three narration clips, music, editable headlines and captions. Visible playback reached 19:22, and after a full page reload the saved Draft played to 14:10. URL-input variant, export and normal-gate reinstall remain untested. |
 
 Do not treat an input validation error, missing file permission, absent credentials,
@@ -299,3 +299,7 @@ Opened the installed panel, selected fixtures, opening clip01 and seven automati
 ## Polaroid caption receipt correction and web admission
 
 A current-host run reproduced Graphic placement could not be confirmed. The plugin expected trackId in addMotionGraphic’s return value, which only provides clipId and interval. Commit `b6f3aa5` resolves the live clip after authoring. Correcting the fixture to the real receipt reproduced18 failed checks before the fix; all88 selected authoring checks pass after it. The actual fixed package then completed the17-photo UI workflow and saved replay. Evidence: `/tmp/web-plugin-verification/round2/polaroid-playing.png` and `polaroid-reopened.png`.
+
+## Vlog Opening: all styles completed
+
+Installed `993daa0`. Previously verified Whip15.55s is joined by `Opening — Opening (Motion graphics)`17.58s with six source clips and four graphics, and `Opening — Opening (Funny quotes)`6.6s with three clips and three graphics. Both completed actual generation and full-page reload replay. Quotes saved playback at2:01 visibly shows the person and editable Opening title. Evidence: `vlog-motion-start.png`, `vlog-motion-playing.png`, `vlog-motion-reopened.png`, `vlog-quotes-playing.png`, `vlog-quotes-reopened-middle.png`. Admit web. Totals:30 admitted,19 current blockers,1 pending (Multicam).
