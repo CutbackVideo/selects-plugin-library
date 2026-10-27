@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Sixteen packages have passed actual installation, core creation or interaction,
+Seventeen packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog and Photo Grid Reveal.
-They declare `web`. Of the other 34 packages, 18 have identified current blockers
-and 16 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal and Archive Vlog.
+They declare `web`. Of the other 33 packages, 18 have identified current blockers
+and 15 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -29,7 +29,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | --- | --- | --- |
 | `a16z-style-captions` | Blocked | [plugin.json](../plugins/a16z-style-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `ali-abdaal-style` | Pending | [panel.tsx](../plugins/ali-abdaal-style/panel.tsx#L203): Browser panel compilation and six portrait-geometry tests pass. Transcript analysis, model response, and the complete edit/commit flow still need browser verification. |
-| `archive-vlog` | Pending | [panel.tsx](../plugins/archive-vlog/panel.tsx#L3698): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
+| `archive-vlog` | **Web verified after host fixes** | Installed `a4e059a`, created mixed video/photo 23.3s Draft with Marimba Motif. Full reload playback, CINEMATIC title at4:05, WEB TEST credit at5:19 and original photo at9:00 passed. One scene-search failure was explicitly skipped. Normal-gate reinstall pending. |
 | `camera-shutter-dump` | **Web verified after host fix** | Installed and created a 10s Draft from twelve PNGs with shutter audio. Full reload playback at9:22 showed the photo collage after the Blob filename fix. Production platform-gate reinstallation also passed. |
 | `card-news-maker` | Pending export retest | Three AI images and an editable three-card Draft were generated. PNG export timed out; raw PNG-to-ImageBitmap decoding was corrected, but the complete export needs retest. |
 | `chris-williamson-style` | Blocked | [plugin.json](../plugins/chris-williamson-style/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
@@ -142,7 +142,7 @@ their individual verification and normal-install limitations are recorded above.
 | --- | --- |
 | `a16z-style-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `ali-abdaal-style` | **passed / failed-edit-commit**. Actual Create Ali Abdaal Style draft clicked for 30-second sample Draft; Transcript and visual-planning steps completed; editable draft creation failed; stale_clip_target: the draft changed after clips() was read; read clips() again; Uncommitted edit reported; failure is not proven browser-specific |
-| `archive-vlog` | **passed / failed-source-confirmation**. In the new test project, selected eight analyzed original videos, disabled photos and edited the archive credit name.; Actual Create stopped at step 1/5: The selected source file could not be confirmed. Check the Project file and try again. No completed Draft. |
+| `archive-vlog` | **Web verified after host fixes** | Installed `a4e059a`, created mixed video/photo 23.3s Draft with Marimba Motif. Full reload playback, CINEMATIC title at4:05, WEB TEST credit at5:19 and original photo at9:00 passed. One scene-search failure was explicitly skipped. Normal-gate reinstall pending. |
 | `camera-shutter-dump` | **Web verified after host fix** | Installed and created a 10s Draft from twelve PNGs with shutter audio. Full reload playback at9:22 showed the photo collage after the Blob filename fix. Production platform-gate reinstallation also passed. |
 | `card-news-maker` | **passed / failed-export-timeout**. Text planning and three Nano Banana Pro images succeeded; editable three-card Draft created; Export retried after other edit settled; first card rendering failed: signal timed out, duration31286ms. |
 | `chris-williamson-style` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
@@ -265,3 +265,7 @@ Actual `a4e059a` web installation, four selected original 8s videos plus four PN
 Installed `a4e059a`, selected 20 original PNGs and `long-hero-20s.mp4` in slot04, default Unexplored music at113BPM. Actual Create saved `Photo Grid mixed web verified` (14:04 displayed) and independently verified all21 slots. Native playback showed sequential grayscale reveal, then all21 colored cells with the moving video tile and audible music. Full page reload restored the saved Draft; actual playback at6:13 showed the complete colored gallery. Evidence: `grid-playing.png`, `grid-color.png`, `grid-reopened.png`. Admit web. Normal-platform-gate reinstall remains pending. Current totals:16 admitted,18 blocked,16 unresolved.
 
 Medical resumed without new paid media. Strip files1/6/7 had fresh modification times15:32/15:39/15:40UTC; the run later failed with a Project write-reservation error before strips.json was saved. Transition generation had not started. This remains unresolved, not admitted.
+
+### Archive Vlog admission
+
+Actual installed `a4e059a` UI created `Archive Vlog CINEMATIC 2026-10-27 09:01:47` from four original videos and four photos, short montage, default Marimba Motif, CINEMATIC title and WEB TEST credit. Five creation stages completed and saved a 23.3s editable Draft. One failed scene analysis was explicitly skipped. Continuous playback and full-page reopening passed. Reopened frames showed the decoded CINEMATIC title at4:05, ARCHIVED BY WEB TEST at5:19 and original photo-01 at9:00. Evidence: `archive-playing.png`, `archive-title-reopened.png`, `archive-credit-reopened.png`, `archive-photo-reopened.png`. Admit web; normal-gate reinstall pending. Totals:17 admitted,18 blocked,15 unresolved.
