@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-six packages have passed actual installation, core creation or interaction,
+Twenty-seven packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump, Place Count and Timeline Shorts Builder.
-They declare `web`. Of the other 24 packages, 19 have identified current blockers
-and 5 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump, Place Count, Timeline Shorts Builder and 2026 Recap.
+They declare `web`. Of the other 23 packages, 19 have identified current blockers
+and 4 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -59,7 +59,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `polaroid-photo-dump` | **Web verified after caption receipt fix** | Reinstalled `b6f3aa5`, selected17 PNGs and saved13.9s Polaroid web verified with individual photos, satin frame, caption, zoom/grade and bundled audio. Playback reached13:21; full reload playback at7:09 showed the photo/frame/caption composition. Normal-gate reinstall passed at `95f24e3`. |
 | `portrait-beat-montage` | Blocked | [plugin.json](../plugins/portrait-beat-montage/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `postcard-cutout-studio` | Native operation present | [panel.tsx](../plugins/postcard-cutout-studio/panel.tsx#L216): Bundled runtime invokes shell for cutout processing. A complete browser alternative has not been verified. |
-| `recap-2026` | Pending live retest | Last run failed source identity verification. Optional face analysis alone does not prove a native requirement; retest the 20s hero and 15-clip workflow after the shared identity fix. |
+| `recap-2026` | **Web verified after source identity fix** | Installed `993daa0`, selected20s hero and15 synthetic videos, and created full68.6s Draft with240 video pieces, title and bundled music. Actual playback at9:15 and full reload playback at23:04 passed. Optional automatic face detection was not proven by synthetic inputs; example-video preview was unavailable. Normal-gate reinstall pending. |
 | `selects-ai-runtime` | Blocked | [plugin.json](../plugins/selects-ai-runtime/plugin.json): Declares runtime.json, a native runtime requiring a desktop host. |
 | `selfie-aesthetic` | Pending real-person framing | Synthetic-input 9.5s creation/playback passed, but three sources fell back to ordinary shots. Real-person framing remains unverified; synthetic patterns do not prove it. |
 | `short-form-safe-zones` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
