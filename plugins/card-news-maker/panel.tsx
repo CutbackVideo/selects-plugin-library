@@ -3488,7 +3488,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         } finally {
           still.close();
         }
-        await store.fs.removeFile(rawPath);
+        await store.fs.removeFile({ filePath: rawPath });
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.png`);
         await store.fs.writeFile(out, png);
         files.push(out);
