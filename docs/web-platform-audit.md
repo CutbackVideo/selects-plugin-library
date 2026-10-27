@@ -6,8 +6,8 @@ Twenty-six packages have passed actual installation, core creation or interactio
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
 Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip, 8-Clip Daily Vlog, Polaroid Photo Dump, Place Count and Timeline Shorts Builder.
-They declare `web`. Of the other 24 packages, 18 have identified current blockers
-and 6 remain under active verification. These counts are not a completed audit.
+They declare `web`. Of the other 24 packages, 19 have identified current blockers
+and 5 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -31,7 +31,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `ali-abdaal-style` | Pending corrected-plugin retest | Actual 30s talking-head attempt failed on stale clip handles. The plugin handle fix and six portrait-geometry tests pass; a complete live edit and replay are still required. |
 | `archive-vlog` | **Web verified after host fixes** | Installed `a4e059a`, created mixed video/photo 23.3s Draft with Marimba Motif. Full reload playback, CINEMATIC title at4:05, WEB TEST credit at5:19 and original photo at9:00 passed. One scene-search failure was explicitly skipped. Normal-gate reinstall passed at `aa5c693`. |
 | `camera-shutter-dump` | **Web verified after host fix** | Installed and created a 10s Draft from twelve PNGs with shutter audio. Full reload playback at9:22 showed the photo collage after the Blob filename fix. Production platform-gate reinstallation also passed. |
-| `card-news-maker` | Pending export retest | Three AI images and an editable three-card Draft were generated. PNG export timed out; raw PNG-to-ImageBitmap decoding was corrected, but the complete export needs retest. |
+| `card-news-maker` | **Blocked: browser file delivery** | Fixed PNG decoding and removeFile argument shape (`7cd58d9`). Actual three PNGs and caption saved; editable 9s Draft replayed at4:01 after reload. Device delivery remains unresolved: Open folder uses native revealFile, unsupported by BrowserRuntime; completed jobs disappear from the resume list. Do not admit web until users can retrieve their exported files. |
 | `chris-williamson-style` | Blocked | [plugin.json](../plugins/chris-williamson-style/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `cinema-vlog-studio` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
 | `city-weekend-vlog` | **Web verified including photos** | Previous 13.3s video/title workflow passed. New photo-only run selected21 original PNGs, default Sunny Soul Strut and A day title, then saved City Weekend Vlog 2026-10-27 17:12. Visible playback at10:23 and full reload playback at3:00 showed actual photos/title. Normal-gate reinstall passed at `b6f3aa5`. |
