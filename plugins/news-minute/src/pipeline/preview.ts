@@ -55,6 +55,23 @@ async function confirm(sdk: PanelSdk, x: PreviewTarget, frame?: number): Promise
   return false;
 }
 
+// Space on a focused scene row goes to the editor as play/pause, and the browser also clicks the row when the
+// key comes up. That click would seek back to the scene start a moment after playback began, so a keyboard
+// click that follows Space is dropped. Enter and pointer clicks still pick the row.
+export function spaceClickGuard() {
+  let space = false;
+  return {
+    keyDown: (key: string) => { space = key === " "; },
+    reset: () => { space = false; },
+    // detail is 0 for a click the keyboard made, 1+ for a pointer click.
+    allows: (detail: number) => {
+      const fromSpace = space && detail === 0;
+      space = false;
+      return !fromSpace;
+    },
+  };
+}
+
 export async function openPreview(sdk: PanelSdk, x: PreviewTarget): Promise<boolean> {
   await run(sdk, { summary: "Open the preview Draft", script: `${ownership(x)}\nreturn await selects.editor.openDraft(${J(x.draftId)});` });
   return confirm(sdk, x);
