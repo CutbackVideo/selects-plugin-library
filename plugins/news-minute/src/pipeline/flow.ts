@@ -30,6 +30,8 @@ export type Session = {
   scriptProvider?: AiProvider;
   presetId: string;
   voiceId: string;
+  // The picked voice's display name, so a library voice reads by name before the list loads.
+  voiceName?: string;
   article: Article | null;
   script: Script | null;
   scriptErrors: string[];
