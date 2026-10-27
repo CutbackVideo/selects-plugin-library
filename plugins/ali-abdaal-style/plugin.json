@@ -45,5 +45,5 @@
     "No captions or effects already on the video",
     "English speech"
   ],
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }

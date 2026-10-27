@@ -127,5 +127,5 @@
     "width": 540,
     "height": 960
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }
