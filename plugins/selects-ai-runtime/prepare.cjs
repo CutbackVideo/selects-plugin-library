@@ -80,6 +80,15 @@ async function main() {
     ...(webgpu ? { webgpu } : {}),
     ...(webgpuPreparationFailure ? { webgpuPreparationFailure } : {}),
   });
+  // CPU preparation has no live adapter decision to refresh. The host may
+  // reuse this config while these immutable dependencies and runtime source
+  // remain unchanged. Inference still creates fresh, hash-verified sessions.
+  if (task === 'faces.detect' || task === 'speakers.detect') {
+    await writeJson(path.join(path.dirname(path.resolve(argument('--output'))), 'preparation-reuse.json'), {
+      version: 1,
+      paths: [path.resolve(ortModule, '../..'), ...Object.values(models).map(model => model.path), ...Object.values(tools)],
+    });
+  }
   controller.signal.throwIfAborted();
   emit({ step: 'ready' });
 }

@@ -163,3 +163,7 @@ logits (`scoreKind: "uncalibrated-logit"`), not probabilities. A missing score
 is unknown, not silent. Track IDs are not global identities and cannot connect
 people across windows or cameras. Input audio comes from the same video.
 Clients must check the host's `activeSpeakerSupported` before submission.
+
+## Optional preparation reuse sidecar
+
+CPU face/speaker preparation writes `preparation-reuse.json` next to the requested output config. Version 1 contains absolute `paths` covering the complete native environment (including common modules and its ready marker), pinned model files and resolved media tools. A supporting host may reuse successful JSON configuration only while these dependencies, runtime source, task and child environment remain unchanged. Worker model pins and fresh session creation remain required. Runtimes with transient hardware/permission decisions omit this sidecar; shared matte preparation always does. Missing, invalid or unsupported sidecars mean ordinary per-job preparation. Old hosts ignore the file.

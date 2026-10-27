@@ -127,3 +127,5 @@ Keep the workflow ID from Details when reporting a job issue.
 If the development preview shows a zero duration after opening a Draft, bring
 the editor forward, open another saved Draft, and return. If a Panel refresh
 reports a reconnect error, refresh the saved job from Details.
+
+CPU face/speaker preparation also emits an optional `preparation-reuse.json` sidecar beside its output config, listing the native environment, pinned models and resolved tools. Supporting hosts may reuse that JSON config while runtime source, environment and dependency metadata are unchanged. Workers still hash pinned model bytes and create fresh sessions. Matte omits the sidecar so hardware availability is re-evaluated for every job; old hosts simply ignore it.
