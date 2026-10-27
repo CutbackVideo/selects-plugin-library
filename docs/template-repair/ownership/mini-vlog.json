@@ -236,7 +236,7 @@
         "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
         "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
         "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
-        "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error. Only an explicit missing startFFmpeg capability selects the legacy complete read; malformed capability/hash output, timeout, cancellation and changed size/mtime/inode remain failures.",
+        "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error. ID3 signatures preselect the existing complete-byte observer before native dispatch; missing startFFmpeg capability also retains existing complete-byte support. Malformed capability/hash output, timeout, cancellation and changed size/mtime/inode remain failures and never trigger a legacy retry. Other native observations read only a bounded ten-byte signature before streaming.",
         "retry": "No media start replay; late identity can cancel that original job once.",
         "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
         "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
@@ -825,19 +825,19 @@
       "id": "native-source-verification",
       "decision": "reuse",
       "owner": "native-source-files",
-      "reason": "The generated Mini and Archive assembly scripts reuse one SDK-safe native source adapter. Large originals stay inside the existing raw-data FFmpeg job instead of returning to the 49 KiB Base64 range-read loop inside a 120-second assembly script. This does not change the separate small state-JSON file observer.",
+      "reason": "Generated Mini and Archive assembly scripts reuse one SDK-safe source adapter. A bounded signature check selects complete byte hashing for ID3 originals because older FFmpeg demuxers strip ID3 headers; all other large originals use native full-content streaming. The separate state-JSON observer is unchanged.",
       "contract": {
-        "input": "Existing selects.files and selects.media capabilities, exact absolute original path, current check and one assembly-scoped deadline. Expected full-content snapshots are compared by source-input after the adapter returns its fresh digest.",
+        "input": "Existing selects.files and selects.media capabilities, exact absolute original path, current check and one assembly-scoped deadline. Expected full-content snapshots are compared by source-input after the adapter returns its fresh digest. At most ten prefix bytes select an exact-byte path before native dispatch; selection does not rely on extensions, small-file thresholds or a failed native attempt.",
         "output": "A private files adapter returning verified full byte size and SHA-256 only after complete terminal output and matching before/after stat identity.",
         "identity": "Exact original path and size/mtime/inode bracket; one returned native job id belongs only to its invocation. A filename, partial digest, successful start or cancellation acknowledgement is not completion.",
-        "dependencies": "shared/native-source-files.js, existing media.startFFmpeg/job.status/job.cancel and files.stat. Raw data demux plus copy feeds every original byte to the SHA-256 muxer; no new public SDK or host API.",
+        "dependencies": "shared/native-source-files.js, existing media.startFFmpeg/job.status/job.cancel and files.stat. Raw data demux plus copy feeds every original byte to the SHA-256 muxer; no new public SDK or host API. ID3 inputs use the existing fingerprintTemplateFile full-byte implementation, preserving metadata and header bytes removed by older FFmpeg demuxers.",
         "effects": "Read-only original-file access through an owned native media process. Starting/cancelling that process uses the assembly existing allowCommit context; no source rewrite, user-data deletion or saved Draft mutation.",
-        "lifetime": "One adapter shares a 90-second verification deadline across pre-placement and pre-commit observations; an unsettled owned process gets a separate 5-second exit-confirmation budget. Checks bracket awaited SDK calls; a permanently unresponsive IPC remains bounded by the existing outer script supervisor, not a nonexistent sandbox timer.",
+        "lifetime": "One adapter shares a 90-second verification deadline across pre-placement and pre-commit observations; an unsettled owned process gets a separate 5-second exit-confirmation budget. Checks bracket awaited SDK calls; a permanently unresponsive IPC remains bounded by the existing outer script supervisor, not a nonexistent sandbox timer. Large ID3 originals keep the previous slower complete-read behavior under the same caller/deadline checks; native speed is not promised for that signature.",
         "cleanup": "Cancel only the exact owned native job, observe terminal exit, and preserve work on unknown start/exit. Never clean another job or original file.",
-        "outcomes": "Native success requires complete cursor-drained SHA output and unchanged file stat. Missing capability, malformed output, failed native read, deadline or changed source never selects a slow range-read fallback.",
+        "outcomes": "A validated prefix selects complete byte hashing for ID3 originals before dispatch. Other native success requires cursor-drained SHA output and unchanged stat. Native errors, malformed output, cancellation or changed sources never trigger a legacy retry; complete-byte source identity remains mandatory.",
         "retry": "No native start replay, content cache reuse or uncertain save replay. Pre-placement and pre-commit each make a new full-content observation.",
-        "distribution": "The two operation-builders serialize this canonical function into their scripts/assemble.js; no installed cross-plugin import or shared AI runtime update is involved.",
-        "validation": "Existing native_file_observation tests run actual FFmpeg SHA comparison and sandbox serialization plus failure/deadline/unknown-exit cases. Mini and Archive assembly-intent tests use a virtual 4 GiB stat and forbid range reads while retaining commit/source-change checks. Ownership coverage and these fixtures do not promote semantic review, whole-template acceptance, Windows, playback or export."
+        "distribution": "The two operation-builders serialize this canonical function into their scripts/assemble.js; no installed cross-plugin import or shared AI runtime update is involved. Only Mini and Archive opt into native reads. Five other photo templates receive the synchronized local-client copy without opting in.",
+        "validation": "Existing native_file_observation tests run actual FFmpeg SHA comparison and sandbox serialization plus failure/deadline/unknown-exit cases. Mini and Archive assembly-intent tests use a virtual 4 GiB stat and forbid whole-file range transfers while retaining commit/source-change checks. Ownership coverage and these fixtures do not promote semantic review, whole-template acceptance, Windows, playback or export. ID3-skip simulator regressions cover both adapters; non-ID3 cases assert only one bounded signature read and no whole-file range transfer. Actual old-FFmpeg reproduction and installed app acceptance remain separate evidence."
       },
       "implementation": "implemented",
       "evidence": [
@@ -868,12 +868,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "f3282f75a35820441061518dff1e53d253457f199473c3b471105447eb91cc97",
+      "sha256": "dafbd445d82f9cc83b778a402c7463721396904dfb1f166eede99836485a720e",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7842,
+          "endLine": 7856,
           "feature": "panel-ui"
         },
         {
@@ -1008,17 +1008,17 @@
         },
         {
           "startLine": 7333,
-          "endLine": 7794,
+          "endLine": 7808,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7795,
-          "endLine": 7841,
+          "startLine": 7809,
+          "endLine": 7855,
           "feature": "app-guard"
         },
         {
-          "startLine": 7841,
-          "endLine": 7841,
+          "startLine": 7855,
+          "endLine": 7855,
           "feature": "panel-ui"
         },
         {
@@ -1194,12 +1194,12 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/assemble.js",
-      "sha256": "460362f81dca98559342a548b2cb0020f4078f5d9cb08cfd4e99118b22874667",
+      "sha256": "566591e4f90a80321dc2caa54c7a759aa757334a33400a837fcd726f531fbfe1",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 563,
+          "endLine": 568,
           "feature": "assembly-policy"
         },
         {
@@ -1209,32 +1209,32 @@
         },
         {
           "startLine": 104,
-          "endLine": 159,
+          "endLine": 164,
           "feature": "native-source-verification"
         },
         {
-          "startLine": 160,
-          "endLine": 168,
+          "startLine": 165,
+          "endLine": 173,
           "feature": "draft-observation"
         },
         {
-          "startLine": 169,
-          "endLine": 350,
+          "startLine": 174,
+          "endLine": 355,
           "feature": "source-input"
         },
         {
-          "startLine": 351,
-          "endLine": 430,
+          "startLine": 356,
+          "endLine": 435,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 469,
-          "endLine": 469,
+          "startLine": 474,
+          "endLine": 474,
           "feature": "native-source-verification"
         },
         {
-          "startLine": 470,
-          "endLine": 473,
+          "startLine": 475,
+          "endLine": 478,
           "feature": "source-input"
         }
       ],
@@ -1939,20 +1939,20 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "71c2cf5d7e33bac4caab09f520773bc16aaff347ff662e1d717da4f4829a1448",
+      "sha256": "f2c957729bce2eac846a68c567cd4494656ed16bd3f31d26ad6037f3e6cf90bd",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 463,
+          "endLine": 477,
           "feature": "local-sdk"
         }
       ]
     },
     {
       "path": "tests/vlog_native_hash_cancel.test.mjs",
-      "sha256": "9a0fedc9d11be0e5158ca06859a04dff6d97daf8fe07c55052aac34eddd2d61b",
+      "sha256": "84fba14a07d04d732aaac73c71380776aac10d1dc3e46a38f8da2577b0d26f46",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
@@ -1966,12 +1966,12 @@
     {
       "path": "shared/native-source-files.js",
       "role": "runtime",
-      "sha256": "52b109fcfbe4ef306026bd5c5d4eef5e0b74b26ebfa31d82e43bb6938e9f7830",
+      "sha256": "55041e2425932f14a6cf7d5c39da14d7519b5f9a243b8ddfe4372b11f3cfebc6",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 60,
+          "endLine": 68,
           "feature": "native-source-verification"
         }
       ]
@@ -1979,17 +1979,17 @@
     {
       "path": "tests/native_file_observation.test.mjs",
       "role": "validation",
-      "sha256": "015c6781a9d43020226792f899ce7d6ef00cb0c900316ed9197188e162c465e8",
+      "sha256": "399c811cee52682d0432a3b0fc435f4f721b1c4010d3ae9efac3a016258f57e4",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 101,
+          "endLine": 110,
           "feature": "local-sdk"
         },
         {
-          "startLine": 70,
-          "endLine": 100,
+          "startLine": 72,
+          "endLine": 109,
           "feature": "native-source-verification"
         }
       ]
@@ -1997,7 +1997,7 @@
     {
       "path": "tests/mini_assembly_intent.test.mjs",
       "role": "validation",
-      "sha256": "2fbd064f0a30b1a31f1f1e69a061877292f023902f65154dbfceb45b1403989e",
+      "sha256": "ae84f4d541b44ab6f2bb835004d7190612652039bbd1b17ee2e96e604bb6f4d7",
       "hashMode": "lf-text",
       "ranges": [
         {
@@ -2020,7 +2020,7 @@
     {
       "path": "tests/archive_assembly_intent.test.mjs",
       "role": "validation",
-      "sha256": "5d621f700655fb9bc18081b44e57f4eb422a027e400a86250bbe0c13e9ef8155",
+      "sha256": "e3c90c6bf30ec7ab3f4f5c15a129c78b4a343f6489410a92de17a3624fcc9a6d",
       "hashMode": "lf-text",
       "ranges": [
         {
@@ -2487,5 +2487,5 @@
       ]
     }
   ],
-  "sourceEvidenceRevision": "9cea7d9a6dffe3450861887921cfa1265779db6e"
+  "sourceEvidenceRevision": "c204e67d665c5ed8bc34fea4c2acde6d7ceb3399"
 }

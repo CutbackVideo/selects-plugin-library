@@ -11,11 +11,11 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const localSource=fs.readFileSync(new URL('../shared/local-client.ts',import.meta.url),'utf8');
 const digest='a'.repeat(64),identity={size:4,mtimeMs:1,ino:1,isDirectory:false};
 async function fixture(t,{native=true,guard=()=>{},unknown=false,cancelDelay=0}={}){
- let startedResolve,observedResolve,reads=0,dispatches=0;
+ let startedResolve,observedResolve,reads=0,dispatches=0;const readRequests=[];
  const started=new Promise(r=>startedResolve=r),observed=new Promise(r=>observedResolve=r),cancelled=[];
  const jobs=new Map([['foreign',{state:'running'}]]);
  const selects={files:{environment:async()=>({platform:'darwin',homedir:'/tmp',tempDirectory:'/tmp',version:'test'}),stat:async()=>identity,
-  readRange:async()=>{reads++;guard();return {bytesRead:4,base64:Buffer.from('data').toString('base64')};}},media:{job:id=>({cancel:async()=>{cancelled.push(id);if(cancelDelay)await new Promise(r=>setTimeout(r,cancelDelay));if(!unknown)jobs.get(id).state='cancelled';}})}};
+  readRange:async input=>{reads++;readRequests.push(input);guard();return {bytesRead:4,base64:Buffer.from('data').toString('base64')};}},media:{job:id=>({cancel:async()=>{cancelled.push(id);if(cancelDelay)await new Promise(r=>setTimeout(r,cancelDelay));if(!unknown)jobs.get(id).state='cancelled';}})}};
  if(native)selects.media.startFFmpeg=async()=>{dispatches++;jobs.set('own',{state:'running'});startedResolve();return {jobId:'own'};};
  const sdk={runScript:async input=>({isError:false,result:await new Function('selects','return (async()=>{'+input.script+'})()')(selects)}),call:async(method,id,{cursor=0})=>{
   assert.equal(method,'getLocalMediaJobStatus');assert.equal(id,'own');observedResolve();
@@ -27,7 +27,7 @@ async function fixture(t,{native=true,guard=()=>{},unknown=false,cancelDelay=0}=
  const client=await module.createPanelLocalClient(sdk);
  // Safely end the baseline's missing guard without waiting for its native deadline.
  const rescue=()=>{const timer=setTimeout(()=>{jobs.get('own').state='succeeded';},700);t.after(()=>clearTimeout(timer));return timer;};
- return {client,jobs,started,observed,cancelled,rescue,get reads(){return reads;},get dispatches(){return dispatches;}};
+ return {client,jobs,started,observed,cancelled,rescue,readRequests,get reads(){return reads;},get dispatches(){return dispatches;}};
 }
 for(const [id,helper,sentinelName] of [['mini-vlog','prepareMiniOwnMusic','CANCELLED'],['archive-vlog','prepareArchiveOwnMusic','STALE']]){
  const panel=fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
@@ -46,14 +46,14 @@ for(const [id,helper,sentinelName] of [['mini-vlog','prepareMiniOwnMusic','CANCE
   const pending=box.detect({path:'/music',name:'music'});await h.observed;
   box.projectRef.current='changed';const rescue=h.rescue();await pending;clearTimeout(rescue);
   assert.equal(errors[0],api[sentinelName]);assert.deepEqual(h.cancelled,['own']);assert.equal(h.jobs.get('foreign').state,'running');
-  assert.equal(h.jobs.get('own').state,'cancelled');assert.equal(h.reads,0);assert.equal(later,0);assert.deepEqual(statuses,[]);
+  assert.equal(h.jobs.get('own').state,'cancelled');assert.equal(h.reads,1);assert.deepEqual(h.readRequests,[{path:'/music',offset:0,length:4}]);assert.equal(later,0);assert.deepEqual(statuses,[]);
  });
 }
 test('private guard cancellation settles own job exactly once and returns original sentinel',async t=>{
  let live=true;const sentinel=Error('scope changed'),h=await fixture(t),progress=[];
  const pending=observeSourceFiles(h.client.files,['/music'],null,{native:true,check(){if(!live)throw sentinel;},onProgress:p=>progress.push(p)});
  await h.observed;live=false;const rescue=h.rescue();await assert.rejects(pending,e=>e===sentinel);clearTimeout(rescue);
- assert.deepEqual(h.cancelled,['own']);assert.equal(h.jobs.get('foreign').state,'running');assert.equal(h.reads,0);assert.equal(progress.some(p=>p.complete),false);
+ assert.deepEqual(h.cancelled,['own']);assert.equal(h.jobs.get('foreign').state,'running');assert.equal(h.reads,1);assert.deepEqual(h.readRequests,[{path:'/music',offset:0,length:4}]);assert.equal(progress.some(p=>p.complete),false);
 });
 test('pre-dispatch guard and external pre-abort start no native job',async t=>{
  const h=await fixture(t),sentinel=Error('scope changed');

@@ -9,7 +9,7 @@ export const fixture=options=>{const f=assemblyIntentFixture({scriptSource:sourc
 test('Archive large analysis source: generated assembly uses native bytes before placement and commit',async()=>{
  const f=fixture(),file=f.addFile('/large-original');f.cfg.analysisSources=[file.observation];
  const stat=f.files.stat;file.observation.size=4*1024**3;f.files.stat=async path=>({...await stat(path),size:file.observation.size});
- f.files.readRange=async()=>{throw Error('Large original must not cross the range-read bridge');};
+ const readRange=f.files.readRange;f.files.readRange=async input=>{assert.equal(input.offset,0);assert.ok(input.length<=10,'only a bounded ID3 signature may cross the bridge');return readRange(input);};
  await f.run();assert.equal(file.entry.nativeReads,2);assert.equal(f.calls.commits,1);
 });
 for(const kinds of [['chapter','subchapter'],['other']])test('Archive assembly: native '+kinds.join('/')+' rows '+(kinds[0]==='other'?'cannot enter the saved assembly':'are preserved without counting as media'),async()=>{

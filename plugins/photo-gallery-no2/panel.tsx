@@ -3361,6 +3361,20 @@ async function createPanelLocalClient(sdk: any) {
     if (before === null) return null;
     if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino))
       throw new Error("The file's size or identity could not be confirmed.");
+    if (before.size > 0) {
+      const length = Math.min(10, before.size), prefix = await files.readRange({path, offset: 0, length});
+      check();
+      if (prefix?.bytesRead !== length || typeof prefix.base64 !== "string" || prefix.base64.length !== 4 * Math.ceil(length / 3)) throw new Error("The original file prefix could not be confirmed.");
+      // FFmpeg 6 consumes ID3 before opening even the data demuxer. Select a
+      // complete byte observer before dispatch; a native error never falls back.
+      if (prefix.base64.startsWith("SUQz")) {
+        const deadline = Date.now() + (options.timeoutMs ?? 120000);
+        const current = () => { check(); if (Date.now() >= deadline) throw new Error("Original file verification timed out."); };
+        const result = await fingerprintTemplateFile(files, path, current);
+        current(); if (result) options.onProgress?.(result.size);
+        return result;
+      }
+    }
     const controller = new AbortController(), abort = () => controller.abort();
     options.signal?.addEventListener("abort", abort, {once:true});
     if (options.signal?.aborted) abort();

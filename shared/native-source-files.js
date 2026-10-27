@@ -1,5 +1,8 @@
 // SDK-script adapter for original-media verification. Keep large binary reads
 // inside the existing native media job instead of copying Base64 through IPC.
+// ID3-prefixed originals use complete byte reads: older FFmpeg demuxers consume
+// that header even with -f data, so their native digest omits original bytes.
+import {fingerprintTemplateFile} from './file-observation.js';
 // One deadline covers both pre-placement and pre-commit checks in an assembly.
 export function nativeSourceFiles(selects, deadline = Date.now() + 90000) {
  if(!Number.isFinite(deadline))throw Error('The source verification deadline is invalid.');
@@ -14,6 +17,11 @@ export function nativeSourceFiles(selects, deadline = Date.now() + 90000) {
    if(before===null)return null;
    const valid=row=>row&&row.isDirectory===false&&Number.isSafeInteger(row.size)&&row.size>=0&&Number.isFinite(row.mtimeMs)&&Number.isFinite(row.ino);
    if(!valid(before))throw Error('The original file identity could not be confirmed.');
+   if(before.size>0){
+    const length=Math.min(10,before.size),prefix=await files.readRange({path,offset:0,length});check();
+    if(prefix?.bytesRead!==length||typeof prefix.base64!=='string'||prefix.base64.length!==4*Math.ceil(length/3))throw Error('The original file prefix could not be confirmed.');
+    if(prefix.base64.startsWith('SUQz'))return fingerprintTemplateFile(files,path,check);
+   }
    if(typeof selects.media?.startFFmpeg!=='function'||typeof selects.media?.job!=='function')throw Error('Update Selects to verify original media with native file reads.');
    let job=null,settled=false;
    try{

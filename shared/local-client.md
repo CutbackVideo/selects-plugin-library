@@ -59,11 +59,17 @@ scoped synchronization now uses the existing canonical implementation as well
 as the new connection behavior. a16z imports the canonical source directly and
 uses its existing bundler. Other embedded copies are not silently migrated.
 
-The additive read-only `files.fingerprint(path)` forwards the existing native SDK
-response `{size,sha256}` or `null`. File contents stream in the native host rather
-than through browser read chunks. Analysis callers validate the returned identity
+The private read-only `files.fingerprint(path)` adapter composes existing SDK
+stat/range reads or native media jobs to return `{size,sha256}` or `null`; it is
+not a public SDK fingerprint method. Analysis callers validate the returned identity
 and do not interpret thrown/incomplete replies as absence. No new public SDK or
 Electron capability is introduced; released-version compatibility remains unverified.
+
+Mini and Archive opt into native hashing. A bounded ten-byte prefix observation
+selects the existing complete-byte hash for ID3 originals before native dispatch:
+older FFmpeg versions consume that header even when asked for raw data. Large ID3
+files keep the slower exact-byte path; native execution failures never trigger
+a legacy retry. Other synchronized photo consumers do not opt into native reads.
 
 ## Native media process ownership
 

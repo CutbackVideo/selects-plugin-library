@@ -114,6 +114,11 @@ function nativeSourceFiles(selects, deadline = Date.now() + 90000) {
    if(before===null)return null;
    const valid=row=>row&&row.isDirectory===false&&Number.isSafeInteger(row.size)&&row.size>=0&&Number.isFinite(row.mtimeMs)&&Number.isFinite(row.ino);
    if(!valid(before))throw Error('The original file identity could not be confirmed.');
+   if(before.size>0){
+    const length=Math.min(10,before.size),prefix=await files.readRange({path,offset:0,length});check();
+    if(prefix?.bytesRead!==length||typeof prefix.base64!=='string'||prefix.base64.length!==4*Math.ceil(length/3))throw Error('The original file prefix could not be confirmed.');
+    if(prefix.base64.startsWith('SUQz'))return fingerprintTemplateFile(files,path,check);
+   }
    if(typeof selects.media?.startFFmpeg!=='function'||typeof selects.media?.job!=='function')throw Error('Update Selects to verify original media with native file reads.');
    let job=null,settled=false;
    try{
