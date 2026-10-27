@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-two packages have passed actual installation, core creation or interaction,
+Twenty-three packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits and Summer Trip.
-They declare `web`. Of the other 28 packages, 18 have identified current blockers
-and 10 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits, Summer Trip and 8-Clip Daily Vlog.
+They declare `web`. Of the other 27 packages, 18 have identified current blockers
+and 9 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -36,7 +36,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `cinema-vlog-studio` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
 | `city-weekend-vlog` | **Web verified including photos** | Previous 13.3s video/title workflow passed. New photo-only run selected21 original PNGs, default Sunny Soul Strut and A day title, then saved City Weekend Vlog 2026-10-27 17:12. Visible playback at10:23 and full reload playback at3:00 showed actual photos/title. Normal-gate reinstall pending. |
 | `cutout-beat-gallery` | Blocked | [plugin.json](../plugins/cutout-beat-gallery/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
-| `daily-vlog-8` | Pending creation retest | Earlier actual Create timed out. Retry the one-opener/seven-clip workflow with current source-observation fixes; no completed saved replay yet. |
+| `daily-vlog-8` | **Web verified after host fixes** | Current-host retry completed from fixtures folder, opening clip01 and seven automatic choices. Saved20.48s Draft played through20:13; after full reload and explicit saved-tab selection, animated yellow title/source video played at3:03. Transitions, bundled song and SFX tracks remained. Normal-gate reinstall pending. |
 | `depth-type-captions` | Blocked | [plugin.json](../plugins/depth-type-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `doac-style` | Blocked | [panel.tsx](../plugins/doac-style/panel.tsx#L157): The caption workflow invokes a bundled Python runtime through the shell. |
 | `eo-shorts` | Blocked | [plugin.json](../plugins/eo-shorts/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
@@ -149,7 +149,7 @@ their individual verification and normal-install limitations are recorded above.
 | `cinema-vlog-studio` | **passed / passed**. Imported a 20-second landscape test source through the native file chooser. Assigned it to the required slots using the plugin's explicitly supported source reuse.; Actual Create produced a 21.35-second Draft with 23 cuts, bundled music and title. Seeking to 5:02 visibly rendered the source and scramble title.; After reload, reopened the saved Draft. Playback advanced from 3:18 to 8:01; the inset card was visible at 8:00. Screenshots: cinema-title-visible.png and cinema-reopened-playing.png.; Reopened saved Draft again and played from the beginning through 21:07 / 21:08; screenshot cinema-complete.png. Normal-metadata reinstall pending.; Reinstalled published manifest commit 1892039 through the actual web UI with the normal platform guard unchanged; browser installation success confirmed. |
 | `city-weekend-vlog` | **Web verified including photos** | Previous 13.3s video/title workflow passed. New photo-only run selected21 original PNGs, default Sunny Soul Strut and A day title, then saved City Weekend Vlog 2026-10-27 17:12. Visible playback at10:23 and full reload playback at3:00 showed actual photos/title. Normal-gate reinstall pending. |
 | `cutout-beat-gallery` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
-| `daily-vlog-8` | **passed / failed-script-timeout**. Selected fixtures folder, 8 valid videos assigned. Create clicked.; Script deadline of 120s exceeded; uncommitted edits, no completed Draft. |
+| `daily-vlog-8` | **Web verified after host fixes** | Current-host retry completed from fixtures folder, opening clip01 and seven automatic choices. Saved20.48s Draft played through20:13; after full reload and explicit saved-tab selection, animated yellow title/source video played at3:03. Transitions, bundled song and SFX tracks remained. Normal-gate reinstall pending. |
 | `depth-type-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `doac-style` | **passed / failed-native-shell**. Create captions on analyzed vertical 9:16 30s sample Draft failed: Web adapter not implemented: PanelShellRunnerAdapter.run |
 | `eo-shorts` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
@@ -291,3 +291,7 @@ The panel reported a planned-frame warning. Read-only SDK inspection found fps24
 ### Summer Trip mixed-media admission
 
 The installed panel used one20s original video plus21 PNGs, Short/defaultSummer style, Surf Indie, color/SFX/muffled-ending options. All five creation stages completed in `Summer Trip SUMMER 10:19:36` (17:21 displayed). Actual playback showed original photos in the film-frame ending at14:09. After full-page reload the SUMMER title played at3:09 and native ruler seek14:16 showed the original photo/film frame again. Proof: `summer-photo-playing.png`, `summer-photo-reopened-title.png`, `summer-photo-reopened-verified.png`. Admit web; normal-gate reinstall pending. Totals:22 admitted,18 blocked,10 unresolved.
+
+### Daily Vlog admission after current-host retry
+
+Opened the installed panel, selected fixtures, opening clip01 and seven automatically chosen original8s clips. Unlike the earlier timeout, creation completed. `8-Clip Daily Vlog — 2026. 10. 27. 오전 10:22:07` (20:14 displayed) contains10 Main pieces, three editable titles, transitions, bundled music and SFX. Initial playback crossed the transition at4:09 and ended20:13. After full-page reload, explicitly selected the saved Draft tab; playback at3:03 showed the animated yellow DAILY VLOG text over original footage. Proof: `daily-playing.png`, `daily-reopened.png`. Admit web; normal-gate reinstall pending. Totals:23 admitted,18 blocked,9 unresolved.
