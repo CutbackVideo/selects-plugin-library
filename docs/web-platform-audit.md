@@ -2,14 +2,15 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Only `short-form-safe-zones` is admitted to web in this change. The other 49
-retain the existing macOS/Windows declarations. That does **not** assert that
-all 49 are inherently impossible in a browser.
+No package is currently admitted to web. All 50 retain the existing macOS/Windows
+declarations pending actual web installation and core-workflow verification.
+That does **not** assert that all 50 are inherently impossible in a browser.
 
 - **Blocked**: a declared native dependency or required unavailable host path is identified.
 - **Native operation present**: a concrete native operation exists; this alone does not prove every alternative workflow is impossible.
 - **Pending**: no conclusive admission yet. Missing browser validation must not be described as a proven platform limitation.
-- **Web admitted**: main editing logic has browser execution evidence, with scope below.
+- **Web admitted**: actual web-target installation, core UI workflows, visible output,
+  and reopening have all passed. No package currently meets this gate.
 
 Do not automatically enable web merely because a package has no `runtime` or
 `runShell`. The shared local-client facade also contains real browser-capable
@@ -56,7 +57,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `recap-2026` | Native operation present | [panel.tsx](../plugins/recap-2026/panel.tsx#L686): Uses selects.ai without declaring selects-ai-runtime. Browser workers have no native AI host; review dependency declaration before enabling web. |
 | `selects-ai-runtime` | Blocked | [plugin.json](../plugins/selects-ai-runtime/plugin.json): Declares runtime.json, a native runtime requiring a desktop host. |
 | `selfie-aesthetic` | Pending | [panel.tsx](../plugins/selfie-aesthetic/panel.tsx#L2231): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
-| `short-form-safe-zones` | Web admitted | [panel.tsx](../plugins/short-form-safe-zones/panel.tsx#L102): Browser worker compiles the panel. Read/add/update/remove pass against the real editing SDK and motion-graphic validator in Chromium. |
+| `short-form-safe-zones` | Pending | [panel.tsx](../plugins/short-form-safe-zones/panel.tsx#L102): Browser worker compiles the panel. Read/add/update/remove pass against the real editing SDK and motion-graphic validator in Chromium. Actual installation, UI actions, visible guide rendering and reopening remain unverified. |
 | `shortform-clips` | Blocked | [plugin.json](../plugins/shortform-clips/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `shortform-cloner` | Native operation present | [panel.tsx](../plugins/shortform-cloner/panel.tsx#L237): Panel invokes shell; URL ingestion and full reconstruction need a browser implementation/verification. |
 | `six-clip-velocity` | Pending | [panel.tsx](../plugins/six-clip-velocity/panel.tsx#L319): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
@@ -72,7 +73,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `vlog-opening` | Pending | [panel.tsx](../plugins/vlog-opening/panel.tsx#L1776): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `vox-explainer` | Pending | [panel.tsx](../plugins/vox-explainer/panel.tsx#L328): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 
-## Reproduce the admitted workflow
+## Supporting SDK checks (not admission)
 
 From this repository, with a dependency-installed client checkout containing the
 companion platform PR and the client's Playwright Chromium browser installed:
@@ -98,3 +99,18 @@ client independently traverses the pinned dependency closure before installation
 Undeclared dependencies and arbitrary behavior inside plugin code cannot be
 inferred by the manifest validator; source review and browser verification remain
 required before adding web. Revisit this table when those workflows are tested.
+
+## Actual web-target verification run
+
+The local web target was started from the companion client branch on 2026-10-27
+with the smoke-test driver enabled. Welcome and authentication UI rendered in a
+real browser. The isolated origin has no authenticated session; installation and
+core-workflow testing are waiting for a test-account login. This is an environment
+blocker, not a per-plugin failure. No install attempts or UI workflows have passed
+yet in this run. The previous Safe Zones admission was withdrawn accordingly.
+
+For each package, record the pinned source commit, input fixtures, install outcome,
+core actions, visible result, reopen result, and concrete failure (if any). A
+platform-policy refusal alone is circular evidence and does not prove that the
+plugin's implementation is incompatible: candidate admission must be exercised
+in an isolated test package before publishing the final platform declaration.

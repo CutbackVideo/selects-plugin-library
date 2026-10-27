@@ -197,8 +197,10 @@ packs or migrate user data.
 
 Every published plugin.json must declare a non-empty `platforms` array using only
 `web`, `macos`, and `windows`, without duplicates. Existing plugins start with
-`"platforms": ["macos", "windows"]`. Add `web` after verifying the main workflow
-in Selects Web, including required dependencies. Desktop support declarations
+`"platforms": ["macos", "windows"]`. Add `web` only after running the actual web target, installing the plugin through
+the real installer, and directly verifying its core workflows and visible results,
+including required dependencies and persistence after reopening. Compilation,
+SDK-only tests, and source inspection are supporting evidence, not admission. Desktop support declarations
 preserve the existing product support policy; they do not claim new OS testing.
 
 The install button remains available. After a web installation attempt, the client
