@@ -209,5 +209,6 @@
   "prepare": [
     "Everyday clips and photos, at least 2 different ones",
     "Video analysis is optional; analyzed videos use scene search and unanalysed videos use the local check"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

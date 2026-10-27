@@ -87,5 +87,6 @@
   ],
   "prepare": [
     "17 photos, in the order they appear"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

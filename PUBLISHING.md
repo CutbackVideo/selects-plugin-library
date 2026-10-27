@@ -192,3 +192,25 @@ The existing Shortform Clips update provider remains in place for compatibility
 with the first opt-in host. Removing that provider and its updater is a separate
 release after the common host is available. This change does not update template
 packs or migrate user data.
+
+## Supported platforms
+
+Every published plugin.json must declare a non-empty `platforms` array using only
+`web`, `macos`, and `windows`, without duplicates. Existing plugins start with
+`"platforms": ["macos", "windows"]`. Add `web` after verifying the main workflow
+in Selects Web, including required dependencies. Desktop support declarations
+preserve the existing product support policy; they do not claim new OS testing.
+
+The install button remains available. After a web installation attempt, the client
+checks the pinned package and its required dependency closure before placing files.
+If any package omits `web` or requires a native runtime, installation fails with a
+desktop download prompt. Older manifests without platforms are desktop-only.
+There is no separate webSupport field or unverified install state.
+
+A web declaration covers the main workflow. Optional desktop-only operations still
+report their limitation when invoked. Do not add web based only on an absence of
+shell commands; browser SDK, storage, network, and media paths also need verification.
+
+See [the per-package web audit](docs/web-platform-audit.md) for admission evidence
+and outstanding browser checks. Publication rejects web/native-runtime and
+web/desktop-only-dependency contradictions.

@@ -165,5 +165,6 @@
       ],
       "default": "bedroom-pop-love"
     }
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

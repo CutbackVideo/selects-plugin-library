@@ -82,5 +82,6 @@
     "A video file of one person talking to camera",
     "No captions or effects already on the video",
     "English or Korean speech"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

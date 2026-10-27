@@ -93,5 +93,6 @@
   "prepare": [
     "10 videos, at least 1.1 seconds each",
     "One person per clip, framed from the face to the chest"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

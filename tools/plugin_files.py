@@ -56,6 +56,11 @@ def validate_manifest(manifest):
             item.isdigit() and len(item) > 1 and item.startswith('0')
             for item in prerelease.split('.')
         ), 'Invalid minSelectsVersion')
+    if 'platforms' in manifest:
+        platforms = manifest['platforms']
+        require(isinstance(platforms, list) and len(platforms) > 0 and
+                all(isinstance(p, str) and p in ('web', 'macos', 'windows') for p in platforms) and
+                len(set(platforms)) == len(platforms), 'Invalid plugin platforms')
     files = manifest.get('files')
     require(isinstance(files, list) and 0 < len(files) <= 1000 and all(isinstance(f, str) for f in files), 'Missing files list')
     require(len(set(files)) == len(files) and 'plugin.json' not in files, 'Duplicate or reserved file')
@@ -111,7 +116,18 @@ def check(pid, root=ROOT):
     directory = Path(root).resolve() / 'plugins' / plugin_id(pid)
     manifest = json.loads((directory / 'plugin.json').read_text())
     require(manifest['id'] == pid, 'Folder and plugin ID differ')
+    require('platforms' in manifest, 'Plugin platforms declaration required')
     names = validate_manifest(manifest)
+    if 'web' in manifest['platforms']:
+        require(not manifest.get('runtime'), 'Native runtime plugins cannot declare web')
+        dependencies = manifest.get('requiresPlugins', [])
+        require(isinstance(dependencies, list), 'Invalid requiresPlugins')
+        for dependency in dependencies:
+            dependency = plugin_id(dependency)
+            dependent = json.loads((Path(root) / 'plugins' / dependency / 'plugin.json').read_text())
+            validate_manifest(dependent)
+            require('web' in dependent.get('platforms', []) and not dependent.get('runtime'),
+                    f'Web plugin {pid} requires desktop-only dependency {dependency}')
     for name in names:
         path = directory / name
         if path.suffix in TEXT_SUFFIXES and path.is_file():

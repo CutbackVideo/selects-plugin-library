@@ -201,5 +201,6 @@
   "prepare": [
     "At least 2 different video clips of city or travel moments; photos are optional. Up to 50 files total.",
     "Videos analyzed, so the scene search can find their shots"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

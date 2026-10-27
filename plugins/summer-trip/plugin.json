@@ -177,5 +177,6 @@
     "Trip clips and photos, at least 6 different ones",
     "One video 5 seconds or longer, for the opening",
     "Videos analyzed, so the scene search can find their shots"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

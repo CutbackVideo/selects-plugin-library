@@ -25,5 +25,6 @@
     "poster": "poster.webp",
     "width": 400,
     "height": 500
-  }
+  },
+  "platforms": ["macos", "windows"]
 }

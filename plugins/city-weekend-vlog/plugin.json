@@ -195,5 +195,6 @@
   "prepare": [
     "Clips or photos, enough for 16 short shots",
     "Clips analyzed"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

@@ -67,5 +67,6 @@
   ],
   "updates": {
     "protocol": 1
-  }
+  },
+  "platforms": ["macos", "windows"]
 }

@@ -137,5 +137,6 @@
   ],
   "prepare": [
     "3 or more trip clips, ideally from different places"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

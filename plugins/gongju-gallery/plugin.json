@@ -104,5 +104,6 @@
       ],
       "default": "ordered"
     }
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

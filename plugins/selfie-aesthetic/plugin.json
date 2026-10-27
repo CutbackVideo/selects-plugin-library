@@ -126,5 +126,6 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  }
+  },
+  "platforms": ["macos", "windows"]
 }

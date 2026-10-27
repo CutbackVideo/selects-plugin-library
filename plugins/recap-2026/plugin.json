@@ -110,5 +110,6 @@
     "Videos from your year",
     "An intro clip at least 8.5 seconds long",
     "Other clips at least 1.7 seconds long"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

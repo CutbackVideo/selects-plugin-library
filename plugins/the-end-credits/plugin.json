@@ -189,5 +189,6 @@
   "prepare": [
     "Trip clips and photos, 4 or more different ones work best",
     "Videos analyzed, so the scene search can find their shots"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

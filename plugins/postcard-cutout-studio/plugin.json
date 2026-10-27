@@ -129,5 +129,6 @@
   "prepare": [
     "A clip of one person (they'll be cut out as the subject)",
     "Clips or photos of places for the background and ending"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

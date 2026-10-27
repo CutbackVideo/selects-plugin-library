@@ -103,5 +103,6 @@
     "lib/frame-change.cjs",
     "tests/frame-change.test.cjs"
   ],
-  "runtime": "runtime.json"
+  "runtime": "runtime.json",
+  "platforms": ["macos", "windows"]
 }

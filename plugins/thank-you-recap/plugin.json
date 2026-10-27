@@ -107,5 +107,6 @@
   "prepare": [
     "Videos from your year",
     "One calm, wide video at least 3.4 seconds long for the hero shot"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }

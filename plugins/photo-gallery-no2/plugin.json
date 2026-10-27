@@ -122,5 +122,6 @@
   ],
   "prepare": [
     "15 photos and 6 videos"
-  ]
+  ],
+  "platforms": ["macos", "windows"]
 }
