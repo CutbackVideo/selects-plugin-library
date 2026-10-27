@@ -192,7 +192,8 @@ const MAX_SHEETS=4,WINDOWS_PER_SHEET=4,ROW_HEIGHT=392,MAX_SHEET_BASE64=1_400_000
 // one and 4 give 2.78x, all at a steady per-turn latency. Six at once buy
 // only 16% more while per-turn latency nearly doubles, which is queueing
 // dressed up as progress — every place finishes later for no more work done.
-const ASSIST_CONCURRENCY=4;
+// Each place writes its contact sheets through the same Project script scope.
+const ASSIST_CONCURRENCY=1;
 // A turn's sheets share one size budget, so each sheet gets its share of it.
 // Quality drops first, since a packed sheet is what the model reads
 // composition from; only a sheet still too large at the lowest quality shrinks.
