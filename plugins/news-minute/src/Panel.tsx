@@ -8,7 +8,7 @@ import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
 import { openDraftScript } from "./pipeline/scripts.ts";
 import { VoicePicker } from "./VoicePicker.tsx";
-import { renameDraft } from "./pipeline/preview.ts";
+import { renameDraft, spaceClickGuard } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
 import { reviseGraphics } from "./pipeline/visual-editor.ts";
@@ -110,6 +110,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
   latest.current = s;
   // Draft mutations stay ordered with navigation and thumbnails; navigation need not wait for a thumbnail.
   const onDraft = useRef(F.draftQueue()).current;
+  // Space on a focused scene row plays the Draft; it must not also re-pick the row.
+  const rowKeys = useRef(spaceClickGuard()).current;
   const renameNow = (projectId: string, draftId: string, name: string) => renameDraft(sdk, { projectId, draftId, name });
   const viewer = F.previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
   const openNow = (projectId: string, draftId: string) => viewer.open(projectId, draftId).then((ok) => { if (!ok) log("previewNotOpened"); }, () => log("previewNotOpened"));
@@ -508,7 +510,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
           return (
             <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : undefined }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button style={{ ...rowSelect, cursor: canPick ? "pointer" : "default" }} aria-pressed={picked === i} aria-disabled={!canPick} title={canPick ? undefined : T("rowNoSeek")} onClick={() => pick(i)}>
+                <button style={{ ...rowSelect, cursor: canPick ? "pointer" : "default" }} aria-pressed={picked === i} aria-disabled={!canPick} title={canPick ? undefined : T("rowNoSeek")} onKeyDown={(e) => rowKeys.keyDown(e.key)} onBlur={rowKeys.reset} onClick={(e) => { if (rowKeys.allows(e.detail)) pick(i); }}>
                 <div style={thumbBox}>
                   <strong style={thumbNumber}>{String(i + 1).padStart(2, "0")}</strong>
                   {still?.state === "ready" ? <img src={still.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
