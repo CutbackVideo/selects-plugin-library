@@ -801,7 +801,13 @@ function imageProgramsFeature(selects,config=null,format=null){
   if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
   const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
  };
- const source=program=>program.shader?{shader:program.shader}:{tsxCode:program.tsxCode};
+ const source=program=>{
+  if(!program.shader)return {tsxCode:program.tsxCode};
+  const shader={...program.shader};
+  // Optional bindings disappear in persisted JSON; absence and undefined agree.
+  if(shader.uniforms===undefined)delete shader.uniforms;
+  return {shader};
+ };
  const validSource=program=>program&&((typeof program.tsxCode==='string'&&program.tsxCode.length>0&&!program.shader)||(!program.tsxCode&&program.shader?.graph?.schema==='Cutback.ShaderEffect.1'));
  const normalized=program=>({...source(program),editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
  const matches=(actual,wanted)=>actual&&same(source(actual),source(wanted))&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);

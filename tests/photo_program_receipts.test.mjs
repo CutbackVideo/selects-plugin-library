@@ -80,7 +80,7 @@ test('oversized program evidence is rejected before committing the Draft',async(
 });
 
 test('No.14 verifies shader programs compiled for the actual fade parameters',async()=>{
- const shader=values=>({graph:{schema:'Cutback.ShaderEffect.1',passes:[{id:'fade',wgsl:'shader span '+values.span,inputs:['source'],parameters:[]}],output:'fade'}});
+ const shader=values=>({uniforms:undefined,graph:{schema:'Cutback.ShaderEffect.1',passes:[{id:'fade',wgsl:'shader span '+values.span,inputs:['source'],parameters:[]}],output:'fade'}});
  const f=fixture('no14-still-video',{presetShader:shader}),result=await f.create({music:'on'});
  assert.ok(result.programs.sources.some(s=>s?.graph?.schema==='Cutback.ShaderEffect.1'));assert.equal(f.commits.length,1);
 });
