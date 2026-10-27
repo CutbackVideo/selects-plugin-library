@@ -1,4 +1,4 @@
-// New drafts put narration on Main (A1) and the plate on a video overlay (V2).
+// New drafts link the background (V1) and narration (A1) in one Main source.
 // Stack: plate -> frame -> scenes -> bands -> headline -> captions -> disclaimers.
 // Multi-call builds always create a candidate; they never clear an existing draft.
 // Visual revisions use scene-edits.ts and commit all requested changes together.
@@ -52,34 +52,55 @@ const mg = async (label: string, tsxCode: string, parameters: any, editableParam
   if (within) return await d.addMotionGraphic({ label, tsxCode, parameters, editableParameters, timeIndependent, within });
 };`;
 
-// Plate over the Main narration, then the frame graphic (without a bands image).
+// Frame graphic above the linked Main source (without a bands image).
 function narrationAndFrame(x: AssemblyInput): string {
   const frame = tpl("frame");
   const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
   return `${PRELUDE}
-const background = await win(0, total / fps);
-if (!background) throw new Error("narration range is empty");
-await d.overlayResource({ resource: p.resource(${J(x.plateId)}), over: background });
 ${x.bandsId ? "" : `await mg(${J(frame.label)}, ${J(frame.tsxCode)}, ${J(frameParams)}, ${J(frame.editableParameters)}, true, 0, total / fps);`}`;
 }
 
-export function baseDraftScript(x: AssemblyInput): ScriptCall {
+export type LinkedSource = { resourceId: string; narrationFrames: number; endSeconds: number };
+
+// Project writes persist immediately, so keep source creation in its own run.
+export function linkedSourceScript(x: AssemblyInput): ScriptCall {
   if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
   if (x.plateSeconds < x.narrationSeconds + 0.5) throw new Error("background plate shorter than the narration and ending hold");
+  return {
+    summary: "Link the news background and narration",
+    allowCommit: true,
+    script: `const p = selects.project(${J(x.projectId)});
+// Keep both media on a common, explicit clock; no waveform sync is needed.
+// A fresh source belongs to this candidate, so older edits remain unchanged.
+const source = await p.createSyncedTimeline({ name: ${J(x.draftName + " · V1 A1")} });
+await source.addClips({ tracks: [
+  { clips: [{ resourceId: ${J(x.plateId)}, startFrame: 0 }] },
+  { clips: [{ resourceId: ${J(x.narrationId)}, startFrame: 0 }] },
+] });
+const layout = await source.layout();
+const audio = layout.placements.filter(c => c.trackKind === "Audio");
+const video = layout.placements.filter(c => c.trackKind === "Video");
+if (audio.length !== 1 || video.length !== 1 || audio[0].baseStartFrame !== 0 || video[0].baseStartFrame !== 0)
+  throw new Error("linked background/narration layout is invalid");
+const fps = 30000 / 1001;
+const narrationFrames = Math.round(audio[0].baseEndFrame / layout.frameRate * fps);
+const endSeconds = (narrationFrames + Math.round(0.5 * fps)) / fps;
+if (video[0].baseEndFrame / layout.frameRate < endSeconds) throw new Error("background plate shorter than the placed narration and ending hold");
+return { resourceId: source.resourceId!, narrationFrames, endSeconds };`
+  };
+}
+
+export function baseDraftScript(x: AssemblyInput, source: LinkedSource): ScriptCall {
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
     script: `const p = selects.project(${J(x.projectId)});
 const d = await p.createDraft({ name: ${J(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
-// Use the complete source grid. The job's seconds can round above the local
-// source timeline's last frame; using that value as a trim endpoint rejects it.
-await d.insertResource({ resourceId: ${J(x.narrationId)} });
-const narrationFrames = (await d.meta()).durationFrames;
-await d.insertGap({ seconds: 0.5 });
-if ((await d.meta()).durationFrames / (30000 / 1001) > ${J(x.plateSeconds)}) throw new Error("background plate shorter than the placed narration and ending hold");
+await d.insertResource({ resourceId: ${J(source.resourceId)}, sourceRange: { startSeconds: 0, endSeconds: ${J(source.endSeconds)} } });
+const narrationFrames = ${J(source.narrationFrames)};
 ${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total, narrationFrames };`,

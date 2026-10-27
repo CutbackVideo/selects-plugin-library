@@ -15,7 +15,7 @@ import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } fr
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
 import { resolveNarration, resolvePlanNarration, type NarrationReference } from "./narration-reference.ts";
 import { changedScenes, fallbackPlan, isGraphic, placements, planWindows, retainPlanPrograms, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
-import { bandsScript, baseDraftScript, fitControls, fitEditableControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { bandsScript, baseDraftScript, linkedSourceScript, type LinkedSource, fitControls, fitEditableControls, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { applySceneEdits, readSceneSnapshots, supportsSceneEditing } from "./scene-edits.ts";
 import { TEMPLATES } from "../templates/generated.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
@@ -640,7 +640,8 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   try {
     if (target?.reuse) rec.notes.push("preview: kept previous Draft " + target.reuse.draftId + "; building a new candidate");
     if (!draftId) {
-      const baseCall = baseDraftScript(x);
+      const source = await run<LinkedSource>(sdk, linkedSourceScript(x));
+      const baseCall = baseDraftScript(x, source);
       rec.notes.push("script bytes: base " + scriptBytes(baseCall));
       const base = await run<{ draftId: string | null; frames: number; narrationFrames: number }>(sdk, baseCall);
       if (!base.draftId) throw new Error("the Draft was not created");

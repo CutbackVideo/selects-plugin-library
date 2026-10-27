@@ -125,8 +125,8 @@ test("heritage layout: graphics y 481-1290, white caption on a translucent box y
   assert.deepEqual([L.captionBottom - L.captionHeight, L.captionBottom, L.captionMaxWidth, L.captionWeight, L.captionPad], [1315, 1385, 720, 500, 10]);
   const x = { projectId: "p", draftName: "n", plateId: "r1", plateSeconds: 41, narrationId: "r2", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [{ text: "c", startSec: 0, endSec: 1 }] };
   // with a bands image the frame graphic is left out; without one it opens the same window as the image
-  assert.ok(!baseDraftScript({ ...x, bandsId: "r3" }).script.includes('"News frame"'));
-  const framed = baseDraftScript(x).script;
+  assert.ok(!baseDraftScript({ ...x, bandsId: "r3" }, { resourceId: "linked", narrationFrames: 120, endSeconds: 4.5 }).script.includes('"News frame"'));
+  const framed = baseDraftScript(x, { resourceId: "linked", narrationFrames: 120, endSeconds: 4.5 }).script;
   assert.ok(framed.includes('"News frame"') && framed.includes('"windowTop":481') && framed.includes('"windowBottom":1399'));
   const b = bandsScript("d", "p", "r3").script;
   assert.ok(b.includes('overlayResource({ resource: selects.project("p").resource("r3")') && b.includes("commitAll"));
@@ -334,69 +334,43 @@ test("only order and coverage errors block building the Draft", async () => {
   assert.ok(!numbers.errors.some((e) => BLOCKING_PLAN_ERROR.test(e)));
 });
 
-test("new drafts put narration on Main and background above it without removing clips", async () => {
-  const { PRESETS } = await import("../src/preset.ts");
-  const { baseDraftScript } = await import("../src/pipeline/assemble.ts");
-  const x = { projectId: "p", draftName: "Preview", plateId: "plate", plateSeconds: 41, narrationId: "voice", narrationSeconds: 40, headline: { line1: "a", line2: "b" }, preset: PRESETS.chosun, scenes: [], captions: [] };
-  const r = baseDraftScript(x).script;
-  assert.ok(r.includes('insertResource({ resourceId: "voice"'));
-  assert.ok(r.indexOf('insertGap({ seconds: 0.5 })') > r.indexOf('insertResource({ resourceId: "voice"'));
-  assert.ok(r.includes('const background = await win(0, total / fps)'));
-  assert.ok(r.includes('overlayResource({ resource: p.resource("plate")'));
-  assert.ok(!/removeClips|removeEmptyTracks/.test(r));
-});
-
-test("the ending hold is covered even though the clip inventory omits Main gaps", async () => {
+test("linked Main retains narration grid and ending hold", async () => {
   const { stripTypeScriptTypes } = await import("node:module");
-  const { baseDraftScript } = await import("../src/pipeline/assemble.ts");
+  const { baseDraftScript, linkedSourceScript } = await import("../src/pipeline/assemble.ts");
   const { PRESETS } = await import("../src/preset.ts");
-  let frames = 0, narration, background;
-  const d = {
-    setSettings: async () => {},
-    insertResource: async opts => { narration = opts; frames = 120; },
-    insertGap: async ({ seconds }) => { frames += Math.round(seconds * 30000 / 1001); },
-    clips: async () => [{ startFrame: 0, endFrame: 120 }],
-    meta: async () => ({ durationFrames: frames }),
-    rangeAtFrames: async (startFrame, endFrame) => ({ startFrame, endFrame }),
-    overlayResource: async opts => { background = opts.over; },
-    addMotionGraphic: async () => {},
-    commitAll: async () => ({ createdDraftId: "d" }),
-  };
-  const call = baseDraftScript({ projectId: "p", draftName: "Test", plateId: "plate", plateSeconds: plateSeconds(4), narrationId: "voice", narrationSeconds: 4, preset: PRESETS.chosun });
-  const source = stripTypeScriptTypes(`async function execute(selects) { ${call.script}\n }`);
-  const result = await new Function(source + "; return execute;")()({ project: () => ({ createDraft: async () => d, resource: () => ({}) }) });
-  assert.equal(result.frames, 135);
-  assert.equal(result.narrationFrames, 120);
-  assert.deepEqual(background, { startFrame: 0, endFrame: 135 });
-  assert.deepEqual(narration, { resourceId: "voice" });
-});
-
-test("narration reported in seconds uses the whole source when its local frame grid ends earlier", async () => {
-  const { stripTypeScriptTypes } = await import("node:module");
-  const { baseDraftScript } = await import("../src/pipeline/assemble.ts");
-  const { PRESETS } = await import("../src/preset.ts");
-  let inserted = false, frames = 0;
-  const d = {
-    setSettings: async () => {},
-    insertResource: async opts => {
-      // Real 3.109 s narration failed when the explicit endpoint exceeded
-      // the imported skeleton's source frame grid. Whole-source placement works.
-      if (opts.sourceRange?.endSeconds > 3.086) throw Error("invalid_source_range");
-      assert.deepEqual(opts, { resourceId: "voice" });
-      inserted = true; frames = 93;
-    },
-    insertGap: async () => { frames += 15; },
-    meta: async () => ({ durationFrames: frames }),
-    rangeAtFrames: async (startFrame, endFrame) => ({ startFrame, endFrame }),
-    overlayResource: async () => {}, addMotionGraphic: async () => {},
-    commitAll: async () => ({ createdDraftId: "d" }),
-  };
-  const call = baseDraftScript({ projectId: "p", draftName: "Test", plateId: "plate", plateSeconds: 4.1, narrationId: "voice", narrationSeconds: 3.109, preset: PRESETS.chosun });
-  const execute = new Function(stripTypeScriptTypes(`async function execute(selects) { ${call.script}\n }`) + "; return execute;")();
-  const result = await execute({ project: () => ({ createDraft: async () => d, resource: () => ({}) }) });
-  assert.ok(inserted);
-  assert.equal(result.frames, 108);
-  assert.equal(result.narrationFrames, 93);
+  for (const narrationFrames of [120, 93]) {
+    const fps = 30000 / 1001;
+    let frames = 0, tracks, settings, inserted;
+    const linked = {
+      resourceId: "linked",
+      setSettings: async value => { settings = value; },
+      addClips: async value => { tracks = value.tracks; },
+      layout: async () => ({ frameRate: fps, placements: [
+        { trackKind: "Video", baseStartFrame: 0, baseEndFrame: 140 },
+        { trackKind: "Audio", baseStartFrame: 0, baseEndFrame: narrationFrames },
+      ] }),
+    };
+    const d = {
+      setSettings: async () => {},
+      insertResource: async opts => { inserted = opts; frames = Math.round(opts.sourceRange.endSeconds * fps); },
+      meta: async () => ({ durationFrames: frames }),
+      rangeAtFrames: async (startFrame, endFrame) => ({ startFrame, endFrame }),
+      addMotionGraphic: async () => {},
+      commitAll: async () => ({ createdDraftId: "d" }),
+    };
+    const input = { projectId: "p", draftName: "Test", plateId: "plate", plateSeconds: 4.7, narrationId: "voice", narrationSeconds: narrationFrames === 93 ? 3.109 : 4, preset: PRESETS.chosun };
+    const linkCall = linkedSourceScript(input);
+    const linkExecute = new Function(stripTypeScriptTypes(`async function execute(selects) { ${linkCall.script}\n }`) + "; return execute;")();
+    const source = await linkExecute({ project: () => ({ createSyncedTimeline: async () => linked }) });
+    const call = baseDraftScript(input, source);
+    const execute = new Function(stripTypeScriptTypes(`async function execute(selects) { ${call.script}\n }`) + "; return execute;")();
+    const result = await execute({ project: () => ({ createDraft: async () => d, createSyncedTimeline: async () => linked }) });
+    assert.deepEqual(tracks, [{ clips: [{ resourceId: "plate", startFrame: 0 }] }, { clips: [{ resourceId: "voice", startFrame: 0 }] }]);
+    assert.equal(settings, undefined);
+    assert.equal(inserted.resourceId, "linked");
+    assert.equal(result.narrationFrames, narrationFrames);
+    assert.equal(result.frames, narrationFrames + 15);
+  }
 });
 
 test("preview revision follows the scenes, look, headline and narration only", async () => {
@@ -453,6 +427,7 @@ const DRAFT_ANSWERS = {
   "Make the background": { jobId: "j" },
   "Check a media job": { state: "succeeded", events: [] },
   "Add media to the Project": { ids: ["plate1"] },
+  "Link the news background and narration": { resourceId: "linked", narrationFrames: 1199, endSeconds: 40.5 },
   "Build the news short Draft": { draftId: "d-new", frames: 1230, narrationFrames: 1199 },
   "Add scene graphics (1/1)": { added: 2, placed: [{ clipId: 10 }, { clipId: 11 }] },
   "Read the current news graphics": [0, 1].map(index => ({ index, clipId: 10 + index, trackId: "graphic", signature: "sig", startFrame: index * 600, endFrame: (index + 1) * 600, program: { tsxCode: "export default function G() { return null; }", parameters: {}, editableParameters: [] } })),
@@ -561,8 +536,8 @@ test("a preview Draft that cannot be refilled is left alone and a new one is bui
   assert.equal(r.refilled, false);
   // Re-import the owned file; persisted short ids might now refer to other media.
   assert.ok(h.calls.some((c) => c.summary === "Add media to the Project"));
-  const base = h.calls.find((c) => c.summary === "Build the news short Draft").script;
-  assert.ok(base.includes('resource("plate1")'));
+  const base = h.calls.find((c) => c.summary === "Link the news background and narration").script;
+  assert.ok(base.includes('resourceId: "plate1"'));
   assert.ok(!base.includes('"plate0"') && !base.includes('"n1"'));
   assert.ok(base.includes('"voice-current"'));
   assert.ok(rec.notes.some((n) => n.includes("kept previous Draft d-old")));

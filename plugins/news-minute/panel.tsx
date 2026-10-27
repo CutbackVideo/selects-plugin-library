@@ -4665,26 +4665,43 @@ function narrationAndFrame(x) {
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
   return `${PRELUDE}
-const background = await win(0, total / fps);
-if (!background) throw new Error("narration range is empty");
-await d.overlayResource({ resource: p.resource(${J4(x.plateId)}), over: background });
 ${x.bandsId ? "" : `await mg(${J4(frame.label)}, ${J4(frame.tsxCode)}, ${J4(frameParams)}, ${J4(frame.editableParameters)}, true, 0, total / fps);`}`;
 }
-function baseDraftScript(x) {
+function linkedSourceScript(x) {
   if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
   if (x.plateSeconds < x.narrationSeconds + 0.5) throw new Error("background plate shorter than the narration and ending hold");
+  return {
+    summary: "Link the news background and narration",
+    allowCommit: true,
+    script: `const p = selects.project(${J4(x.projectId)});
+// Keep both media on a common, explicit clock; no waveform sync is needed.
+// A fresh source belongs to this candidate, so older edits remain unchanged.
+const source = await p.createSyncedTimeline({ name: ${J4(x.draftName + " \xB7 V1 A1")} });
+await source.addClips({ tracks: [
+  { clips: [{ resourceId: ${J4(x.plateId)}, startFrame: 0 }] },
+  { clips: [{ resourceId: ${J4(x.narrationId)}, startFrame: 0 }] },
+] });
+const layout = await source.layout();
+const audio = layout.placements.filter(c => c.trackKind === "Audio");
+const video = layout.placements.filter(c => c.trackKind === "Video");
+if (audio.length !== 1 || video.length !== 1 || audio[0].baseStartFrame !== 0 || video[0].baseStartFrame !== 0)
+  throw new Error("linked background/narration layout is invalid");
+const fps = 30000 / 1001;
+const narrationFrames = Math.round(audio[0].baseEndFrame / layout.frameRate * fps);
+const endSeconds = (narrationFrames + Math.round(0.5 * fps)) / fps;
+if (video[0].baseEndFrame / layout.frameRate < endSeconds) throw new Error("background plate shorter than the placed narration and ending hold");
+return { resourceId: source.resourceId!, narrationFrames, endSeconds };`
+  };
+}
+function baseDraftScript(x, source) {
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
     script: `const p = selects.project(${J4(x.projectId)});
 const d = await p.createDraft({ name: ${J4(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
-// Use the complete source grid. The job's seconds can round above the local
-// source timeline's last frame; using that value as a trim endpoint rejects it.
-await d.insertResource({ resourceId: ${J4(x.narrationId)} });
-const narrationFrames = (await d.meta()).durationFrames;
-await d.insertGap({ seconds: 0.5 });
-if ((await d.meta()).durationFrames / (30000 / 1001) > ${J4(x.plateSeconds)}) throw new Error("background plate shorter than the placed narration and ending hold");
+await d.insertResource({ resourceId: ${J4(source.resourceId)}, sourceRange: { startSeconds: 0, endSeconds: ${J4(source.endSeconds)} } });
+const narrationFrames = ${J4(source.narrationFrames)};
 ${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total, narrationFrames };`
@@ -5766,7 +5783,8 @@ async function assemble(sdk, env, s, preset, log, rec, target) {
   try {
     if (target?.reuse) rec.notes.push("preview: kept previous Draft " + target.reuse.draftId + "; building a new candidate");
     if (!draftId) {
-      const baseCall = baseDraftScript(x);
+      const source = await run(sdk, linkedSourceScript(x));
+      const baseCall = baseDraftScript(x, source);
       rec.notes.push("script bytes: base " + scriptBytes(baseCall));
       const base = await run(sdk, baseCall);
       if (!base.draftId) throw new Error("the Draft was not created");
