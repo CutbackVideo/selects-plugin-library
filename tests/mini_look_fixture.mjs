@@ -17,7 +17,7 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
    job.done=f.local.media.runFFmpeg(args,true,job.controller.signal).then(result=>{
     for(const stream of ['stdout','stderr'])for(let i=0;i<result[stream].length;i+=4096)job.events.push({cursor:job.events.length+1,stream,text:result[stream].slice(i,i+4096)});
     job.state='succeeded';
-   },error=>{job.state=job.controller.signal.aborted?'cancelled':'failed';job.error=error.message;});
+   },error=>{job.state=job.controller.signal.aborted?'cancelled':'failed';job.error=error.message;if(job.state==='failed')t.diagnostic?.(JSON.stringify({fixture:'look-native',jobId,args,code:error.code,signal:error.signal,stderr:error.stderr,message:error.message}));});
    return {jobId};
   },
   job:jobId=>{const job=nativeJobs.get(jobId);assert.ok(job,'only this fixture owns its native job');return {
@@ -51,7 +51,7 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
  },runScript:async input=>{
   requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,editor:{linkToDraftFrame:async()=>({deepLinkUrl:'selects://fixture'}),openDraft:async()=>{}},project:()=>({importFiles:async input=>{if(!hooks.importFiles)throw Error('Unexpected import in save fixture');return hooks.importFiles(input);},resources:async()=>hooks.resources??[],resource:rid=>({rid}),sourceFiles:async()=>hooks.sourceFiles?hooks.sourceFiles():({fileTree:[{type:"video",resourceId:"r0",path:f.source}]}),meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name===probeName?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
   selects.media=nativeMedia(input.allowCommit===true);
-  const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){return {isError:true,output:error.message};}})();
+  const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){if(input.summary==='Assemble template with owned receipt')t.diagnostic?.(JSON.stringify({fixture:'assembly-cause',summary:input.summary,message:error.message,cause:error.cause?.message,stack:error.stack}));return {isError:true,output:error.message};}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'||hooks.lostAssembly&&input.summary==='Assemble template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;
  }};
  const mount=()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(source,box);return box;};

@@ -685,7 +685,7 @@
         "effects": "Local test-only processes/temporary files and VM evaluation; some scripts deliberately inspect package bytes.",
         "lifetime": "One test process; fixture cleanup belongs to test harness.",
         "cleanup": "Remove only owned fixture paths after producers exit; never treat a failed assertion as permission to delete user data.",
-        "outcomes": "Pass/failure/skip are scoped evidence, not full runtime quality or module completion.",
+        "outcomes": "Pass/failure/skip are scoped evidence, not full runtime quality or module completion. Failed native jobs retain actual process code/signal/stdout/stderr; test diagnostics expose that original failure and the assembly exception cause/stack before durable recovery wraps it as notSaved. This adds observability, not a new successful result or a retry.",
         "retry": "Repeat only after affected changes/new failure evidence.",
         "distribution": "tests/*.test.cjs and dev checker references; repository-level source/owner tests are separate.",
         "validation": "All fifteen shipped Archive CJS suites and repository fixture sources are captured. Earlier results live in the three Archive repair packets; this map does not claim a new full runtime pass."
@@ -694,7 +694,8 @@
         "plugins/archive-vlog/tests/panel.test.cjs",
         "plugins/archive-vlog/tests/scripts-types.test.cjs",
         "plugins/archive-vlog/panel.tsx",
-        "tests/mini_look_fixture.mjs"
+        "tests/mini_look_fixture.mjs",
+        "tests/gallery_hold_fixture.mjs"
       ],
       "implementation": "specific"
     },
@@ -1004,7 +1005,8 @@
         "plugins/archive-vlog/operation-builder.mjs",
         "plugins/archive-vlog/dev/assemble.template.js",
         "plugins/archive-vlog/scripts/assemble.js",
-        "tests/mini_look_fixture.mjs"
+        "tests/mini_look_fixture.mjs",
+        "tests/archive_look_recovery.test.mjs"
       ]
     }
   ],
@@ -2270,7 +2272,7 @@
     {
       "path": "tests/mini_look_fixture.mjs",
       "role": "validation",
-      "sha256": "a1c9a6f9243e49511f0c741e05aa37ccfd24fa1e3039ebd7fde72d50e627df35",
+      "sha256": "57c8610ec7174d8c8e4868eac16e70954aa163b5dab7c215b525c3feaae6d6a7",
       "hashMode": "lf-text",
       "ranges": [
         {
@@ -2289,6 +2291,32 @@
         {
           "startLine": 1,
           "endLine": 32,
+          "feature": "workflow-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/gallery_hold_fixture.mjs",
+      "role": "validation",
+      "sha256": "ae4ef2fd13a1b2a72abc8c97d797a75687768cbd198f1118f2614b0e2716447e",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 72,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_look_recovery.test.mjs",
+      "role": "validation",
+      "sha256": "46757cfd68871f7855de1836000f5f0281b678e79c1aa22778ed80e94083547f",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 51,
           "feature": "workflow-owner"
         }
       ]
@@ -2809,5 +2837,5 @@
       ]
     }
   ],
-  "sourceEvidenceRevision": "54e24f890eca9e2052de84d234451a175dbcfa81"
+  "sourceEvidenceRevision": "9cea7d9a6dffe3450861887921cfa1265779db6e"
 }
