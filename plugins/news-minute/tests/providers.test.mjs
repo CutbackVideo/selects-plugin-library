@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readAiProviders, scriptProvider } from "../src/pipeline/providers.ts";
-import { emptySession, newRunRecord, planScenes, revisePlan, writeScript } from "../src/pipeline/flow.ts";
+import { emptySession, newRunRecord, planScenes, planUsesNarration, revisePlan, writeScript } from "../src/pipeline/flow.ts";
 import { PRESETS } from "../src/preset.ts";
 
 const connected = { chatgpt: "connected", claude: "connected", selects: "connected" };
@@ -69,11 +69,29 @@ test("subscription failure during writing or source checking never retries on Se
 });
 
 const env = { platform: "darwin", sep: "/", dir: "/test", tmp: "/test", skills: "/test", projectId: "test" };
-const narration = { resourceId: "voice", durationSeconds: 48 };
+const narration = { resourceId: "voice", durationSeconds: 48, workflowId: "job" };
 const session = () => ({ ...emptySession(), article, script: fidelity, projectId: "test" });
 const sceneReply = (revised = false) => JSON.stringify({
   assetSummaries: [],
   scenes: fidelity.sentences.map((s, i) => ({ sentenceIds: [s.id], type: "text_card", params: { text: revised && i === 0 ? "Revised" : "Park plan" }, hideCaption: false, disclaimer: false })),
+});
+
+test("first planning after restart stays visible when the saved TTS alias differs from the resolved job", async () => {
+  const saved = { ...narration, resourceId: "r22" }, before = structuredClone(saved);
+  const sdk = {
+    runScript: async c => ({ result: c.summary === "Verify the saved narration Resource" ? { ...narration, resourceId: "r0" } : null }),
+    aiProviders: async () => connected,
+    askAI: async () => ({ text: sceneReply() }),
+  };
+  const plan = await planScenes(sdk, env, session(), PRESETS.chosun, saved, () => {}, newRunRecord("chosun", ""), "selects");
+  assert.equal(plan.narrationId, "r0");
+  assert.equal(plan.narrationWorkflowId, "job");
+  assert.equal(planUsesNarration(plan, saved), true);
+  assert.deepEqual(saved, before); // display matching does not rewrite the TTS record
+  assert.equal(planUsesNarration(plan, { ...saved, resourceId: "r0", workflowId: "other-job" }), false);
+  assert.equal(planUsesNarration(plan, { ...saved, resourceId: "r0", workflowId: undefined }), false);
+  assert.equal(planUsesNarration({ narrationId: "r22" }, saved), true);
+  assert.equal(planUsesNarration({ narrationId: "r1" }, saved), false);
 });
 
 for (const provider of ["chatgpt", "claude", "selects"]) {
@@ -81,7 +99,7 @@ for (const provider of ["chatgpt", "claude", "selects"]) {
     const calls = [];
     const answers = [new Error("timed out"), "invalid JSON", sceneReply(), new Error("timed out"), "invalid JSON", sceneReply(true)];
     const sdk = {
-      runScript: async () => ({ result: null }),
+      runScript: async c => ({ result: c.summary === "Verify the saved narration Resource" ? narration : null }),
       aiProviders: async () => connected,
       askAI: async (input) => { calls.push(input); const reply = answers.shift(); if (reply instanceof Error) throw reply; return { text: reply }; },
     };
@@ -114,7 +132,7 @@ test("failed planning and revision never switch to credits, and disconnected sel
   const calls = [];
   let status = connected;
   const sdk = {
-    runScript: async () => ({ result: null }),
+    runScript: async c => ({ result: c.summary === "Verify the saved narration Resource" ? narration : null }),
     aiProviders: async () => status,
     askAI: async (input) => { calls.push(input); throw Error("subscription expired"); },
   };

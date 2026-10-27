@@ -39,7 +39,7 @@ export type TtsNext =
   | { kind: "none" } // nothing saved for this script: offer "Generate narration"
   | { kind: "stale" } // saved for another script or voice: offer "Generate narration" again
   | { kind: "poll"; workflowId: string } // submitted: read job status/result
-  | { kind: "ready"; resourceId: string; durationSeconds: number }
+  | { kind: "ready"; resourceId: string; durationSeconds: number; workflowId?: string }
   | { kind: "lost" } // submitted without a saved id: explain, offer an explicit new narration only
   | { kind: "failed"; error: string };
 
@@ -50,7 +50,7 @@ export function ttsNext(rec: TtsRecord | null, revision: string): TtsNext {
     if (rec.state === "submitting" && !rec.workflowId) return { kind: "lost" };
     return { kind: "stale" };
   }
-  if (rec.state === "imported" && rec.resourceId) return { kind: "ready", resourceId: rec.resourceId, durationSeconds: rec.durationSeconds ?? 0 };
+  if (rec.state === "imported" && rec.resourceId) return { kind: "ready", resourceId: rec.resourceId, durationSeconds: rec.durationSeconds ?? 0, ...(rec.workflowId ? { workflowId: rec.workflowId } : {}) };
   if (rec.state === "failed") return { kind: "failed", error: rec.error || "failed" };
   if (rec.workflowId) return { kind: "poll", workflowId: rec.workflowId };
   return { kind: "lost" };

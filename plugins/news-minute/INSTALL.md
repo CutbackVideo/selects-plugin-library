@@ -1,10 +1,14 @@
 # Install
 
 Install the plug-in from the Selects library; the panel appears under Apps.
-This update requires the Selects release containing `sdk.aiProviders()` and
-`sdk.askAI({ provider })` support. The manifest minimum, **2.0.797**, is the
-current release candidate; maintainers must confirm or update it against the
-actual app release before publishing this plug-in update.
+AI work requires the Selects release containing `sdk.aiProviders()` and
+`sdk.askAI({ provider })`. General in-place graphic editing additionally uses
+`DraftHandle.setMotionGraphicProgram()`. Hosts without that setter retain the
+existing plan-feedback workflow and build a separate candidate without replacing
+the current draft or regenerating narration. Deploy the new host API before
+advertising arbitrary graphic-code editing. The manifest minimum, **2.0.797**,
+remains the provider-selection minimum; confirm the actual host release when
+publishing this plug-in update.
 
 All LLM stages require that support. If the AI chooser asks for an update,
 update Selects first. Connect ChatGPT or Claude in Settings > Connectors and

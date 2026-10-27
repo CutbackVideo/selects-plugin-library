@@ -152,6 +152,9 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
     { key: "affiliation", label: "Affiliation", type: "text", defaultValue: "" },
     PAPER,
   ],
+  donut_ratio: [FONT, TITLE, SUBTITLE, SOURCE, ACCENT, PAPER, { key: "unit", label: "Unit", type: "text", defaultValue: "" }],
+  verdict_card: [FONT, TITLE, SUBTITLE, ACCENT, PAPER],
+  flow_cause_effect: [FONT, TITLE, SUBTITLE, ACCENT, PAPER],
 };
 
 // Static graphics whose output does not depend on time: pass as addMotionGraphic `timeIndependent`.
