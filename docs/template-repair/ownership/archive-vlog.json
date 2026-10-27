@@ -2200,17 +2200,17 @@
     {
       "path": "tests/native_file_observation.test.mjs",
       "role": "validation",
-      "sha256": "74fb8e44d477fa5ce1d19bf1704904e32b2a01816aba505d6d70a11d425562e1",
+      "sha256": "b57d87c320ac96863955c24103b0260e0e2c629af5ffe3d9c21212d4d8debb66",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 137,
+          "endLine": 140,
           "feature": "local-sdk"
         },
         {
           "startLine": 72,
-          "endLine": 136,
+          "endLine": 139,
           "feature": "native-source-verification"
         }
       ]

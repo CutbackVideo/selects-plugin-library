@@ -117,7 +117,10 @@ for(const options of [{fail:true},{stdout:'SHA256=invalid\n'},{mutate:p=>fs.appe
 test('SDK assembly shared deadline cancels and confirms only its own pending native read',async()=>{
  const h=host({hold:true});try{
   fs.writeFileSync(h.filename,'original');let clock=0;
-  const observer=vm.runInNewContext('('+nativeSourceFiles.toString()+')(selects,10)',{selects:h.selects,Date:{now:()=>++clock}});
+  // One virtual clock owns both elapsed time and nonblocking waits. A real
+  // Atomics wait does not keep Node's event loop alive after this fake job ends.
+  const Atomics={waitAsync:(_cell,_index,_value,ms)=>{clock+=ms;return {async:true,value:Promise.resolve('timed-out')};}};
+  const observer=vm.runInNewContext('('+nativeSourceFiles.toString()+')(selects,10)',{selects:h.selects,Date:{now:()=>++clock},Atomics});
   await assert.rejects(observer.fingerprint(h.filename),/timed out/);assert.equal(h.cancels,1);prefixOnly(h);assert.equal(h.jobs.get('hash-0').state,'cancelled');
  }finally{h.close();}
 });
