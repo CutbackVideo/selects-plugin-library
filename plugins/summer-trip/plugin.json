@@ -178,5 +178,5 @@
     "One video 5 seconds or longer, for the opening",
     "Videos analyzed, so the scene search can find their shots"
   ],
-  "platforms": ["macos", "windows"]
+  "platforms": ["web", "macos", "windows"]
 }

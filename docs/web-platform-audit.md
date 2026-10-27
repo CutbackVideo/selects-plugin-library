@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Twenty-one packages have passed actual installation, core creation or interaction,
+Twenty-two packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog and THE END Credits.
-They declare `web`. Of the other 29 packages, 18 have identified current blockers
-and 11 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer, City Weekend Vlog, THE END Credits and Summer Trip.
+They declare `web`. Of the other 28 packages, 18 have identified current blockers
+and 10 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -66,7 +66,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `shortform-clips` | Blocked | [plugin.json](../plugins/shortform-clips/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `shortform-cloner` | Native operation present | [panel.tsx](../plugins/shortform-cloner/panel.tsx#L237): Panel invokes shell; URL ingestion and full reconstruction need a browser implementation/verification. |
 | `six-clip-velocity` | **Web verified** | Installed, created 114 editable pieces in a 23.2s Draft, reopened and played actual footage with vertical blur at10:17 after fixing the sample-only playback guard. |
-| `summer-trip` | Pending photo workflow | Saved 17.7s video Draft and SUMMER title played and reopened. Actual photo-input creation and replay remain unchecked. |
+| `summer-trip` | **Web verified including photos** | Earlier video/title path passed. New Short run used one20s video and21 PNGs with Surf Indie, title, photo grid/montage, film ending and muffled ending audio. Full reload showed SUMMER title at3:09 and original photo/film frame at14:16. Normal-gate reinstall pending. |
 | `tang-poetry-explainer` | **Web verified after fix** | Actual UI reinstall of `8a73a60`, paid job resume, six generated videos, three narration clips, music and editable captions produced a 21.1s Draft. Saved result reopened after full reload and played at4:21. Sequential music persistence fixed overlapping Project writes. Normal-gate reinstall passed at `a4e059a`. |
 | `tetris` | Blocked for complete workflow | Actual single-player move/rotate/drop, score 16, pause and menu passed. Multiplayer Connect failed with `PanelShellRunnerAdapter.run` unavailable. Desktop-install guidance was also missing on that caught error. |
 | `thank-you-recap` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
@@ -179,7 +179,7 @@ their individual verification and normal-install limitations are recorded above.
 | `shortform-clips` | **rejected-platform-policy / blocked-native-runtime**. Actual built-in app install showed desktop-required dialog; Package dependency selects-ai-runtime is native; direct pinned-package attempt still pending |
 | `shortform-cloner` | **passed / partial-failed**. Analyzed project C0001.mp4 produced two editable shorts of 34.1s and 33.3s with visible video, headlines and timed captions; Actual YouTube link Create failed during downloader preparation: Web adapter not implemented: PanelShellRunnerAdapter.run |
 | `six-clip-velocity` | **Web verified** | Installed, created 114 editable pieces in a 23.2s Draft, reopened and played actual footage with vertical blur at10:17 after fixing the sample-only playback guard. |
-| `summer-trip` | **passed / created-visible-reopened-photo-path-unverified**. Six original 8s test videos, photos off, short length, default Surf Indie music. Actual Create completed with17.7s Draft and visible source video. One scene-search fallback reported; title/effects/reopen pending.; Playback advanced to11.9s with SUMMER VLOG overlay visible.; Reloaded project restored actual video and populated timeline; screenshot summer-trip-reopened.png. |
+| `summer-trip` | **Web verified including photos** | Earlier video/title path passed. New Short run used one20s video and21 PNGs with Surf Indie, title, photo grid/montage, film ending and muffled ending audio. Full reload showed SUMMER title at3:09 and original photo/film frame at14:16. Normal-gate reinstall pending. |
 | `tang-poetry-explainer` | **Web verified after fix** | Actual UI reinstall of `8a73a60`, paid job resume, six generated videos, three narration clips, music and editable captions produced a 21.1s Draft. Saved result reopened after full reload and played at4:21. Sequential music persistence fixed overlapping Project writes. Normal-gate reinstall pending. |
 | `tetris` | **passed / partial-failed**. Normal game started; move/rotate/drop increased score to 16; pause and main menu worked; Play a friend > New code > Connect failed: Web adapter not implemented: PanelShellRunnerAdapter.run; No desktop-install dialog on this caught panel error |
 | `thank-you-recap` | **passed / passed**. Selected 15 original 8-second videos and a 20-second hero; excluded zero-duration generated outputs. Create produced 49 cuts in a 20.6-second Draft.; Playback visibly showed actual footage and the 2026 / THANK YOU overlay.; After reopening the project, saved Draft played to 20:17 / 20:19. Screenshots: thank-you-title.png and thank-you-reopened.png.; Actual UI reinstall from published commit 1892039 succeeded with the production platform guard unchanged; setup confirms browser install success.; Reinstalled published manifest commit 1892039 through the actual web UI with the normal platform guard unchanged; browser installation success confirmed. |
@@ -287,3 +287,7 @@ The installed panel selected no videos and21 original PNGs, with default Sunny S
 Selected Full frame, Short, Last Light Ballad,21 PNGs and one20s original video. All10 placeholder names became Web Test. Full-frame photo-only selection could not fill the5.1s opening under the plugin photo-hold limit; adding the video enabled the valid mixed workflow. Saved `THE END Credits 2026-10-27 17:15` (`ffd20c07-912a-4680-832c-01416ff8f119`) has six shots including three photos, music and scrolling editable credits. Actual replay passed; after full reload15:20 showed footage/credits and20:04 showed photo21/credits. Proof: `end-full-photo-playing.png`, `end-full-photo-reopened.png`, `end-full-photo-reopened-late.png`.
 
 The panel reported a planned-frame warning. Read-only SDK inspection found fps24000/1001 and actual boundaries `[0,122,215,308,401,493,598]`; the62BPM/default4.698s music-offset grid is `[0,122,215,308,400,493,598]`. Only one cut is one frame late (about0.042s); following cuts and duration recover. Existing assembly logic/test explicitly handles this source-range rounding and places credits using actual boundaries. Record this timing limitation rather than conceal it. Admit web; normal-gate reinstall pending. Totals:21 admitted,18 blocked,11 unresolved.
+
+### Summer Trip mixed-media admission
+
+The installed panel used one20s original video plus21 PNGs, Short/defaultSummer style, Surf Indie, color/SFX/muffled-ending options. All five creation stages completed in `Summer Trip SUMMER 10:19:36` (17:21 displayed). Actual playback showed original photos in the film-frame ending at14:09. After full-page reload the SUMMER title played at3:09 and native ruler seek14:16 showed the original photo/film frame again. Proof: `summer-photo-playing.png`, `summer-photo-reopened-title.png`, `summer-photo-reopened-verified.png`. Admit web; normal-gate reinstall pending. Totals:22 admitted,18 blocked,10 unresolved.
