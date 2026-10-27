@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "news-minute",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "minSelectsVersion": "2.0.797",
   "name": "News in One Minute",
   "summary": "Turns a news article into a one-minute vertical news short: a script checked against the article, editor review, narration, article photos and data cards, captions, in an editable Draft.",
