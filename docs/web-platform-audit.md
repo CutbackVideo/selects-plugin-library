@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Fifteen packages have passed actual installation, core creation or interaction,
+Sixteen packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal and Mini Vlog.
-They declare `web`. Of the other 35 packages, 18 have identified current blockers
-and 17 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog and Photo Grid Reveal.
+They declare `web`. Of the other 34 packages, 18 have identified current blockers
+and 16 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -53,13 +53,13 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `music` | Blocked | [panel.tsx](../plugins/music/panel.tsx#L10): EpidemicSound and Artlist providers are unimplemented web adapters in the client. |
 | `news-minute` | **Web verified after fixes** | Actual pinned install, 337-character script, 48.3s narration, seven scenes, finalized editable Draft and full-page reopening/playback at12:03 passed. Fixed iframe confirmation and browser literal-color background preparation. Automatic source checking timed out; sentences were manually reviewed. Normal-gate reinstall passed at `a4e059a`. |
 | `no14-still-video` | **Web verified after fixes** | Actual install `0d5c289`, four original PNGs, eight editable Image clips plus music, and saved Draft `12f0165b-1efc-4f6f-8556-606c7d625942` passed. After full reload and Mac unlock, playback showed the photo composition/transitions at4:21 (`no14-unlocked-playback.png`). Fixed preset-parameter and optional-shader-field receipt comparisons; companion client avoids font embedding for text-free photo effects. Normal-gate reinstall passed at `a4e059a`. |
-| `photo-gallery-no2` | Pending live retest | Photo Grid installs and accepts 21 mixed slots. Last build failed source confirmation; shared fingerprint and owned-file identity fixes need actual retest. Face detection is optional and falls back when unavailable. |
+| `photo-gallery-no2` | **Web verified after host fixes** | Actual 20-photo/1-video creation succeeded, 21 saved slots read back, sequential reveal and monochrome-to-color playback visible with music. Full reload playback at6:13 passed. Normal-gate reinstall pending. |
 | `place-count` | Pending | [panel.tsx](../plugins/place-count/panel.tsx#L919): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `podcast-hook-captions` | Blocked | [plugin.json](../plugins/podcast-hook-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `polaroid-photo-dump` | Pending | [panel.tsx](../plugins/polaroid-photo-dump/panel.tsx#L1344): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `portrait-beat-montage` | Blocked | [plugin.json](../plugins/portrait-beat-montage/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `postcard-cutout-studio` | Native operation present | [panel.tsx](../plugins/postcard-cutout-studio/panel.tsx#L216): Bundled runtime invokes shell for cutout processing. A complete browser alternative has not been verified. |
-| `recap-2026` | Native operation present | [panel.tsx](../plugins/recap-2026/panel.tsx#L686): Uses selects.ai without declaring selects-ai-runtime. Browser workers have no native AI host; review dependency declaration before enabling web. |
+| `recap-2026` | Pending live retest | Last run failed source identity verification. Optional face analysis alone does not prove a native requirement; retest the 20s hero and 15-clip workflow after the shared identity fix. |
 | `selects-ai-runtime` | Blocked | [plugin.json](../plugins/selects-ai-runtime/plugin.json): Declares runtime.json, a native runtime requiring a desktop host. |
 | `selfie-aesthetic` | Pending | [panel.tsx](../plugins/selfie-aesthetic/panel.tsx#L2231): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `short-form-safe-zones` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
@@ -68,7 +68,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `six-clip-velocity` | **Web verified** | Installed, created 114 editable pieces in a 23.2s Draft, reopened and played actual footage with vertical blur at10:17 after fixing the sample-only playback guard. |
 | `summer-trip` | Pending | [panel.tsx](../plugins/summer-trip/panel.tsx#L3123): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `tang-poetry-explainer` | **Web verified after fix** | Actual UI reinstall of `8a73a60`, paid job resume, six generated videos, three narration clips, music and editable captions produced a 21.1s Draft. Saved result reopened after full reload and played at4:21. Sequential music persistence fixed overlapping Project writes. Normal-gate reinstall passed at `a4e059a`. |
-| `tetris` | Pending / partial | [panel.tsx](../plugins/tetris/panel.tsx#L57): Single-player looks browser-compatible; multiplayer uses a Python/MQTT shell relay. Neither complete browser interaction nor desktop-operation guidance is verified. |
+| `tetris` | Blocked for complete workflow | Actual single-player move/rotate/drop, score 16, pause and menu passed. Multiplayer Connect failed with `PanelShellRunnerAdapter.run` unavailable. Desktop-install guidance was also missing on that caught error. |
 | `thank-you-recap` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
 | `the-end-credits` | Pending | [panel.tsx](../plugins/the-end-credits/panel.tsx#L1986): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `timeline-shorts-builder` | Pending | [panel.tsx](../plugins/timeline-shorts-builder/panel.tsx#L32): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
@@ -259,3 +259,9 @@ Installed commit `8a73a60` through the web UI and resumed the existing paid job 
 ### Mini Vlog admission
 
 Actual `a4e059a` web installation, four selected original 8s videos plus four PNG photos, default Buant Hook music, and the Small Glimpse title produced the editable Draft `Mini Vlog A small glimpse 2026-10-27 08:21:51` (14:01 displayed). After the app-owned file-identity correction, music and complete assembly/decoration succeeded. Playback showed original video and the title; after a full page reload, playback at5:20 showed photo-04 with the editable title, and Chrome reported audio playback. Proof: `mini-playback.png`, `mini-reopened.png`. One source scene-search failed and was explicitly skipped; this is recorded, not hidden. Admit `web`; normal-gate reinstall of the new manifest is still pending. Current totals: 15 admitted, 18 blocked, 17 unresolved.
+
+## Photo Grid admission after mixed-media retest
+
+Installed `a4e059a`, selected 20 original PNGs and `long-hero-20s.mp4` in slot04, default Unexplored music at113BPM. Actual Create saved `Photo Grid mixed web verified` (14:04 displayed) and independently verified all21 slots. Native playback showed sequential grayscale reveal, then all21 colored cells with the moving video tile and audible music. Full page reload restored the saved Draft; actual playback at6:13 showed the complete colored gallery. Evidence: `grid-playing.png`, `grid-color.png`, `grid-reopened.png`. Admit web. Normal-platform-gate reinstall remains pending. Current totals:16 admitted,18 blocked,16 unresolved.
+
+Medical resumed without new paid media. Strip files1/6/7 had fresh modification times15:32/15:39/15:40UTC; the run later failed with a Project write-reservation error before strips.json was saved. Transition generation had not started. This remains unresolved, not admitted.
