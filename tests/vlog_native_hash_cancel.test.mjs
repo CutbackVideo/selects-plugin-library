@@ -10,25 +10,61 @@ import {observeSourceFiles} from '../shared/native-image-input.mjs';
 const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild');
 const localSource=fs.readFileSync(new URL('../shared/local-client.ts',import.meta.url),'utf8');
 const digest='a'.repeat(64),identity={size:4,mtimeMs:1,ino:1,isDirectory:false};
-async function fixture(t,{native=true,guard=()=>{},unknown=false,cancelDelay=0}={}){
- let startedResolve,observedResolve,reads=0,dispatches=0;const readRequests=[];
+async function fixture(t,{native=true,guard=()=>{},unknown=false,cancelDelay=0,firstStatusWait,globals={}}={}){
+ let startedResolve,observedResolve,reads=0,dispatches=0,statusCalls=0;const readRequests=[];
  const started=new Promise(r=>startedResolve=r),observed=new Promise(r=>observedResolve=r),cancelled=[];
  const jobs=new Map([['foreign',{state:'running'}]]);
  const selects={files:{environment:async()=>({platform:'darwin',homedir:'/tmp',tempDirectory:'/tmp',version:'test'}),stat:async()=>identity,
   readRange:async input=>{reads++;readRequests.push(input);guard();return {bytesRead:4,base64:Buffer.from('data').toString('base64')};}},media:{job:id=>({cancel:async()=>{cancelled.push(id);if(cancelDelay)await new Promise(r=>setTimeout(r,cancelDelay));if(!unknown)jobs.get(id).state='cancelled';}})}};
  if(native)selects.media.startFFmpeg=async()=>{dispatches++;jobs.set('own',{state:'running'});startedResolve();return {jobId:'own'};};
  const sdk={runScript:async input=>({isError:false,result:await new Function('selects','return (async()=>{'+input.script+'})()')(selects)}),call:async(method,id,{cursor=0})=>{
-  assert.equal(method,'getLocalMediaJobStatus');assert.equal(id,'own');observedResolve();
+  assert.equal(method,'getLocalMediaJobStatus');assert.equal(id,'own');const first=++statusCalls===1;observedResolve();
+  if(first)await firstStatusWait?.();
   const state=jobs.get(id).state,events=state==='succeeded'&&!cursor?[{cursor:1,stream:'stdout',text:'SHA256='+digest+'\n'}]:[];
   return {state,events,nextCursor:events.length?1:cursor,truncated:false};
  }};
- const module=loadPanelModule(localSource,{names:['createPanelLocalClient'],modules:{'./file-observation.js':{fingerprintTemplateFile}}});
+ const module=loadPanelModule(localSource,{names:['createPanelLocalClient'],modules:{'./file-observation.js':{fingerprintTemplateFile}},globals});
  t.after(()=>disposePanelModule(module));
  const client=await module.createPanelLocalClient(sdk);
  // Safely end the baseline's missing guard without waiting for its native deadline.
  const rescue=()=>{const timer=setTimeout(()=>{jobs.get('own').state='succeeded';},700);t.after(()=>clearTimeout(timer));return timer;};
- return {client,jobs,started,observed,cancelled,rescue,readRequests,get reads(){return reads;},get dispatches(){return dispatches;}};
+ return {client,jobs,started,observed,cancelled,rescue,readRequests,get reads(){return reads;},get dispatches(){return dispatches;},get statusCalls(){return statusCalls;}};
 }
+
+function observationClock(){
+ let now=0,next=0;const timers=new Map(),flush=()=>new Promise(r=>setImmediate(r));
+ return {globals:{Date:{now:()=>now},setTimeout:(fn,ms)=>{const id=++next;timers.set(id,{at:now+ms,fn});return id;},clearTimeout:id=>timers.delete(id)},
+  async advance(ms){const until=now+ms;for(;;){const due=[...timers.entries()].sort((a,b)=>a[1].at-b[1].at)[0];if(!due||due[1].at>until)break;now=due[1].at;timers.delete(due[0]);due[1].fn();await flush();}now=until;await flush();},get pending(){return timers.size;}};
+}
+
+test('native source observation accepts one valid delayed status within its existing total deadline',async t=>{
+ let release;const clock=observationClock(),wait=new Promise(r=>release=r),h=await fixture(t,{firstStatusWait:()=>wait,globals:clock.globals});
+ const pending=h.client.files.fingerprint('/music',{native:true,timeoutMs:10000});
+ // Attach the rejection handler before the baseline's premature five-second failure.
+ const result=pending.then(value=>({value}),error=>({error}));
+ await h.observed;await clock.advance(5303);h.jobs.get('own').state='succeeded';release();
+ const outcome=await result;
+ assert.equal(outcome.error,undefined,'a slow valid reply is not a failed native job');
+ assert.equal(outcome.value.sha256,digest);assert.equal(h.dispatches,1);assert.deepEqual(h.cancelled,[]);
+ assert.equal(h.statusCalls,2,'one pending observation, followed only by terminal output drainage');
+ assert.equal(clock.pending,0);
+});
+
+for(const reason of ['scope','abort','deadline'])test('pending source status still observes '+reason+' without waiting for its response',async t=>{
+ let release,live=true,finished=false;const clock=observationClock(),wait=new Promise(r=>release=r),h=await fixture(t,{firstStatusWait:()=>wait,globals:clock.globals}),controller=new AbortController(),sentinel=Error('scope changed');
+ const pending=h.client.files.fingerprint('/music',{native:true,signal:controller.signal,timeoutMs:reason==='deadline'?80:10000,check(){if(!live)throw sentinel;}});
+ const result=pending.then(value=>({value}),error=>({error})).then(value=>{finished=true;return value;});await h.observed;
+ if(reason==='scope')live=false;if(reason==='abort')controller.abort();
+ await clock.advance(reason==='deadline'?80:150);const observed=finished;
+ // Always release the artificial boundary, including on a failing baseline.
+ release();const outcome=await result;
+ assert.ok(observed,'cancellation and the total deadline must interrupt a pending observation');
+ assert.ok(outcome.error);if(reason==='scope')assert.equal(outcome.error,sentinel);
+ if(reason==='abort')assert.equal(outcome.error.name,'AbortError');
+ if(reason==='deadline')assert.match(outcome.error.message,/timed out/);
+ assert.deepEqual(h.cancelled,['own']);assert.equal(h.dispatches,1);assert.equal(h.jobs.get('foreign').state,'running');
+ assert.equal(clock.pending,0);
+});
 for(const [id,helper,sentinelName] of [['mini-vlog','prepareMiniOwnMusic','CANCELLED'],['archive-vlog','prepareArchiveOwnMusic','STALE']]){
  const panel=fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
  test(id+': actual music callback preserves its existing cancellation sentinel',async t=>{

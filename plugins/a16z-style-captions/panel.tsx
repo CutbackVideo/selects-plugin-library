@@ -839,26 +839,37 @@ async function createPanelLocalClient(sdk) {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
-  const observeMedia = (read, deadline) => new Promise((resolve, reject) => {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      reject(mediaIssue("STATUS", "The media job response could not be confirmed."));
-      return;
-    }
-    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
-    Promise.resolve().then(read).then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (cause) => {
-        clearTimeout(timer);
-        reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause));
+  const observeMedia = (read, deadline, check) => new Promise((resolve, reject) => {
+    let finished = false, timer;
+    const finish = (complete, value) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      complete(value);
+    };
+    const observeLifetime = () => {
+      try {
+        check?.();
+      } catch (cause) {
+        finish(reject, cause);
+        return;
       }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed."));
+        return;
+      }
+      timer = setTimeout(observeLifetime, check ? Math.min(150, remaining) : remaining);
+    };
+    observeLifetime();
+    if (finished) return;
+    Promise.resolve().then(read).then(
+      (value) => finish(resolve, value),
+      (cause) => finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.", cause))
     );
   });
   const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, check) => {
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, check, observationDeadline) => {
     if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -896,7 +907,7 @@ async function createPanelLocalClient(sdk) {
     if (disposed || signal?.aborted) abort();
     let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
     const knownState = (status) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
-    const statusAt = (deadline) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const statusAt = (deadline, guard) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline, guard);
     const settleAfterFailure = async (cause) => {
       requestCancel();
       const deadline = cancellationDeadline;
@@ -918,7 +929,10 @@ async function createPanelLocalClient(sdk) {
         check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
-        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        const status = await statusAt(
+          cancellationDeadline ?? observationDeadline ?? Date.now() + SETTLEMENT_MS,
+          cancellationDeadline === null && observationDeadline !== void 0 ? check : void 0
+        );
         check?.();
         if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
         settled = status.state !== "running";
@@ -980,10 +994,10 @@ async function createPanelLocalClient(sdk) {
       check();
       if (prefix?.bytesRead !== length || typeof prefix.base64 !== "string" || prefix.base64.length !== 4 * Math.ceil(length / 3)) throw new Error("The original file prefix could not be confirmed.");
       if (prefix.base64.startsWith("SUQz")) {
-        const deadline = Date.now() + (options.timeoutMs ?? 12e4);
+        const deadline2 = Date.now() + (options.timeoutMs ?? 12e4);
         const current = () => {
           check();
-          if (Date.now() >= deadline) throw new Error("Original file verification timed out.");
+          if (Date.now() >= deadline2) throw new Error("Original file verification timed out.");
         };
         const result = await fingerprintTemplateFile(files, path, current);
         current();
@@ -994,6 +1008,8 @@ async function createPanelLocalClient(sdk) {
     const controller = new AbortController(), abort = () => controller.abort();
     options.signal?.addEventListener("abort", abort, { once: true });
     if (options.signal?.aborted) abort();
+    const deadline = Date.now() + (options.timeoutMs ?? 12e4);
+    let timedOut = false;
     const checkLifetime = () => {
       try {
         check();
@@ -1001,13 +1017,16 @@ async function createPanelLocalClient(sdk) {
         controller.abort();
         throw cause;
       }
+      if (Date.now() >= deadline) {
+        timedOut = true;
+        abort();
+      }
       if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
     };
-    let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       abort();
-    }, options.timeoutMs ?? 12e4);
+    }, Math.max(0, deadline - Date.now()));
     try {
       const result = await process("FFmpeg", [
         "-nostdin",
@@ -1028,7 +1047,7 @@ async function createPanelLocalClient(sdk) {
         "-hash",
         "sha256",
         "-"
-      ], true, controller.signal, void 0, void 0, checkLifetime);
+      ], true, controller.signal, void 0, void 0, checkLifetime, deadline);
       checkLifetime();
       const match = /^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(result.stdout);
       if (!match) throw new Error("The original file hash returned an incomplete result.");

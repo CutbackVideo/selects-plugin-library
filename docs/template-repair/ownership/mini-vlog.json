@@ -234,12 +234,12 @@
         "identity": "Captured client, exact job id and exact source/output paths; cancellation acknowledgement is not exit.",
         "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets. The native hash adapter uses the existing media.startFFmpeg job API and file stat, with raw-data demux and SHA-256 hash output, not media decoding or a new SDK capability.",
         "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
-        "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
+        "lifetime": "Bound client lifetime; start and cancellation settlement retain their five-second observation bounds. Opt-in native source status uses its existing absolute total hash deadline, with one in-flight read and scope/abort checks every 150ms; no per-read deadline reset.",
         "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
         "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error. ID3 signatures preselect the existing complete-byte observer before native dispatch; missing startFFmpeg capability also retains existing complete-byte support. Malformed capability/hash output, timeout, cancellation and changed size/mtime/inode remain failures and never trigger a legacy retry. Other native observations read only a bounded ten-byte signature before streaming.",
         "retry": "No media start replay; late identity can cancel that original job once.",
         "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
-        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+        "validation": "TDD for a 5.303-second valid reply and interrupted pending reads (scope, external abort, total deadline); existing native output, settlement, source identity and generic media regressions. Installed load reproduction is recorded separately."
       },
       "evidence": [
         "shared/local-client.ts",
@@ -605,7 +605,7 @@
         "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
-        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
@@ -868,12 +868,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "dafbd445d82f9cc83b778a402c7463721396904dfb1f166eede99836485a720e",
+      "sha256": "d2ca983324d410430f154f2f44ff3146c786ac6418a4425358be90418e0d8c9e",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7856,
+          "endLine": 7872,
           "feature": "panel-ui"
         },
         {
@@ -1008,17 +1008,17 @@
         },
         {
           "startLine": 7333,
-          "endLine": 7808,
+          "endLine": 7824,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7809,
-          "endLine": 7855,
+          "startLine": 7825,
+          "endLine": 7871,
           "feature": "app-guard"
         },
         {
-          "startLine": 7855,
-          "endLine": 7855,
+          "startLine": 7871,
+          "endLine": 7871,
           "feature": "panel-ui"
         },
         {
@@ -1939,26 +1939,26 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "f2c957729bce2eac846a68c567cd4494656ed16bd3f31d26ad6037f3e6cf90bd",
+      "sha256": "6bdc4001ac6ab42379652948662e78b146cb28d6965ec9f18250c3f325599015",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 477,
+          "endLine": 493,
           "feature": "local-sdk"
         }
       ]
     },
     {
       "path": "tests/vlog_native_hash_cancel.test.mjs",
-      "sha256": "84fba14a07d04d732aaac73c71380776aac10d1dc3e46a38f8da2577b0d26f46",
+      "sha256": "df17d89f8384aa561270a0432b147b84d4b23f29d149af4df55f7f5aefbe817b",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 90,
+          "endLine": 126,
           "feature": "test-harness"
         }
       ]

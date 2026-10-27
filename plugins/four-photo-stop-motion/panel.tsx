@@ -2807,16 +2807,26 @@ async function createPanelLocalClient(sdk: any) {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
-  const observeMedia = (read: () => Promise<any>, deadline: number): Promise<any> => new Promise((resolve, reject) => {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) { reject(mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
-    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+  const observeMedia = (read: () => Promise<any>, deadline: number, check?: () => void): Promise<any> => new Promise((resolve, reject) => {
+    let finished = false, timer: ReturnType<typeof setTimeout>;
+    const finish = (complete: (value: any) => void, value: any) => {
+      if (finished) return;
+      finished = true; clearTimeout(timer); complete(value);
+    };
+    const observeLifetime = () => {
+      try { check?.(); } catch (cause) { finish(reject, cause); return; }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) { finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
+      timer = setTimeout(observeLifetime, check ? Math.min(150, remaining) : remaining);
+    };
+    observeLifetime();
+    if (finished) return;
     Promise.resolve().then(read).then(
-      value => { clearTimeout(timer); resolve(value); },
-      cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
+      value => finish(resolve, value),
+      cause => finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.", cause)));
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, check?: () => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, check?: () => void, observationDeadline?: number) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
       onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
@@ -2853,7 +2863,7 @@ async function createPanelLocalClient(sdk: any) {
     let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
     const knownState = (status: any) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
     // Read-only observations may time out; a late reply cannot authorize cleanup.
-    const statusAt = (deadline: number) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const statusAt = (deadline: number, guard?: () => void) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline, guard);
     const settleAfterFailure = async (cause: unknown) => {
       requestCancel();
       const deadline = cancellationDeadline!;
@@ -2871,7 +2881,11 @@ async function createPanelLocalClient(sdk: any) {
         check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
-        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        // Source verification already owns a total deadline. Keep its single
+        // pending read alive across a slow renderer turn, while checking scope
+        // and cancellation; never replay the native job or the status request.
+        const status = await statusAt(cancellationDeadline ?? observationDeadline ?? Date.now() + SETTLEMENT_MS,
+          cancellationDeadline === null && observationDeadline !== undefined ? check : undefined);
         check?.();
         if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
         settled = status.state !== "running";
@@ -2946,17 +2960,19 @@ async function createPanelLocalClient(sdk: any) {
     const controller = new AbortController(), abort = () => controller.abort();
     options.signal?.addEventListener("abort", abort, {once:true});
     if (options.signal?.aborted) abort();
+    const deadline = Date.now() + (options.timeoutMs ?? 120000);
+    let timedOut = false;
     // A scope guard belongs to this invocation, just like its AbortSignal.
     // Reuse the process owner so cancellation still waits for confirmed exit.
     const checkLifetime = () => {
       try { check(); } catch (cause) { controller.abort(); throw cause; }
+      if (Date.now() >= deadline) { timedOut = true; abort(); }
       if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
     };
-    let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; abort(); }, options.timeoutMs ?? 120000);
+    const timer = setTimeout(() => { timedOut = true; abort(); }, Math.max(0, deadline - Date.now()));
     try {
       const result = await process("FFmpeg", ["-nostdin", "-v", "error", "-protocol_whitelist", "file", "-f", "data", "-i", "file:" + path,
-        "-map", "0:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], true, controller.signal, undefined, undefined, checkLifetime);
+        "-map", "0:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], true, controller.signal, undefined, undefined, checkLifetime, deadline);
       checkLifetime();
       const match = /^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(result.stdout);
       if (!match) throw new Error("The original file hash returned an incomplete result.");
