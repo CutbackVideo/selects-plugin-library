@@ -130,9 +130,12 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
   const sounds=after.filter(r=>r.resourceId===input.assets.music);if(sounds.length!==1)throw Error('Music clip was not placed');
   let receipts={};
   if(workingDraft){
-   const graphics=[{clipId:caption.clipId,trackId:caption.trackId,startFrame:0,endFrame:plan.durationFrames,parameters:captionProgram.parameters}];
-   expectedTransforms.push({clipId:caption.clipId,trackId:caption.trackId,transform:{}});
-   expectedPrograms.push({clipId:caption.clipId,trackId:caption.trackId,effects:[],graphic:captionProgram});
+   // addMotionGraphic returns an ID and interval, not a live track reference.
+   const captionRef=after.find(row=>row.clipId===caption.clipId);
+   if(!captionRef)throw Error('Graphic placement could not be confirmed.');
+   const graphics=[{clipId:caption.clipId,trackId:captionRef.trackId,startFrame:0,endFrame:plan.durationFrames,parameters:captionProgram.parameters}];
+   expectedTransforms.push({clipId:caption.clipId,trackId:captionRef.trackId,transform:{}});
+   expectedPrograms.push({clipId:caption.clipId,trackId:captionRef.trackId,effects:[],graphic:captionProgram});
    await inspectGraphics(d,graphics);const transforms=await inspectTransforms(d,expectedTransforms),sound=sounds[0];
    const audio=await inspectAudio(d,[{clipId:sound.clipId,trackId:sound.trackId,trackKind:'audio',resourceId:input.assets.music,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:0,endSeconds:plan.durationFrames/plan.fps}}],project);
    const snapshot=await programs.inspect(d,expectedPrograms);receipts={graphics,transforms,audio,programs:snapshot};programs.confirm(receipts);
