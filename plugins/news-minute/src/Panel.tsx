@@ -6,7 +6,8 @@ import { PRESETS } from "./preset.ts";
 import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
-import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
+import { openDraftScript } from "./pipeline/scripts.ts";
+import { VoicePicker } from "./VoicePicker.tsx";
 import { renameDraft } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
@@ -99,7 +100,6 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [tts, setTts] = useState<TtsRecord | null>(null);
-  const [voices, setVoices] = useState<Array<{ voiceId: string; name: string }>>([]);
   const [feedback, setFeedback] = useState("");
   const [jsonErr, setJsonErr] = useState<Record<number, string>>({});
   const [openRow, setOpenRow] = useState<number | null>(null);
@@ -153,7 +153,6 @@ function NewsMinutePanel({ sdk, context }: Props) {
         const sess = saved ?? F.emptySession();
         setS(sess);
         if (sess.projectId) setTts(await F.readTts(sdk, sess.projectId));
-        run<Array<{ voiceId: string; name: string }>>(sdk, voicesScript()).then(setVoices).catch(() => {});
       } catch (e: any) { setError(String(e?.message || e)); }
     })();
   }, []);
@@ -432,7 +431,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   };
 
   // Starting over keeps records of earlier previews/candidates for recovery.
-  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos, retainedDrafts: s.retainedDrafts }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
+  const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, voiceName: s.voiceName, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos, retainedDrafts: s.retainedDrafts }); setUrl(""); setText(""); setOpenRow(null); setPicked(null); await refreshProviders(); });
 
   const pick = (i: number) => {
     setPicked(i);
@@ -691,11 +690,10 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
       {approved && next ? (
         <Step done={!!plan && next.kind === "ready" && !narrationRecovery} summary={next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : ""}>
-          <label>{T("voice")}{" "}
-            <select value={s.voiceId} disabled={busy || next.kind === "poll" || next.kind === "ready"} onChange={(e) => update({ ...s, voiceId: e.target.value, approved: F.revisionOf(sc!, e.target.value) })}>
-              {(voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name}</option>)}
-            </select>
-          </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><span style={muted}>{T("voice")}</span>
+            <VoicePicker sdk={sdk} T={T} voiceId={s.voiceId} voiceName={s.voiceName} disabled={busy || next.kind === "poll" || next.kind === "ready"}
+              onPick={(v) => update({ ...s, voiceId: v.voiceId, voiceName: v.name, approved: F.revisionOf(sc!, v.voiceId) })} />
+          </div>
           {next.kind === "none" || next.kind === "stale" ? (
             <>
               <span style={muted}>{T("credits", { chars, est: quote.estimated, held: quote.held })}</span>

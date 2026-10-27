@@ -4,7 +4,7 @@
 // review, narration, a scene per sentence from article photos and data cards, captions, in an editable Draft.
 
 // src/Panel.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect as useEffect2, useRef as useRef2, useState as useState2 } from "react";
 
 // src/messages.ts
 var MESSAGES = {
@@ -60,6 +60,22 @@ var MESSAGES = {
   approved: ["Approved", "\uC2B9\uC778\uB428"],
   edit: ["Edit again", "\uB2E4\uC2DC \uACE0\uCE58\uAE30"],
   voice: ["Voice", "\uBAA9\uC18C\uB9AC"],
+  voiceSearch: ["Search voices and the ElevenLabs library", "\uC74C\uC131 \uBC0F ElevenLabs \uB77C\uC774\uBE0C\uB7EC\uB9AC \uAC80\uC0C9"],
+  voiceLoading: ["Loading voices\u2026", "\uC74C\uC131\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\u2026"],
+  voiceNone: ["No voices match.", "\uAC80\uC0C9 \uACB0\uACFC\uAC00 \uC5C6\uC5B4\uC694."],
+  voiceLoadFailed: ["Couldn't load voices.", "\uC74C\uC131 \uBAA9\uB85D\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC5B4\uC694."],
+  voiceRetry: ["Retry", "\uB2E4\uC2DC \uC2DC\uB3C4"],
+  voiceMore: ["Show more", "\uB354 \uBCF4\uAE30"],
+  voicePreview: ["Preview {name}", "{name} \uBBF8\uB9AC \uB4E3\uAE30"],
+  voiceStop: ["Stop preview", "\uBBF8\uB9AC \uB4E3\uAE30 \uC815\uC9C0"],
+  voicePreviewFailed: ["Couldn't play the preview.", "\uBBF8\uB9AC \uB4E3\uAE30\uB97C \uC7AC\uC0DD\uD558\uC9C0 \uBABB\uD588\uC5B4\uC694."],
+  gender_female: ["Female", "\uC5EC\uC131"],
+  gender_male: ["Male", "\uB0A8\uC131"],
+  gender_neutral: ["Neutral", "\uC911\uC131"],
+  "gender_non-binary": ["Non-binary", "\uB17C\uBC14\uC774\uB108\uB9AC"],
+  age_young: ["Young", "\uC80A\uC740"],
+  age_middle_aged: ["Middle-aged", "\uC911\uB144"],
+  age_old: ["Old", "\uB178\uB144"],
   credits: ["{chars} characters \xB7 about {est} credits (up to {held} held while it is made). Unlimited plans are not charged.", "{chars}\uC790 \xB7 \uC57D {est} \uD06C\uB808\uB527(\uC0DD\uC131 \uC911 \uCD5C\uB300 {held} \uD06C\uB808\uB527 \uC608\uC57D). \uBB34\uC81C\uD55C \uC694\uAE08\uC81C\uB294 \uCC28\uAC10\uB418\uC9C0 \uC54A\uC544\uC694."],
   narrate: ["Make narration", "\uB098\uB808\uC774\uC158 \uB9CC\uB4E4\uAE30"],
   narrating: ["Making the narration\u2026", "\uB098\uB808\uC774\uC158\uC744 \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694\u2026"],
@@ -533,9 +549,10 @@ var importScript = (projectId, paths) => ({
 const r = await p.importFiles({ paths: ${J(paths)} });
 return { ids: r.addedResourceIds };`
 });
-var voicesScript = () => ({
+var voicesScript = (query = "", cursor = null, limit = 30) => ({
   summary: "List narration voices",
-  script: `const r = await selects.narration.voices({ limit: 50 }); return r.items.map((v) => ({ voiceId: v.voiceId, name: v.name }));`
+  script: `const r = await selects.narration.voices({ limit: ${J(limit)}${query.trim() ? `, query: ${J(query.trim().slice(0, 200))}` : ""}${cursor ? `, cursor: ${J(cursor)}` : ""} });
+return { items: r.items.map((v) => ({ voiceId: v.voiceId, name: v.name, description: v.description ?? null, previewUrl: v.previewUrl ?? null })), nextCursor: r.nextCursor ?? null };`
 });
 var generateScript = (projectId, name, text, voiceId, language) => ({
   summary: "Generate the narration",
@@ -676,12 +693,209 @@ async function readFileBase64(sdk, path, maxBytes) {
   return btoa(s);
 }
 
+// src/VoicePicker.tsx
+import { useEffect, useRef, useState } from "react";
+
+// src/pipeline/voices.ts
+var GENDERS = /* @__PURE__ */ new Set(["female", "male", "neutral", "non-binary"]);
+var AGES = /* @__PURE__ */ new Set(["young", "middle_aged", "middle aged", "old"]);
+var SEP = " \xB7 ";
+var NOTE_SEP = " \u2014 ";
+function voiceTags(description) {
+  const text = String(description ?? "").trim();
+  if (!text) return { gender: null, age: null, note: null };
+  const cut = text.indexOf(NOTE_SEP);
+  const head = cut < 0 ? text : text.slice(0, cut);
+  const note = cut < 0 ? null : text.slice(cut + NOTE_SEP.length).trim() || null;
+  const [g, a, ...rest] = head.split(SEP).map((p) => p.trim().toLowerCase());
+  const gender = GENDERS.has(g) ? g : null;
+  const age = a !== void 0 && AGES.has(a) ? a.replace(" ", "_") : null;
+  if (!gender || a !== void 0 && !age || rest.length) return { gender: null, age: null, note: text };
+  return { gender, age, note };
+}
+function appendVoices(shown, page) {
+  const seen = new Set(shown.map((v) => v.voiceId));
+  return [...shown, ...page.filter((v) => !seen.has(v.voiceId) && seen.add(v.voiceId))];
+}
+function normalizeVoicePage(raw) {
+  const r = raw;
+  const list = Array.isArray(r) ? r : Array.isArray(r?.items) ? r.items : [];
+  const items = [];
+  for (const v of list) {
+    if (!v || typeof v.voiceId !== "string" || !v.voiceId) continue;
+    items.push({
+      voiceId: v.voiceId,
+      name: typeof v.name === "string" && v.name ? v.name : v.voiceId,
+      description: typeof v.description === "string" ? v.description : null,
+      previewUrl: typeof v.previewUrl === "string" && /^https:\/\//.test(v.previewUrl) ? v.previewUrl : null
+    });
+  }
+  return { items, nextCursor: !Array.isArray(r) && typeof r?.nextCursor === "string" && r.nextCursor ? r.nextCursor : null };
+}
+
+// src/VoicePicker.tsx
+import { jsx, jsxs } from "react/jsx-runtime";
+var SEARCH_DELAY_MS = 300;
+var muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
+var bare = { maxWidth: "none", height: "auto", margin: 0, border: "none", background: "none", color: "inherit", font: "inherit", textAlign: "left" };
+var field = { ...bare, display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", border: "1px solid var(--panel-border, #3334)", borderRadius: 6 };
+var row = { display: "flex", alignItems: "center", gap: 4, borderRadius: 4 };
+var pick = { ...bare, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, flex: 1, minWidth: 0, padding: "5px 6px" };
+var twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "keep-all", overflowWrap: "anywhere" };
+var play = { ...bare, flex: "none", width: 28, padding: 0, textAlign: "center", cursor: "pointer" };
+var oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+var SECONDARY = { "data-variant": "secondary" };
+function VoicePicker({ sdk, T, voiceId, voiceName, disabled, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [voices, setVoices] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [state, setState] = useState("idle");
+  const [known, setKnown] = useState([]);
+  const [playing, setPlaying] = useState(null);
+  const [previewError, setPreviewError] = useState(false);
+  const request = useRef(0);
+  const firstPageOf = useRef(null);
+  const wanted = useRef(null);
+  const box2 = useRef(null);
+  const audio = useRef(null);
+  const blobs = useRef(/* @__PURE__ */ new Map());
+  const load2 = async (q, after) => {
+    const id = ++request.current;
+    setState("loading");
+    try {
+      const page = normalizeVoicePage(await run(sdk, voicesScript(q, after)));
+      if (id !== request.current) return;
+      if (!after) firstPageOf.current = q;
+      setVoices((shown) => after ? appendVoices(shown, page.items) : page.items);
+      setKnown((all) => appendVoices(all, page.items));
+      setCursor(page.nextCursor);
+      setState("idle");
+    } catch {
+      if (id === request.current) setState("failed");
+    }
+  };
+  useEffect(() => {
+    void load2("", null);
+  }, [sdk]);
+  useEffect(() => {
+    if (!open) return;
+    if (firstPageOf.current === query && state !== "failed") {
+      request.current++;
+      setState("idle");
+      return;
+    }
+    const timer = setTimeout(() => void load2(query, null), query ? SEARCH_DELAY_MS : 0);
+    return () => clearTimeout(timer);
+  }, [open, query]);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e) => {
+      if (box2.current && !box2.current.contains(e.target)) setOpen(false);
+    };
+    const escape = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  const stop = () => {
+    wanted.current = null;
+    audio.current?.pause();
+    setPlaying(null);
+  };
+  useEffect(() => {
+    if (!open) stop();
+  }, [open]);
+  useEffect(() => () => {
+    audio.current?.pause();
+    for (const url of blobs.current.values()) URL.revokeObjectURL(url);
+  }, []);
+  const preview = async (voice) => {
+    if (playing === voice.voiceId) {
+      stop();
+      return;
+    }
+    stop();
+    setPreviewError(false);
+    if (!voice.previewUrl) return;
+    setPlaying(voice.voiceId);
+    wanted.current = voice.voiceId;
+    try {
+      let url = blobs.current.get(voice.voiceId);
+      if (!url) {
+        const res = await fetch(voice.previewUrl);
+        if (!res.ok) throw new Error(String(res.status));
+        url = URL.createObjectURL(await res.blob());
+        blobs.current.set(voice.voiceId, url);
+      }
+      if (wanted.current !== voice.voiceId) return;
+      const el = audio.current ?? (audio.current = new Audio());
+      el.onended = () => setPlaying((p) => p === voice.voiceId ? null : p);
+      el.src = url;
+      await el.play();
+    } catch {
+      setPlaying((p) => p === voice.voiceId ? null : p);
+      setPreviewError(true);
+    }
+  };
+  const tags = (voice) => {
+    const { gender, age, note } = voiceTags(voice.description);
+    const label = [gender && T("gender_" + gender), age && T("age_" + age)].filter(Boolean).join(" \xB7 ");
+    return { label, note };
+  };
+  const current = known.find((v) => v.voiceId === voiceId);
+  const name = current?.name ?? voiceName ?? voiceId;
+  const currentTags = current ? tags(current).label : "";
+  return /* @__PURE__ */ jsxs("div", { ref: box2, style: { display: "flex", flexDirection: "column", gap: 4 }, children: [
+    /* @__PURE__ */ jsxs("button", { ...SECONDARY, style: field, disabled, "aria-expanded": open, title: name, onClick: () => setOpen((o) => !o), children: [
+      /* @__PURE__ */ jsxs("span", { style: { display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }, children: [
+        /* @__PURE__ */ jsx("span", { style: oneLine, children: name }),
+        currentTags ? /* @__PURE__ */ jsx("span", { style: muted, children: currentTags }) : null
+      ] }),
+      /* @__PURE__ */ jsx("span", { style: { ...muted, flex: "none" }, children: open ? "\u25B4" : "\u25BE" })
+    ] }),
+    open && !disabled ? /* @__PURE__ */ jsxs("div", { style: { border: "1px solid var(--panel-border, #3334)", borderRadius: 6, padding: 6, display: "flex", flexDirection: "column", gap: 4 }, children: [
+      /* @__PURE__ */ jsx("input", { autoFocus: true, style: { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" }, placeholder: T("voiceSearch"), value: query, onChange: (e) => setQuery(e.target.value) }),
+      /* @__PURE__ */ jsxs("div", { role: "listbox", style: { maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }, children: [
+        voices.map((v) => {
+          const { label, note } = tags(v);
+          const on = v.voiceId === voiceId;
+          return /* @__PURE__ */ jsxs("div", { style: { ...row, background: on ? "var(--panel-border, #3334)" : "none" }, children: [
+            /* @__PURE__ */ jsxs("button", { ...SECONDARY, role: "option", "aria-selected": on, style: pick, title: note ? v.name + "\n" + note : v.name, onClick: () => {
+              onPick(v);
+              setOpen(false);
+            }, children: [
+              /* @__PURE__ */ jsx("span", { style: twoLines, children: v.name }),
+              label ? /* @__PURE__ */ jsx("span", { style: muted, children: label }) : null
+            ] }),
+            v.previewUrl ? /* @__PURE__ */ jsx("button", { ...SECONDARY, style: play, "aria-label": playing === v.voiceId ? T("voiceStop") : T("voicePreview", { name: v.name }), onClick: () => void preview(v), children: playing === v.voiceId ? "\u25A0" : "\u25B6" }) : /* @__PURE__ */ jsx("span", { style: { width: 28, flex: "none" } })
+          ] }, v.voiceId);
+        }),
+        state === "idle" && !voices.length ? /* @__PURE__ */ jsx("span", { style: muted, children: T("voiceNone") }) : null,
+        state === "loading" ? /* @__PURE__ */ jsx("span", { style: muted, children: T("voiceLoading") }) : null,
+        state === "failed" ? /* @__PURE__ */ jsxs("span", { style: muted, children: [
+          T("voiceLoadFailed"),
+          " ",
+          /* @__PURE__ */ jsx("button", { ...SECONDARY, style: { ...bare, width: "auto", padding: 0, textDecoration: "underline", cursor: "pointer" }, onClick: () => void load2(query, voices.length ? cursor : null), children: T("voiceRetry") })
+        ] }) : null,
+        state === "idle" && cursor ? /* @__PURE__ */ jsx("button", { ...SECONDARY, onClick: () => void load2(query, cursor), children: T("voiceMore") }) : null
+      ] }),
+      previewError ? /* @__PURE__ */ jsx("span", { style: muted, children: T("voicePreviewFailed") }) : null
+    ] }) : null
+  ] });
+}
+
 // src/templates/entrance.generated.ts
 var FRAGMENT = "Fragment";
 var NULL_H = () => null;
 var H = NULL_H;
 var REPORT = null;
-var React = { useState: (v) => [typeof v === "function" ? v() : v], useEffect: () => {
+var React2 = { useState: (v) => [typeof v === "function" ? v() : v], useEffect: () => {
 }, useMemo: (f) => f(), useRef: () => ({}), Fragment: FRAGMENT };
 var STUB = (type, props, ...children) => H(type === STUB ? FRAGMENT : type, props, children);
 var Img = "img";
@@ -725,8 +939,8 @@ var settle = (x, over = 0.03) => {
 var lerp = (a, b, x) => a + (b - a) * x;
 function useEmbeddedFont(data) {
   const css = typeof data?.fontCss === "string" ? data.fontCss : "";
-  const [hold] = React.useState(() => css ? delayRender("News minute font") : null);
-  React.useEffect(() => {
+  const [hold] = React2.useState(() => css ? delayRender("News minute font") : null);
+  React2.useEffect(() => {
     if (hold === null) return;
     const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
     Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
@@ -1066,7 +1280,7 @@ var SCENE = {
         const h = H2[i] * settle(prog(s.t, t0, t0 + (big ? 1.7 : 1)), big ? 0.015 : 0.03);
         const v = Number(b?.value) || 0;
         const cp = prog(s.t, t0 + 1.2, t0 + 2.5);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, names[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.6 })))), subs[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "u" + j, s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 + nameExtra + SL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.72 })))), !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 + (ownInside ? UL / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 72, 40, accent, valueAt[i].own)) : null);
+        return /* @__PURE__ */ STUB(React2.Fragment, { key: i }, h > 0.5 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: (cx[i] - w / 2) * k, top: (BASE - h) * k, width: w * k, height: h * k, background: big ? accent : C.bar, borderRadius: Math.min(8, h) * k + "px " + Math.min(8, h) * k + "px 0 0" } }) : null, names[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: t0 + 0.05, dy: 14, x: cx[i], y: BASE + 48 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 54 * k, fontWeight: 800, letterSpacing: -1 * k, color: big ? accent === C.acc ? C.accD : accent : C.ink } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.6 })))), subs[i].map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "u" + j, s, t0: t0 + 0.17, dy: 14, x: cx[i], y: BASE + 100 + nameExtra + SL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 500, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.72 })))), !big ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 0.6, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 58, 34, C.ink2, valueAt[i].own)) : null, big && inside && cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: cx[i], y: BASE - h + 80 + (ownInside ? UL / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")" } }, valueRun(fmt(v * smooth(cp), dec), 86, 48, C.white, ownInside))) : null, big && !inside ? /* @__PURE__ */ STUB(Pop, { s, t0: t0 + 1.2, x: cx[i], y: valueAt[i].y }, valueRun(finals[i], 72, 40, accent, valueAt[i].own)) : null);
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -1177,7 +1391,7 @@ var SCENE = {
       })), cp > 0 ? /* @__PURE__ */ STUB(At, { s, x: DCX + 4, y: vy + (unitOwn ? UH / 2 : 0) }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(cp / 0.35), transform: "scale(" + lerp(0.94, 1, settle(cp, 0.3)) + ")", display: "flex", flexDirection: unitOwn ? "column" : "row", alignItems: unitOwn ? "center" : "baseline", color: C.acc, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 76 * k, height: unitOwn ? VH * k : void 0, display: "flex", alignItems: "center" } }, count ? counted(count, smooth(cp)) : heroText), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: 42 * k, fontWeight: 700, height: unitOwn ? UH * k : void 0 } }, unit) : null)) : null, heroLabel.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "h" + j, s, t0: 2.1, dy: 8, x: DCX, y: ly + LH * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 28 * k, fontWeight: 700, color: C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: 2.65 })))), all.map((x, i) => {
         const big = i === hi;
         const { y: y2, names, sz, step, vy: vy2 } = rows[i];
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y: y2, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } })), names.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: rowAt[i], dy: 14, x: LEG_X, y: y2 + step * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: sz * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y: vy2, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
+        return /* @__PURE__ */ STUB(React2.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: 592, y: y2, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { width: 24 * k, height: 24 * k, borderRadius: 4 * k, background: x.color } })), names.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "n" + j, s, t0: rowAt[i], dy: 14, x: LEG_X, y: y2 + step * j, anchor: "l" }, /* @__PURE__ */ STUB("div", { style: { fontSize: sz * k, fontWeight: big ? 800 : 600, color: big ? C.ink : C.ink2 } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: rowAt[i] + 0.55 })))), /* @__PURE__ */ STUB(Rise, { s, t0: rowAt[i], dy: 14, x: X1, y: vy2, anchor: "r" }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: big ? C.acc : C.ink2, fontWeight: 800 } }, /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 40 : 32) * k } }, fmt(x.value)), unit ? /* @__PURE__ */ STUB("span", { style: { ...tnum, fontSize: (big ? 28 : 22) * k, fontWeight: 700 } }, unit) : null)));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -1601,7 +1815,7 @@ var SCENE = {
       return /* @__PURE__ */ STUB(Win, { s, data: data2 }, /* @__PURE__ */ STUB(Header, { s, title: String(data2?.title ?? ""), subtitle }), laid.map((c, i) => {
         const { x, y0 } = cardAt(i), cx = x + W / 2, t0 = at(i);
         const { r0, r1, v0, u0 } = c;
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + "px", whiteSpace: "nowrap" } }, c.header.map((l, j) => /* @__PURE__ */ STUB("div", { key: j }, l))), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line } }) : null)), c.label0.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 + d1 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.85 })))), v0.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * r }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * k, letterSpacing: -1.5 * k } }, l), u0 && !c.unitOwn && r === v0.length - 1 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k } }, u0) : null))), c.unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * (v0.length - 1) + 58 }, /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 } }, u0)) : null, c.label1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "m" + j, s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 + d3 + L2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: row2At + 0.18 * i + 0.55 })))), c.v1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "w" + j, s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 + d4 + V2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, l))));
+        return /* @__PURE__ */ STUB(React2.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s), position: "relative", width: W * k, height: Hc * k } }, /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: -2 * k, height: (BAND + d1) * k, background: band, borderRadius: 12 * k + "px " + 12 * k + "px 0 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.white, fontSize: 44 * k, fontWeight: 800, letterSpacing: -1 * k, lineHeight: BL * k + "px", whiteSpace: "nowrap" } }, c.header.map((l, j) => /* @__PURE__ */ STUB("div", { key: j }, l))), /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: -2 * k, right: -2 * k, top: (BAND + d1 - 2.5) * k, height: 3 * k, background: C.goldL } }), r1 ? /* @__PURE__ */ STUB("div", { style: { position: "absolute", left: 28 * k, right: 28 * k, top: (279 + d3) * k, height: 2 * k, background: C.line } }) : null)), c.label0.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "l" + j, s, t0: t0 + 0.3, dy: 10, x: cx, y: y0 + 140 + d1 + LL * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 32 * k, fontWeight: 700, color: accent === C.acc ? C.accD : accent } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: t0 + 0.85 })))), v0.map((l, r) => /* @__PURE__ */ STUB(Pop, { key: "v" + r, s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * r }, /* @__PURE__ */ STUB("div", { style: { display: "flex", alignItems: "baseline", color: accent, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, /* @__PURE__ */ STUB("span", { style: { fontSize: 72 * k, letterSpacing: -1.5 * k } }, l), u0 && !c.unitOwn && r === v0.length - 1 ? /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, marginLeft: 2 * k } }, u0) : null))), c.unitOwn ? /* @__PURE__ */ STUB(Pop, { s, t0: numAt + 0.22 * i, x: cx, y: y0 + 214 + d2 + VL * (v0.length - 1) + 58 }, /* @__PURE__ */ STUB("span", { style: { fontSize: 36 * k, fontWeight: 700, color: accent, lineHeight: 1 } }, u0)) : null, c.label1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "m" + j, s, t0: row2At + 0.18 * i, dy: 10, x: cx, y: y0 + 330 + d3 + L2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 30 * k, fontWeight: 600, color: C.gray } }, /* @__PURE__ */ STUB(Marked, { s, text: l, hlAt: row2At + 0.18 * i + 0.55 })))), c.v1.map((l, j) => /* @__PURE__ */ STUB(Rise, { key: "w" + j, s, t0: row2At + 0.18 * i + 0.12, dy: 10, x: cx, y: y0 + 385 + d4 + V2 * j }, /* @__PURE__ */ STUB("div", { style: { fontSize: 38 * k, fontWeight: 800, color: C.ink, letterSpacing: -0.5 * k } }, l))));
       }), /* @__PURE__ */ STUB(Source, { s, text: String(data2?.source ?? "") }));
     }
     return Scene({ data });
@@ -1639,7 +1853,7 @@ var SCENE = {
       const a = clamp(p * 2), b = clamp(p * 2 - 1);
       return /* @__PURE__ */ STUB("svg", { width: D * s.k, height: D * s.k, viewBox: "0 0 196 196" }, /* @__PURE__ */ STUB("circle", { cx: "98", cy: "98", r: "98", fill: C.accL }), a > 0 ? /* @__PURE__ */ STUB("line", { x1: "62", y1: "62", x2: lerp(62, 134, a), y2: lerp(62, 134, a), stroke: C.acc, strokeWidth: "16", strokeLinecap: "round" }) : null, b > 0 ? /* @__PURE__ */ STUB("line", { x1: "134", y1: "62", x2: lerp(134, 62, b), y2: lerp(62, 134, b), stroke: C.acc, strokeWidth: "16", strokeLinecap: "round" }) : null);
     }
-    function twoLines2(text) {
+    function twoLines3(text) {
       const given = text.split("\n").filter((l) => l.trim() !== "");
       if (given.length !== 1) return given.slice(0, 2);
       const one = given[0];
@@ -1658,7 +1872,7 @@ var SCENE = {
       const starts = cards.map((_, i) => i === 0 ? 0.35 : 2);
       const laid = cards.map((c) => {
         const l = wrapLines(c.text, 64, TW, font(64, 800, -1));
-        return l.length === 1 && !c.text.includes("\n") ? twoLines2(c.text) : l;
+        return l.length === 1 && !c.text.includes("\n") ? twoLines3(c.text) : l;
       });
       const lineEnd = (c, i) => Math.max(0, ...laid[i].map((l, j) => brushEnd(l, starts[i] + 0.4 + 0.2 * j + 0.55)));
       const s = useScene(data2, Math.max(cards.length ? starts[cards.length - 1] + 1.9 : 1.1, brushEnd(subtitle, 1.05), ...cards.map(lineEnd)));
@@ -1676,7 +1890,7 @@ var SCENE = {
         const y0 = top + gap + i * (ch + gap), cy = y0 + ch / 2;
         const lines = laid[i];
         const iconIn = prog(s.t, t0 + 0.25, t0 + 1.05);
-        return /* @__PURE__ */ STUB(React.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: ch * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, t0: t0 + 0.4 + 0.2 * j, size: 64, dy: 14 })));
+        return /* @__PURE__ */ STUB(React2.Fragment, { key: i }, /* @__PURE__ */ STUB(Rise, { s, t0, dur: 0.9, dy: 22, x: X0, y: y0, anchor: "lt" }, /* @__PURE__ */ STUB("div", { style: { ...cardStyle(s, false), width: CW * k, height: ch * k, borderColor: c.tone === "contrast" ? C.good : C.gold } })), /* @__PURE__ */ STUB(At, { s, x: X0 + 36 + D / 2, y: cy }, /* @__PURE__ */ STUB("div", { style: { opacity: smooth(iconIn / 0.5), transform: "scale(" + lerp(0.9, 1, settle(iconIn, 0.3)) + ")" } }, /* @__PURE__ */ STUB(Mark, { s, tone: c.tone, t0: t0 + 1 }))), lines.map((l, j) => /* @__PURE__ */ STUB(Say, { key: j, s, text: l, x: TX, y: cy + (j - (lines.length - 1) / 2) * LH, t0: t0 + 0.4 + 0.2 * j, size: 64, dy: 14 })));
       }));
     }
     return Scene({ data });
@@ -4846,9 +5060,9 @@ async function readSceneSnapshots(sdk, p, plan) {
   const snapshots = [];
   for (let i = 0; i < p.scenes.length; i++) {
     const rows = await run(sdk, readScenesScript(p, plan, i));
-    const row = rows.find((r) => r.index === i);
-    if (!row) throw new Error("graphicTargetChanged: " + (i + 1));
-    snapshots.push(row);
+    const row2 = rows.find((r) => r.index === i);
+    if (!row2) throw new Error("graphicTargetChanged: " + (i + 1));
+    snapshots.push(row2);
   }
   return snapshots;
 }
@@ -6119,7 +6333,7 @@ var WHAT = {
   "point value": "\uC810 \uAC12",
   sentence: "\uBB38\uC7A5"
 };
-var field = (path) => path.split(".").map((seg) => {
+var field2 = (path) => path.split(".").map((seg) => {
   const m = /^(\w+)(?:\[(\d+)\])?$/.exec(seg);
   return m ? (FIELD[m[1]] ?? m[1]) + (m[2] !== void 0 ? " " + (Number(m[2]) + 1) : "") : seg;
 }).join(" ");
@@ -6154,11 +6368,11 @@ var RULES2 = [
   [/^at least (\d+) points/, (m) => "\uC810\uC774 " + m[1] + "\uAC1C \uC774\uC0C1 \uC788\uC5B4\uC57C \uD574\uC694."],
   [/^exactly one slice must have tone accent/, () => "\uAC15\uC870 \uC0C9 \uC870\uAC01\uC740 \uD558\uB098\uC5EC\uC57C \uD574\uC694."],
   [/^(?:at most one card may have tone accent|only one bar may be accent)/, () => "\uAC15\uC870 \uC0C9\uC740 \uD558\uB098\uC5D0\uB9CC \uC4F8 \uC218 \uC788\uC5B4\uC694."],
-  [/^(\w+)\[(\d+)\](?:\.(\w+)\[(\d+)\])? needs /, (m) => field(m[1] + "[" + m[2] + "]" + (m[3] ? "." + m[3] + "[" + m[4] + "]" : "")) + "\uC5D0 \uBE60\uC9C4 \uAC12\uC774 \uC788\uC5B4\uC694. '\uC804\uCCB4 \uAC12(JSON)'\uC5D0\uC11C \uCC44\uC6CC \uC8FC\uC138\uC694."],
+  [/^(\w+)\[(\d+)\](?:\.(\w+)\[(\d+)\])? needs /, (m) => field2(m[1] + "[" + m[2] + "]" + (m[3] ? "." + m[3] + "[" + m[4] + "]" : "")) + "\uC5D0 \uBE60\uC9C4 \uAC12\uC774 \uC788\uC5B4\uC694. '\uC804\uCCB4 \uAC12(JSON)'\uC5D0\uC11C \uCC44\uC6CC \uC8FC\uC138\uC694."],
   [/^accentFrom must be a valid point index/, () => "\uAC15\uC870 \uC2DC\uC791 \uC810 \uBC88\uD638\uAC00 \uC810 \uAC1C\uC218\uC640 \uB9DE\uC9C0 \uC54A\uC544\uC694."],
   [/^accentLines must be valid line indexes/, () => "\uAC15\uC870 \uC904 \uBC88\uD638\uAC00 \uC778\uC6A9 \uC904 \uC218\uC640 \uB9DE\uC9C0 \uC54A\uC544\uC694."],
   [/^focus must be/, () => "\uC0AC\uC9C4 \uCD08\uC810 \uAC12\uC774 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC544\uC694."],
-  [/^([\w.]+) is required/, (m) => field(m[1]) + " \uCE78\uC744 \uCC44\uC6CC \uC8FC\uC138\uC694."],
+  [/^([\w.]+) is required/, (m) => field2(m[1]) + " \uCE78\uC744 \uCC44\uC6CC \uC8FC\uC138\uC694."],
   [/^lasts ([\d.]+) s; split it so a (\w+) scene does not run past (\d+) s/, (m) => m[1] + "\uCD08\uB85C \uAE38\uC5B4\uC694. " + kind(m[2]) + " \uC7A5\uBA74\uC740 " + m[3] + "\uCD08\uB97C \uB118\uC9C0 \uC54A\uAC8C \uC7A5\uBA74\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],
   [/^title "(.*)" is over (\d+) characters/, (m) => "\uC81C\uBAA9 \u201C" + m[1] + "\u201D: " + m[2] + "\uC790\uB97C \uB118\uC5B4 \uD55C \uC904\uC5D0 \uB2E4 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC544\uC694."],
   [/^subtitle is over (\d+) characters/, (m) => "\uBD80\uC81C\uAC00 " + m[1] + "\uC790\uB97C \uB118\uC5B4 \uD55C \uC904\uC5D0 \uB2E4 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC544\uC694."],
@@ -6194,31 +6408,31 @@ function issueText(lang, msg) {
   }
   for (const [re, ko] of RULES2) {
     const r = re.exec(rest);
-    if (r) return scene + (path ? field(path) + " \u2013 " : "") + ko(r, type);
+    if (r) return scene + (path ? field2(path) + " \u2013 " : "") + ko(r, type);
   }
   return msg;
 }
 
 // src/Panel.tsx
-import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+import { Fragment, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
 var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 };
-var muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
+var muted2 = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
 var MAX_CHARS = TARGET_CHARS.max;
 var warn = { color: "#d9822b", fontSize: 12 };
-var field2 = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
+var field3 = { ...muted2, display: "flex", flexDirection: "column", gap: 2 };
 var thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
 var thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 10, lineHeight: "14px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" };
 var thumbNumber = { position: "absolute", left: 3, top: 3, zIndex: 1, fontSize: 10, lineHeight: "14px", padding: "0 3px", borderRadius: 3, color: "#fff", background: "rgba(0,0,0,0.7)" };
-var twoLines = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "keep-all", overflowWrap: "anywhere" };
+var twoLines2 = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "keep-all", overflowWrap: "anywhere" };
 var rowButton = { flex: "none", width: "auto", whiteSpace: "nowrap" };
 var rowSelect = { display: "flex", gap: 8, alignItems: "center", flex: 1, minWidth: 0, maxWidth: "none", height: "auto", padding: 0, margin: 0, border: "none", background: "none", color: "inherit", font: "inherit", textAlign: "left" };
-var SECONDARY = { "data-variant": "secondary" };
+var SECONDARY2 = { "data-variant": "secondary" };
 function Step({ done, summary, children }) {
-  return done ? /* @__PURE__ */ jsxs("details", { style: box, children: [
-    /* @__PURE__ */ jsx("summary", { style: { cursor: "pointer" }, children: "\u2713 " + summary }),
-    /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }, children })
-  ] }) : /* @__PURE__ */ jsx("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children });
+  return done ? /* @__PURE__ */ jsxs2("details", { style: box, children: [
+    /* @__PURE__ */ jsx2("summary", { style: { cursor: "pointer" }, children: "\u2713 " + summary }),
+    /* @__PURE__ */ jsx2("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }, children })
+  ] }) : /* @__PURE__ */ jsx2("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children });
 }
 function thumbOf(dataUrl, w = 160) {
   return new Promise((resolve, reject) => {
@@ -6253,29 +6467,28 @@ var SCENE_FIELDS = {
 function NewsMinutePanel({ sdk, context }) {
   const lang = context?.language;
   const T = (k, v) => t(lang, k, v);
-  const [s, setS] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [narrationRecovery, setNarrationRecovery] = useState(false);
-  const [status, setStatus] = useState("");
-  const [lines, setLines] = useState([]);
-  const [error, setError] = useState("");
-  const [providers, setProviders] = useState(null);
-  const [providerError, setProviderError] = useState("");
-  const [providerLoading, setProviderLoading] = useState(true);
-  const providerRead = useRef(0);
-  const [url, setUrl] = useState("");
-  const [text, setText] = useState("");
-  const [tts, setTts] = useState(null);
-  const [voices, setVoices] = useState([]);
-  const [feedback, setFeedback] = useState("");
-  const [jsonErr, setJsonErr] = useState({});
-  const [openRow, setOpenRow] = useState(null);
-  const [picked, setPicked] = useState(null);
-  const [stills, setStills] = useState({});
-  const env = useRef(null);
-  const latest = useRef(null);
+  const [s, setS] = useState2(null);
+  const [busy, setBusy] = useState2(false);
+  const [narrationRecovery, setNarrationRecovery] = useState2(false);
+  const [status, setStatus] = useState2("");
+  const [lines, setLines] = useState2([]);
+  const [error, setError] = useState2("");
+  const [providers, setProviders] = useState2(null);
+  const [providerError, setProviderError] = useState2("");
+  const [providerLoading, setProviderLoading] = useState2(true);
+  const providerRead = useRef2(0);
+  const [url, setUrl] = useState2("");
+  const [text, setText] = useState2("");
+  const [tts, setTts] = useState2(null);
+  const [feedback, setFeedback] = useState2("");
+  const [jsonErr, setJsonErr] = useState2({});
+  const [openRow, setOpenRow] = useState2(null);
+  const [picked, setPicked] = useState2(null);
+  const [stills, setStills] = useState2({});
+  const env = useRef2(null);
+  const latest = useRef2(null);
   latest.current = s;
-  const onDraft = useRef(draftQueue()).current;
+  const onDraft = useRef2(draftQueue()).current;
   const renameNow = (projectId, draftId, name) => renameDraft(sdk, { projectId, draftId, name });
   const viewer = previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview ?? latest.current?.video);
   const openNow = (projectId, draftId) => viewer.open(projectId, draftId).then((ok) => {
@@ -6319,13 +6532,13 @@ function NewsMinutePanel({ sdk, context }) {
       if (id === providerRead.current) setProviderLoading(false);
     }
   };
-  useEffect(() => {
+  useEffect2(() => {
     void refreshProviders();
     return () => {
       providerRead.current++;
     };
   }, [sdk]);
-  useEffect(() => {
+  useEffect2(() => {
     (async () => {
       try {
         if (!sdk.storage) throw new Error(T("noStorage"));
@@ -6334,8 +6547,6 @@ function NewsMinutePanel({ sdk, context }) {
         const sess = saved ?? emptySession();
         setS(sess);
         if (sess.projectId) setTts(await readTts(sdk, sess.projectId));
-        run(sdk, voicesScript()).then(setVoices).catch(() => {
-        });
       } catch (e) {
         setError(String(e?.message || e));
       }
@@ -6358,7 +6569,7 @@ function NewsMinutePanel({ sdk, context }) {
       setStatus("");
     }
   };
-  useEffect(() => {
+  useEffect2(() => {
     if (!tts || tts.state !== "submitted") return;
     let stop = false;
     (async () => {
@@ -6388,8 +6599,8 @@ function NewsMinutePanel({ sdk, context }) {
   const video = !pv ? view2 : null;
   const videoOff = !!(s && !pv && !view2 && s.video && s.draftId === s.video.draftId);
   const shot = s ? stillsDraft(s) : null;
-  const rendering = useRef(false);
-  useEffect(() => {
+  const rendering = useRef2(false);
+  useEffect2(() => {
     const pv2 = shot;
     if (!pv2 || !pv2.planRev || busy || rendering.current) return;
     const order = pv2.scenes.map((_, i2) => i2);
@@ -6411,7 +6622,7 @@ function NewsMinutePanel({ sdk, context }) {
     });
   }, [shot?.draftId, shot?.at, shot?.planRev, picked, busy, stills]);
   const stale = !!(pv && s?.plan && pv.planRev !== previewRev(s));
-  useEffect(() => {
+  useEffect2(() => {
     if (!stale || busy) return;
     onDraft(async () => {
       const cur = latest.current, p = cur?.preview;
@@ -6424,7 +6635,7 @@ function NewsMinutePanel({ sdk, context }) {
     }).catch(() => {
     });
   }, [stale, busy]);
-  if (!s) return /* @__PURE__ */ jsx("div", { style: { padding: 12 }, children: error || "\u2026" });
+  if (!s) return /* @__PURE__ */ jsx2("div", { style: { padding: 12 }, children: error || "\u2026" });
   const preset = PRESETS[s.presetId] ?? PRESETS.chosun;
   const provider = scriptProvider(providers, s.scriptProvider);
   const providerReady = !providerLoading && !!provider && providers?.[provider] === "connected";
@@ -6633,14 +6844,14 @@ function NewsMinutePanel({ sdk, context }) {
     update({ ...s, plan: { ...plan2, scenes, edited } });
   };
   const reset = () => guard(async () => {
-    await update({ ...emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos, retainedDrafts: s.retainedDrafts });
+    await update({ ...emptySession(s.presetId), scriptProvider: s.scriptProvider, voiceId: s.voiceId, voiceName: s.voiceName, projectId: s.projectId, preview: s.preview ?? null, videos: s.videos, retainedDrafts: s.retainedDrafts });
     setUrl("");
     setText("");
     setOpenRow(null);
     setPicked(null);
     await refreshProviders();
   });
-  const pick = (i) => {
+  const pick2 = (i) => {
     setPicked(i);
     const p = view2;
     if (!p || !p.planRev || i >= p.scenes.length) return;
@@ -6685,19 +6896,19 @@ function NewsMinutePanel({ sdk, context }) {
     const summary = new Map(plan2.assetSummaries.map((a) => [a.ref, a.summary]));
     const photoRefs = plan2.assets.map((a) => a.ref);
     const lastRound = plan2.rounds[plan2.rounds.length - 1];
-    return /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 10 }, children: [
-      /* @__PURE__ */ jsx("strong", { children: T("planReview") }),
-      /* @__PURE__ */ jsx("span", { style: muted, children: T("planReviewHint") }),
-      plan2.fallback ? /* @__PURE__ */ jsx("span", { style: warn, children: T("planFallbackNote") }) : null,
-      lastRound ? /* @__PURE__ */ jsxs("span", { style: muted, children: [
+    return /* @__PURE__ */ jsxs2("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 10 }, children: [
+      /* @__PURE__ */ jsx2("strong", { children: T("planReview") }),
+      /* @__PURE__ */ jsx2("span", { style: muted2, children: T("planReviewHint") }),
+      plan2.fallback ? /* @__PURE__ */ jsx2("span", { style: warn, children: T("planFallbackNote") }) : null,
+      lastRound ? /* @__PURE__ */ jsxs2("span", { style: muted2, children: [
         T("rounds", { n: plan2.rounds.length }),
         lastRound.fallback ? "" : " \xB7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })
       ] }) : null,
-      general.length ? /* @__PURE__ */ jsx("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + say(x) }, i)) }) : null,
-      pv ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
-        /* @__PURE__ */ jsx("span", { style: !pv.planRev || stale ? warn : muted, children: !pv.planRev ? T("previewPartial") : stale ? T("previewStale") : "\u2713 " + T("previewFresh", { n: pv.scenes.length }) }),
-        /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: () => openNow(s.projectId, pv.draftId), children: T("openPreview") })
-      ] }) : video ? /* @__PURE__ */ jsx("span", { style: muted, children: T("videoRows") }) : s.draftId ? /* @__PURE__ */ jsx("span", { style: warn, children: T("videoRowsOff") }) : null,
+      general.length ? /* @__PURE__ */ jsx2("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx2("div", { children: "\u2022 " + say(x) }, i)) }) : null,
+      pv ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 6 }, children: [
+        /* @__PURE__ */ jsx2("span", { style: !pv.planRev || stale ? warn : muted2, children: !pv.planRev ? T("previewPartial") : stale ? T("previewStale") : "\u2713 " + T("previewFresh", { n: pv.scenes.length }) }),
+        /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy, onClick: () => openNow(s.projectId, pv.draftId), children: T("openPreview") })
+      ] }) : video ? /* @__PURE__ */ jsx2("span", { style: muted2, children: T("videoRows") }) : s.draftId ? /* @__PURE__ */ jsx2("span", { style: warn, children: T("videoRowsOff") }) : null,
       plan2.scenes.map((scene, i) => {
         const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean);
         const start = spans ? spans[i].startSec : ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0;
@@ -6710,66 +6921,66 @@ function NewsMinutePanel({ sdk, context }) {
         const photo = scene.assetRef ? plan2.thumbs[scene.assetRef] : void 0;
         const open = openRow === i;
         const nErr = rowErrors.get(i)?.length ?? 0, nWarn = rowWarnings.get(i)?.length ?? 0;
-        return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : void 0 }, children: [
-          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
-            /* @__PURE__ */ jsxs("button", { style: { ...rowSelect, cursor: canPick ? "pointer" : "default" }, "aria-pressed": picked === i, "aria-disabled": !canPick, title: canPick ? void 0 : T("rowNoSeek"), onClick: () => pick(i), children: [
-              /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
-                /* @__PURE__ */ jsx("strong", { style: thumbNumber, children: String(i + 1).padStart(2, "0") }),
-                still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
-                still?.state === "ready" ? stale || videoOff ? /* @__PURE__ */ jsx("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx("span", { style: thumbTag, children: T("sourcePhoto") }) : null
+        return /* @__PURE__ */ jsxs2("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : void 0 }, children: [
+          /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
+            /* @__PURE__ */ jsxs2("button", { style: { ...rowSelect, cursor: canPick ? "pointer" : "default" }, "aria-pressed": picked === i, "aria-disabled": !canPick, title: canPick ? void 0 : T("rowNoSeek"), onClick: () => pick2(i), children: [
+              /* @__PURE__ */ jsxs2("div", { style: thumbBox, children: [
+                /* @__PURE__ */ jsx2("strong", { style: thumbNumber, children: String(i + 1).padStart(2, "0") }),
+                still?.state === "ready" ? /* @__PURE__ */ jsx2("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx2("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx2("span", { style: { ...muted2, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),
+                still?.state === "ready" ? stale || videoOff ? /* @__PURE__ */ jsx2("span", { style: { ...thumbTag, background: "rgba(217,130,43,0.85)" }, children: T("staleBadge") }) : null : still?.state === "rendering" ? /* @__PURE__ */ jsx2("span", { style: thumbTag, children: T("rendering") }) : photo ? /* @__PURE__ */ jsx2("span", { style: thumbTag, children: T("sourcePhoto") }) : null
               ] }),
-              /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }, children: [
-                /* @__PURE__ */ jsxs("span", { style: { ...muted, wordBreak: "keep-all" }, children: [
+              /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }, children: [
+                /* @__PURE__ */ jsxs2("span", { style: { ...muted2, wordBreak: "keep-all" }, children: [
                   start.toFixed(1) + "\u2013" + end.toFixed(1) + "s \xB7 " + T("type_" + scene.type),
-                  changed ? /* @__PURE__ */ jsx("span", { style: { color: "#4a90d9", fontWeight: 600 }, children: " \xB7 " + T("changedMark") }) : null,
-                  edited ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: " \xB7 " + T("editedMark") }) : null
+                  changed ? /* @__PURE__ */ jsx2("span", { style: { color: "#4a90d9", fontWeight: 600 }, children: " \xB7 " + T("changedMark") }) : null,
+                  edited ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b" }, children: " \xB7 " + T("editedMark") }) : null
                 ] }),
-                /* @__PURE__ */ jsx("span", { style: twoLines, children: ss.map((x) => x.text).join(" ") }),
-                picked === i ? /* @__PURE__ */ jsx("span", { style: { ...muted, fontWeight: 600 }, children: "\u2713 " + T("pickedMark") }) : null,
-                nErr ? /* @__PURE__ */ jsx("span", { style: { ...warn, fontWeight: 600 }, children: "\u2716 " + T("rowErrors", { n: nErr }) }) : null,
-                nWarn ? /* @__PURE__ */ jsx("span", { style: warn, children: "\u26A0 " + T("rowWarnings", { n: nWarn }) }) : null
+                /* @__PURE__ */ jsx2("span", { style: twoLines2, children: ss.map((x) => x.text).join(" ") }),
+                picked === i ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, fontWeight: 600 }, children: "\u2713 " + T("pickedMark") }) : null,
+                nErr ? /* @__PURE__ */ jsx2("span", { style: { ...warn, fontWeight: 600 }, children: "\u2716 " + T("rowErrors", { n: nErr }) }) : null,
+                nWarn ? /* @__PURE__ */ jsx2("span", { style: warn, children: "\u26A0 " + T("rowWarnings", { n: nWarn }) }) : null
               ] })
             ] }),
-            /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, "aria-expanded": open, onClick: (e) => {
+            /* @__PURE__ */ jsx2("button", { ...SECONDARY2, style: rowButton, "aria-expanded": open, onClick: (e) => {
               e.stopPropagation();
               setOpenRow(open ? null : i);
             }, children: T(open ? "closeScene" : "editScene") })
           ] }),
-          open ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }, children: [
-            (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, fontWeight: 600, overflowWrap: "anywhere" }, children: "\u2716 " + say(x) }, "e" + k)),
-            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: { ...warn, overflowWrap: "anywhere" }, children: "\u26A0 " + say(x) }, "w" + k)),
-            /* @__PURE__ */ jsxs("label", { style: field2, children: [
+          open ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }, children: [
+            (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx2("span", { style: { ...warn, fontWeight: 600, overflowWrap: "anywhere" }, children: "\u2716 " + say(x) }, "e" + k)),
+            (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx2("span", { style: { ...warn, overflowWrap: "anywhere" }, children: "\u26A0 " + say(x) }, "w" + k)),
+            /* @__PURE__ */ jsxs2("label", { style: field3, children: [
               T("sceneType"),
-              /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
+              /* @__PURE__ */ jsx2("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx2("option", { value: t2, children: T("type_" + t2) }, t2)) })
             ] }),
-            canPhoto ? /* @__PURE__ */ jsxs("label", { style: field2, children: [
+            canPhoto ? /* @__PURE__ */ jsxs2("label", { style: field3, children: [
               T("scenePhoto"),
-              /* @__PURE__ */ jsxs("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
+              /* @__PURE__ */ jsxs2("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
                 const { assetRef: _x, ...rest } = scene;
                 setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest);
               }, children: [
-                /* @__PURE__ */ jsx("option", { value: "", children: T("noPhoto") }),
-                photoRefs.map((r) => /* @__PURE__ */ jsx("option", { value: r, children: r }, r))
+                /* @__PURE__ */ jsx2("option", { value: "", children: T("noPhoto") }),
+                photoRefs.map((r) => /* @__PURE__ */ jsx2("option", { value: r, children: r }, r))
               ] })
             ] }) : null,
-            scene.assetRef ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" }, children: [
-              plan2.thumbs[scene.assetRef] ? /* @__PURE__ */ jsx("img", { src: plan2.thumbs[scene.assetRef], style: { width: 72, borderRadius: 4, flex: "none" } }) : null,
-              /* @__PURE__ */ jsx("span", { style: muted, children: T("assetShows", { summary: summary.get(scene.assetRef) ?? "" }) })
+            scene.assetRef ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" }, children: [
+              plan2.thumbs[scene.assetRef] ? /* @__PURE__ */ jsx2("img", { src: plan2.thumbs[scene.assetRef], style: { width: 72, borderRadius: 4, flex: "none" } }) : null,
+              /* @__PURE__ */ jsx2("span", { style: muted2, children: T("assetShows", { summary: summary.get(scene.assetRef) ?? "" }) })
             ] }) : null,
             (SCENE_FIELDS[scene.type] ?? []).map((k) => {
               const raw = scene.params?.[k];
-              if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: field2, children: [
+              if (k === "lines") return /* @__PURE__ */ jsxs2("label", { style: field3, children: [
                 T("field_lines"),
-                /* @__PURE__ */ jsx("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
+                /* @__PURE__ */ jsx2("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
               ] }, k);
-              return /* @__PURE__ */ jsxs("label", { style: field2, children: [
+              return /* @__PURE__ */ jsxs2("label", { style: field3, children: [
                 T("field_" + k),
-                k === "text" ? /* @__PURE__ */ jsx("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
+                k === "text" ? /* @__PURE__ */ jsx2("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx2("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
               ] }, k);
             }),
-            /* @__PURE__ */ jsxs("details", { children: [
-              /* @__PURE__ */ jsx("summary", { style: muted, children: T("sceneParams") }),
-              /* @__PURE__ */ jsx(
+            /* @__PURE__ */ jsxs2("details", { children: [
+              /* @__PURE__ */ jsx2("summary", { style: muted2, children: T("sceneParams") }),
+              /* @__PURE__ */ jsx2(
                 "textarea",
                 {
                   style: { ...input, fontFamily: "monospace", fontSize: 11 },
@@ -6792,11 +7003,11 @@ function NewsMinutePanel({ sdk, context }) {
                 },
                 JSON.stringify(scene.params ?? {})
               ),
-              jsonErr[i] ? /* @__PURE__ */ jsx("span", { style: warn, children: jsonErr[i] }) : null
+              jsonErr[i] ? /* @__PURE__ */ jsx2("span", { style: warn, children: jsonErr[i] }) : null
             ] }),
-            scene.program?.sources.length ? /* @__PURE__ */ jsxs("details", { children: [
-              /* @__PURE__ */ jsx("summary", { style: muted, children: T("graphicSources") }),
-              scene.program.sources.map((source, k) => /* @__PURE__ */ jsxs("p", { style: muted, children: [
+            scene.program?.sources.length ? /* @__PURE__ */ jsxs2("details", { children: [
+              /* @__PURE__ */ jsx2("summary", { style: muted2, children: T("graphicSources") }),
+              scene.program.sources.map((source, k) => /* @__PURE__ */ jsxs2("p", { style: muted2, children: [
                 source.ref,
                 ": ",
                 source.quote
@@ -6805,148 +7016,157 @@ function NewsMinutePanel({ sdk, context }) {
           ] }) : null
         ] }, i + ":" + scene.sentenceIds.join(","));
       }),
-      /* @__PURE__ */ jsxs("details", { children: [
-        /* @__PURE__ */ jsx("summary", { style: { cursor: "pointer" }, children: T("feedbackOpen") }),
-        /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }, children: [
-          /* @__PURE__ */ jsxs("label", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+      /* @__PURE__ */ jsxs2("details", { children: [
+        /* @__PURE__ */ jsx2("summary", { style: { cursor: "pointer" }, children: T("feedbackOpen") }),
+        /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }, children: [
+          /* @__PURE__ */ jsxs2("label", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
             T("feedback"),
-            /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
+            /* @__PURE__ */ jsx2("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
           ] }),
-          /* @__PURE__ */ jsx("span", { style: muted, children: aiUsage }),
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("graphicEditHint") }),
-          /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || !providerReady || !feedback.trim(), onClick: revise, children: T("revise") })
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: aiUsage }),
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: T("graphicEditHint") }),
+          /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy || !providerReady || !feedback.trim(), onClick: revise, children: T("revise") })
         ] })
       ] }),
-      video ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
-        !pv || !pv.planRev || stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T(pv ? "previewRebuild" : "previewBuild") }) : /* @__PURE__ */ jsx("button", { disabled: busy || !confirmable, onClick: build, children: T("buildFromPlan") }),
-        /* @__PURE__ */ jsx("span", { style: unfit || videoOff ? warn : muted, children: T(unfit ? "confirmNeedsFit" : previewFresh(s) ? "confirmHint" : videoOff ? "confirmAgain" : "confirmNeedsPreview") })
+      video ? null : /* @__PURE__ */ jsxs2(Fragment, { children: [
+        !pv || !pv.planRev || stale ? /* @__PURE__ */ jsx2("button", { disabled: busy, onClick: refreshPreview, children: T(pv ? "previewRebuild" : "previewBuild") }) : /* @__PURE__ */ jsx2("button", { disabled: busy || !confirmable, onClick: build, children: T("buildFromPlan") }),
+        /* @__PURE__ */ jsx2("span", { style: unfit || videoOff ? warn : muted2, children: T(unfit ? "confirmNeedsFit" : previewFresh(s) ? "confirmHint" : videoOff ? "confirmAgain" : "confirmNeedsPreview") })
       ] })
     ] });
   };
   return (
     // Korean breaks between words, not inside one; a word longer than the line still wraps.
-    /* @__PURE__ */ jsxs("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13, wordBreak: "keep-all", overflowWrap: "break-word" }, children: [
-      /* @__PURE__ */ jsx("strong", { children: T("title") }),
-      s.retainedDrafts?.length ? /* @__PURE__ */ jsxs("details", { style: box, children: [
-        /* @__PURE__ */ jsx("summary", { style: { cursor: "pointer" }, children: T("retainedDrafts", { n: s.retainedDrafts.length }) }),
-        /* @__PURE__ */ jsx("p", { style: muted, children: T("retainedDraftsHint") }),
-        s.retainedDrafts.map((d) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 6 }, children: [
-          /* @__PURE__ */ jsx("span", { style: { ...muted, flex: 1 }, children: d.name + " \xB7 " + T(d.status === "incomplete" ? "incompleteDraft" : "previousDraft") }),
-          /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, disabled: busy, onClick: () => guard(() => openNow(d.projectId, d.draftId)), children: T("openRetainedDraft") })
+    /* @__PURE__ */ jsxs2("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13, wordBreak: "keep-all", overflowWrap: "break-word" }, children: [
+      /* @__PURE__ */ jsx2("strong", { children: T("title") }),
+      s.retainedDrafts?.length ? /* @__PURE__ */ jsxs2("details", { style: box, children: [
+        /* @__PURE__ */ jsx2("summary", { style: { cursor: "pointer" }, children: T("retainedDrafts", { n: s.retainedDrafts.length }) }),
+        /* @__PURE__ */ jsx2("p", { style: muted2, children: T("retainedDraftsHint") }),
+        s.retainedDrafts.map((d) => /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 6 }, children: [
+          /* @__PURE__ */ jsx2("span", { style: { ...muted2, flex: 1 }, children: d.name + " \xB7 " + T(d.status === "incomplete" ? "incompleteDraft" : "previousDraft") }),
+          /* @__PURE__ */ jsx2("button", { ...SECONDARY2, style: rowButton, disabled: busy, onClick: () => guard(() => openNow(d.projectId, d.draftId)), children: T("openRetainedDraft") })
         ] }, d.draftId))
       ] }) : null,
-      /* @__PURE__ */ jsxs("label", { children: [
+      /* @__PURE__ */ jsxs2("label", { children: [
         T("preset"),
         " ",
-        /* @__PURE__ */ jsx("select", { value: s.presetId, disabled: busy, onChange: (e) => update({ ...s, presetId: e.target.value }), children: Object.values(PRESETS).map((p) => /* @__PURE__ */ jsx("option", { value: p.id, children: p.label }, p.id)) })
+        /* @__PURE__ */ jsx2("select", { value: s.presetId, disabled: busy, onChange: (e) => update({ ...s, presetId: e.target.value }), children: Object.values(PRESETS).map((p) => /* @__PURE__ */ jsx2("option", { value: p.id, children: p.label }, p.id)) })
       ] }),
-      /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
-        /* @__PURE__ */ jsxs("label", { style: field2, children: [
+      /* @__PURE__ */ jsxs2("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
+        /* @__PURE__ */ jsxs2("label", { style: field3, children: [
           T("scriptProvider"),
-          /* @__PURE__ */ jsxs("select", { style: input, value: provider ?? "", disabled: busy || providerLoading || !providers, onChange: (e) => {
+          /* @__PURE__ */ jsxs2("select", { style: input, value: provider ?? "", disabled: busy || providerLoading || !providers, onChange: (e) => {
             const value = e.target.value;
             if (isAiProvider(value)) void guard(() => update({ ...s, scriptProvider: value }));
           }, children: [
-            !provider ? /* @__PURE__ */ jsx("option", { value: "", disabled: true, children: T(providerLoading ? "providerLoading" : "providerSelect") }) : null,
-            AI_PROVIDERS.map((id) => /* @__PURE__ */ jsx("option", { value: id, disabled: providers?.[id] !== "connected", children: T("provider_" + id) + (providers?.[id] ? " \xB7 " + T("providerStatus_" + providers[id]) : "") }, id))
+            !provider ? /* @__PURE__ */ jsx2("option", { value: "", disabled: true, children: T(providerLoading ? "providerLoading" : "providerSelect") }) : null,
+            AI_PROVIDERS.map((id) => /* @__PURE__ */ jsx2("option", { value: id, disabled: providers?.[id] !== "connected", children: T("provider_" + id) + (providers?.[id] ? " \xB7 " + T("providerStatus_" + providers[id]) : "") }, id))
           ] })
         ] }),
-        /* @__PURE__ */ jsx("span", { style: muted, children: T("providerHint") }),
-        /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || providerLoading, onClick: () => void refreshProviders(), children: T("providerRefresh") }),
-        providerError ? /* @__PURE__ */ jsx("span", { role: "alert", style: warn, children: T(providerError) }) : null,
-        providers && !providerLoading && (!provider || providers[provider] !== "connected") ? /* @__PURE__ */ jsx("span", { role: "alert", style: warn, children: T(providerUnavailable ? "providerUnavailable" : provider ? "providerNotConnected" : "providerChoose") }) : null,
-        provider ? /* @__PURE__ */ jsx("span", { style: muted, children: T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) }) }) : null
+        /* @__PURE__ */ jsx2("span", { style: muted2, children: T("providerHint") }),
+        /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy || providerLoading, onClick: () => void refreshProviders(), children: T("providerRefresh") }),
+        providerError ? /* @__PURE__ */ jsx2("span", { role: "alert", style: warn, children: T(providerError) }) : null,
+        providers && !providerLoading && (!provider || providers[provider] !== "connected") ? /* @__PURE__ */ jsx2("span", { role: "alert", style: warn, children: T(providerUnavailable ? "providerUnavailable" : provider ? "providerNotConnected" : "providerChoose") }) : null,
+        provider ? /* @__PURE__ */ jsx2("span", { style: muted2, children: T(provider === "selects" ? "aiCredits" : "aiSubscription", { provider: T("provider_" + provider) }) }) : null
       ] }),
-      !sc ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
-        /* @__PURE__ */ jsx("input", { style: input, placeholder: T("url"), value: url, disabled: busy, onChange: (e) => setUrl(e.target.value) }),
-        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
-        /* @__PURE__ */ jsx("button", { disabled: busy || !providerReady || !url.trim() && text.trim().length < 80, onClick: writeScript2, children: T("write") })
+      !sc ? /* @__PURE__ */ jsxs2("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 8 }, children: [
+        /* @__PURE__ */ jsx2("input", { style: input, placeholder: T("url"), value: url, disabled: busy, onChange: (e) => setUrl(e.target.value) }),
+        /* @__PURE__ */ jsx2("textarea", { style: { ...input, minHeight: 90 }, placeholder: T("orText"), value: text, disabled: busy, onChange: (e) => setText(e.target.value) }),
+        /* @__PURE__ */ jsx2("button", { disabled: busy || !providerReady || !url.trim() && text.trim().length < 80, onClick: writeScript2, children: T("write") })
       ] }) : (
         // Once the scenes are planned, the approved script folds into one line (it opens again to read or edit).
-        /* @__PURE__ */ jsxs(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
-          /* @__PURE__ */ jsx("strong", { children: T("review") }),
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("reviewHint") }),
-          liveErrors.length ? /* @__PURE__ */ jsx("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
-          /* @__PURE__ */ jsxs("label", { children: [
+        /* @__PURE__ */ jsxs2(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
+          /* @__PURE__ */ jsx2("strong", { children: T("review") }),
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: T("reviewHint") }),
+          liveErrors.length ? /* @__PURE__ */ jsx2("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx2("div", { children: "\u2022 " + x }, i)) }) : null,
+          /* @__PURE__ */ jsxs2("label", { children: [
             T("headline1"),
-            /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
+            /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
           ] }),
-          /* @__PURE__ */ jsxs("label", { children: [
+          /* @__PURE__ */ jsxs2("label", { children: [
             T("headline2"),
-            /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.line2, disabled: busy || approved, onChange: (e) => setHead("line2", e.target.value) })
+            /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.line2, disabled: busy || approved, onChange: (e) => setHead("line2", e.target.value) })
           ] }),
-          /* @__PURE__ */ jsxs("label", { children: [
+          /* @__PURE__ */ jsxs2("label", { children: [
             T("accent"),
-            /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
+            /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
           ] }),
-          sc.sentences.map((x, i) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-            /* @__PURE__ */ jsx("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
-            /* @__PURE__ */ jsxs("span", { style: muted, children: [
+          sc.sentences.map((x, i) => /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+            /* @__PURE__ */ jsx2("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
+            /* @__PURE__ */ jsxs2("span", { style: muted2, children: [
               T("source"),
               ": ",
               x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
             ] }),
-            x.rewritten ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9" }, children: T("rewritten") }) : null,
-            x.edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedCheck") }) : null,
-            x.issues.length ? /* @__PURE__ */ jsxs("span", { style: { ...muted, color: "#d9822b" }, children: [
+            x.rewritten ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#4a90d9" }, children: T("rewritten") }) : null,
+            x.edited ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#d9822b" }, children: T("editedCheck") }) : null,
+            x.issues.length ? /* @__PURE__ */ jsxs2("span", { style: { ...muted2, color: "#d9822b" }, children: [
               T("issues"),
               ": ",
               x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
             ] }) : null
           ] }, x.id)),
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
-          chars > MAX_CHARS ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
-          approved ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
-            /* @__PURE__ */ jsx("span", { style: { whiteSpace: "nowrap", flex: "none" }, children: "\u2713 " + T("approved") }),
-            /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
-          ] }) : /* @__PURE__ */ jsx("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
+          chars > MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
+          approved ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
+            /* @__PURE__ */ jsx2("span", { style: { whiteSpace: "nowrap", flex: "none" }, children: "\u2713 " + T("approved") }),
+            /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
+          ] }) : /* @__PURE__ */ jsx2("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
         ] })
       ),
-      approved && next ? /* @__PURE__ */ jsxs(Step, { done: !!plan && next.kind === "ready" && !narrationRecovery, summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [
-        /* @__PURE__ */ jsxs("label", { children: [
-          T("voice"),
-          " ",
-          /* @__PURE__ */ jsx("select", { value: s.voiceId, disabled: busy || next.kind === "poll" || next.kind === "ready", onChange: (e) => update({ ...s, voiceId: e.target.value, approved: revisionOf(sc, e.target.value) }), children: (voices.length ? voices : [{ voiceId: s.voiceId, name: s.voiceId }]).map((v) => /* @__PURE__ */ jsx("option", { value: v.voiceId, children: v.name }, v.voiceId)) })
+      approved && next ? /* @__PURE__ */ jsxs2(Step, { done: !!plan && next.kind === "ready" && !narrationRecovery, summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [
+        /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 4 }, children: [
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: T("voice") }),
+          /* @__PURE__ */ jsx2(
+            VoicePicker,
+            {
+              sdk,
+              T,
+              voiceId: s.voiceId,
+              voiceName: s.voiceName,
+              disabled: busy || next.kind === "poll" || next.kind === "ready",
+              onPick: (v) => update({ ...s, voiceId: v.voiceId, voiceName: v.name, approved: revisionOf(sc, v.voiceId) })
+            }
+          )
         ] }),
-        next.kind === "none" || next.kind === "stale" ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
-          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("narrate") })
-        ] }) : next.kind === "poll" ? /* @__PURE__ */ jsx("span", { children: T("narrating") }) : next.kind === "lost" ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: T("lost") }),
-          /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
-          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("newNarration") })
-        ] }) : next.kind === "failed" ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsx("span", { style: { color: "#d9822b" }, children: next.error === "insufficient_credits" ? T("noCredits") : T("narrationFailed", { error: next.error }) }),
-          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("retry") })
-        ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-          plan && !narrationRecovery ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
-            /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) }) }),
-            /* @__PURE__ */ jsx("span", { style: muted, children: aiUsage }),
-            /* @__PURE__ */ jsx("button", { disabled: busy || !providerReady, onClick: makePlan, children: T("makePlan") })
+        next.kind === "none" || next.kind === "stale" ? /* @__PURE__ */ jsxs2(Fragment, { children: [
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
+          /* @__PURE__ */ jsx2("button", { disabled: busy, onClick: narrate, children: T("narrate") })
+        ] }) : next.kind === "poll" ? /* @__PURE__ */ jsx2("span", { children: T("narrating") }) : next.kind === "lost" ? /* @__PURE__ */ jsxs2(Fragment, { children: [
+          /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b" }, children: T("lost") }),
+          /* @__PURE__ */ jsx2("span", { style: muted2, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
+          /* @__PURE__ */ jsx2("button", { disabled: busy, onClick: narrate, children: T("newNarration") })
+        ] }) : next.kind === "failed" ? /* @__PURE__ */ jsxs2(Fragment, { children: [
+          /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b" }, children: next.error === "insufficient_credits" ? T("noCredits") : T("narrationFailed", { error: next.error }) }),
+          /* @__PURE__ */ jsx2("button", { disabled: busy, onClick: narrate, children: T("retry") })
+        ] }) : /* @__PURE__ */ jsxs2(Fragment, { children: [
+          plan && !narrationRecovery ? null : /* @__PURE__ */ jsxs2(Fragment, { children: [
+            /* @__PURE__ */ jsx2("span", { children: "\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) }) }),
+            /* @__PURE__ */ jsx2("span", { style: muted2, children: aiUsage }),
+            /* @__PURE__ */ jsx2("button", { disabled: busy || !providerReady, onClick: makePlan, children: T("makePlan") })
           ] }),
-          narrationRecovery ? /* @__PURE__ */ jsxs(Fragment, { children: [
-            /* @__PURE__ */ jsx("span", { style: warn, children: T("narrationReferenceLost") }),
-            /* @__PURE__ */ jsx("span", { style: muted, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
-            /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: narrate, children: T("newNarration") })
+          narrationRecovery ? /* @__PURE__ */ jsxs2(Fragment, { children: [
+            /* @__PURE__ */ jsx2("span", { style: warn, children: T("narrationReferenceLost") }),
+            /* @__PURE__ */ jsx2("span", { style: muted2, children: T("credits", { chars, est: quote.estimated, held: quote.held }) }),
+            /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy, onClick: narrate, children: T("newNarration") })
           ] }) : null
         ] })
       ] }) : null,
       plan ? renderPlan(plan) : null,
       s.draftId ? (
         // A newer preview is open above: this box is the earlier edit Draft, not the preview's result.
-        /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
-          /* @__PURE__ */ jsx("span", { style: { ...pv ? muted : {}, flex: 1, minWidth: 0 }, children: T(pv ? "previousVideo" : videoOff ? "videoChanged" : "done") }),
-          /* @__PURE__ */ jsx("button", { ...SECONDARY, style: rowButton, disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
+        /* @__PURE__ */ jsxs2("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
+          /* @__PURE__ */ jsx2("span", { style: { ...pv ? muted2 : {}, flex: 1, minWidth: 0 }, children: T(pv ? "previousVideo" : videoOff ? "videoChanged" : "done") }),
+          /* @__PURE__ */ jsx2("button", { ...SECONDARY2, style: rowButton, disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
           }), children: T("openDraft") })
         ] })
       ) : null,
-      status ? /* @__PURE__ */ jsx("span", { style: muted, children: status }) : null,
-      lines.length ? /* @__PURE__ */ jsxs("details", { children: [
-        /* @__PURE__ */ jsx("summary", { style: muted, children: "Log" }),
-        /* @__PURE__ */ jsx("pre", { style: { ...muted, whiteSpace: "pre-wrap", margin: 0 }, children: lines.join("\n") })
+      status ? /* @__PURE__ */ jsx2("span", { style: muted2, children: status }) : null,
+      lines.length ? /* @__PURE__ */ jsxs2("details", { children: [
+        /* @__PURE__ */ jsx2("summary", { style: muted2, children: "Log" }),
+        /* @__PURE__ */ jsx2("pre", { style: { ...muted2, whiteSpace: "pre-wrap", margin: 0 }, children: lines.join("\n") })
       ] }) : null,
-      error ? /* @__PURE__ */ jsx("span", { style: { color: "#d9822b", fontSize: 12, whiteSpace: "pre-wrap" }, children: error }) : null,
-      sc ? /* @__PURE__ */ jsx("button", { ...SECONDARY, disabled: busy, onClick: reset, children: T("startOver") }) : null
+      error ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12, whiteSpace: "pre-wrap" }, children: error }) : null,
+      sc ? /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy, onClick: reset, children: T("startOver") }) : null
     ] })
   );
 }
