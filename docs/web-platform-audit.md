@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Nineteen packages have passed actual installation, core creation or interaction,
+Twenty packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit and Medical Explainer.
-They declare `web`. Of the other 31 packages, 18 have identified current blockers
-and 13 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog, Vlog Edit, Medical Explainer and City Weekend Vlog.
+They declare `web`. Of the other 30 packages, 18 have identified current blockers
+and 12 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -34,7 +34,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `card-news-maker` | Pending export retest | Three AI images and an editable three-card Draft were generated. PNG export timed out; raw PNG-to-ImageBitmap decoding was corrected, but the complete export needs retest. |
 | `chris-williamson-style` | Blocked | [plugin.json](../plugins/chris-williamson-style/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `cinema-vlog-studio` | Web core verified | Actual install, core UI action, visible output and reopening passed; see runtime evidence and normal-gate retest status below. |
-| `city-weekend-vlog` | Pending photo workflow | Saved 13.3s video Draft reopened and played with the A day title. Actual photo-input creation and replay remain unchecked. |
+| `city-weekend-vlog` | **Web verified including photos** | Previous 13.3s video/title workflow passed. New photo-only run selected21 original PNGs, default Sunny Soul Strut and A day title, then saved City Weekend Vlog 2026-10-27 17:12. Visible playback at10:23 and full reload playback at3:00 showed actual photos/title. Normal-gate reinstall pending. |
 | `cutout-beat-gallery` | Blocked | [plugin.json](../plugins/cutout-beat-gallery/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `daily-vlog-8` | Pending creation retest | Earlier actual Create timed out. Retry the one-opener/seven-clip workflow with current source-observation fixes; no completed saved replay yet. |
 | `depth-type-captions` | Blocked | [plugin.json](../plugins/depth-type-captions/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
@@ -147,7 +147,7 @@ their individual verification and normal-install limitations are recorded above.
 | `card-news-maker` | **passed / failed-export-timeout**. Text planning and three Nano Banana Pro images succeeded; editable three-card Draft created; Export retried after other edit settled; first card rendering failed: signal timed out, duration31286ms. |
 | `chris-williamson-style` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `cinema-vlog-studio` | **passed / passed**. Imported a 20-second landscape test source through the native file chooser. Assigned it to the required slots using the plugin's explicitly supported source reuse.; Actual Create produced a 21.35-second Draft with 23 cuts, bundled music and title. Seeking to 5:02 visibly rendered the source and scramble title.; After reload, reopened the saved Draft. Playback advanced from 3:18 to 8:01; the inset card was visible at 8:00. Screenshots: cinema-title-visible.png and cinema-reopened-playing.png.; Reopened saved Draft again and played from the beginning through 21:07 / 21:08; screenshot cinema-complete.png. Normal-metadata reinstall pending.; Reinstalled published manifest commit 1892039 through the actual web UI with the normal platform guard unchanged; browser installation success confirmed. |
-| `city-weekend-vlog` | **passed / created-visible-pending-reopen**. Opened installed plugin through Video Templates; automatically selected 15 already analyzed original clips, cancelled extra analysis for generated files.; Actual Apply completed a 13.3-second City Weekend Vlog Draft.; Playback advanced to 9:13 / 13:08 and showed actual source video. Title animation and reopening still need verification. |
+| `city-weekend-vlog` | **Web verified including photos** | Previous 13.3s video/title workflow passed. New photo-only run selected21 original PNGs, default Sunny Soul Strut and A day title, then saved City Weekend Vlog 2026-10-27 17:12. Visible playback at10:23 and full reload playback at3:00 showed actual photos/title. Normal-gate reinstall pending. |
 | `cutout-beat-gallery` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `daily-vlog-8` | **passed / failed-script-timeout**. Selected fixtures folder, 8 valid videos assigned. Create clicked.; Script deadline of 120s exceeded; uncommitted edits, no completed Draft. |
 | `depth-type-captions` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
@@ -277,3 +277,7 @@ Installed plugin skill was read directly despite a discovery-name collision; all
 ### Medical admission after sequential resume
 
 Existing paid job `mxmvqrqjjy` was resumed without duplicate scene generation. All nine strips and sixteen transition candidates completed. A Chrome tab crash (code5) interrupted the run; the saved job resumed again. Browser composition created nine scene cards and eight transitions, then editable headings, labels, captions and nine narration clips in `심장 펌프 혈액의 길 · Medical` (45:23 displayed). The isolated resume took roughly21minutes, largely local rendering. The app reported all sentence/scene checks passed and explicitly omitted two pointer labels whose target was not found. Actual playback reached45:22; full-page reload and playback at11:08 passed. Proof: `medical-playing.png`, `medical-reopened.png`. This verifies the software workflow, not medical factual accuracy. Admit web; normal-gate reinstall pending. Totals:19 admitted,18 blocked,13 unresolved.
+
+### City Weekend photo workflow admission
+
+The installed panel selected no videos and21 original PNGs, with default Sunny Soul Strut music and A day title. All five stages completed and saved `City Weekend Vlog 2026-10-27 17:12` (13:08 displayed). Playback at10:23 showed the actual photo montage; full-page reload and playback at3:00 showed original photos and the animated title. Earlier video-only playback had already passed. Proof: `city-photo-playing.png`, `city-photo-reopened.png`. Admit web; normal-gate reinstall pending. Totals:20 admitted,18 blocked,12 unresolved.
