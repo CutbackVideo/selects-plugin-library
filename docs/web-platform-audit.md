@@ -2,13 +2,13 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Five packages have passed actual installation, core creation or interaction, visible
+Six packages have passed actual installation, core creation or interaction, visible
 output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
-Cinema Vlog Studio, Thank You Recap and pov: you open my gallery. They declare
+Cinema Vlog Studio, Thank You Recap, pov: you open my gallery and Vox Style Explainer. They declare
 `web`. The four newly admitted video templates also passed normal-metadata
 reinstallation from published commit `1892039`. Short Form Safe Zones passed its
 initial install and core checks; its same-version update check reports latest, so
-a fresh normal-gate reinstall remains unverified. The other 45
+a fresh normal-gate reinstall remains unverified. The other 44
 retain macOS/Windows pending complete verification.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -77,7 +77,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `travel-beat-vlog` | Blocked | [plugin.json](../plugins/travel-beat-vlog/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
 | `vlog-edit` | Native operation present | [SKILL.md](../plugins/vlog-edit/SKILL.md): Skill instructions require a local contact-sheet HTTP server. A browser-only instruction path has not been verified. |
 | `vlog-opening` | Pending | [panel.tsx](../plugins/vlog-opening/panel.tsx#L1776): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
-| `vox-explainer` | Pending | [panel.tsx](../plugins/vox-explainer/panel.tsx#L328): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
+| `vox-explainer` | Web core verified | Installed web panel generated a 20.1-second Korean explainer from fictional text: five videos, three narration clips, music, editable headlines and captions. Visible playback reached 19:22, and after a full page reload the saved Draft played to 14:10. URL-input variant, export and normal-gate reinstall remain untested. |
 
 ## Supporting SDK checks (not admission)
 
@@ -189,7 +189,7 @@ their individual verification and normal-install limitations are recorded above.
 | `travel-beat-vlog` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
 | `vlog-edit` | **passed / blocked-skill-discovery**. Installer succeeded. Setup reports plugin skill name conflicts with built-in vlog-edit and is hidden in discovery; referenced SDK resource could not be read. End-to-end editing not verified. |
 | `vlog-opening` | **passed / created-but-playback-stalled**. Retried with the existing analyzed landscape sample project; Whip style Build opening succeeded: 15.55 seconds, 12 clips, three graphic layers and bundled music.; After reload, the saved Draft and clips reappeared, but playback stayed at 00:00 and the preview remained black after 12 seconds. Do not declare web. |
-| `vox-explainer` | **passed / plan-passed-generation-unverified**. Standalone retry completed20.1s Korean plan with3scenes and5shots, accurately labeling fictional input. Final paid video generation untested pending credit accounting. |
+| `vox-explainer` | Web core verified | Installed web panel generated a 20.1-second Korean explainer from fictional text: five videos, three narration clips, music, editable headlines and captions. Visible playback reached 19:22, and after a full page reload the saved Draft played to 14:10. URL-input variant, export and normal-gate reinstall remain untested. |
 
 Do not treat an input validation error, missing file permission, absent credentials,
 or an untested workflow as proof that the plugin can never support browsers.
@@ -208,3 +208,10 @@ no generation credit ledger, so further paid generation is held. The Mac was unl
 a substitute for a completed core-workflow test.
 
 Final accounting check: expanded AI image history entries also expose no charged-credit amounts. Further paid generation remains on hold; no zero-cost claim is made.
+
+## Round 2 follow-up (2026-10-27)
+
+- Vox Style Explainer completed paid generation and visible playback/reopening on the web target. The test used fictional book-exchange text, not personal footage. This admits its text-to-editable-Draft core path; it does not certify every URL source or export route.
+- City Weekend Vlog's saved 13.3-second Draft reopened and played; the animated “A day” title was visible. Photo mode remains unchecked.
+- The shared file-observation fix now accepts the browser source identity without inventing a native inode. Mini Vlog passed the original eight-video source checks, but then failed bundled music preparation. File presence and chunk reads were separately confirmed; the underlying preparation error is still under investigation.
+- Other Round 1 failures and outstanding checks are not reclassified by these partial results.
