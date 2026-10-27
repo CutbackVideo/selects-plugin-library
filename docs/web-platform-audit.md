@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Fourteen packages have passed actual installation, core creation or interaction,
+Fifteen packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial and Four Photo Reveal.
-They declare `web`. Of the other 36 packages, 18 have identified current blockers
-and 18 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial Four Photo Reveal and Mini Vlog.
+They declare `web`. Of the other 35 packages, 18 have identified current blockers
+and 17 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -243,3 +243,18 @@ Final accounting check: expanded AI image history entries also expose no charged
 ### Tang Poetry live retest — 2026-10-27
 
 Installed commit `8a73a60` through the web UI and resumed the existing paid job `vxmvqpki6u`. Serializing music persistence before scene writes fixed the concurrent Project write failure. All six generated video clips, three narration clips, music, headings and captions were assembled into a 21.1-second editable Draft. Playback showed the generated imagery and captions; after a full page reload, the saved Draft reopened and played at 4:21. Evidence: `tang-playback.png`, `tang-reopened.png` in the task evidence directory. Web admitted only after this retest. Normal metadata-gate reinstall remains pending. Current checkpoint: 12 verified, 18 unsupported, 20 unresolved.
+
+### Latest normal-gate reinstall and fixes — 2026-10-27
+
+- Production `BrowserPluginInstaller` platform validation was unchanged while the actual web UI reinstalled `no14-still-video`, `jared-vox-editorial`, `tang-poetry-explainer`, `vox-explainer`, `news-minute`, `six-clip-velocity`, and `torn-paper-love` from `a4e059a`. Each completed the browser installer and opened setup with an explicit installation-success message. This supersedes their pending normal-gate reinstall entries above.
+- The companion client merged current develop; the pre-push suite passed 16,031 tests (22 skipped). Clicking Shortform Clips still displayed the desktop-install guidance after the merge.
+- Medical generated nine narrations, eighteen keyframes and eighteen scene clips. Assembly stopped at strip 7 with the shared Project writer lock while other audit apps were concurrently building. This is not a browser-incompatibility verdict. The saved job is retained for sequential resume; no duplicate paid generation is needed.
+- Mini Vlog and Photo Grid latest attempts stalled/failed in source confirmation. Shared full-byte fingerprinting now uses the panel client's single SDK invocation per file instead of one invocation per 48 KiB chunk (77 tests passed, one skipped). Actual UI retests remain required.
+- Card News PNG export now decodes rendered PNG bytes into an ImageBitmap before final canvas composition; actual export retest remains required.
+- Vlog Edit's guide now supports browser `view_image` for each source photo; local HTTP contact sheets are a desktop alternative. Direct reading of the plugin skill succeeded despite the same-name discovery warning. Actual edit/playback remains required.
+
+- The latest Mini Vlog retest exposed a second source-observation issue: app-owned browser files (including bundled music) returned no `sourceIdentity`, while granted originals did. The companion client now exposes the canonical owned path through the same existing stat field. Twenty real-Chrome filesystem tests and web typechecking passed. The next actual Mini run passed music verification and created its Draft; decoration and replay are still being checked.
+
+### Mini Vlog admission
+
+Actual `a4e059a` web installation, four selected original 8s videos plus four PNG photos, default Buant Hook music, and the Small Glimpse title produced the editable Draft `Mini Vlog A small glimpse 2026-10-27 08:21:51` (14:01 displayed). After the app-owned file-identity correction, music and complete assembly/decoration succeeded. Playback showed original video and the title; after a full page reload, playback at5:20 showed photo-04 with the editable title, and Chrome reported audio playback. Proof: `mini-playback.png`, `mini-reopened.png`. One source scene-search failed and was explicitly skipped; this is recorded, not hidden. Admit `web`; normal-gate reinstall of the new manifest is still pending. Current totals: 15 admitted, 18 blocked, 17 unresolved.
