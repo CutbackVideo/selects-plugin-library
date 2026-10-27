@@ -2,12 +2,12 @@
 
 This migration reviews all 50 current packages. `platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
-Seventeen packages have passed actual installation, core creation or interaction,
+Eighteen packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
 Cinema Vlog Studio, Thank You Recap, pov: you open my gallery, Vox Style Explainer,
-Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal and Archive Vlog.
-They declare `web`. Of the other 33 packages, 18 have identified current blockers
-and 15 remain under active verification. These counts are not a completed audit.
+Four Photo Stop Motion, Camera Shutter Dump, Six Clip Velocity, Torn Paper Love, News in One Minute, Tang Poetry Explainer, Jared Vox Editorial, Four Photo Reveal, Mini Vlog, Photo Grid Reveal, Archive Vlog and Vlog Edit.
+They declare `web`. Of the other 32 packages, 18 have identified current blockers
+and 14 remain under active verification. These counts are not a completed audit.
 Normal-platform-gate reinstall status is recorded per package below.
 That does **not** assert that all 50 are inherently impossible in a browser.
 
@@ -74,7 +74,7 @@ features still matter. Manifest metadata cannot guarantee those runtime conditio
 | `timeline-shorts-builder` | Pending | [panel.tsx](../plugins/timeline-shorts-builder/panel.tsx#L32): Uses the media/files SDK. Browser implementations exist, but this plugin's actual FFmpeg arguments, assets/network access, and full edit/commit workflow have not been verified. |
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | Blocked | [plugin.json](../plugins/travel-beat-vlog/plugin.json): Required dependency selects-ai-runtime declares a native runtime; the installation closure cannot run in web. |
-| `vlog-edit` | Pending live edit | Direct plugin skill read succeeds despite discovery name collision. Updated browser guide uses `view_image` for every photo and SDK frame capture for video; complete editing/playback is still required. |
+| `vlog-edit` | **Web verified after host fix** | Direct installed skill read, actual four-video/four-photo edit, generated Korean narration, existing music, editable title and seven dissolves. Browser WebGPU rejected context-free transparent transition inputs; after the host fix the reopened 15s Draft played to14:23 and the dissolve at2:12 visibly blended both sources. Normal-gate reinstall pending. |
 | `vlog-opening` | **Pending additional core styles** | Whip created a saved 15.55s Draft with 12 clips, graphics and music. After the client sample-playback guard fix, real footage played at3:24. Motion and Quotes styles remain unverified. |
 | `vox-explainer` | Web core verified | Installed web panel generated a 20.1-second Korean explainer from fictional text: five videos, three narration clips, music, editable headlines and captions. Visible playback reached 19:22, and after a full page reload the saved Draft played to 14:10. Normal-gate reinstall passed at `a4e059a`; URL-input variant and export remain untested. |
 
@@ -187,7 +187,7 @@ their individual verification and normal-install limitations are recorded above.
 | `timeline-shorts-builder` | **passed / failed-native-dimensions**. Selected real sample Short 1 (30.1s), Prepare thumbnails clicked; Native dimensions unavailable for 12 video/image clips; preparation stopped; no Draft created. |
 | `torn-paper-love` | **Web verified** | Installed, created 6.2s photo edit, reopened and played actual photos with torn-paper frame and MY LOVE graphics at4:10 after fixing browser image preview. |
 | `travel-beat-vlog` | **rejected-native-runtime / blocked-before-execution**. Actual install click displays desktop-required dialog with native runtime guard retained |
-| `vlog-edit` | **passed / blocked-skill-discovery**. Installer succeeded. Setup reports plugin skill name conflicts with built-in vlog-edit and is hidden in discovery; referenced SDK resource could not be read. End-to-end editing not verified. |
+| `vlog-edit` | **Web verified after host fix** | Direct installed skill read, actual four-video/four-photo edit, generated Korean narration, existing music, editable title and seven dissolves. Browser WebGPU rejected context-free transparent transition inputs; after the host fix the reopened 15s Draft played to14:23 and the dissolve at2:12 visibly blended both sources. Normal-gate reinstall pending. |
 | `vlog-opening` | **Pending additional core styles** | Whip created a saved 15.55s Draft with 12 clips, graphics and music. After the client sample-playback guard fix, real footage played at3:24. Motion and Quotes styles remain unverified. |
 | `vox-explainer` | Web core verified | Installed web panel generated a 20.1-second Korean explainer from fictional text: five videos, three narration clips, music, editable headlines and captions. Visible playback reached 19:22, and after a full page reload the saved Draft played to 14:10. URL-input variant, export and normal-gate reinstall remain untested. |
 
@@ -269,3 +269,7 @@ Medical resumed without new paid media. Strip files1/6/7 had fresh modification 
 ### Archive Vlog admission
 
 Actual installed `a4e059a` UI created `Archive Vlog CINEMATIC 2026-10-27 09:01:47` from four original videos and four photos, short montage, default Marimba Motif, CINEMATIC title and WEB TEST credit. Five creation stages completed and saved a 23.3s editable Draft. One failed scene analysis was explicitly skipped. Continuous playback and full-page reopening passed. Reopened frames showed the decoded CINEMATIC title at4:05, ARCHIVED BY WEB TEST at5:19 and original photo-01 at9:00. Evidence: `archive-playing.png`, `archive-title-reopened.png`, `archive-credit-reopened.png`, `archive-photo-reopened.png`. Admit web; normal-gate reinstall pending. Totals:17 admitted,18 blocked,15 unresolved.
+
+### Vlog Edit admission after transition fix
+
+Installed plugin skill was read directly despite a discovery-name collision; all four source photos were inspected with view_image. Actual editing created `Vlog Edit web verified` (`1b833c80-35de-467c-b5cb-ab031eb38332`), 15s at540x960/24fps, four videos alternating with four original PNGs, seven0.5s dissolves, editable Korean title, generated32-character Korean narration and reused Buant music with ducking/fade. Initial replay repeatedly froze at1:20. Diagnostics proved WebGPU rejected a transition input canvas without a rendering context. The host now initializes that transparent input. After full reload the same saved Draft played through14:23; a second replay showed photo-03 at10:08 and seeking2:12 showed the dissolve blending video/photo beneath the title. Proof: `vlog-edit-fixed-playback.png`, `vlog-edit-fixed-replay.png`, `vlog-edit-dissolve-fixed.png`. Admit web; normal-gate reinstall pending. Totals:18 admitted,18 blocked,14 unresolved.
