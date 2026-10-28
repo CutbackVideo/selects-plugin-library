@@ -72,7 +72,7 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
   assert.equal(fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8'), fs.readFileSync(path.join(root, '..', 'archive-vlog', 'beat-detect.cjs'), 'utf8'), 'beat-detect.cjs is the kit copy');
   assert.ok(!fs.existsSync(path.join(root, 'runtime.sh')), 'no runtime.sh');
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
-  assert.deepEqual(manifest.compatibility.platforms, ['macOS arm64', 'Windows x64']);
+  assert.deepEqual(manifest.compatibility.platforms, ['macOS arm64', 'Windows x64', 'web']);
   for (const f of ['INSTALL.md', 'README.md']) assert.ok(!/homebrew|nvm|Finder|command -v|runtime\.sh/i.test(fs.readFileSync(path.join(root, f), 'utf8')), f + ' has no macOS-only tool steps');
 }
 // Commit calls are never resent silently.
