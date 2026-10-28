@@ -47,7 +47,7 @@ class MulticamGeneratorWindowsTest(unittest.TestCase):
         body = self.runtime[self.runtime.index("export async function buildInspectionSheet("):]
         body = body[: body.index("\n}\n")]
         self.assertIn('"insp" + i + ".jpg"', body)
-        self.assertIn('"-f","concat","-safe","0","-i", list', body)
+        self.assertRegex(body, r'inputs\s*=\s*\[\s*"-f",\s*"concat",\s*"-safe",\s*"0",\s*"-i",\s*list\s*\]')
 
     def test_diagnostic_log_uses_the_host_file_service(self):
         body = self.runtime[self.runtime.index("export async function writeLocalDiagnostic("):]

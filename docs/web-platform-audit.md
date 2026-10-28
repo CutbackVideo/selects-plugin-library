@@ -276,7 +276,7 @@ Installed plugin skill was read directly despite a discovery-name collision; all
 
 ### Medical admission after sequential resume
 
-Existing paid job `mxmvqrqjjy` was resumed without duplicate scene generation. All nine strips and sixteen transition candidates completed. A Chrome tab crash (code5) interrupted the run; the saved job resumed again. Browser composition created nine scene cards and eight transitions, then editable headings, labels, captions and nine narration clips in `심장 펌프 혈액의 길 · Medical` (45:23 displayed). The isolated resume took roughly21minutes, largely local rendering. The app reported all sentence/scene checks passed and explicitly omitted two pointer labels whose target was not found. Actual playback reached45:22; full-page reload and playback at11:08 passed. Proof: `medical-playing.png`, `medical-reopened.png`. This verifies the software workflow, not medical factual accuracy. Admit web; normal-gate reinstall pending. Totals:19 admitted,18 blocked,13 unresolved.
+Existing paid job `mxmvqrqjjy` was resumed without duplicate scene generation. All nine strips and sixteen transition candidates completed. A Chrome tab crash (code5) interrupted the run; the saved job resumed again. Browser composition created nine scene cards and eight transitions, then editable headings, labels, captions and nine narration clips in the Medical Draft (title translated: “Heart pump: the path of blood”) (45:23 displayed). The isolated resume took roughly21minutes, largely local rendering. The app reported all sentence/scene checks passed and explicitly omitted two pointer labels whose target was not found. Actual playback reached45:22; full-page reload and playback at11:08 passed. Proof: `medical-playing.png`, `medical-reopened.png`. This verifies the software workflow, not medical factual accuracy. Admit web; normal-gate reinstall pending. Totals:19 admitted,18 blocked,13 unresolved.
 
 ### City Weekend photo workflow admission
 
@@ -294,7 +294,7 @@ The installed panel used one20s original video plus21 PNGs, Short/defaultSummer 
 
 ### Daily Vlog admission after current-host retry
 
-Opened the installed panel, selected fixtures, opening clip01 and seven automatically chosen original8s clips. Unlike the earlier timeout, creation completed. `8-Clip Daily Vlog — 2026. 10. 27. 오전 10:22:07` (20:14 displayed) contains10 Main pieces, three editable titles, transitions, bundled music and SFX. Initial playback crossed the transition at4:09 and ended20:13. After full-page reload, explicitly selected the saved Draft tab; playback at3:03 showed the animated yellow DAILY VLOG text over original footage. Proof: `daily-playing.png`, `daily-reopened.png`. Admit web; normal-gate reinstall pending. Totals:23 admitted,18 blocked,9 unresolved.
+Opened the installed panel, selected fixtures, opening clip01 and seven automatically chosen original8s clips. Unlike the earlier timeout, creation completed. `8-Clip Daily Vlog — 2026-10-27 10:22:07 AM` (20:14 displayed) contains10 Main pieces, three editable titles, transitions, bundled music and SFX. Initial playback crossed the transition at4:09 and ended20:13. After full-page reload, explicitly selected the saved Draft tab; playback at3:03 showed the animated yellow DAILY VLOG text over original footage. Proof: `daily-playing.png`, `daily-reopened.png`. Admit web; normal-gate reinstall pending. Totals:23 admitted,18 blocked,9 unresolved.
 
 ## Polaroid caption receipt correction and web admission
 
