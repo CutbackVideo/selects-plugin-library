@@ -15,6 +15,21 @@ if (response.result === null) return; // User canceled the picker.
 const outputFolder = response.result;
 ```
 
+## App target and older desktop clients
+
+Use `context.platform === "web"` for browser-only behavior. Older desktop
+clients supply the panel context without a `platform` field; absence must keep
+the desktop path, just like `"desktop"`. Do not require this field or infer the
+app target from the operating system returned by `selects.files.environment()`.
+The existing OS labels in `compatibility.platforms` remain unchanged; `web` is
+an additional declaration, not a new installation requirement for desktop.
+
+The library's `files.fingerprint` helper is implemented with the existing
+`selects.files.stat` and `readRange` calls; it does not require a host fingerprint
+API. File observations accept the existing native `ino` when `sourceIdentity`
+is absent. Effect receipts accept both existing TSX programs and shader programs
+returned by the host. Preserve these paths when adding web-specific behavior.
+
 ## Local files and media
 
 Read platform and paths with `selects.files.environment()`. Files use absolute

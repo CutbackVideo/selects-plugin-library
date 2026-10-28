@@ -125,12 +125,12 @@ test('recovery leaves already finished typography and audio unchanged',async()=>
  }
 });
 
-for (const platform of ['desktop','web']) test(`${platform} place analysis keeps its host concurrency`,()=>{
+for (const platform of [undefined,'desktop','web']) test(`${platform} place analysis keeps its host concurrency`,()=>{
  const select=vm.runInNewContext(panel.match(/const assistConcurrency=.*?;/)[0]+'assistConcurrency');
  assert.equal(select(platform),platform==='web'?1:4);
 });
-test('desktop preview retains the native URL without reading the whole video',async()=>{
- const api=loadPanelFunctions(panel,['previewSource'],{localPlatform:'desktop',
+for(const platform of [undefined,'desktop']) test(`${platform ?? 'legacy desktop'} preview retains the native URL without reading the whole video`,async()=>{
+ const api=loadPanelFunctions(panel,['previewSource'],{localPlatform:platform,
   getFS:()=>({pathToLocalURL:async()=> 'file:///clip.mp4',readFile:()=>{throw Error('Unexpected copy');}}),
  });
  const source=await api.previewSource('/clip.mp4');assert.equal(source.url,'file:///clip.mp4');source.release();

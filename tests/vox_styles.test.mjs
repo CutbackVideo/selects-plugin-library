@@ -90,7 +90,7 @@ for (const id of ids) {
  });
 }
 
-for (const id of ['vox-explainer',...ids]) for (const platform of ['desktop','web']) {
+for (const id of ['vox-explainer',...ids]) for (const platform of [undefined,'desktop','web']) {
  test(`${id}: ${platform} preserves generation scheduling`, async()=>{
   const source=fs.readFileSync(new URL(`../plugins/${id}/panel.tsx`,import.meta.url),'utf8');
   const start=source.indexOf('      const musicDone = generate(');
@@ -100,9 +100,9 @@ for (const id of ['vox-explainer',...ids]) for (const platform of ['desktop','we
   const music=new Promise(resolve=>{release=()=>{finished=true;resolve([]);};});
   // Mark the next phase exactly where the production pipeline advances to step 3.
   const begin=new Function('context','generate','advance',`return (async()=>{const st={},sc={},music=[];${source.slice(start,end)}advance();return musicDone;})();`);
-  const pending=begin({platform},()=>music,()=>{next=true;});
+  const pending=begin(platform===undefined?{}:{platform},()=>music,()=>{next=true;});
   await Promise.resolve();await Promise.resolve();
-  assert.equal(next,platform==='desktop');assert.equal(finished,false);
+  assert.equal(next,platform!=='web');assert.equal(finished,false);
   release();await pending;assert.equal(next,true);
  });
 }
