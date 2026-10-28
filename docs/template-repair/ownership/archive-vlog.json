@@ -468,7 +468,7 @@
       "reason": "Occurrence binding, native frame cover, transforms/Audio and saved program normalization already have one canonical owner; Mini and Archive keep separate editing policies.",
       "contract": {
         "input": "Native Draft handles, intended placement/programs, frozen source clocks/dimensions and saved-state evidence. Native windows take explicit source/Draft fps, a chosen whole-frame destination interval, requested source start, optional duration and still-image policy.",
-        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus.",
+        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus. Program receipts preserve either TSX source or the host-returned shader graph and actual preset parameter overrides.",
         "identity": "Opaque clip occurrence/track ids and source/draft timebases; labels alone are not content identity.",
         "dependencies": "Current SDK Draft primitives and canonical program normalization/representability rules.",
         "effects": "Private working Draft edits and independent saved readback as requested by durable owner.",
@@ -929,7 +929,7 @@
       "contract": {
         "input": "Existing SDK stat/readRange and an original file path.",
         "output": "Full byte size and streaming SHA-256, or explicit unconfirmed failure.",
-        "identity": "Exact selected file path and complete bytes; size/mtime/inode bracket the read.",
+        "identity": "Exact selected file path and complete bytes; size/mtime and native inode or browser sourceIdentity bracket the read.",
         "dependencies": "Existing SDK file primitives and bundled MIT @noble/hashes SHA-256.",
         "effects": "Read-only; no SDK, host capability, user database, file content or Draft mutation.",
         "lifetime": "One bounded observation; callers compare separate observations at execution boundaries.",
@@ -972,13 +972,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "ce52a16f9ff4035e9c16eb0f65467ddb4138a844387e302557b36b309096e8d0",
+      "sha256": "a2d66baef4cbffbf087c5ccb9ccfa7177ec46d1fdb1dbbdfcd1bbb3014d994c4",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8046,
+          "endLine": 8047,
           "feature": "panel-ui"
         },
         {
@@ -1017,13 +1017,13 @@
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7595,
-          "endLine": 7998,
+          "startLine": 7596,
+          "endLine": 7999,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8000,
-          "endLine": 8045,
+          "startLine": 8001,
+          "endLine": 8046,
           "feature": "app-guard"
         },
         {
@@ -1167,8 +1167,8 @@
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7272,
-          "endLine": 7432,
+          "startLine": 7273,
+          "endLine": 7433,
           "feature": "workflow-policy"
         },
         {
@@ -1192,8 +1192,8 @@
           "feature": "asset-owner"
         },
         {
-          "startLine": 7004,
-          "endLine": 7253,
+          "startLine": 7005,
+          "endLine": 7254,
           "feature": "source-input"
         },
         {
@@ -1207,8 +1207,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7479,
-          "endLine": 7593,
+          "startLine": 7480,
+          "endLine": 7594,
           "feature": "catalog-read"
         },
         {
@@ -1228,12 +1228,12 @@
         },
         {
           "startLine": 6806,
-          "endLine": 6908,
+          "endLine": 6909,
           "feature": "file-observation"
         },
         {
-          "startLine": 6909,
-          "endLine": 7003,
+          "startLine": 6910,
+          "endLine": 7004,
           "feature": "draft-observation"
         }
       ]
@@ -1310,28 +1310,28 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/assemble.js",
-      "sha256": "43cee90ca843a5de3710ed7727e9e88f9a9fae2d6238ff0713edb133c7640824",
+      "sha256": "43887cd15ff366332ec2a1097566d593b5b3860e3abfe73c4e2ab3b5ee31849b",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 484,
+          "endLine": 485,
           "feature": "assembly-policy"
         },
         {
           "startLine": 1,
-          "endLine": 270,
+          "endLine": 271,
           "feature": "source-input"
         },
         {
-          "startLine": 271,
-          "endLine": 350,
+          "startLine": 272,
+          "endLine": 351,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 351,
-          "endLine": 384,
+          "startLine": 352,
+          "endLine": 385,
           "feature": "assembly-policy"
         }
       ]
@@ -1403,18 +1403,18 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/decorate.js",
-      "sha256": "a811b414b78820ec642a6d48fe23d8acbe684c3d41896e29a04574ef857c8cf7",
+      "sha256": "ca561fa45b3a621d9d36cf0894b54968bd2a59602f82f3440610295ec85b275d",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 193,
+          "endLine": 203,
           "feature": "program-policy"
         },
         {
           "startLine": 1,
-          "endLine": 144,
+          "endLine": 154,
           "feature": "authoring-owner"
         }
       ]
@@ -1792,7 +1792,7 @@
     },
     {
       "path": "shared/native-image-input.mjs",
-      "sha256": "2ddf652faac31bc554d0e932097bb7527b49868a28be20e076b1e680739044af",
+      "sha256": "7c588765732e5686558f95eb3d57daae7cadb36896819c925e34c1228769da90",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
@@ -1805,13 +1805,13 @@
     },
     {
       "path": "shared/native-image-authoring.js",
-      "sha256": "f19be1565f6afebcf9fc457bfe6010322a181633f3c29691bf2726bb56978bf2",
+      "sha256": "f232cef11439765dee190997ef92891712dd971d3b06a3f5c30da447021f0129",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 302,
+          "endLine": 312,
           "feature": "authoring-owner"
         }
       ]
@@ -1831,7 +1831,7 @@
     },
     {
       "path": "shared/template-run.js",
-      "sha256": "c1c95c0db1c972d35608945c12ca61d6d43ac922813b6cf1fa6545b8aedde254",
+      "sha256": "8601846e8a8757939558f7ace16e7a27242f7407cacbfe6a505d108a5d427c84",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
@@ -2078,12 +2078,12 @@
     },
     {
       "path": "shared/file-observation.js",
-      "sha256": "3792578ca5dcdbdaa9efbb3bbb54deb688cb582d78a9bc90df6cfd6c141e341d",
+      "sha256": "067957ba42d403b739ea8e80e74eed8cc173052ce31a766d5f6a3f953ed1e527",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 102,
+          "endLine": 103,
           "feature": "file-observation"
         }
       ]
@@ -2230,7 +2230,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "322765248ee5359e5bee3ed0f0eaa5ae80d4a4f36705930b01afbfb7ec0bcf91",
+      "sha256": "d3cbb6aa01680750af21c141b85801183e384e8109a0985158d759296465fb61",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -2317,7 +2317,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 7367
+          "line": 7368
         }
       ],
       "repairOwner": "media-inventory",
@@ -2339,7 +2339,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/plugin.json",
-          "line": 202
+          "line": 203
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
