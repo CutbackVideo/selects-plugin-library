@@ -280,7 +280,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   const approve = () => guard(async () => {
     if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
-    if (liveErrors.length && !window.confirm(T("approveAnyway") + "\n\n" + liveErrors.slice(0, 8).join("\n"))) return;
+    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
     const projectId = await F.ensureProject(sdk, env.current!, s);
     await update({ ...s, projectId, approved: F.revisionOf(s.script!, s.voiceId) });
     setTts(await F.readTts(sdk, projectId));
@@ -383,7 +383,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     // Text that does not fit (cut off, over the source, out of its card) cannot become the video either.
     const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e) || LAYOUT_ERROR.test(e));
     if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).map((x) => issueText(lang, x)).join("; ") }));
-    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n"))) return;
+    if (v.errors.length && !await sdk.confirm({ title: T("planAnyway"), message: v.errors.slice(0, 8).map((x) => issueText(lang, x)).join("\n") })) return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     // Another confirm of this article (or any Draft of that name) gets a numbered name, so the tabs tell them apart.
     const name = F.uniqueName(F.finalName(s), await F.draftNames(sdk, s.projectId!, s.preview?.draftId ?? null).catch(() => []));
