@@ -30,3 +30,22 @@ test('source observations refuse an inconsistent expected set before file I/O',a
 test('unused source observation does not require a file capability',async()=>{
  assert.deepEqual(await input.observeSourceFiles({},[]),[]);
 });
+test('optional native observation uses exact adapter and reports only verified bytes',async()=>{
+ const f=fixture(),progress=[];let nativeCalls=0;
+ f.files.fingerprint=async(path,options)=>{assert.equal(options.native,true);nativeCalls++;const bytes=f.contents.get(path);return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};};
+ const rows=await input.observeSourceFiles(f.files,['/a','/b'],null,{native:true,onProgress:p=>progress.push(p)});
+ assert.equal(nativeCalls,2);assert.deepEqual(f.calls,[]);assert.deepEqual(progress.map(p=>[p.index,p.total,p.bytesRead,p.complete]),[[1,2,0,false],[1,2,5,true],[2,2,0,false],[2,2,4,true]]);assert.equal(rows.length,2);
+});
+test('an opt-in native failure is never retried as a legacy read',async()=>{
+ const f=fixture();f.files.fingerprint=async()=>{throw Error('native read failed');};
+ await assert.rejects(input.observeSourceFiles(f.files,['/a'],null,{native:true}),e=>e.cause?.message==='native read failed');assert.deepEqual(f.calls,[]);
+});
+test('aborting pending legacy observation ends the caller and dispatches no further read',async()=>{
+ const f=fixture(),controller=new AbortController();let resolve,readCount=0;
+ f.files.stat=async()=>({size:100000,mtimeMs:1,ino:2,isDirectory:false});
+ f.files.readRange=async()=>{readCount++;return new Promise(r=>{resolve=r;});};
+ const result=input.observeSourceFiles(f.files,['/a'],null,{signal:controller.signal});
+ while(!resolve)await new Promise(r=>setImmediate(r));controller.abort();
+ await assert.rejects(result,e=>e.name==='AbortError');resolve({bytesRead:49152,base64:Buffer.alloc(49152).toString('base64')});
+ await new Promise(r=>setImmediate(r));assert.equal(readCount,1);
+});

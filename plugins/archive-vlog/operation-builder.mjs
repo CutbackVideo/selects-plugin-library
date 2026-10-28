@@ -2,6 +2,7 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 import {Script} from 'node:vm';
 import {fingerprintTemplateFile} from '../../shared/file-observation.js';
+import {nativeSourceFiles} from '../../shared/native-source-files.js';
 import {templateObservedSource} from '../../shared/draft-observation.js';
 const source=readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
 const names=['bundledAssetIssue','readBundledAssetResource','ensureProjectAudio'];
@@ -19,7 +20,7 @@ const authoring=await import('data:text/javascript;base64,'+Buffer.from(authorin
 const input=await import(new URL('../../shared/native-image-input.mjs',import.meta.url));
 const policy=readFileSync(new URL('./dev/assembly-policy.js',import.meta.url),'utf8');
 const assemblyTemplate=readFileSync(new URL('./dev/assemble.template.js',import.meta.url),'utf8');
-const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Archive assembly policy.\n'+[fingerprintTemplateFile,templateObservedSource,input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,input.requireSourceFileSupport,input.observeSourceFiles,input.confirmProjectSourcePaths,authoring.nativeMediaWindow,authoring.bindMediaPlacement,authoring.inspectImageTransforms,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
+const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Archive assembly policy.\n'+[fingerprintTemplateFile,nativeSourceFiles,templateObservedSource,input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,input.requireSourceFileSupport,input.observeSourceFiles,input.confirmProjectSourcePaths,authoring.nativeMediaWindow,authoring.bindMediaPlacement,authoring.inspectImageTransforms,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
 const assemblyTarget=new URL('./scripts/assemble.js',import.meta.url);
 if(process.argv.includes('--check')){
  if(readFileSync(assemblyTarget,'utf8')!==assembly){console.error('Out-of-date Archive Vlog assembly operation');process.exitCode=1;}

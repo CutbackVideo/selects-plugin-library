@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "recap-2026",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "name": "2026 Recap",
   "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 8.1-second title intro plus 157 fast cuts locked to a bundled 68.6-second soundtrack.",
   "status": "experimental",
@@ -30,8 +30,8 @@
   },
   "localized": {
     "de": {
-      "name": "2026 Rückblick",
-      "summary": "Erstellt aus dem Material des offenen Projekts einen beatgenauen 1080x1920-Rückblick-Draft: 8,1 Sekunden Titel-Intro plus 157 schnelle Schnitte, fest auf einen mitgelieferten 68,6-Sekunden-Soundtrack getaktet."
+      "name": "2026 R\u00fcckblick",
+      "summary": "Erstellt aus dem Material des offenen Projekts einen beatgenauen 1080x1920-R\u00fcckblick-Draft: 8,1 Sekunden Titel-Intro plus 157 schnelle Schnitte, fest auf einen mitgelieferten 68,6-Sekunden-Soundtrack getaktet."
     },
     "en": {
       "name": "2026 Recap",
@@ -39,19 +39,19 @@
     },
     "es": {
       "name": "Resumen de 2026",
-      "summary": "Crea un Draft de resumen de 1080x1920 sincronizado al ritmo con el material del proyecto abierto: una intro con título de 8,1 segundos y 157 cortes rápidos ajustados a una pista de 68,6 segundos incluida."
+      "summary": "Crea un Draft de resumen de 1080x1920 sincronizado al ritmo con el material del proyecto abierto: una intro con t\u00edtulo de 8,1 segundos y 157 cortes r\u00e1pidos ajustados a una pista de 68,6 segundos incluida."
     },
     "fr": {
-      "name": "Rétrospective 2026",
-      "summary": "Crée un Draft récapitulatif 1080x1920 calé sur le rythme à partir des rushes du projet ouvert : une intro titrée de 8,1 secondes et 157 coupes rapides verrouillées sur une bande-son de 68,6 secondes fournie."
+      "name": "R\u00e9trospective 2026",
+      "summary": "Cr\u00e9e un Draft r\u00e9capitulatif 1080x1920 cal\u00e9 sur le rythme \u00e0 partir des rushes du projet ouvert : une intro titr\u00e9e de 8,1 secondes et 157 coupes rapides verrouill\u00e9es sur une bande-son de 68,6 secondes fournie."
     },
     "it": {
       "name": "Recap 2026",
       "summary": "Crea un Draft di riepilogo 1080x1920 a tempo dal materiale del progetto aperto: un'introduzione con titolo di 8,1 secondi e 157 stacchi rapidi agganciati a una traccia di 68,6 secondi inclusa."
     },
     "ja": {
-      "name": "2026 まとめ",
-      "summary": "開いているプロジェクトの素材から、ビートに合わせた 1080x1920 のまとめ Draft を作成します。8.1 秒のタイトルイントロと、同梱の 68.6 秒のサウンドトラックに固定された 157 個の高速カットで构成されます。"
+      "name": "2026 \u307e\u3068\u3081",
+      "summary": "\u958b\u3044\u3066\u3044\u308b\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u7d20\u6750\u304b\u3089\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f 1080x1920 \u306e\u307e\u3068\u3081 Draft \u3092\u4f5c\u6210\u3057\u307e\u3059\u30028.1 \u79d2\u306e\u30bf\u30a4\u30c8\u30eb\u30a4\u30f3\u30c8\u30ed\u3068\u3001\u540c\u68b1\u306e 68.6 \u79d2\u306e\u30b5\u30a6\u30f3\u30c9\u30c8\u30e9\u30c3\u30af\u306b\u56fa\u5b9a\u3055\u308c\u305f 157 \u500b\u306e\u9ad8\u901f\u30ab\u30c3\u30c8\u3067\u6784\u6210\u3055\u308c\u307e\u3059\u3002"
     },
     "ko": {
       "name": "2026 \ub9ac\ucea1",
@@ -61,21 +61,21 @@
           "hint": "\ud544\uc218: 8.5\ucd08 \uc774\uc0c1 \uc778\ud2b8\ub85c \uc601\uc0c1 1\uac1c. \uc778\ud2b8\ub85c\uc640 \ube60\ub978 \ucef7 \uc601\uc0c1\uc744 \ubaa8\ub450 \uc120\ud0dd\ud558\uba74 Apply\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
         },
         "clips": {
-          "hint": "\ud544\uc218: \uac01 1.7\ucd08 \uc774\uc0c1 \uc601\uc0c1 1–50\uac1c. \ubd80\uc871\ud55c \ucef7\uc740 \ubc18\ubcf5\ub429\ub2c8\ub2e4. \ub450 \uc785\ub825\uc744 \ubaa8\ub450 \ucc44\uc6b0\uba74 Apply\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
+          "hint": "\ud544\uc218: \uac01 1.7\ucd08 \uc774\uc0c1 \uc601\uc0c1 1\u201350\uac1c. \ubd80\uc871\ud55c \ucef7\uc740 \ubc18\ubcf5\ub429\ub2c8\ub2e4. \ub450 \uc785\ub825\uc744 \ubaa8\ub450 \ucc44\uc6b0\uba74 Apply\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
         }
       }
     },
     "pt": {
       "name": "Retrospectiva de 2026",
-      "summary": "Cria um Draft de retrospectiva 1080x1920 sincronizado com a batida a partir do material do projeto aberto: uma introdução com título de 8,1 segundos e 157 cortes rápidos travados numa trilha de 68,6 segundos incluída."
+      "summary": "Cria um Draft de retrospectiva 1080x1920 sincronizado com a batida a partir do material do projeto aberto: uma introdu\u00e7\u00e3o com t\u00edtulo de 8,1 segundos e 157 cortes r\u00e1pidos travados numa trilha de 68,6 segundos inclu\u00edda."
     },
     "tr": {
-      "name": "2026 Özeti",
-      "summary": "Açık projedeki görüntülerden ritme kilitli 1080x1920 bir özet Draft'ı oluşturur: 8,1 saniyelik başlık girişi ve pakete dahil 68,6 saniyelik müziğe sabitlenmiş 157 hızlı kesme."
+      "name": "2026 \u00d6zeti",
+      "summary": "A\u00e7\u0131k projedeki g\u00f6r\u00fcnt\u00fclerden ritme kilitli 1080x1920 bir \u00f6zet Draft'\u0131 olu\u015fturur: 8,1 saniyelik ba\u015fl\u0131k giri\u015fi ve pakete dahil 68,6 saniyelik m\u00fczi\u011fe sabitlenmi\u015f 157 h\u0131zl\u0131 kesme."
     },
     "zh": {
-      "name": "2026 年度回顾",
-      "summary": "使用当前项目中的素材生成与节拍对齐的 1080x1920 年度回顾 Draft：8.1 秒标题片头，以及锁定在随附 68.6 秒配乐上的 157 个快切。"
+      "name": "2026 \u5e74\u5ea6\u56de\u987e",
+      "summary": "\u4f7f\u7528\u5f53\u524d\u9879\u76ee\u4e2d\u7684\u7d20\u6750\u751f\u6210\u4e0e\u8282\u62cd\u5bf9\u9f50\u7684 1080x1920 \u5e74\u5ea6\u56de\u987e Draft\uff1a8.1 \u79d2\u6807\u9898\u7247\u5934\uff0c\u4ee5\u53ca\u9501\u5b9a\u5728\u968f\u9644 68.6 \u79d2\u914d\u4e50\u4e0a\u7684 157 \u4e2a\u5feb\u5207\u3002"
     }
   },
   "collection": "visual-highlights",
@@ -96,7 +96,7 @@
     {
       "id": "clips",
       "label": "Select clips",
-      "hint": "Required: 1–50 videos, each at least 1.7 seconds. Fewer videos repeat; fill both inputs to enable Apply.",
+      "hint": "Required: 1\u201350 videos, each at least 1.7 seconds. Fewer videos repeat; fill both inputs to enable Apply.",
       "accepts": [
         "video"
       ],

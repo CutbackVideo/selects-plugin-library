@@ -1,7 +1,9 @@
 import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import vm from'node:vm';import{stripTypeScriptTypes}from'node:module';
+import {loadPanelModule,disposePanelModule} from '../../../tests/panel_module_fixture.mjs';
 const plain=x=>JSON.parse(JSON.stringify(x));
 const source=fs.readFileSync(new URL('../panel.tsx',import.meta.url),'utf8');const block=name=>{const a=source.indexOf('export function '+name+'(');const z=source.indexOf('\n}',a)+2;return stripTypeScriptTypes(source.slice(a,z).replace('export ',''));};
-const {judeProjectObservedFace}=vm.runInNewContext(block('judeProjectObservedFace')+';({judeProjectObservedFace})');
+const projectionPanel=loadPanelModule(source,{names:['judeProjectObservedFace']});
+const {judeProjectObservedFace}=projectionPanel;test.after(()=>disposePanelModule(projectionPanel));
 const transform={enabled:true,scale:{x:1920/607.5,y:1920/607.5},position:{x:10,y:5},rotation:0,anchor:{x:0,y:0}};
 test('source-normalized faces project through contain, relative scale and height-relative signed SDK position',()=>{const b=judeProjectObservedFace([.4,.2,.2,.4],{width:1920,height:1080},transform);assert.ok(Math.abs((b.x+b.w/2)-732)<1e-6);assert.ok(Math.abs((b.y+b.h/2)-672)<1e-6);assert.ok(b.w>680&&b.h>768);});
 test('unsupported transforms and invalid coordinates remain unknown',()=>{assert.equal(judeProjectObservedFace([.4,.2,.2,.4],{width:1920,height:1080},{...transform,rotation:5}),null);assert.equal(judeProjectObservedFace([.4,.2,.2,.4],{width:1920,height:1080},{...transform,anchor:{x:.1,y:0}}),null);assert.equal(judeProjectObservedFace([.4,.2,-.2,.4],{width:1920,height:1080},transform),null);});

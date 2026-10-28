@@ -342,5 +342,10 @@
       "by": "user",
       "change": "Add background music: Kevin MacLeod 'Dark Hallway (distressed)' (CC BY 4.0) from its start, -5 dB. Not measured from the reference (audio is outside style-cloner scope)."
     }
-  ]
+  ],
+  "backgroundMusicPolicy": {
+    "default": "off",
+    "selection": "Explicit bundled music opt-in in the gallery or panel",
+    "originalAudio": "Preserved"
+  }
 }

@@ -50,7 +50,7 @@ export async function holdFixture(t,{minify=false,sourceName='source.mp4'}={}){
   calls.push({bin,args:[...args],signal});await hooks.beforeTool?.(bin,args,signal);
   const result=await new Promise((resolve,reject)=>{
    if(signal?.aborted){reject(Error('Aborted'));return;}
-   const child=execFile(bin,args,{encoding:'utf8',maxBuffer:4<<20},(error,stdout,stderr)=>{signal?.removeEventListener('abort',abort);if(error)reject(error);else resolve({stdout,stderr});});
+   const child=execFile(bin,args,{encoding:'utf8',maxBuffer:4<<20},(error,stdout,stderr)=>{signal?.removeEventListener('abort',abort);if(error)reject(Object.assign(error,{stdout,stderr}));else resolve({stdout,stderr});});
    const abort=()=>child.kill();signal?.addEventListener('abort',abort,{once:true});
   });
   await hooks.afterTool?.(bin,args,result);return result;

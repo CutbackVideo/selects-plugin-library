@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.36",
+  "version": "0.3.37",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -111,7 +111,7 @@
       "choices": [
         {
           "id": "bundled",
-          "label": "Unexplored · TAD MILLER"
+          "label": "Unexplored \u00b7 TAD MILLER"
         },
         {
           "id": "none",

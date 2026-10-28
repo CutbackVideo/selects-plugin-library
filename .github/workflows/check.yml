@@ -28,7 +28,7 @@ jobs:
       - name: Check complete template module delivery without rewriting artifacts
         run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" npm run templates:check
       - name: Test missed template synchronization and generation
-        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs
+        run: SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node --test tests/template_module_pipeline.test.mjs tests/panel_version_delivery.test.mjs tests/portable_panel_delivery.test.mjs
       - name: Test complete panel module fixtures
         run: node --test tests/panel_module_fixture.test.mjs
       - name: Test SDK-free template observation and saved-result compatibility
@@ -237,7 +237,7 @@ jobs:
       - name: Test template panels on Windows paths
         run: |
           node --test tests/selected_template_media.test.mjs
-          node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
+          node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/native_file_observation.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
           node --test tests/cinema_vlog_studio_fps.test.mjs
           node --test tests/thank_you_recap_fps.test.mjs
@@ -277,7 +277,7 @@ jobs:
           node --test plugins/jude-kinetic-style/tests/sprite-codec.test.mjs
           node --test tests/jude_face_result_pages.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_progress.test.cjs tests/template_progress_consumers.test.mjs
-          node --test plugins/doac-style/tests/caption-placement.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test plugins/doac-style/tests/caption-placement.test.mjs tests/caption_framing_noop.test.mjs tests/depth_canvas_preservation.test.mjs tests/ali_live_clip_targets.test.mjs tests/ali_camera_continuity.test.mjs tests/ali_layout_transition.test.mjs tests/ali_face_placement.test.mjs tests/ali_face_pipeline.test.mjs tests/jude_music_opt_in.test.mjs tests/jude_music_lifecycle.test.mjs tests/jude_track_reuse.test.mjs tests/vlog_native_hash_cancel.test.mjs tests/doac_runtime_setup.test.mjs
           node --test tests/video_ai_frames.test.mjs
           node --test tests/travel_beat_vlog.test.mjs tests/travel_beat_vlog_overlay.test.mjs tests/template_alias_failures.test.mjs tests/cutout_beat_gallery_windows.test.mjs
           node --test tests/portrait_beat_montage*.test.mjs
@@ -285,7 +285,7 @@ jobs:
         run: node --test plugins/podcast-hook-captions/tests/*.test.cjs
       - name: Test reported-case consumer regressions
         run: |
-          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/daily_vlog_8.test.mjs tests/daily_vlog_8_reference.test.mjs tests/daily_font_fallback.test.mjs tests/daily_input_guidance.test.mjs tests/gongju_gallery_beat_sync.test.mjs tests/photo_face*.test.mjs tests/gallery_face*.test.mjs tests/recap_face*.test.mjs tests/gallery_contain_fallback.test.mjs tests/recap_contain_fallback.test.mjs tests/recap_manual_source_guard.test.mjs tests/recap_selection_identity.test.mjs tests/recap_input_guidance.test.mjs tests/daily_vlog_8_typography.test.mjs tests/chris_broll_search_recovery.test.mjs tests/chris_broll_context.test.mjs tests/chris_search_retry_full_panel.test.mjs tests/chris_broll_warning_notice.test.mjs tests/chris_verification_capture_reuse.test.mjs tests/chris_progress_pipeline.test.mjs tests/chris_phrase_halo.test.mjs tests/chris_target_display.test.mjs tests/doac_target_display.test.mjs tests/caption_target_display.test.mjs tests/ali_graphic_spacing.test.mjs tests/critical_panel_storage.test.mjs plugins/depth-type-captions/tests/*.test.mjs plugins/jude-kinetic-style/tests/*.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/daily_vlog_8.test.mjs tests/daily_vlog_8_reference.test.mjs tests/daily_source_allocation.test.mjs tests/daily_font_fallback.test.mjs tests/daily_input_guidance.test.mjs tests/gongju_gallery_beat_sync.test.mjs tests/photo_face*.test.mjs tests/gallery_face*.test.mjs tests/recap_face*.test.mjs tests/gallery_contain_fallback.test.mjs tests/recap_contain_fallback.test.mjs tests/recap_manual_source_guard.test.mjs tests/recap_selection_identity.test.mjs tests/recap_input_guidance.test.mjs tests/daily_vlog_8_typography.test.mjs tests/chris_broll_search_recovery.test.mjs tests/chris_broll_context.test.mjs tests/chris_broll_workload.test.mjs tests/chris_search_retry_full_panel.test.mjs tests/chris_broll_warning_notice.test.mjs tests/chris_verification_capture_reuse.test.mjs tests/chris_progress_pipeline.test.mjs tests/chris_phrase_halo.test.mjs tests/chris_target_display.test.mjs tests/doac_target_display.test.mjs tests/caption_target_display.test.mjs tests/ali_graphic_spacing.test.mjs tests/critical_panel_storage.test.mjs plugins/depth-type-captions/tests/*.test.mjs plugins/jude-kinetic-style/tests/*.test.mjs
       - name: Test Chris Williamson shared AI consumer
         run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/chris_williamson*.test.mjs tests/chris_reported_cases.test.mjs tests/chris_low_motion_video.test.mjs tests/chris_engine_error_notice.test.mjs
       - name: Test EO Shorts

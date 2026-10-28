@@ -267,6 +267,27 @@ async function probeFrameSizes(env:Env,files:Record<string,any>){
  }
 }
 function judeAttached(env:Env) { if(env.signal?.aborted)throw new DOMException('Aborted','AbortError'); }
+// addMotionGraphic reuses only the outermost free video lane. Author each
+// simultaneous depth across the timeline before proceeding to the next depth,
+// instead of climbing one fresh lane for every new scene's overlapping lines.
+function judeGraphicGroups(items:any){
+ const entries=[...items.cards.map((row:any)=>({kind:'Card',row})),...items.captions.map((row:any)=>({kind:'Caption',row}))]
+  .map((entry:any,index:number)=>({...entry,index})).sort((a:any,b:any)=>a.row.start-b.row.start||(a.kind===b.kind?a.index-b.index:a.kind==='Card'?-1:1));
+ const ends:number[]=[],lanes:any[][]=[];
+ for(const entry of entries){
+  // Keep later overlapping material above earlier material, including the
+  // opaque card below its words. A finished scene frees every depth for reuse.
+  let depth=0;for(let i=0;i<ends.length;i++)if(ends[i]>entry.row.start)depth=i+1;
+  (lanes[depth]??=[]).push(entry);ends[depth]=entry.row.end;
+ }
+ const groups:any[]=[];
+ for(const entry of lanes.flat()){
+  const last=groups.at(-1);
+  if(last?.kind===entry.kind)last.rows.push(entry.row);else groups.push({kind:entry.kind,rows:[entry.row]});
+ }
+ return groups;
+}
+
 export async function runPipeline(env:Env,projectId:string,sequenceId:string,options:Options){
  judeAttached(env);env.status('Reading the Draft…');
  const src=await readDraft(env,projectId,sequenceId);
@@ -354,9 +375,9 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
    await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const tsx=${JSON.stringify(code)};const defs=${JSON.stringify(params)};for(const row of ${JSON.stringify(batch)}){await d.addMotionGraphic({within:await d.rangeAtFrames(row.start,row.end),label:${JSON.stringify(PREFIX+kind+' · ')}+String((row.parameters as any).text||'Cream / circle').slice(0,60),tsxCode:tsx,parameters:row.parameters,editableParameters:defs as any});}await d.commitAll(${JSON.stringify('Jude Kinetic: '+kind)})${COMMIT_OK};return true;`,'Add editable '+kind,true);
   }
  };
- await add(items.cards,CARD_TSX,CARD_PARAMS,'Card');await add(items.captions,LINE_TSX,LINE_PARAMS,'Caption');
+ for(const group of judeGraphicGroups(items))await add(group.rows,group.kind==='Card'?CARD_TSX:LINE_TSX,group.kind==='Card'?CARD_PARAMS:LINE_PARAMS,group.kind);
  judeAttached(env);
- if(options.music!==false){env.status('Adding the background music…');await placeMusic(env,projectId,draftId,src.fps).then(m=>{report.music=m;if(m.shortBySeconds>0)report.warnings.push(`The music (${MUSIC.title}, ${m.trackSeconds} s) ends ${m.shortBySeconds} s before the Draft does.`);},(e:any)=>report.warnings.push('Background music was not added: '+String(e?.message||e).slice(0,200)));}
+ if(options.music===true){env.status('Adding the background music…');await placeMusic(env,projectId,draftId,src.fps).then(m=>{report.music=m;if(m.shortBySeconds>0)report.warnings.push(`The music (${MUSIC.title}, ${m.trackSeconds} s) ends ${m.shortBySeconds} s before the Draft does.`);},(e:any)=>report.warnings.push('Background music was not added: '+String(e?.message||e).slice(0,200)));}
  judeAttached(env);
  await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});const foot=await p.readFootage();const old=foot.folders.find(x=>x.name===${JSON.stringify(FOLDER)}&&!x.path.includes('/'));const folder=old?.folderId||(await p.createFolder({name:${JSON.stringify(FOLDER)}})).folderId;await p.moveToFolder({targetFolderId:folder,draftIds:[${JSON.stringify(draftId)}]});return true;`,'File the Draft under Jude Kinetic',true).catch((e:any)=>report.warnings.push('Draft saved, but folder placement failed: '+e.message));
  judeAttached(env);
@@ -411,15 +432,7 @@ async function judeSharedCaptionFaces(env:Env,projectId:string,src:any,segments:
  await env.writeText(hostJoin(jobDir,'caption-face-results.json'),JSON.stringify({detected}));return detected;
 }
 export function judeProjectObservedFace(box:number[],source:{width:number;height:number},t:any){
- if(!box||box.length!==4||!box.every(Number.isFinite)||box[0]<0||box[1]<0||box[2]<=0||box[3]<=0||box[0]+box[2]>1.000001||box[1]+box[3]>1.000001||!(source.width>0&&source.height>0)||!t||t.rotation||t.anchor?.x||t.anchor?.y)return null;
- const sx=t.enabled?t.scale?.x:1,sy=t.enabled?t.scale?.y:1;
- if(!(sx>0&&sy>0)||Math.abs(sx-sy)>.001)return null;
- const fit=Math.min(1080/source.width,1920/source.height),w=source.width*fit*sx,h=source.height*fit*sy;
- const dx=t.enabled?Number(t.position?.x||0)/100*1920:0,dy=t.enabled?Number(t.position?.y||0)/100*1920:0;
- if(!Number.isFinite(dx)||!Number.isFinite(dy))return null;
- const x=540+dx+(box[0]-.5)*w,y=960-dy+(box[1]-.5)*h;
- const mx=box[2]*w*.1+16,my=box[3]*h*.1+16;
- return {x:x-mx,y:y-my,w:box[2]*w+mx*2,h:box[3]*h+my*2};
+ return projectObservedFace(box,source,t);
 }
 export function judeCaptionInk(p:any){
  const size=Math.min(Number(p.fontSize),Number(p.boxWidth)/Math.max(.01,textEm(p.text,!!p.serif,Number(p.tracking)||0)));
@@ -562,11 +575,11 @@ export async function placeMusic(env:Env,projectId:string,draftId:string,fps:num
  const trackSeconds=Number(await hostProbeSeconds(path));
  if(!(trackSeconds>1))throw Error('The music file could not be read.');
  const inventory=`const project=selects.project(${JSON.stringify(projectId)});
-// Host paths compare after NFC and \\ to / (and case on Windows); a file of the same name and length counts when no path matches.
-let rid=undefined as string|undefined,named=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
-const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)}),base=(p:string)=>p.slice(p.lastIndexOf('/')+1);
-const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else{const p=norm(n.path);if(p===want)rid=n.resourceId;else if(base(p)===base(want)&&Math.abs(Number(n.durationSeconds)-${trackSeconds})<=0.5)named??=n.resourceId;}}};
-const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);rid??=named;};
+// Reuse only the verified local file's path, after NFC and \\ to / (and case on Windows).
+let rid=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
+const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)});
+const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else if(norm(n.path)===want)rid=n.resourceId;}};
+const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);};
 await read();`;
  // Importing/grouping media persists Project state. Finish that script before
  // the separate Draft edit, so the SDK can commit the audio overlay atomically.
@@ -782,6 +795,7 @@ function StylePanel({ sdk, context, ui }: any) {
   const [alreadyStyled, setAlreadyStyled] = useState(false);
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking");
   const [busy, setBusy] = useState(false);
+  const [music, setMusic] = useState("none");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
@@ -855,7 +869,7 @@ function StylePanel({ sdk, context, ui }: any) {
       if(!current())throw new DOMException("Aborted","AbortError");
       const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); });
       env.signal=controller.signal;env.retryAi=true;
-      const report = await runPipeline(env, projectId, from, { copy: false });
+      const report = await runPipeline(env, projectId, from, { copy: false, music: music === "bundled" });
       judeAttached(env);
       if (current()) { setResult({ id: report.draftId }); setStatus("Your Jude Kinetic draft is ready."); }
       if (current() && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Jude Kinetic draft" });
@@ -874,7 +888,7 @@ function StylePanel({ sdk, context, ui }: any) {
   const busyLabel = analysisState === "needs-analysis" || analysisState === "analyzing" ? "Analyzing transcript…" : "Styling this draft…";
   const helperText = analysisState === "needs-analysis"
     ? "This draft has no transcript yet. The first click analyzes its source footage, then continues automatically. Analysis may use your Selects analysis credits."
-    : "One click turns this draft into 9:16 with bold white captions, red italic emphasis, a cream card with an expanding red circle, lines that pass behind the speaker, and background music. The open draft itself is changed; no copy is made.";
+    : "One click turns this draft into 9:16 with bold white captions, red italic emphasis, a cream card with an expanding red circle, lines that pass behind the speaker. Original speech is preserved; background music is added only when selected below. The open draft itself is changed; no copy is made.";
 
   return <ui.Section title="Jude Kinetic"><ui.Stack>
     <p>Turn a talking-head draft into red and cream kinetic typography.</p>
@@ -882,6 +896,8 @@ function StylePanel({ sdk, context, ui }: any) {
     <p><strong>{targetLabels.current}</strong>: {!sequenceId?targetLabels.noDraft:currentInfo?(currentInfo.name||targetLabels.unavailable):targetLabels.loading}</p>
     {runningTarget&&<p><strong>{targetLabels.running}</strong>: {runningTarget.projectName||targetLabels.unavailable} / {runningTarget.name||targetLabels.unavailable}</p>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
+    <ui.Select label="Background music" value={music} onChange={setMusic} disabled={busy}
+      options={[{value:"none",label:"Original audio only"},{value:"bundled",label:"Add Dark Hallway (distressed)"}]} />
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
@@ -956,7 +972,7 @@ function TemplateRun({ sdk, context }: any) {
         const draftId = speaker.kind === "video" ? previous?.draftId || await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
         await sdk.storage.setItem(runKey,JSON.stringify({status:"ready",draftId}));
         if (superseded()) return;
-        const result = await runPipeline(env, projectId, draftId, { copy: false });
+        const result = await runPipeline(env, projectId, draftId, { copy: false, music: context.template.options?.music === "bundled" });
         finish({ sequenceId: result.draftId });
       } catch (e: any) {
         finish({ error: hostMessage(e || "").slice(0, 300) || TEMPLATE_FAILED });
@@ -1957,3 +1973,69 @@ module.exports = {createTemplateProgressView};
 return module.exports;})();
 const TemplateProgressView=sharedTemplateProgress.createTemplateProgressView(React);
 // template-progress-adapter:end
+
+const judeSharedCoverFocus=(()=>{const module={exports:{}};
+// cover-focus:start
+// Calculates focus for observed face boxes only; undetected faces and unsampled motion remain unknown.
+// Detection boxes are in the displayed source raster, before the existing cover crop.
+// This only finds a feasible focus; it cannot make an over-wide group fit a fixed crop.
+function faceSafeCoverFocus(source, frame, observation, manualFocus = null) {
+  if (manualFocus) {
+    if (![manualFocus.focusX, manualFocus.focusY].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw Error('Invalid manual focus');
+    return { status: 'manual', focusX: manualFocus.focusX, focusY: manualFocus.focusY };
+  }
+  const W = source.width, H = source.height, w = frame.width, h = frame.height;
+  if (![W, H, w, h].every(n => Number.isFinite(n) && n > 0)) throw Error('Invalid crop dimensions');
+  if (observation?.coordinateSpace !== 'display-pixels' || observation?.boxFormat !== 'xyxy' ||
+      observation?.frameSize?.width !== W || observation?.frameSize?.height !== H || !Array.isArray(observation.samples) || !observation.samples.length) {
+    return { status: 'unavailable', reason: 'face-coordinates' };
+  }
+  let boxCount = 0;
+  const bounds = { left: W, right: 0, top: H, bottom: 0 };
+  for (const sample of observation.samples) {
+    if (!Array.isArray(sample.faces)) return { status: 'unavailable', reason: 'face-coordinates' };
+    for (const face of sample.faces) {
+      const b = face?.box;
+      if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax].every(Number.isFinite) ||
+          b.xmin < 0 || b.ymin < 0 || b.xmax > W || b.ymax > H || b.xmin >= b.xmax || b.ymin >= b.ymax) {
+        return { status: 'unavailable', reason: 'face-coordinates' };
+      }
+      boxCount++;
+      bounds.left = Math.min(bounds.left, b.xmin); bounds.right = Math.max(bounds.right, b.xmax);
+      bounds.top = Math.min(bounds.top, b.ymin); bounds.bottom = Math.max(bounds.bottom, b.ymax);
+    }
+  }
+  if (!boxCount) return { status: 'unavailable', reason: 'no-faces' };
+  const cropW = Math.min(W, H * w / h), cropH = Math.min(H, W * h / w);
+  if (bounds.right - bounds.left > cropW + 1e-7 || bounds.bottom - bounds.top > cropH + 1e-7) {
+    return { status: 'cannot-fit', reason: 'faces-wider-than-crop', observedFaceBoxes: boxCount };
+  }
+  // Keep the existing centered composition when it already contains every box.
+  const centered = bounds.left >= (W - cropW) / 2 && bounds.right <= (W + cropW) / 2 &&
+    bounds.top >= (H - cropH) / 2 && bounds.bottom <= (H + cropH) / 2;
+  if (centered) return { status: 'focused', focusX: 0.5, focusY: 0.5, changed: false,
+    observedFaceBoxes: boxCount, observedBounds: bounds, cropWidth: cropW, cropHeight: cropH };
+  const x = Math.max(cropW / 2, Math.min(W - cropW / 2, (bounds.left + bounds.right) / 2));
+  const y = Math.max(cropH / 2, Math.min(H - cropH / 2, (bounds.top + bounds.bottom) / 2));
+  return { status: 'focused', focusX: x / W, focusY: y / H, changed: true, observedFaceBoxes: boxCount,
+    observedBounds: bounds, cropWidth: cropW, cropHeight: cropH };
+}
+
+// Project a normalized xywh observation using the existing SDK's contain fit,
+// scale and height-relative position coordinates. Preserve unsupported geometry as unknown.
+function projectObservedFace(box,source,t,frame={width:1080,height:1920}) {
+ if(!box||box.length!==4||!box.every(Number.isFinite)||box[0]<0||box[1]<0||box[2]<=0||box[3]<=0||box[0]+box[2]>1.000001||box[1]+box[3]>1.000001||!(source?.width>0&&source?.height>0)||!t||t.rotation||t.anchor?.x||t.anchor?.y||!(frame.width>0&&frame.height>0))return null;
+ const sx=t.enabled?t.scale?.x:1,sy=t.enabled?t.scale?.y:1;
+ if(!(sx>0&&sy>0)||Math.abs(sx-sy)>.001)return null;
+ const fit=Math.min(frame.width/source.width,frame.height/source.height),w=source.width*fit*sx,h=source.height*fit*sy;
+ const dx=t.enabled?Number(t.position?.x||0)/100*frame.height:0,dy=t.enabled?Number(t.position?.y||0)/100*frame.height:0;
+ if(!Number.isFinite(dx)||!Number.isFinite(dy))return null;
+ const x=frame.width/2+dx+(box[0]-.5)*w,y=frame.height/2-dy+(box[1]-.5)*h;
+ const mx=box[2]*w*.1+16,my=box[3]*h*.1+16;
+ return {x:x-mx,y:y-my,w:box[2]*w+mx*2,h:box[3]*h+my*2};
+}
+
+module.exports = { faceSafeCoverFocus, projectObservedFace };
+// cover-focus:end
+return module.exports;})();
+const {projectObservedFace}=judeSharedCoverFocus;

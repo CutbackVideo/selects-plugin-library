@@ -168,14 +168,21 @@ const RUNTIME_VARS=[
 ];
 const RUNTIME_CHECK=[...RUNTIME_VARS,'if [ -x "$PY" ] && [ -s "$FONT" ] && "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then echo ready; else echo missing; fi'].join('\n');
 const shellQuote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
+// Keep the lock file outside the directory venv --clear replaces. lockf -k
+// retains that inode, so every cold caller waits on the same OS-owned lock.
+// Recheck imports only after acquiring it; the first caller may have finished.
 const runtimeSetup=python=>[
  'set -e',
  ...RUNTIME_VARS,
- 'if [ ! -x "$PY" ] || ! "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then',
- '  '+shellQuote(python)+' -m venv --clear "$ROOT/.runtime"',
- '  "$PY" -m pip install --quiet --disable-pip-version-check -r "$ROOT/approved/requirements.txt"',
- 'fi',
- '"$PY" -c "import PIL, numpy, scipy"',
+ '/usr/bin/lockf -k -t 280 "$ROOT/.runtime-setup.lock" /bin/sh -c '+shellQuote([
+  'set -e',
+  ...RUNTIME_VARS,
+  'if [ ! -x "$PY" ] || ! "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then',
+  '  '+shellQuote(python)+' -m venv --clear "$ROOT/.runtime"',
+  '  "$PY" -m pip install --quiet --disable-pip-version-check -r "$ROOT/approved/requirements.txt"',
+  'fi',
+  '\"$PY\" -c "import PIL, numpy, scipy"',
+ ].join('\n')),
 ].join('\n');
 async function macRuntime(sdk,say){
   hostUseSdk(sdk);
@@ -396,7 +403,8 @@ export function stableCaptionPayload(data){
  return {...data,y:740-data.h};
 }
 function doacPortraitScript(pid,sid){
- return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});if((await d.motionGraphics()).length)throw Error('This draft already contains generated graphics. Open the original draft without captions.');await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}});}await d.commitAll('Frame DOAC Style template to portrait');return true;`;
+ // SDK diffs are cumulative: an already framed draft needs no save.
+ return `const p=selects.project(${JSON.stringify(pid)});const d=selects.draft(${JSON.stringify(sid)});if((await d.motionGraphics()).length)throw Error('This draft already contains generated graphics. Open the original draft without captions.');let diff=await d.setFrameSize({width:1080,height:1920});for(const clip of await d.clips({trackScope:'main'})){if(!clip.resourceId)continue;const m=await p.resource(clip.resourceId).meta();const w=Number(m.frameSize?.width),h=Number(m.frameSize?.height);if(!(w>0&&h>0))throw Error('The source video dimensions are unavailable.');const fit=Math.min(1080/w,1920/h),scale=Math.max(1080/(w*fit),1920/(h*fit));diff=(await d.setClipTransform({clip,scale:{x:scale,y:scale},position:{x:0,y:0}})).diff;}if(diff.opCount>0)await d.commitAll('Frame DOAC Style template to portrait');return true;`;
 }
 function captionSteps({sdk,currentProject,onStatus,persist}){
  hostUseSdk(sdk);

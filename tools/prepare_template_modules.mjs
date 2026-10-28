@@ -13,6 +13,7 @@ if (args.length > 1 || args.some(arg => arg !== '--check')) {
 }
 const checkOnly = args.includes('--check');
 const generators = [
+  'plugins/a16z-style-captions/build.cjs',
   'plugins/mini-vlog/operation-builder.mjs',
   'plugins/archive-vlog/operation-builder.mjs',
   'plugins/photo-gallery-no2/build-panel.mjs',
@@ -23,6 +24,7 @@ for (const module of registry.modules) for (const target of module.buildTimeTarg
 }
 const localConsumers = 'no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump,photo-gallery-no2,mini-vlog,archive-vlog';
 const steps = [
+  [process.execPath, ['tools/sync_panel_versions.mjs']],
   [process.execPath, ['tools/build_file_observation.mjs']],
   [process.execPath, ['tools/sync_panel_modules.mjs']],
   [process.execPath, ['tools/sync_media_durations.mjs']],

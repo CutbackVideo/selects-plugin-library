@@ -101,6 +101,74 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
  let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
  return {size:before.size,sha256:hex};
 }
+function nativeSourceFiles(selects, deadline = Date.now() + 90000) {
+ if(!Number.isFinite(deadline))throw Error('The source verification deadline is invalid.');
+ const files=selects.files;
+ return {
+  stat:path=>files.stat(path),
+  readRange:input=>files.readRange(input),
+  fingerprint:async(path,options={})=>{
+   const check=()=>{Object(options).check?.();if(Date.now()>=deadline)throw Error('Original file verification timed out.');};
+   if(typeof path!=='string'||!path||path.includes('\0')||!/^(?:[\\/]|[A-Za-z]:[\\/])/.test(path))throw Error('The original source path is invalid.');
+   check();const before=await files.stat(path);check();
+   if(before===null)return null;
+   const valid=row=>row&&row.isDirectory===false&&Number.isSafeInteger(row.size)&&row.size>=0&&Number.isFinite(row.mtimeMs)&&Number.isFinite(row.ino);
+   if(!valid(before))throw Error('The original file identity could not be confirmed.');
+   if(before.size>0){
+    const length=Math.min(10,before.size),prefix=await files.readRange({path,offset:0,length});check();
+    if(prefix?.bytesRead!==length||typeof prefix.base64!=='string'||prefix.base64.length!==4*Math.ceil(length/3))throw Error('The original file prefix could not be confirmed.');
+    if(prefix.base64.startsWith('SUQz'))return fingerprintTemplateFile(files,path,check);
+   }
+   if(typeof selects.media?.startFFmpeg!=='function'||typeof selects.media?.job!=='function')throw Error('Update Selects to verify original media with native file reads.');
+   // The SDK sandbox has no browser timers. Yield without blocking its executor
+   // or flooding the renderer with identical running-status observations.
+   const wait=typeof Atomics==='object'?Object.getOwnPropertyDescriptor(Atomics,'waitAsync')?.value:null;
+   if(typeof wait!=='function'||typeof SharedArrayBuffer!=='function')throw Error('A nonblocking status scheduler is unavailable.');
+   const clock=new Int32Array(new SharedArrayBuffer(4));
+   const pause=async until=>{const ms=Math.min(150,until-Date.now());if(ms>0)await wait(clock,0,0,ms).value;};
+   let job=null,settled=false;
+   try{
+    let started;
+    try{started=await selects.media.startFFmpeg({args:['-nostdin','-v','error','-protocol_whitelist','file','-f','data','-i','file:'+path,'-map','0:0','-c','copy','-f','hash','-hash','sha256','-']});}
+    catch(cause){throw Object.assign(Error('The native source job start could not be confirmed.'),{cause,preserveTemporaryFiles:true});}
+    if(typeof started?.jobId!=='string'||!started.jobId)throw Object.assign(Error('The native source job identity could not be confirmed.'),{preserveTemporaryFiles:true});
+    job=selects.media.job(started.jobId);check();
+    let cursor=0,stdout='',bytes=0;
+    for(;;){
+     check();const row=await job.status({cursor});check();
+     if(!row||!['running','succeeded','failed','cancelled'].includes(row.state)||!Array.isArray(row.events)||row.events.length>8||row.truncated!==false||!Number.isSafeInteger(row.nextCursor)||row.nextCursor<cursor)throw Error('The native source status could not be confirmed.');
+     for(const event of row.events){
+      if(!event||!['stdout','stderr'].includes(event.stream)||typeof event.text!=='string'||!Number.isSafeInteger(event.cursor)||event.cursor!==cursor+1||event.cursor>row.nextCursor)throw Error('The native source output is incomplete.');
+      bytes+=event.text.length;if(bytes>16384)throw Error('The native source output exceeds its verification budget.');
+      cursor=event.cursor;if(event.stream==='stdout')stdout+=event.text;
+     }
+     if(cursor!==row.nextCursor)throw Error('The native source output cursor is incomplete.');
+     // A terminal job may have more output pages. Drain them before accepting SHA.
+     if(row.state!=='running'&&row.events.length===0){
+      settled=true;
+      if(row.state!=='succeeded')throw Error('The native source read did not succeed.');
+      const match=/^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(stdout);
+      if(!match)throw Error('The native source hash is incomplete.');
+      const after=await files.stat(path);check();
+      if(!valid(after)||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The original file changed during verification.');
+      return {size:before.size,sha256:match[1].toLowerCase()};
+     }
+     if(row.state==='running')await pause(deadline);
+    }
+   }finally{
+    if(job&&!settled){
+     // Cancel only this invocation's native process, then observe confirmed exit.
+     // The same nonblocking scheduler bounds cancellation polling as well.
+     const until=Date.now()+5000;
+     try{
+      await job.cancel();
+      for(;;){const row=await job.status();if(['succeeded','failed','cancelled'].includes(row?.state))break;if(Date.now()>=until)throw Error('Native source cancellation was not confirmed.');await pause(until);}
+     }catch(cause){throw Object.assign(Error('The native source job exit could not be confirmed.'),{cause,preserveTemporaryFiles:true});}
+    }
+   }
+  },
+ };
+}
 function templateObservedSource(observation,row){
  const invalid=()=>{throw Error('Saved source target could not be confirmed.');};
  if(!Array.isArray(observation?.clips)||!row||!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string')invalid();
@@ -216,8 +284,19 @@ function requireSourceFileSupport(files) {
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
 }
-async function observeSourceFiles(files,paths,expected=null) {
+async function observeSourceFiles(files,paths,expected=null,options=null) {
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
+ options=options??{};
+ if(!options||typeof options!=='object'||options.check!==undefined&&typeof options.check!=='function'||options.onProgress!==undefined&&typeof options.onProgress!=='function')throw issue('source-file-input','The source observation options are invalid.');
+ let guardFailed=false,guardFailure;
+ const check=()=>{if(options.signal?.aborted)throw Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'});try{options.check?.();}catch(cause){guardFailed=true;guardFailure=cause;throw cause;}};
+ // The SDK cannot abort a range read already dispatched. Stop caller waiting
+ // immediately; the original promise stays handled and its next check stops it.
+ const observe=operation=>new Promise((resolve,reject)=>{
+  const abort=()=>reject(Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'}));
+  options.signal?.addEventListener('abort',abort,{once:true});
+  Promise.resolve().then(()=>{check();return operation();}).then(value=>{check();return value;}).then(resolve,reject).finally(()=>options.signal?.removeEventListener('abort',abort));
+ });
  if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
  const selected=[...new Set(paths)];
  const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
@@ -226,14 +305,27 @@ async function observeSourceFiles(files,paths,expected=null) {
  requireSourceFileSupport(files);
  const observed=[];
  for(const path of selected){
+  check();
+  options.onProgress?.({path,index:observed.length+1,total:selected.length,bytesRead:0,complete:false});
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{
+   // Native reads own cancellation and confirmed exit. Do not race their
+   // settlement with the caller-only abort used for uncancellable range reads.
+   fingerprint=options.native===true&&typeof files.fingerprint==='function'
+    ?await files.fingerprint(path,{native:true,signal:options.signal,check})
+    :await observe(()=>fingerprintTemplateFile(files,path,check));
+  }catch(cause){
+   if(cause?.preserveTemporaryFiles)throw cause;
+   if(guardFailed&&cause===guardFailure)throw cause;
+   check();if(cause?.name==='AbortError')throw cause;throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);
+  }
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
   const before=expected?.find(row=>row.path===path);
   if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
   observed.push({path,size:row.size,sha256:row.sha256});
+  check();options.onProgress?.({path,index:observed.length,total:selected.length,bytesRead:row.size,complete:true});
  }
  return observed;
 }
@@ -386,9 +478,10 @@ for(let offset=0;offset<unique.length;offset+=50){
 const cfg = __CONFIG__;
 validateMiniAssemblyConfig(cfg);
 const analysisSources=Object(cfg).analysisSources,sourceBindings=Object(cfg).sourceBindings;
+const sourceFiles=nativeSourceFiles(selects);
 const confirmAnalysisSources=async()=>{
  if(sourceBindings!==undefined)await confirmProjectSourcePaths(selects,cfg.projectId,sourceBindings);
- if(analysisSources!==undefined)await observeSourceFiles(selects.files,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources);
+ if(analysisSources!==undefined)await observeSourceFiles(sourceFiles,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources,{native:true});
 };
 await confirmAnalysisSources();
 

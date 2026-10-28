@@ -3,6 +3,15 @@ import fs from 'node:fs';
 import test from 'node:test';
 import {archiveWorkflowFixture as fixture} from './archive_workflow_fixture.mjs';
 const context=runId=>({projectId:'p',template:{runId,inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{title:'cinematic'}}});
+test('Archive failed native source read retains the real process and assembly cause in fixture diagnostics',async t=>{
+ const diagnostics=[],f=await fixture({after:t.after.bind(t),diagnostic:text=>diagnostics.push(JSON.parse(text))},{realFinish:true});
+ f.hooks.beforeTool=(_bin,args)=>{if(args.includes('file:'+f.source))fs.unlinkSync(f.source);};
+ await assert.rejects(f.template(context('failed-native-read')),error=>error.code==='TEMPLATE_RUN_NOT_SAVED');
+ assert.equal(f.commits(),0);
+ const native=diagnostics.find(row=>row.fixture==='look-native'),assembly=diagnostics.find(row=>row.fixture==='assembly-cause');
+ assert.ok(native.jobId);assert.equal(typeof native.code,'number');assert.match(native.stderr,/No such file or directory/i);assert.ok(native.args.includes('file:'+f.source));
+ assert.match(assembly.cause,/native source read did not succeed/i);assert.match(assembly.stack,/observeSourceFiles/);
+});
 test('Archive workflow: a lost completed Finish reply confirms one save without resending',async t=>{
  const f=await fixture(t,{realFinish:true});f.hooks.reply=input=>{if(input.summary==='Decorate template with owned receipt')throw Error('Finish response lost after saving');};await f.build();assert.equal(f.result()?.decorated,true);assert.equal(f.commits(),2);assert.equal(f.requests.filter(r=>r.summary==='Decorate template with owned receipt').length,1);
 });

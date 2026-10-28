@@ -13,7 +13,6 @@ async function fixture(version,{featureError=missingFeature}={}){
   calls.push(plain(input));
   if(input.script.includes('selects.files.environment('))return {result:{platform:'darwin',homedir:'/qa',tempDirectory:'/qa/tmp',...(version===undefined?{}:{version})}};
   if(input.summary==="Read the draft's length")return {result:{seconds:2}};
-  if(input.summary==='Frame Depth Type template to portrait')return {result:true};
   if(input.summary==='Read dialogue for Depth Type captions')return {result:{name:'Plain source',projectName:'QA',fps:30,width:1080,height:1920,duration:2,words:['This','is','one','complete','spoken','sentence'].map((text,i)=>({text,s:i*10,e:(i+1)*10}))}};
   if(input.summary==='Inspect speaker render composition')return {isError:true,output:featureError};
   throw Error('Unexpected SDK boundary: '+input.summary);
@@ -41,7 +40,7 @@ for(const version of ['2.0.508','2.0.671','3.0.0','2.0.700-beta.1'])test('known 
 });
 test('unknown classification does not swallow the original SDK failure or mark the template successful',async()=>{
  const f=await fixture(undefined,{featureError:'The speaker composition capability failed.'});
- await f.run();assert.equal(f.finishes.length,1);assert.equal('sequenceId' in f.finishes[0],false);assert.equal(f.calls.filter(c=>c.allowCommit).length,1,'only the existing portrait preparation runs; no caption apply/save');
+ await f.run();assert.equal(f.finishes.length,1);assert.equal('sequenceId' in f.finishes[0],false);assert.equal(f.calls.filter(c=>c.allowCommit).length,0,'feature failure must not change the canvas or save captions');
  await assert.rejects(f.api.depthMakeCaptions({sdk:f.sdk,pid:'qa-project',sid:'qa-draft',settings:f.api.DEPTH_DEFAULTS,control:{},progress:()=>{}}),{message:'The speaker composition capability failed.'});
  assert.equal(f.finishes.length,1,'a failed direct pipeline cannot synthesize another completion');
 });

@@ -178,46 +178,53 @@ test('both photo panels bundle the current shared journal and canonical resource
 });
 
 // Exercise the actual template entry and photo adapter, while unrelated beat/timeline work is stubbed.
-function recoveryFixture(initialStatus='succeeded'){
+function deferred(){let resolve;const promise=new Promise(done=>{resolve=done});return {promise,resolve};}
+async function waitForRunningFixture(f){
+ await f.whenObserved();
+ assert.equal(f.submits.length,1);
+}
+function recoveryFixture(owner,initialStatus='succeeded',{beforeCanonical}={}){
+ assert.equal(typeof owner?.after,'function','recovery fixtures require a test cleanup owner');
  const require=createRequire(import.meta.url),stored=new Map(),jobs=new Map(),keys=new Map(),submits=[];
  const resourceId='ee44b47f-3537-41be-a64f-92262c58a3a3';
- let nextStatus=initialStatus;
+ let nextStatus=initialStatus,cancelRequests=0;const observed=deferred(),signals=[];
  const ai={submit:async input=>{
   if(keys.has(input.requestKey))return {workflowId:keys.get(input.requestKey)};
   const workflowId='ai:'+String(jobs.size+1);keys.set(input.requestKey,workflowId);
   jobs.set(workflowId,{input,status:nextStatus});submits.push(input);return {workflowId};
  },job:(id,pid)=>({
-  status:async()=>({workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'person.matte',status:jobs.get(id).status}),
+  status:async()=>{observed.resolve();return {workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'person.matte',status:jobs.get(id).status}},
   result:async()=>({workflowId:id,task:'person.matte',files:{manifest:{id}}}),
-  cancel:async()=>{throw Error('Closing a template must not cancel its job');}
+  cancel:async()=>{cancelRequests++;throw Error('Closing a template must not cancel its job');}
  }),prepareMatte:async()=>({sourceKind:'image',sourceResourceId:resourceId,frameSize:{width:2,height:2},maskUrl:'local:mask'})};
  const sdk={storage:{getItem:async key=>stored.get(key)??null,setItem:async(key,value)=>stored.set(key,value)},
   runScript:async({script})=>{try{return {result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{ai,files:{pathFromLocalUrl:()=>'/mask.png'}}})}}catch(e){return {isError:true,output:e.message}}}};
  const photo=loadPanelFunctions(panelSource,['photoAiScript','photoAiClient','photoAiMatte'],{
   crypto:webcrypto,sharedAiJobs:require('../shared/ai-job-client.cjs'),
-  photoAiCanonicalId:async()=>resourceId,
+  photoAiCanonicalId:async()=>{await beforeCanonical?.();return resourceId},
  });
  const raw=panelSource.slice(panelSource.indexOf('function TravelTemplateRun('),panelSource.indexOf('\nfunction Panel('));
  // The final status element is unrelated to recovery; keep the entire effect body executable as JS.
  const compiled=raw.replace(/^\s*return <p role="status".*$/m,' return null;');
  function mount(runId){
-  const effects=[],cleanups=[];let finish;
+  const effects=[],cleanups=[],settled=deferred();let finish;
   const finished=new Promise(resolve=>{finish=resolve});
   const context={projectId:'project',template:{runId,inputs:{},options:{}}};
   const React={useState:value=>[value,()=>{}],useRef:value=>({current:value}),useEffect:effect=>effects.push(effect),createElement:()=>null};
   const host=vm.createContext({useAppUpdateGuard:()=>{},React,AbortController,console:{warn:()=>{}},TEMPLATE_DEFAULTS:{cutoutMode:'person'},TEMPLATE_FAILED:'Failed',
    templateMedia:async()=>({heroPhoto:{resourceId},chosen:{},song:{}}),templateIssue:message=>Error(message),templateMessage:error=>error.message,
-   buildTravelVlog:async(sdk,args)=>{await photo.photoAiMatte(sdk,args.projectId,args.heroPhoto,{scope:args.aiScope,retryTerminal:args.aiRetryTerminal,control:{observer:{signal:args.aiSignal}}});return {draftId:'draft'}},
+   buildTravelVlog:async(sdk,args)=>{signals.push(args.aiSignal);try{await photo.photoAiMatte(sdk,args.projectId,args.heroPhoto,{scope:args.aiScope,retryTerminal:args.aiRetryTerminal,control:{observer:{signal:args.aiSignal}}});return {draftId:'draft'}}finally{settled.resolve()}},
   });
   vm.runInContext(compiled,host);host.TravelTemplateRun({sdk:{...sdk,finishTemplate:finish},context});
   for(const effect of effects){const cleanup=effect();if(cleanup)cleanups.push(cleanup)}
-  return {finished,unmount:()=>cleanups.forEach(f=>f())};
+  const mounted={finished,settled:settled.promise,unmount:()=>cleanups.splice(0).forEach(f=>f())};
+  owner.after(()=>mounted.unmount());return mounted;
  }
- return {mount,sdk,photo,resourceId,stored,jobs,submits,setStatus:status=>{nextStatus=status;for(const job of jobs.values())job.status=status}};
+ return {mount,sdk,photo,resourceId,stored,jobs,submits,signals,whenObserved:()=>observed.promise,cancelRequests:()=>cancelRequests,setStatus:status=>{nextStatus=status;for(const job of jobs.values())job.status=status}};
 }
 
-for(const state of ['failed','canceled'])test(`same Travel template run recovers ${state} without silently retrying; a new Apply starts a new run`,async()=>{
- const f=recoveryFixture(state);
+for(const state of ['failed','canceled'])test(`same Travel template run recovers ${state} without silently retrying; a new Apply starts a new run`,{timeout:5000},async t=>{
+ const f=recoveryFixture(t,state);
  const first=f.mount('run-a');assert.match((await first.finished).error,/AI analysis/);first.unmount();
  f.setStatus(state);
  const reopened=f.mount('run-a');assert.match((await reopened.finished).error,/AI analysis/);reopened.unmount();
@@ -228,16 +235,37 @@ for(const state of ['failed','canceled'])test(`same Travel template run recovers
  assert.deepEqual(journals.map(j=>j.scope).sort(),['travel-beat-vlog:template:run-a','travel-beat-vlog:template:run-b']);
 });
 
-test('closing a running Travel template detaches; reopening the same run adopts its original job',async()=>{
- const f=recoveryFixture('running'),first=f.mount('running');
- for(let i=0;i<100&&f.submits.length===0;i++)await new Promise(resolve=>setImmediate(resolve));
- assert.equal(f.submits.length,1);first.unmount();f.setStatus('succeeded');
+test('closing a running Travel template detaches; reopening the same run adopts its original job',{timeout:5000},async t=>{
+ const f=recoveryFixture(t,'running'),first=f.mount('running');
+ await waitForRunningFixture(f);first.unmount();f.setStatus('succeeded');
  const reopened=f.mount('running');assert.equal((await reopened.finished).sequenceId,'draft');reopened.unmount();
  assert.equal(f.submits.length,1);
 });
 
-test('manual Travel Apply explicitly retries a prior terminal image job',async()=>{
- const f=recoveryFixture('failed');
+test('recovery readiness stays pending until asynchronous setup actually reaches the job',{timeout:5000},async t=>{
+ const gate=deferred();t.after(()=>gate.resolve());
+ const f=recoveryFixture(t,'running',{beforeCanonical:()=>gate.promise}),first=f.mount('delayed');
+ t.after(()=>first.unmount());
+ let settled=false;const ready=waitForRunningFixture(f);ready.then(()=>{settled=true},()=>{settled=true});
+ // Exhaust the former 100-turn heuristic while the source lookup is deliberately held.
+ for(let i=0;i<110;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(settled,false,'readiness must wait for the job, not a number of event-loop turns');
+ gate.resolve();await ready;assert.equal(f.submits.length,1);
+ first.unmount();await first.settled;
+});
+
+test('fixture teardown detaches a still-running observer even after an early assertion',{timeout:5000},async t=>{
+ const hooks=[],f=recoveryFixture({after:hook=>hooks.push(hook)},'running'),first=f.mount('cleanup');
+ t.after(()=>first.unmount());await f.whenObserved();
+ assert.equal(hooks.length,1,'mount must register cleanup before the test can fail');
+ for(const hook of hooks)await hook();await first.settled;
+ assert.ok(f.signals.every(signal=>signal.aborted));
+ assert.equal(f.cancelRequests(),0,'test cleanup detaches observation without cancelling the saved AI job');
+ assert.equal(f.jobs.get('ai:1').status,'running');
+});
+
+test('manual Travel Apply explicitly retries a prior terminal image job',{timeout:5000},async t=>{
+ const f=recoveryFixture(t,'failed');
  await assert.rejects(f.photo.photoAiMatte(f.sdk,'project',{resourceId:f.resourceId},{scope:'travel-beat-vlog'}),/AI analysis failed/);
  f.setStatus('succeeded');await f.photo.photoAiMatte(f.sdk,'project',{resourceId:f.resourceId},{scope:'travel-beat-vlog'});
  assert.equal(f.submits.length,2);

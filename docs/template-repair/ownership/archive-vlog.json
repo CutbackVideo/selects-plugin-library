@@ -12,6 +12,10 @@
     {
       "id": "app-update-guard",
       "source": "shared/app-update-guard.ts"
+    },
+    {
+      "id": "native-source-files",
+      "source": "shared/native-source-files.js"
     }
   ],
   "features": [
@@ -201,17 +205,17 @@
       "owner": "local-client",
       "reason": "The complete async file/media bridge already has one canonical source; its embedded functions are managed compatibility delivery, not new module candidates.",
       "contract": {
-        "input": "Bound SDK runScript/call, host-native file paths, bounded file chunks/media argv and AbortSignal.",
+        "input": "Bound SDK runScript/call, host-native file paths, bounded file chunks/media argv and AbortSignal. Native full-file hashing is opt-in through files.fingerprint(path, {native:true,signal,onProgress,timeoutMs}); other callers keep the existing script transport.",
         "output": "Typed file facts, content fingerprints, native media output or structured transport/lifetime errors.",
         "identity": "Captured client, exact job id and exact source/output paths; cancellation acknowledgement is not exit.",
-        "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets.",
+        "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets. The native hash adapter uses the existing media.startFFmpeg job API and file stat, with raw-data demux and SHA-256 hash output, not media decoding or a new SDK capability.",
         "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
-        "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
+        "lifetime": "Bound client lifetime; start and cancellation settlement retain their five-second observation bounds. Opt-in native source status uses its existing absolute total hash deadline, with one in-flight read and scope/abort checks every 150ms; no per-read deadline reset.",
         "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
-        "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
+        "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error. ID3 signatures preselect the existing complete-byte observer before native dispatch; missing startFFmpeg capability also retains existing complete-byte support. Malformed capability/hash output, timeout, cancellation and changed size/mtime/inode remain failures and never trigger a legacy retry. Other native observations read only a bounded ten-byte signature before streaming.",
         "retry": "No media start replay; late identity can cancel that original job once.",
         "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
-        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+        "validation": "TDD for a 5.303-second valid reply and interrupted pending reads (scope, external abort, total deadline); existing native output, settlement, source identity and generic media regressions. Installed load reproduction is recorded separately."
       },
       "evidence": [
         "shared/local-client.ts",
@@ -337,16 +341,16 @@
       "owner": "native-image-input",
       "reason": "The existing input owner normalizes video/photo handoff and optionally observes current Project kinds. Mini preserves alias-only defaults; Archive opts into kind evidence and owns its two-video requirement.",
       "contract": {
-        "input": "Selected original ids/kinds, projectId, expected paths/content snapshots and private unsaved probe options.",
+        "input": "Selected original ids/kinds, projectId, expected paths/content snapshots and private unsaved probe options. observeSourceFiles may opt into the existing native fingerprint transport and accepts caller signal/check/progress hooks.",
         "output": "Confirmed SDK aliases, original dimensions/clocks, exact source links and full-content observations.",
         "identity": "Original external id versus Project short id; source timebase versus Draft frames; physical file path/digest.",
-        "dependencies": "Current SDK files.fingerprint/sourceFiles/resources and nonpersistent insertion probes.",
+        "dependencies": "Current public SDK file/sourceFiles/resources reads, caller-supplied private fingerprint adapter and nonpersistent insertion probes. Generated assembly delegates native process/hash ownership to native-source-files; files.fingerprint is an adapter method, not an added public SDK capability.",
         "effects": "Read-only observations and private unsaved Draft probes; no saved Draft or original file rewrite.",
-        "lifetime": "Bounded batches/deadlines/current caller; exact observations repeated around assembly and look recovery.",
+        "lifetime": "Bounded batches/deadlines/current caller; exact observations repeated around assembly and look recovery. Caller cancellation detaches an already-dispatched range read with its rejection handled; it does not cancel accepted AI jobs or roll back a dispatched save.",
         "cleanup": "Do not delete user originals or infer absence from a failed placement.",
         "outcomes": "Missing, changed, unsupported and unknown sources are explicit; data presence is not server-index provenance.",
         "retry": "Read-only checks may retry; unknown private placement is observed without replay.",
-        "distribution": "shared/native-image-input.mjs, managed panel copy, TEMPLATE_ALIAS_JS and generated assembly/verifier helpers; confirmArchiveSourceBindings is caller batching.",
+        "distribution": "shared/native-image-input.mjs, managed panel copy, TEMPLATE_ALIAS_JS and generated assembly/verifier helpers; confirmArchiveSourceBindings is caller batching. The generated assembly explicitly passes nativeSourceFiles(selects) with native:true at both confirmation boundaries.",
         "validation": "Inherited handed-input/kind/default-consumer checks, source/frame/path/hash native reads and same-workflow restoration. Archive keeps two distinct videos; current-file existence/full hash does not establish past server-index provenance."
       },
       "evidence": [
@@ -354,7 +358,9 @@
         "tests/mini_video_sources.test.mjs",
         "tests/source_file_bindings.test.mjs",
         "tests/template_media_selection.test.mjs",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "tests/vlog_native_hash_cancel.test.mjs",
+        "shared/native-source-files.js"
       ],
       "implementation": "implemented-extension"
     },
@@ -512,7 +518,8 @@
         "tests/mini_assembly_receipts.test.mjs",
         "tests/mini_frozen_recovery.test.mjs",
         "tests/template_run_budget.test.mjs",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "tests/archive_save_recovery.test.mjs"
       ],
       "implementation": "implemented-extension"
     },
@@ -578,7 +585,7 @@
         "dependencies": "Existing input/catalog/assets/analysis/durable owners; Archive two-video and hidden-run defaults. Standalone locally scores unanalysed videos; hidden search supplies evenly spaced candidates for usable unanalysed input, without running local frame scoring.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Recovery is admitted before new selections; one run epoch/single-flight. Parallel scene/local jobs settle/cancel before error returns.",
-        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "build/buildAnother/finishTitle/decorate, runArchiveVlogTemplate, archiveRecoveryOptions/archiveWorkflowResult.",
@@ -660,7 +667,8 @@
       "evidence": [
         "plugins/archive-vlog/operation-builder.mjs",
         "shared/panel-modules.json",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "shared/native-source-files.js"
       ],
       "implementation": "specific"
     },
@@ -673,11 +681,11 @@
         "input": "Archive planner/render/script sources, numerical fixtures, declared SDK types and test doubles.",
         "output": "Assertions, developer diagnostics and test exit status.",
         "identity": "Disposable fixture/client/VM scopes; no production Project identities.",
-        "dependencies": "Node built-ins, FFmpeg, TypeScript and explicit fixture ownership.",
+        "dependencies": "Node built-ins, FFmpeg, TypeScript and explicit fixture ownership. The shared look-phase fixture models the existing SDK native media job port with actual FFmpeg, per-job identity, cursor pages, explicit allowCommit on start/cancel, terminal state and fixture-owned cleanup.",
         "effects": "Local test-only processes/temporary files and VM evaluation; some scripts deliberately inspect package bytes.",
         "lifetime": "One test process; fixture cleanup belongs to test harness.",
         "cleanup": "Remove only owned fixture paths after producers exit; never treat a failed assertion as permission to delete user data.",
-        "outcomes": "Pass/failure/skip are scoped evidence, not full runtime quality or module completion.",
+        "outcomes": "Pass/failure/skip are scoped evidence, not full runtime quality or module completion. Failed native jobs retain actual process code/signal/stdout/stderr; test diagnostics expose that original failure and the assembly exception cause/stack before durable recovery wraps it as notSaved. This adds observability, not a new successful result or a retry.",
         "retry": "Repeat only after affected changes/new failure evidence.",
         "distribution": "tests/*.test.cjs and dev checker references; repository-level source/owner tests are separate.",
         "validation": "All fifteen shipped Archive CJS suites and repository fixture sources are captured. Earlier results live in the three Archive repair packets; this map does not claim a new full runtime pass."
@@ -685,7 +693,9 @@
       "evidence": [
         "plugins/archive-vlog/tests/panel.test.cjs",
         "plugins/archive-vlog/tests/scripts-types.test.cjs",
-        "plugins/archive-vlog/panel.tsx"
+        "plugins/archive-vlog/panel.tsx",
+        "tests/mini_look_fixture.mjs",
+        "tests/gallery_hold_fixture.mjs"
       ],
       "implementation": "specific"
     },
@@ -967,273 +977,304 @@
         "shared/draft-observation.js",
         "plugins/archive-vlog/panel.tsx"
       ]
+    },
+    {
+      "id": "native-source-verification",
+      "decision": "reuse",
+      "owner": "native-source-files",
+      "reason": "Generated Mini and Archive assembly scripts reuse one SDK-safe source adapter. A bounded signature check selects complete byte hashing for ID3 originals because older FFmpeg demuxers strip ID3 headers; all other large originals use native full-content streaming. The separate state-JSON observer is unchanged.",
+      "contract": {
+        "input": "Existing selects.files and selects.media capabilities, exact absolute original path, current check and one assembly-scoped deadline. Expected full-content snapshots are compared by source-input after the adapter returns its fresh digest. At most ten prefix bytes select an exact-byte path before native dispatch; selection does not rely on extensions, small-file thresholds or a failed native attempt.",
+        "output": "A private files adapter returning verified full byte size and SHA-256 only after complete terminal output and matching before/after stat identity.",
+        "identity": "Exact original path and size/mtime/inode bracket; one returned native job id belongs only to its invocation. A filename, partial digest, successful start or cancellation acknowledgement is not completion.",
+        "dependencies": "shared/native-source-files.js, existing media.startFFmpeg/job.status/job.cancel and files.stat. Raw data demux plus copy feeds every original byte to the SHA-256 muxer; no new public SDK or host API. ID3 inputs use the existing fingerprintTemplateFile full-byte implementation, preserving metadata and header bytes removed by older FFmpeg demuxers.",
+        "effects": "Read-only original-file access through an owned native media process. Starting/cancelling that process uses the assembly existing allowCommit context; no source rewrite, user-data deletion or saved Draft mutation.",
+        "lifetime": "One adapter shares a 90-second verification deadline across pre-placement and pre-commit observations; an unsettled owned process gets a separate 5-second exit-confirmation budget. Checks bracket awaited SDK calls; a permanently unresponsive IPC remains bounded by the existing outer script supervisor, not a nonexistent sandbox timer. Large ID3 originals keep the previous slower complete-read behavior under the same caller/deadline checks; native speed is not promised for that signature.",
+        "cleanup": "Cancel only the exact owned native job, observe terminal exit, and preserve work on unknown start/exit. Never clean another job or original file.",
+        "outcomes": "A validated prefix selects complete byte hashing for ID3 originals before dispatch. Other native success requires cursor-drained SHA output and unchanged stat. Native errors, malformed output, cancellation or changed sources never trigger a legacy retry; complete-byte source identity remains mandatory.",
+        "retry": "No native start replay, content cache reuse or uncertain save replay. Pre-placement and pre-commit each make a new full-content observation.",
+        "distribution": "The two operation-builders serialize this canonical function into their scripts/assemble.js; no installed cross-plugin import or shared AI runtime update is involved. Only Mini and Archive opt into native reads. Five other photo templates receive the synchronized local-client copy without opting in.",
+        "validation": "Existing native_file_observation tests run actual FFmpeg SHA comparison and sandbox serialization plus failure/deadline/unknown-exit cases. Mini and Archive assembly-intent tests use a virtual 4 GiB stat and forbid whole-file range transfers while retaining commit/source-change checks. Ownership coverage and these fixtures do not promote semantic review, whole-template acceptance, Windows, playback or export. ID3-skip simulator regressions cover both adapters; non-ID3 cases assert only one bounded signature read and no whole-file range transfer. Actual old-FFmpeg reproduction and installed app acceptance remain separate evidence."
+      },
+      "implementation": "implemented",
+      "evidence": [
+        "shared/native-source-files.js",
+        "tests/native_file_observation.test.mjs",
+        "tests/mini_assembly_intent.test.mjs",
+        "tests/archive_assembly_intent.test.mjs",
+        "plugins/archive-vlog/operation-builder.mjs",
+        "plugins/archive-vlog/dev/assemble.template.js",
+        "plugins/archive-vlog/scripts/assemble.js",
+        "tests/mini_look_fixture.mjs",
+        "tests/archive_look_recovery.test.mjs"
+      ]
     }
   ],
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "ce52a16f9ff4035e9c16eb0f65467ddb4138a844387e302557b36b309096e8d0",
+      "sha256": "5e55f87ecf18a20648c9e65357e2deb2bbbd3271f2dc9346b29fe291de26ccae",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8046,
+          "endLine": 8179,
           "feature": "panel-ui"
         },
         {
           "startLine": 19,
-          "endLine": 1842,
+          "endLine": 1852,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1917,
-          "endLine": 1946,
+          "startLine": 1927,
+          "endLine": 1956,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1951,
-          "endLine": 2708,
+          "startLine": 1961,
+          "endLine": 2718,
           "feature": "montage-policy"
         },
         {
-          "startLine": 2710,
-          "endLine": 2834,
+          "startLine": 2720,
+          "endLine": 2844,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2836,
-          "endLine": 3020,
+          "startLine": 2846,
+          "endLine": 3030,
           "feature": "program-policy"
         },
         {
-          "startLine": 3517,
-          "endLine": 3528,
+          "startLine": 3527,
+          "endLine": 3538,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 4369,
-          "endLine": 4449,
+          "startLine": 4382,
+          "endLine": 4462,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7595,
-          "endLine": 7998,
+          "startLine": 7634,
+          "endLine": 8131,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8000,
-          "endLine": 8045,
+          "startLine": 8133,
+          "endLine": 8178,
           "feature": "app-guard"
         },
         {
-          "startLine": 3024,
-          "endLine": 3411,
+          "startLine": 3034,
+          "endLine": 3421,
           "feature": "title-policy"
         },
         {
-          "startLine": 3413,
-          "endLine": 3516,
+          "startLine": 3423,
+          "endLine": 3526,
           "feature": "credit-policy"
         },
         {
-          "startLine": 2843,
-          "endLine": 2858,
+          "startLine": 2853,
+          "endLine": 2868,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2949,
-          "endLine": 2954,
+          "startLine": 2959,
+          "endLine": 2964,
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4452,
-          "endLine": 4455,
+          "startLine": 4465,
+          "endLine": 4468,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4461,
-          "endLine": 4496,
+          "startLine": 4474,
+          "endLine": 4509,
           "feature": "music-policy"
         },
         {
-          "startLine": 4566,
-          "endLine": 4581,
+          "startLine": 4579,
+          "endLine": 4594,
           "feature": "music-policy"
         },
         {
-          "startLine": 4583,
-          "endLine": 4586,
+          "startLine": 4596,
+          "endLine": 4599,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5283,
-          "endLine": 5296,
+          "startLine": 5296,
+          "endLine": 5309,
           "feature": "music-policy"
         },
         {
-          "startLine": 5298,
-          "endLine": 5323,
+          "startLine": 5311,
+          "endLine": 5336,
           "feature": "program-policy"
         },
         {
-          "startLine": 5339,
-          "endLine": 5361,
+          "startLine": 5352,
+          "endLine": 5374,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5366,
-          "endLine": 5374,
+          "startLine": 5379,
+          "endLine": 5387,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5376,
-          "endLine": 5389,
+          "startLine": 5389,
+          "endLine": 5402,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5394,
-          "endLine": 5418,
+          "startLine": 5407,
+          "endLine": 5431,
           "feature": "music-policy"
         },
         {
-          "startLine": 5420,
-          "endLine": 5427,
+          "startLine": 5433,
+          "endLine": 5440,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5448,
-          "endLine": 5458,
+          "startLine": 5461,
+          "endLine": 5471,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5754,
-          "endLine": 5777,
+          "startLine": 5767,
+          "endLine": 5790,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5778,
-          "endLine": 5796,
+          "startLine": 5791,
+          "endLine": 5809,
           "feature": "title-policy"
         },
         {
-          "startLine": 5871,
-          "endLine": 5921,
+          "startLine": 5884,
+          "endLine": 5934,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5960,
-          "endLine": 6001,
+          "startLine": 5973,
+          "endLine": 6014,
           "feature": "music-policy"
         },
         {
-          "startLine": 6010,
-          "endLine": 6101,
+          "startLine": 6023,
+          "endLine": 6114,
           "feature": "title-policy"
         },
         {
-          "startLine": 6104,
-          "endLine": 6134,
+          "startLine": 6117,
+          "endLine": 6147,
           "feature": "music-policy"
         },
         {
-          "startLine": 6177,
-          "endLine": 6189,
+          "startLine": 6190,
+          "endLine": 6202,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6206,
-          "endLine": 6404,
+          "startLine": 6219,
+          "endLine": 6417,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6435,
-          "endLine": 6463,
+          "startLine": 6448,
+          "endLine": 6476,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6742,
-          "endLine": 6755,
+          "startLine": 6755,
+          "endLine": 6768,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6764,
-          "endLine": 6766,
+          "startLine": 6777,
+          "endLine": 6779,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6775,
-          "endLine": 6802,
+          "startLine": 6788,
+          "endLine": 6815,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7272,
-          "endLine": 7432,
+          "startLine": 7309,
+          "endLine": 7469,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 1947,
-          "endLine": 1949,
+          "startLine": 1957,
+          "endLine": 1959,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5745,
-          "endLine": 5750,
+          "startLine": 5758,
+          "endLine": 5763,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6136,
-          "endLine": 6174,
+          "startLine": 6149,
+          "endLine": 6187,
           "feature": "audio-preview"
         },
         {
-          "startLine": 3831,
-          "endLine": 4367,
+          "startLine": 3841,
+          "endLine": 4380,
           "feature": "asset-owner"
         },
         {
-          "startLine": 7004,
-          "endLine": 7253,
+          "startLine": 7017,
+          "endLine": 7290,
           "feature": "source-input"
         },
         {
-          "startLine": 4588,
-          "endLine": 5279,
+          "startLine": 4601,
+          "endLine": 5292,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4497,
-          "endLine": 4565,
+          "startLine": 4510,
+          "endLine": 4578,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7479,
-          "endLine": 7593,
+          "startLine": 7518,
+          "endLine": 7632,
           "feature": "catalog-read"
         },
         {
-          "startLine": 3561,
-          "endLine": 3808,
+          "startLine": 3571,
+          "endLine": 3818,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 4370,
-          "endLine": 4431,
+          "startLine": 4383,
+          "endLine": 4444,
           "feature": "host-file-facade"
         },
         {
-          "startLine": 1844,
-          "endLine": 1896,
+          "startLine": 1854,
+          "endLine": 1906,
           "feature": "text-runtime"
         },
         {
-          "startLine": 6806,
-          "endLine": 6908,
+          "startLine": 6819,
+          "endLine": 6921,
           "feature": "file-observation"
         },
         {
-          "startLine": 6909,
-          "endLine": 7003,
+          "startLine": 6922,
+          "endLine": 7016,
           "feature": "draft-observation"
         }
       ]
@@ -1310,29 +1351,49 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/assemble.js",
-      "sha256": "43cee90ca843a5de3710ed7727e9e88f9a9fae2d6238ff0713edb133c7640824",
+      "sha256": "5779793c73bd49218d4579c2872c1da1104ae3b1715d07eb51afc8c260755783",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 484,
+          "endLine": 577,
           "feature": "assembly-policy"
         },
         {
           "startLine": 1,
-          "endLine": 270,
+          "endLine": 103,
+          "feature": "file-observation"
+        },
+        {
+          "startLine": 104,
+          "endLine": 171,
+          "feature": "native-source-verification"
+        },
+        {
+          "startLine": 172,
+          "endLine": 180,
+          "feature": "draft-observation"
+        },
+        {
+          "startLine": 181,
+          "endLine": 362,
           "feature": "source-input"
         },
         {
-          "startLine": 271,
-          "endLine": 350,
+          "startLine": 363,
+          "endLine": 442,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 351,
-          "endLine": 384,
-          "feature": "assembly-policy"
+          "startLine": 481,
+          "endLine": 481,
+          "feature": "native-source-verification"
+        },
+        {
+          "startLine": 482,
+          "endLine": 485,
+          "feature": "source-input"
         }
       ]
     },
@@ -1688,13 +1749,13 @@
     },
     {
       "path": "plugins/archive-vlog/operation-builder.mjs",
-      "sha256": "0b601de28e152c78e67739bf7154fc0c671a6f4609627d84e331445e283ed011",
+      "sha256": "ab6df37f211883756656602df481ed435196830f51583c1c1963bdf922379913",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 62,
+          "endLine": 63,
           "feature": "build-delivery"
         }
       ]
@@ -1714,14 +1775,24 @@
     },
     {
       "path": "plugins/archive-vlog/dev/assemble.template.js",
-      "sha256": "433b4ca8815b67172ea6e9577752584a958de6e7fae7b133f8d71932c35f11a2",
+      "sha256": "ad007f19ffb184a59ebedc21307ea4e9a1410e4e8b71c3f905a058748c015aff",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 99,
+          "endLine": 100,
           "feature": "assembly-policy"
+        },
+        {
+          "startLine": 4,
+          "endLine": 4,
+          "feature": "native-source-verification"
+        },
+        {
+          "startLine": 5,
+          "endLine": 8,
+          "feature": "source-input"
         }
       ]
     },
@@ -1753,13 +1824,13 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "043b3fc887f1df8489cb7112081565b2de0067a9443e0f7535e1dfd07eb09176",
+      "sha256": "c37cf40bca7004ec9d2d68876e5dd4d3ecd17717929157aa43acef5d82c4f7a2",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 405,
+          "endLine": 499,
           "feature": "local-sdk"
         }
       ]
@@ -1779,26 +1850,26 @@
     },
     {
       "path": "shared/bundled-assets.js",
-      "sha256": "96c3859e85676419fba660e13c8e7e2efafde328bf208d2eb4cabbfb0a188f07",
+      "sha256": "ed13cd1e1e2e9dbb280ed2653ff0fcfbcb1d25a1d3554cb6de4668fbc02d931d",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 536,
+          "endLine": 539,
           "feature": "asset-owner"
         }
       ]
     },
     {
       "path": "shared/native-image-input.mjs",
-      "sha256": "2ddf652faac31bc554d0e932097bb7527b49868a28be20e076b1e680739044af",
+      "sha256": "02575aa14430fee9bd766dcad530c4bada9cbf454680b508959988cc0e76a49e",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 250,
+          "endLine": 274,
           "feature": "source-input"
         }
       ]
@@ -1948,26 +2019,26 @@
     },
     {
       "path": "tests/archive_preview_fixture.mjs",
-      "sha256": "616a123fbdf8ee598aea95d6173caa9e69521c3992a1eb567f8b23fba4147f0b",
+      "sha256": "f40227b737faddf421bbbcf11197fb0b144bb9d232de23042778e82c583f1161",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 54,
+          "endLine": 74,
           "feature": "test-harness"
         }
       ]
     },
     {
       "path": "tests/archive_preview_lifetime.test.mjs",
-      "sha256": "16763acab830e0882446611fc2bc674ce20c88de7c01b2667eeabd39cfc28e8a",
+      "sha256": "9fa6145ecccae5ae9e4ca30fd001b0ebc984b810de2307b701697527211030ae",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 103,
+          "endLine": 121,
           "feature": "test-harness"
         }
       ]
@@ -2097,6 +2168,156 @@
           "startLine": 1,
           "endLine": 96,
           "feature": "draft-observation"
+        }
+      ]
+    },
+    {
+      "path": "tests/vlog_native_hash_cancel.test.mjs",
+      "sha256": "8e685ef0bb8742fe53515b9a202037f11501328e29643397d7a50be59fb022f6",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 145,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/native-source-files.js",
+      "role": "runtime",
+      "sha256": "e9f8abda2553614c648c9d8156d086039c9bf26842401c69d4239f051350a67c",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 75,
+          "feature": "native-source-verification"
+        }
+      ]
+    },
+    {
+      "path": "tests/native_file_observation.test.mjs",
+      "role": "validation",
+      "sha256": "b57d87c320ac96863955c24103b0260e0e2c629af5ffe3d9c21212d4d8debb66",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 140,
+          "feature": "local-sdk"
+        },
+        {
+          "startLine": 72,
+          "endLine": 139,
+          "feature": "native-source-verification"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_assembly_intent.test.mjs",
+      "role": "validation",
+      "sha256": "ae84f4d541b44ab6f2bb835004d7190612652039bbd1b17ee2e96e604bb6f4d7",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 65,
+          "feature": "authoring-owner"
+        },
+        {
+          "startLine": 47,
+          "endLine": 53,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 54,
+          "endLine": 60,
+          "feature": "native-source-verification"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_assembly_intent.test.mjs",
+      "role": "validation",
+      "sha256": "e3c90c6bf30ec7ab3f4f5c15a129c78b4a343f6489410a92de17a3624fcc9a6d",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 57,
+          "feature": "authoring-owner"
+        },
+        {
+          "startLine": 9,
+          "endLine": 14,
+          "feature": "native-source-verification"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_assembly_intent_fixture.mjs",
+      "role": "validation",
+      "sha256": "dc59bc0f270cca279b26d40b921baf8f95998c0f6b797b08b6bc2763b2b36788",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 44,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_look_fixture.mjs",
+      "role": "validation",
+      "sha256": "d0e5f2a96c754ce84581b4e74ae4aae5a680a0e5859778406afcafbabadf0520",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 70,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_save_recovery.test.mjs",
+      "role": "validation",
+      "sha256": "867861c6648641dd47074c6c8b2538126d9e94240247b98eac847ca738c91487",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 32,
+          "feature": "workflow-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/gallery_hold_fixture.mjs",
+      "role": "validation",
+      "sha256": "ae4ef2fd13a1b2a72abc8c97d797a75687768cbd198f1118f2614b0e2716447e",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 72,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_look_recovery.test.mjs",
+      "role": "validation",
+      "sha256": "46757cfd68871f7855de1836000f5f0281b678e79c1aa22778ed80e94083547f",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 51,
+          "feature": "workflow-owner"
         }
       ]
     }
@@ -2230,7 +2451,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "322765248ee5359e5bee3ed0f0eaa5ae80d4a4f36705930b01afbfb7ec0bcf91",
+      "sha256": "97741f9cf0a1722b49310a299e59478f01dfba30df5b8598027cea242db78ec9",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -2302,6 +2523,23 @@
         "plugins/archive-vlog/scripts/prepare-decoration.js",
         "plugins/archive-vlog/scripts/verify-assembly.js"
       ]
+    },
+    {
+      "file": "plugins/archive-vlog/operation-builder.mjs",
+      "feature": "build-delivery",
+      "producer": "assembly",
+      "description": "Serializes canonical legacy file observation, nativeSourceFiles and input/authoring helpers with the template assembly policy into the self-contained installed assembly program. The native adapter and all its job-status/cancellation callbacks retain native-source-files ownership; assembly policy composes the two confirmation boundaries.",
+      "input": "Canonical helper function bytes plus local assembly policy and assemble.template.js; no runtime import or implicit host global.",
+      "output": "plugins/archive-vlog/scripts/assemble.js with SDK-safe raw-file native verification before placement and before commit.",
+      "lifetime": "Build/check invocation owns serialization; installed nativeSourceFiles owns only its exact process and shared verification deadline. Assembly saved-state/receipt ownership stays with template-run.",
+      "sourceFiles": [
+        "shared/native-source-files.js",
+        "shared/file-observation.js",
+        "shared/native-image-input.mjs",
+        "shared/native-image-authoring.js",
+        "plugins/archive-vlog/dev/assembly-policy.js",
+        "plugins/archive-vlog/dev/assemble.template.js"
+      ]
     }
   ],
   "findings": [
@@ -2317,7 +2555,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 7367
+          "line": 7392
         }
       ],
       "repairOwner": "media-inventory",
@@ -2343,7 +2581,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 2561
+          "line": 2562
         }
       ],
       "repairOwner": "archive-vlog",
@@ -2368,7 +2606,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6273
+          "line": 6274
         }
       ],
       "repairOwner": "media-inventory",
@@ -2387,7 +2625,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6138
+          "line": 6139
         },
         {
           "file": "shared/bundled-assets.js",
@@ -2479,7 +2717,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 4422
+          "line": 4423
         },
         {
           "file": "plugins/archive-vlog/INSTALL.md",
@@ -2558,7 +2796,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 4370
+          "line": 4371
         },
         {
           "file": "shared/host-files.js",
@@ -2598,5 +2836,6 @@
         "tests/template_text.test.mjs"
       ]
     }
-  ]
+  ],
+  "sourceEvidenceRevision": "c204e67d665c5ed8bc34fea4c2acde6d7ceb3399"
 }

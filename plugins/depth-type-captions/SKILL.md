@@ -8,6 +8,10 @@ Experimental. Needs the current Selects shared AI SDK on macOS or Windows,
 and `selects-ai-runtime` from the same library commit. Open an edited Draft of up to 90 seconds whose source has a Selects
 transcript, then open the **Depth Type Captions** panel.
 
+The panel and template keep the Draft's existing screen size, video framing and duration.
+Landscape, portrait and square Drafts stay in their original format. On older apps that pass
+a picked video instead of an edited Draft, the new Draft uses that video's source dimensions.
+
 ## Make captions
 
 Choose **Make depth captions**. The panel reads the Draft's dialogue, renders

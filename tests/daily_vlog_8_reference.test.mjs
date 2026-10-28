@@ -53,8 +53,8 @@ for (const fps of [24000 / 1001, 24, 30000 / 1001, 30, 50, 60000 / 1001]) {
   });
 }
 
-test('short clips repeat and a missing eighth clip reuses the opening clip, on the same frames', async () => {
-  const b = await build(25, {clipSeconds: 2.6, clips: 7});
+test('sufficient short clips and a missing eighth clip retain the intended opening reprise on the same frames', async () => {
+  const b = await build(25, {clipSeconds: 3.3, durations: {v0: 10}, clips: 7});
   assert.equal(b.result.frames, 512);
   const cuts = [...new Set(b.main.map((c) => c.endFrame))];
   for (const c of REF.main) assert.ok(cuts.includes(c.end), 'cut at ' + c.end);

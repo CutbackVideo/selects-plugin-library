@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
-import {loadPanelModule} from './panel_module_fixture.mjs';
+import {loadPanelModule,disposePanelModule} from './panel_module_fixture.mjs';
 import '../shared/video-ai-frames.test.cjs';
 import '../plugins/portrait-beat-montage/tests/source-clock.test.cjs';
 const require=createRequire(import.meta.url);
@@ -131,21 +131,40 @@ test('Portrait detachment during draft commit saves the acknowledged draft but n
  await assert.rejects(build(sdk,{projectId:'p',files:[],setStep:()=>{},setProgress:()=>{},signal:observer.signal,onDraftCommitted:async id=>saved.push(id)}),{code:'cancelled'});
  assert.deepEqual(saved,['committed']);assert.equal(summaries.includes('Open montage draft'),false);
 });
-test('Depth template retry intent is true once per new run and false on its remount',async()=>{
- const saved=new Map(),controls=[],scripts=[];let effect;const refs=[];let i=0;
+test('Depth actual landscape caption preflight preserves framing and retries AI only for a new run',async t=>{
+ const saved=new Map(),controls=[],scripts=[],geometries=[],finishes=[];let effect,writes=0;const refs=[],cleanups=[];let i=0;
+ const frameSize={width:1920,height:1080},transform={scale:{x:1.2,y:1.2},position:{x:12,y:-8}};
+ const main=[{clipId:1,trackId:'main',trackKind:'main',resourceId:'r0',startFrame:0,endFrame:90,transform}];
+ const draft={meta:async()=>({name:'Landscape QA',fps:30,durationFrames:90,frameSize}),clips:async()=>main,
+  words:async()=>['This','is','one','complete','spoken','sentence.'].map((text,j)=>({text,startFrame:j*10,endFrame:(j+1)*10})),
+  setFrameSize:async size=>{writes++;Object.assign(frameSize,size);return{opCount:1};},
+  setClipTransform:async input=>{writes++;Object.assign(transform,{scale:input.scale,position:input.position});return{diff:{opCount:writes}};},
+  commitAll:async()=>{writes++;},
+ };
+ const selects={draft:()=>draft,listProjects:async()=>[{id:'project',title:'QA',draftIds:['draft']}],project:()=>({resource:()=>({meta:async()=>({frameSize:{width:1920,height:1080}})})})};
  const source=fs.readFileSync(new URL('../plugins/depth-type-captions/panel.tsx',import.meta.url),'utf8');
- const {DepthTemplateRun:run}=loadPanelModule(source,{names:['DepthTemplateRun'],
+ const api=loadPanelModule(source,{names:['DepthTemplateRun'],
   React:{useRef:v=>refs[i++]||(refs[i-1]={current:v}),useState:()=>['',()=>{}],useEffect:fn=>{effect=fn;},createElement:()=>null},
   overrides:{useAppUpdateGuard:()=>{},depthStorage:()=>({getItem:async key=>saved.get(key)||null}),depthSave:async(key,value)=>saved.set(key,JSON.stringify(value)),depthHostProblem:()=>null,
-   depthMakeCaptions:async({control})=>{controls.push(control);throw Error('fixture stops after AI intent');}},globals:{console:{warn:()=>{}}}});
- const sdk={runScript:async input=>{scripts.push(input);return {result:input.summary==="Read the draft's length"?{seconds:3}:true};},finishTemplate:()=>{}};
- const render=runId=>{i=0;run({sdk,context:{projectId:'project',template:{runId,libraryId:'library',inputs:{speaker:[{kind:'timeline',sequenceId:'draft'}]}}}});return effect();};
+   // Run the real caption read/composition; stop only at the expensive renderer/AI boundary.
+   depthMakeSpeakerMasks:async(_sdk,_pid,_sid,meta,_settings,_excluded,control)=>{controls.push(control);geometries.push({width:meta.width,height:meta.height,duration:meta.duration});throw Error('fixture stops after AI intent');}},
+  globals:{console:{warn:()=>{}}}});
+ t.after(()=>{for(const cleanup of cleanups)cleanup();disposePanelModule(api);});
+ const sdk={runScript:async input=>{scripts.push(input);let execution;try{
+   execution=loadPanelModule('async function execute(){\n'+input.script+'\n}',{names:['execute'],globals:{selects}});
+   return{result:await execution.execute()};
+  }finally{if(execution)disposePanelModule(execution);}},finishTemplate:value=>finishes.push(value)};
+ const render=runId=>{i=0;api.DepthTemplateRun({sdk,context:{projectId:'project',template:{runId,libraryId:'library',inputs:{speaker:[{kind:'timeline',sequenceId:'draft'}]}}}});const cleanup=effect();if(cleanup)cleanups.push(cleanup);};
  render('same');await tick();assert.equal(controls.length,1);assert.equal(controls[0].retryAi,true);
  refs.length=0;render('same');await tick();assert.equal(controls.length,2);assert.equal(controls[1].retryAi,false);
  render('next');await tick();assert.equal(controls.length,3);assert.equal(controls[2].retryAi,true);
- const framing=scripts.filter(s=>s.summary==='Frame Depth Type template to portrait');
- assert.equal(framing.length,3,'each run reaches caption creation through the real portrait helper');
- assert.ok(framing.every(s=>s.script.includes('await d.setFrameSize({width:1080,height:1920})')));
+ assert.deepEqual(scripts.map(s=>s.summary),Array.from({length:3},()=>["Read the draft's length",'Read dialogue for Depth Type captions']).flat());
+ assert.ok(scripts.every(s=>s.allowCommit===false));
+ assert.deepEqual(geometries,Array.from({length:3},()=>({width:1920,height:1080,duration:3})));
+ assert.deepEqual(frameSize,{width:1920,height:1080});
+ assert.deepEqual(transform,{scale:{x:1.2,y:1.2},position:{x:12,y:-8}});
+ assert.equal(main[0].endFrame,90);assert.equal(writes,0);
+ assert.equal(finishes.length,3);assert.ok(finishes.every(value=>value.error&&!value.sequenceId));
 });
 test('Windows Portrait retries missing x264 with built-in MPEG4, retaining frame clock and rejects other failures',async()=>{
  for(const message of ["Unknown encoder 'libx264'",'invalid input data']) {

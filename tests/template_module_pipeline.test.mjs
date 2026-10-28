@@ -13,7 +13,7 @@ function fixture(t) {
   t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
   for (const folder of ['shared', 'tools']) fs.cpSync(path.join(root, folder), path.join(directory, folder), {recursive: true});
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'shared/panel-modules.json')));
-  const ids = new Set(['gongju-gallery']);
+  const ids = new Set(['gongju-gallery', 'a16z-style-captions']);
   for (const module of registry.modules) for (const key of ['targets', 'buildTimeTargets', 'fileTargets', 'compatibilityTargets']) {
     for (const target of module[key] || []) ids.add(target.split('/')[1]);
   }
@@ -21,9 +21,12 @@ function fixture(t) {
     recursive: true,
     filter: file => fs.statSync(file).isDirectory() || /\.(?:tsx?|[cm]?js|json|py|css)$/.test(file),
   });
-  const sentinel = path.join(directory, 'plugins/shortform-clips/panel.tsx');
-  fs.mkdirSync(path.dirname(sentinel), {recursive: true});
-  fs.writeFileSync(sentinel, 'foreign task sentinel');
+  const sentinels = ['shortform-clips','shortform-cloner','eo-shorts'].map(id => path.join(directory,'plugins',id,'panel.tsx'));
+  for (const sentinel of sentinels) {
+    fs.mkdirSync(path.dirname(sentinel), {recursive: true});
+    fs.writeFileSync(sentinel, 'foreign task sentinel');
+  }
+  const sentinel = sentinels[0];
   const run = (...args) => spawnSync(process.execPath, [path.join(directory, script), ...args], {
     cwd: directory, encoding: 'utf8', timeout: 60000,
     env: {...process.env, SELECTS_DEV_REPO: process.env.SELECTS_DEV_REPO || root},
@@ -40,7 +43,7 @@ function fixture(t) {
     visit(directory);
     return files;
   };
-  return {directory, run, contents, sentinel};
+  return {directory, run, contents, sentinel, sentinels};
 }
 
 test('one command rebuilds all managed delivery paths, is repeatable, and leaves excluded plugins alone', t => {
@@ -52,8 +55,17 @@ test('one command rebuilds all managed delivery paths, is repeatable, and leaves
   // Drift inside a managed block must be repaired along with downstream artifacts.
   const recap = file('plugins/recap-2026/panel.tsx');
   fs.writeFileSync(recap, fs.readFileSync(recap, 'utf8').replace('// cover-focus:start\n', '// cover-focus:start\n// stale shared copy\n'));
+  for(const id of ['mini-vlog','archive-vlog']) {
+    const panel=file('plugins/'+id+'/panel.tsx');
+    fs.writeFileSync(panel,fs.readFileSync(panel,'utf8').replace(/const PLUGIN_VERSION = "[^"]+";/,'const PLUGIN_VERSION = "0.0.0";'));
+  }
   const first = f.run();
   assert.equal(first.status, 0, first.stdout + first.stderr);
+  for(const id of ['mini-vlog','archive-vlog']) {
+    const manifest=JSON.parse(fs.readFileSync(file('plugins/'+id+'/plugin.json'),'utf8'));
+    const version=/const PLUGIN_VERSION = "([^"]+)";/.exec(fs.readFileSync(file('plugins/'+id+'/panel.tsx'),'utf8'))?.[1];
+    assert.equal(version,manifest.version,'prepare must deliver the manifest version before panel source fingerprints are used');
+  }
   const prepared = f.contents();
   const check = f.run('--check');
   assert.equal(check.status, 0, check.stdout + check.stderr);
@@ -61,7 +73,7 @@ test('one command rebuilds all managed delivery paths, is repeatable, and leaves
   const second = f.run();
   assert.equal(second.status, 0, second.stdout + second.stderr);
   assert.deepEqual(f.contents(), prepared, 'a repeated prepare must produce identical bytes');
-  assert.equal(fs.readFileSync(f.sentinel, 'utf8'), 'foreign task sentinel');
+  for (const sentinel of f.sentinels) assert.equal(fs.readFileSync(sentinel, 'utf8'), 'foreign task sentinel');
 });
 
 test('check rejects missed generation at each boundary without rewriting the checkout', async t => {
@@ -69,6 +81,8 @@ test('check rejects missed generation at each boundary without rewriting the che
   const clean = f.run();
   assert.equal(clean.status, 0, clean.stdout + clean.stderr);
   const cases = [
+    ['Mini version', 'plugins/mini-vlog/panel.tsx', source => source.replace(/const PLUGIN_VERSION = "[^"]+";/,'const PLUGIN_VERSION = "0.0.0";')],
+    ['Archive version', 'plugins/archive-vlog/panel.tsx', source => source.replace(/const PLUGIN_VERSION = "[^"]+";/,'const PLUGIN_VERSION = "0.0.0";')],
     ['shared block', 'plugins/recap-2026/panel.tsx', source => source.replace('// cover-focus:start\n', '// cover-focus:start\n// missed sync\n')],
     ['duration block', 'plugins/gongju-gallery/panel.tsx', source => source.replace('// media-duration:start\n', '// media-duration:start\n// missed sync\n')],
     ['private Panel adapter', 'plugins/camera-shutter-dump/panel.tsx', source => source.replace('// local-sdk:start\n', '// local-sdk:start\n// missed adapter sync\n')],
@@ -77,6 +91,8 @@ test('check rejects missed generation at each boundary without rewriting the che
     ['Gallery panel', 'plugins/photo-gallery-no2/panel.tsx', source => source + '\n// stale panel\n'],
     ['Mini operation', 'plugins/mini-vlog/scripts/assemble.js', source => source + '\n// stale operation\n'],
     ['Archive operation', 'plugins/archive-vlog/scripts/decorate.js', source => source + '\n// stale operation\n'],
+    ['a16z renderer', 'plugins/a16z-style-captions/src/renderers.ts', source => source + '\n// stale renderer\n'],
+    ['a16z panel', 'plugins/a16z-style-captions/panel.tsx', source => source + '\n// stale panel\n'],
     ['Chris source section', 'plugins/chris-williamson-style/src/broll.tsx', source => source + '\n// new source section\n'],
   ];
   for (const [label, target, mutate] of cases) await t.test(label, () => {
@@ -108,4 +124,10 @@ test('unknown options fail before any builder changes files', t => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Usage:/);
   assert.deepEqual(f.contents(), before);
+});
+
+test('invalid version provenance stops prepare before any other artifact generation',t=>{
+ const f=fixture(t),manifestFile=path.join(f.directory,'plugins/archive-vlog/plugin.json');
+ const manifest=JSON.parse(fs.readFileSync(manifestFile,'utf8'));manifest.version='not-a-version';fs.writeFileSync(manifestFile,JSON.stringify(manifest));
+ const before=f.contents(),result=f.run();assert.notEqual(result.status,0);assert.match(result.stderr,/Invalid manifest version/);assert.deepEqual(f.contents(),before);
 });

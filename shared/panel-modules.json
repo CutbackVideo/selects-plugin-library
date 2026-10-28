@@ -12,6 +12,7 @@
       "targets": [
         "plugins/mini-vlog/panel.tsx",
         "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
         "plugins/polaroid-photo-dump/panel.tsx",
         "plugins/archive-vlog/panel.tsx"
@@ -46,7 +47,8 @@
         "plugins/jude-kinetic-style/panel.tsx",
         "plugins/portrait-beat-montage/panel.tsx",
         "plugins/photo-gallery-no2/panel.tsx",
-        "plugins/recap-2026/panel.tsx"
+        "plugins/recap-2026/panel.tsx",
+        "plugins/ali-abdaal-style/panel.tsx"
       ],
       "compatibilityTargets": [
         "plugins/cutout-beat-gallery/panel.tsx"
@@ -219,7 +221,8 @@
       "source": "shared/ai-resources.cjs",
       "targets": [
         "plugins/photo-gallery-no2/panel.tsx",
-        "plugins/recap-2026/panel.tsx"
+        "plugins/recap-2026/panel.tsx",
+        "plugins/ali-abdaal-style/panel.tsx"
       ],
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"
@@ -230,7 +233,9 @@
       "source": "shared/cover-focus.cjs",
       "targets": [
         "plugins/photo-gallery-no2/panel.tsx",
-        "plugins/recap-2026/panel.tsx"
+        "plugins/recap-2026/panel.tsx",
+        "plugins/ali-abdaal-style/panel.tsx",
+        "plugins/jude-kinetic-style/panel.tsx"
       ],
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"
@@ -240,7 +245,8 @@
       "id": "face-result-pages",
       "source": "shared/face-result-pages.cjs",
       "targets": [
-        "plugins/jude-kinetic-style/panel.tsx"
+        "plugins/jude-kinetic-style/panel.tsx",
+        "plugins/ali-abdaal-style/panel.tsx"
       ]
     },
     {
@@ -252,6 +258,13 @@
         "plugins/doac-style/panel.tsx",
         "plugins/depth-type-captions/panel.tsx",
         "plugins/chris-williamson-style/src/panel.template.tsx"
+      ]
+    },
+    {
+      "id": "face-request-windows",
+      "source": "shared/face-request-windows.cjs",
+      "targets": [
+        "plugins/ali-abdaal-style/panel.tsx"
       ]
     }
   ]

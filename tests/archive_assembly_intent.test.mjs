@@ -6,6 +6,12 @@ import {assemblyIntentFixture} from './mini_assembly_intent_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 const source=vlogOperation('archive-vlog','assemble');
 export const fixture=options=>{const f=assemblyIntentFixture({scriptSource:source,probeName:'Archive source timing check',...options});f.cfg.musicFadeOut=1;return f;};
+test('Archive large analysis source: generated assembly uses native bytes before placement and commit',async()=>{
+ const f=fixture(),file=f.addFile('/large-original');f.cfg.analysisSources=[file.observation];
+ const stat=f.files.stat;file.observation.size=4*1024**3;f.files.stat=async path=>({...await stat(path),size:file.observation.size});
+ const readRange=f.files.readRange;f.files.readRange=async input=>{assert.equal(input.offset,0);assert.ok(input.length<=10,'only a bounded ID3 signature may cross the bridge');return readRange(input);};
+ await f.run();assert.equal(file.entry.nativeReads,2);assert.equal(f.calls.commits,1);
+});
 for(const kinds of [['chapter','subchapter'],['other']])test('Archive assembly: native '+kinds.join('/')+' rows '+(kinds[0]==='other'?'cannot enter the saved assembly':'are preserved without counting as media'),async()=>{
  const f=fixture(),create=f.project.createDraft;
  f.project.createDraft=async options=>{

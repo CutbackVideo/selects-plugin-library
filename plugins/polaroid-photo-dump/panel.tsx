@@ -481,8 +481,19 @@ export function requireSourceFileSupport(files) {
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
 }
-export async function observeSourceFiles(files,paths,expected=null) {
+export async function observeSourceFiles(files,paths,expected=null,options=null) {
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
+ options=options??{};
+ if(!options||typeof options!=='object'||options.check!==undefined&&typeof options.check!=='function'||options.onProgress!==undefined&&typeof options.onProgress!=='function')throw issue('source-file-input','The source observation options are invalid.');
+ let guardFailed=false,guardFailure;
+ const check=()=>{if(options.signal?.aborted)throw Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'});try{options.check?.();}catch(cause){guardFailed=true;guardFailure=cause;throw cause;}};
+ // The SDK cannot abort a range read already dispatched. Stop caller waiting
+ // immediately; the original promise stays handled and its next check stops it.
+ const observe=operation=>new Promise((resolve,reject)=>{
+  const abort=()=>reject(Object.assign(Error('Original file verification was stopped.'),{name:'AbortError'}));
+  options.signal?.addEventListener('abort',abort,{once:true});
+  Promise.resolve().then(()=>{check();return operation();}).then(value=>{check();return value;}).then(resolve,reject).finally(()=>options.signal?.removeEventListener('abort',abort));
+ });
  if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
  const selected=[...new Set(paths)];
  const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
@@ -491,14 +502,27 @@ export async function observeSourceFiles(files,paths,expected=null) {
  requireSourceFileSupport(files);
  const observed=[];
  for(const path of selected){
+  check();
+  options.onProgress?.({path,index:observed.length+1,total:selected.length,bytesRead:0,complete:false});
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{
+   // Native reads own cancellation and confirmed exit. Do not race their
+   // settlement with the caller-only abort used for uncancellable range reads.
+   fingerprint=options.native===true&&typeof files.fingerprint==='function'
+    ?await files.fingerprint(path,{native:true,signal:options.signal,check})
+    :await observe(()=>fingerprintTemplateFile(files,path,check));
+  }catch(cause){
+   if(cause?.preserveTemporaryFiles)throw cause;
+   if(guardFailed&&cause===guardFailure)throw cause;
+   check();if(cause?.name==='AbortError')throw cause;throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);
+  }
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
   const before=expected?.find(row=>row.path===path);
   if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
   observed.push({path,size:row.size,sha256:row.sha256});
+  check();options.onProgress?.({path,index:observed.length,total:selected.length,bytesRead:row.size,complete:true});
  }
  return observed;
 }
@@ -1373,7 +1397,10 @@ async function runAssetMediaTool(media,kind,args,options={}){
  else timer=setTimeout(()=>{timedOut=true;controller.abort();},remaining);
  try{
   if(stopped||timedOut)throw Error('The media process was not dispatched.');
-  const result=await media[kind](args,true,controller.signal);
+  const result=await media[kind](args,true,controller.signal,undefined,undefined,{deadline:expiresAt,check:()=>{
+   if(!live()||Date.now()>=expiresAt)controller.abort();
+   if(controller.signal.aborted)throw Error('The media process ended after its scope.');
+  }});
   if(!live())stop();
   if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
   if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
@@ -2504,36 +2531,22 @@ async function hostRoots(sdk, id, marker) {
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
 // temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
 // throws when ffmpeg fails or `signal` (optional) aborts it.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
-  const rt = hostApi("Runtime", "runFFmpeg");
-  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
-  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
-  const controller = typeof AbortController === "undefined" ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const relay = () => { if (controller) controller.abort(); };
-  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
-  try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
-    const bytes = await hostReadBytes(tmp);
-    // A copy, so the samples sit on a 4-byte boundary.
-    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
-    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
-    return samples;
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    await hostRemove(tmp);
-  }
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000, client = hostSdk) {
+  if (!client?.media || typeof client.media.runFFmpeg !== "function" || !dataDir || typeof client?.files?.readFile !== "function") return null;
+  return decodeAssetPcm(client, { path, directory: dataDir, rate, maxSeconds, signal, timeoutMs });
 }
 // An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path) {
+async function hostProbeSeconds(path, client = hostSdk, signal) {
   try {
-    const rt = hostApi("Runtime", "runFFprobe");
-    if (!rt) return null;
-    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
-    const v = parseFloat(String(r?.stdout || "").trim());
-    return v > 0 ? v : null;
-  } catch { return null; }
+    const rt = client?.media;
+    if (typeof rt?.runFFprobe !== "function") return null;
+    const r = await runAssetMediaTool(rt, "runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], { signal, timeoutMs: 30000 });
+    const v = Number(String(r?.stdout || "").trim());
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch (error) {
+    if (error?.terminal || error?.preserveTemporaryFiles) throw error;
+    return null;
+  }
 }
 // av-host:end
 
@@ -2699,7 +2712,8 @@ async function createPanelLocalClient(sdk: any) {
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
-    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
+    fingerprint: (path: string, options?: { native?: boolean; signal?: AbortSignal; check?: () => void; onProgress?: (bytes: number) => void; timeoutMs?: number }) =>
+      options?.native ? nativeFingerprint(path, options) : runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -2784,21 +2798,38 @@ async function createPanelLocalClient(sdk: any) {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
-  const observeMedia = (read: () => Promise<any>, deadline: number): Promise<any> => new Promise((resolve, reject) => {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) { reject(mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
-    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+  const observeMedia = (read: () => Promise<any>, deadline: number, check?: () => void): Promise<any> => new Promise((resolve, reject) => {
+    let finished = false, timer: ReturnType<typeof setTimeout>;
+    const finish = (complete: (value: any) => void, value: any) => {
+      if (finished) return;
+      finished = true; clearTimeout(timer); complete(value);
+    };
+    const observeLifetime = () => {
+      try { check?.(); } catch (cause) { finish(reject, cause); return; }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) { finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
+      timer = setTimeout(observeLifetime, check ? Math.min(150, remaining) : remaining);
+    };
+    observeLifetime();
+    if (finished) return;
     Promise.resolve().then(read).then(
-      value => { clearTimeout(timer); resolve(value); },
-      cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
+      value => finish(resolve, value),
+      cause => finish(reject, mediaIssue("STATUS", "The media job response could not be confirmed.", cause)));
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, ownerCheck?: () => void, observationDeadline?: number) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
-      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function" ||
+      ownerCheck !== undefined && typeof ownerCheck !== "function" || observationDeadline !== undefined && !Number.isFinite(observationDeadline))
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const check = () => {
+      if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      ownerCheck?.();
+      if (observationDeadline !== undefined && Date.now() >= observationDeadline)
+        throw mediaIssue("STATUS", "The media operation budget has expired.");
+    };
+    check?.();
     const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;
@@ -2829,7 +2860,7 @@ async function createPanelLocalClient(sdk: any) {
     let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
     const knownState = (status: any) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
     // Read-only observations may time out; a late reply cannot authorize cleanup.
-    const statusAt = (deadline: number) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const statusAt = (deadline: number, guard?: () => void) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline, guard);
     const settleAfterFailure = async (cause: unknown) => {
       requestCancel();
       const deadline = cancellationDeadline!;
@@ -2844,9 +2875,15 @@ async function createPanelLocalClient(sdk: any) {
     };
     try {
       while (true) {
+        check?.();
         if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
           throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
-        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        // An operation owner supplies a total deadline. Keep its single
+        // pending read alive across a slow renderer turn, while checking scope
+        // and cancellation; never replay the native job or the status request.
+        const status = await statusAt(cancellationDeadline ?? observationDeadline ?? Date.now() + SETTLEMENT_MS,
+          cancellationDeadline === null && observationDeadline !== undefined ? check : undefined);
+        check?.();
         if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
         settled = status.state !== "running";
         if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
@@ -2879,12 +2916,82 @@ async function createPanelLocalClient(sdk: any) {
       activeJobs.delete(jobId);
     }
   };
+  // Opt-in only: raw data demuxing copies every original byte into FFmpeg's hash
+  // muxer. No media decoding, source rewrite, shell interpolation or hash cache.
+  // Missing capability may use the complete legacy read; execution errors cannot.
+  const nativeFingerprint = async (path: string, options: { signal?: AbortSignal; check?: () => void; onProgress?: (bytes: number) => void; timeoutMs?: number }) => {
+    if (typeof path !== "string" || !paths.isAbsolute(path) || path.includes("\0") ||
+        options.check !== undefined && typeof options.check !== "function" ||
+        options.onProgress !== undefined && typeof options.onProgress !== "function" ||
+        options.timeoutMs !== undefined && (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 300000))
+      throw new Error("The original file observation input is invalid.");
+    if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const check = () => {
+      if (disposed || options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      options.check?.();
+    };
+    check();
+    const capability = await runSource("return typeof selects.media?.startFFmpeg === 'function';");
+    check();
+    if (capability !== true && capability !== false) throw new Error("The local media capability could not be confirmed.");
+    if (!capability) return fingerprintTemplateFile(files, path, check);
+    const before = await files.stat(path);
+    check();
+    if (before === null) return null;
+    if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino))
+      throw new Error("The file's size or identity could not be confirmed.");
+    if (before.size > 0) {
+      const length = Math.min(10, before.size), prefix = await files.readRange({path, offset: 0, length});
+      check();
+      if (prefix?.bytesRead !== length || typeof prefix.base64 !== "string" || prefix.base64.length !== 4 * Math.ceil(length / 3)) throw new Error("The original file prefix could not be confirmed.");
+      // FFmpeg 6 consumes ID3 before opening even the data demuxer. Select a
+      // complete byte observer before dispatch; a native error never falls back.
+      if (prefix.base64.startsWith("SUQz")) {
+        const deadline = Date.now() + (options.timeoutMs ?? 120000);
+        const current = () => { check(); if (Date.now() >= deadline) throw new Error("Original file verification timed out."); };
+        const result = await fingerprintTemplateFile(files, path, current);
+        current(); if (result) options.onProgress?.(result.size);
+        return result;
+      }
+    }
+    const controller = new AbortController(), abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, {once:true});
+    if (options.signal?.aborted) abort();
+    const deadline = Date.now() + (options.timeoutMs ?? 120000);
+    let timedOut = false;
+    // A scope guard belongs to this invocation, just like its AbortSignal.
+    // Reuse the process owner so cancellation still waits for confirmed exit.
+    const checkLifetime = () => {
+      try { check(); } catch (cause) { controller.abort(); throw cause; }
+      if (Date.now() >= deadline) { timedOut = true; abort(); }
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    };
+    const timer = setTimeout(() => { timedOut = true; abort(); }, Math.max(0, deadline - Date.now()));
+    try {
+      const result = await process("FFmpeg", ["-nostdin", "-v", "error", "-protocol_whitelist", "file", "-f", "data", "-i", "file:" + path,
+        "-map", "0:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], true, controller.signal, undefined, undefined, checkLifetime, deadline);
+      checkLifetime();
+      const match = /^SHA256=([a-fA-F0-9]{64})\r?\n?$/.exec(result.stdout);
+      if (!match) throw new Error("The original file hash returned an incomplete result.");
+      const after = await files.stat(path);
+      checkLifetime();
+      if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino)
+        throw new Error("The file changed while its contents were read.");
+      options.onProgress?.(before.size);
+      return {size:before.size,sha256:match[1].toLowerCase()};
+    } catch (cause) {
+      if (timedOut && cause?.name === "AbortError") throw new Error("Original file verification timed out.");
+      throw cause;
+    } finally {
+      clearTimeout(timer);options.signal?.removeEventListener("abort", abort);
+    }
+  };
   return {
     files,
     environment,
     media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void, owner?: { deadline: number; check?: () => void }) => process("FFmpeg", args, quiet, signal, stdout, stderr, owner?.check, owner?.deadline),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal, _stdout?: undefined, _stderr?: undefined, owner?: { deadline: number; check?: () => void }) => process("FFprobe", args, quiet, signal, undefined, undefined, owner?.check, owner?.deadline),
     },
     dialogs: {
       pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),

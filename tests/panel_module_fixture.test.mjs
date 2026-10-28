@@ -22,16 +22,16 @@ test('new transitive helpers load without adding their names to the fixture', ()
 
 test('the real Depth helper can gain another dependency without a fixture dependency list', () => {
   const source = fs.readFileSync(new URL('../plugins/depth-type-captions/panel.tsx', import.meta.url), 'utf8');
-  assert.ok(source.includes('function depthPortraitDraftScript('));
-  const expanded = source.replace('function depthPortraitDraftScript(', 'function addedFramingDependency(') +
-    '\nfunction depthPortraitDraftScript(pid, sid) { return addedFramingDependency(pid, sid); }\n';
+  assert.ok(source.includes('function depthClipDraftScript('));
+  const expanded = source.replace('function depthClipDraftScript(', 'function addedDraftDependency(') +
+    '\nfunction depthClipDraftScript(pid, sid, name) { return addedDraftDependency(pid, sid, name); }\n';
   // Reproduce the former fixture defect: loading just the named function loses
   // the newly introduced dependency, even though the production module is valid.
-  assert.throws(() => vm.runInNewContext(topLevel(expanded, 'depthPortraitDraftScript') +
-    ';depthPortraitDraftScript("p","d");'), /addedFramingDependency is not defined/);
-  const names = ['depthPortraitDraftScript'];
-  assert.equal(loadPanelModule(expanded, {names}).depthPortraitDraftScript('p','d'),
-    loadPanelModule(source, {names}).depthPortraitDraftScript('p','d'));
+  assert.throws(() => vm.runInNewContext(topLevel(expanded, 'depthClipDraftScript') +
+    ';depthClipDraftScript("p","d","QA");'), /addedDraftDependency is not defined/);
+  const names = ['depthClipDraftScript'];
+  assert.equal(loadPanelModule(expanded, {names}).depthClipDraftScript('p','d','QA'),
+    loadPanelModule(source, {names}).depthClipDraftScript('p','d','QA'));
 });
 
 test('generated module comments can disappear without losing any real local-client dependency', async () => {

@@ -1,10 +1,31 @@
 import {sdkFreeHelpersSource,vlogOperation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import fsp from 'node:fs/promises';import vm from 'node:vm';import {webcrypto} from 'node:crypto';
 import {holdFixture} from './gallery_hold_fixture.mjs';
+import {MessageChannel} from 'node:worker_threads';
 const source=sdkFreeHelpersSource()+'\n'+fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8'),assemble=vlogOperation('mini-vlog','assemble'),decorate=vlogOperation('mini-vlog','decorate');
 const clone=v=>JSON.parse(JSON.stringify(v));
 export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=assemble,decorationSource=decorate,probeName='Mini source timing check'}={}){
  const f=await holdFixture(t),hooks=f.hooks,saved=new Map(),requests=[],pending=[];let serial=0,commits=0,epoch=0,probeSerial=0;
+ // Assembly runs in the real SDK-script shape, including its existing native
+ // media port. Keep native jobs owned by this fixture; execute actual FFmpeg so
+ // source mutation and complete-byte verification remain meaningful.
+ const nativeJobs=new Map(),scriptScopes=new Set();let nativeSerial=0;
+ t.after(async()=>{try{for(const job of nativeJobs.values())if(job.state==='running')job.controller.abort();await Promise.all([...nativeJobs.values()].map(job=>job.done));}finally{for(const {channel} of scriptScopes){channel.port1.close();channel.port2.close();}scriptScopes.clear();}});
+ const nativeMedia=authorized=>({
+  startFFmpeg:async({args})=>{
+   assert.equal(authorized,true,'native media start requires allowCommit');
+   const jobId='look-native-'+ ++nativeSerial,job={controller:new AbortController(),state:'running',events:[],done:null,error:undefined};nativeJobs.set(jobId,job);
+   job.done=f.local.media.runFFmpeg(args,true,job.controller.signal).then(result=>{
+    for(const stream of ['stdout','stderr'])for(let i=0;i<result[stream].length;i+=4096)job.events.push({cursor:job.events.length+1,stream,text:result[stream].slice(i,i+4096)});
+    job.state='succeeded';
+   },error=>{job.state=job.controller.signal.aborted?'cancelled':'failed';job.error=error.message;if(job.state==='failed')t.diagnostic?.(JSON.stringify({fixture:'look-native',jobId,args,code:error.code,signal:error.signal,stderr:error.stderr,message:error.message}));});
+   return {jobId};
+  },
+  job:jobId=>{const job=nativeJobs.get(jobId);assert.ok(job,'only this fixture owns its native job');return {
+   status:async({cursor=0}={})=>{await new Promise(resolve=>setImmediate(resolve));const events=job.events.filter(event=>event.cursor>cursor).slice(0,8);return {state:job.state,events,nextCursor:events.at(-1)?.cursor??cursor,truncated:false,...job.error?{error:job.error}:{}};},
+   cancel:async()=>{assert.equal(authorized,true,'native media cancel requires allowCommit');job.controller.abort();},
+  };},
+ });
  saved.set('unrelated',{name:'Unrelated',clips:[{clipId:44,trackId:'main',trackKind:'main',resourceId:'foreign',startFrame:0,endFrame:60}]});
  f.files.readdir=p=>fsp.readdir(p);
  function handle(id,state){
@@ -30,7 +51,14 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
   assert.equal(method,'getDraftMediaSnapshot');return {revision:JSON.stringify(state),fps:30,durationFrames:Math.max(...state.clips.map(r=>r.endFrame)),clips:state.clips.filter(r=>r.resourceId).map(r=>({clipId:r.clipId,trackId:r.trackId,trackKind:r.trackKind,resourceId:r.resourceId,startFrame:r.startFrame,endFrame:r.endFrame,sourceStartSeconds:r._source?.startSeconds??0,sourceEndSeconds:r._source?.endSeconds??(r.endFrame-r.startFrame)/30,playbackSpeed:r.playbackSpeed?r.playbackSpeed.numerator/r.playbackSpeed.denominator:1}))};
  },runScript:async input=>{
   requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,editor:{linkToDraftFrame:async()=>({deepLinkUrl:'selects://fixture'}),openDraft:async()=>{}},project:()=>({importFiles:async input=>{if(!hooks.importFiles)throw Error('Unexpected import in save fixture');return hooks.importFiles(input);},resources:async()=>hooks.resources??[],resource:rid=>({rid}),sourceFiles:async()=>hooks.sourceFiles?hooks.sourceFiles():({fileTree:[{type:"video",resourceId:"r0",path:f.source}]}),meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name===probeName?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
-  const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){return {isError:true,output:error.message};}})();
+  selects.media=nativeMedia(input.allowCommit===true);
+  // A real SDK host owns an open IPC connection while a script is running.
+  // Model that transport lifetime: Atomics.waitAsync alone does not retain
+  // Node's loop after FFmpeg exits between two status observations.
+  // V8 may discard a context whose only pending work is waitAsync. The host
+  // must retain the execution space, not just an unrelated open transport.
+  const channel=new MessageChannel(),context=vm.createContext({selects}),scope={channel,context};scriptScopes.add(scope);channel.port1.on('message',()=>{});
+  const work=(async()=>{try{const result=await vm.runInContext('(async()=>{'+input.script+'})()',context);await hooks.reply?.(input,result);return {result};}catch(error){if(input.summary==='Assemble template with owned receipt')t.diagnostic?.(JSON.stringify({fixture:'assembly-cause',summary:input.summary,message:error.message,cause:error.cause?.message,stack:error.stack}));return {isError:true,output:error.message};}finally{channel.port1.close();channel.port2.close();scriptScopes.delete(scope);}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'||hooks.lostAssembly&&input.summary==='Assemble template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;
  }};
  const mount=()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(source,box);return box;};

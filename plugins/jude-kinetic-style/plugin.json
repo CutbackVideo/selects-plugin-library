@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "id": "jude-kinetic-style",
-  "version": "0.4.15",
+  "version": "0.4.17",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
   "name": "Jude Kinetic Style",
-  "summary": "Editable red/cream kinetic podcast typography: bold white captions, red italic emphasis, a cream card, lines behind the speaker and a background music bed (Kevin MacLeod, CC BY 4.0).",
+  "summary": "Editable red/cream kinetic podcast typography: bold white captions, red italic emphasis, a cream card, lines behind the speaker and optional background music (Kevin MacLeod, CC BY 4.0).",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -51,5 +51,22 @@
     "A video file of one person talking to camera",
     "No captions or effects already on the video",
     "English speech"
+  ],
+  "options": [
+    {
+      "id": "music",
+      "label": "Background music",
+      "default": "none",
+      "choices": [
+        {
+          "id": "none",
+          "label": "Original audio only"
+        },
+        {
+          "id": "bundled",
+          "label": "Add Dark Hallway (distressed)"
+        }
+      ]
+    }
   ]
 }

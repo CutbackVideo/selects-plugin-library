@@ -10,3 +10,5 @@ Experimental: macOS arm64 or Windows x64 (not yet run on a Windows PC), and a co
 The panel reads Selects word timing when available. If the Draft has no transcript, the same
 button starts source analysis and continues when analysis finishes. No external models, runtimes,
 credentials, or source-media files are included.
+
+Install `selects-ai-runtime` from the same plugin library to enable source face observations. If observations are unavailable, the template reserves title space and labels the affected timeline graphics for review.

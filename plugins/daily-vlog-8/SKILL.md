@@ -35,7 +35,7 @@ Bed" from 36.04 s into the song. The song is not measured.
 | 0–107 | opening clip, "DAILY VLOG" title (0–107) | traced film exposure (5/5 frames), whoosh 100–134 |
 | 107–151 | clip 1 | amber camera exposure (3/5) |
 | 151–194 | clip 2, "JUST EVERYDAY MOMENTS" (116–194) | wide cream film gate (3/4), whoosh 183–217 |
-| 194–275 | clip 3, split at 236 where the source jumps 2.88 s on, 110 % | straight cut |
+| 194–275 | clip 3, split at 236 with a forward source jump of up to 2.88 s, 110 % | straight cut |
 | 275–321 | clip 4, 110 % | banded vertical exposure (3/3), camera beep 312–335 |
 | 321–366 | clip 5 | straight cut, shutter 366–371 |
 | 366–411 | clip 6 | amber camera exposure (4/4) |
@@ -44,9 +44,12 @@ Bed" from 36.04 s into the song. The song is not measured.
 
 Also: a whoosh at 0–34 and typing at 119–152 and 451–485. The music dips under the sound effects.
 
-A template run uses the clips in the order given (a ninth is not used; with seven, the opening clip returns for
-411–451). The panel uses its seven picks for clips 1–6 and 8 and one more clip from the folder for clip 7. A clip
-shorter than its shot repeats from its start.
+A template run takes seven or eight distinct clips besides Opening, using them all in the order given. With seven,
+the opening clip returns for 411–451. More than eight other distinct clips are refused before any SDK media work. The panel uses its seven picks for clips 1–6 and 8 and one more clip from the folder for clip 7.
+Before creating a Draft, each picked video is checked against its slot's visible duration, with a small allowance
+for frame rounding. If a video is too short, the error names its slot, available duration and required duration.
+Clip 3 needs about 3.26 seconds of unique footage. Its two pieces never overlap: shorter usable sources reduce
+the forward jump, while long sources retain the reference's full 2.88-second jump.
 
 The slot labels are a suggestion, not a constraint: opening/travel, everyday place,
 activity/detail, moving scenery, walking/movement, small discovery, rest/portrait, and a

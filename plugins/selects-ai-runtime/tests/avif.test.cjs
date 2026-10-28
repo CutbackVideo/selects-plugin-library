@@ -2,6 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const { readFileSync } = require('node:fs');
+const { createRequire } = require('node:module');
 const os = require('node:os');
 const path = require('node:path');
 const { startAvifFrames, verifyGrayAvif } = require('../lib/avif.cjs');
@@ -68,19 +70,56 @@ test('matte completion requires requested encoding and an actual full-size AVIF 
   document.frames[0].file = 'alpha/000000.avif'; await fs.unlink(path.join(root, document.frames[0].file)); await assert.rejects(verify(), /ENOENT/);
 });
 
-test('successful encoder exit without image files is rejected and reaped', async t => {
+// Execute the complete current AVIF module with only the process-launch argv
+// boundary redirected to a real Node child. Its actual startTool pipe handling,
+// writer, output validation and disposal remain intact on every host platform.
+function nodeEncoder(script, options) {
+  const filename = require.resolve('../lib/avif.cjs'), nativeRequire = createRequire(filename), module = { exports: {} };
+  const controlledRequire = name => name === './process.cjs'
+    ? { startTool: (_executable, _args, launchOptions) => startTool(process.execPath, ['-e', script], launchOptions) }
+    : nativeRequire(name);
+  new Function('require', 'module', 'exports', readFileSync(filename, 'utf8'))(controlledRequire, module, module.exports);
+  return module.exports.startAvifFrames({ ...options, config: { tools: { ffmpeg: process.execPath } } });
+}
+
+test('successful encoder exit without image files is rejected and reaped', { timeout: 5000 }, async t => {
   const outputDir = await folder(t);
   let encoderPid;
-  const writer = startAvifFrames({ config: { tools: { ffmpeg: process.execPath } }, width: 4, height: 2, outputDir,
-    emitProgress: event => { encoderPid = event.encoderPid; } });
+  const received = path.join(outputDir, 'received-bytes.txt');
+  // The former `node -v ...` fake could close stdin before write(), testing a
+  // broken pipe instead of the intended successful-but-missing-output case.
+  const writer = nodeEncoder(`let bytes=0;process.stdin.on('data',chunk=>bytes+=chunk.length);process.stdin.on('end',()=>{require('node:fs').writeFileSync(${JSON.stringify(received)},String(bytes));process.exit(0);});`,
+    { width: 4, height: 2, outputDir, emitProgress: event => { encoderPid = event.encoderPid; } });
   try {
     await writer.write(Buffer.alloc(8, 127));
     await assert.rejects(writer.finish(), /count differs/);
+    assert.equal(await fs.readFile(received, 'utf8'), '8', 'the successful encoder consumed the complete raster');
   }
   finally { await writer.dispose(); }
   assert.ok(encoderPid);
   assert.throws(() => process.kill(encoderPid, 0), error => error.code === 'ESRCH');
   assert.deepEqual(await fs.readdir(path.join(outputDir, 'alpha')), []);
+});
+
+for (const exitCode of [0, 42]) test(`early AVIF encoder exit ${exitCode} rejects writes, retains real failures and reaps private output`, { timeout: 5000 }, async t => {
+  const outputDir = await folder(t), alphaDir = path.join(outputDir, 'alpha');
+  const partial = path.join(alphaDir, '000000.partial.avif'), unrelated = path.join(alphaDir, 'keep.txt');
+  await fs.writeFile(unrelated, 'not encoder output');
+  let encoderPid;
+  const script = `require('node:fs').writeFileSync(${JSON.stringify(partial)},'partial');process.stderr.write('early encoder diagnostic\\n');process.exit(${exitCode});`;
+  const writer = nodeEncoder(script, { width: 4096, height: 4096, outputDir,
+    emitProgress: event => { encoderPid = event.encoderPid; } });
+  try {
+    // Larger than the OS pipe capacity: a child that never consumes stdin must
+    // fail this outstanding write, rather than racing an eight-byte buffer.
+    await assert.rejects(writer.write(Buffer.alloc(4096 * 4096, 127)), error => exitCode === 42
+      ? /Media tool exited 42: early encoder diagnostic/.test(error.message)
+      : ['EPIPE', 'ERR_STREAM_DESTROYED'].includes(error.code));
+  } finally { await writer.dispose(); }
+  assert.ok(encoderPid);
+  assert.throws(() => process.kill(encoderPid, 0), error => error.code === 'ESRCH');
+  assert.deepEqual(await fs.readdir(alphaDir), ['keep.txt']);
+  assert.equal(await fs.readFile(unrelated, 'utf8'), 'not encoder output');
 });
 
 test('an unavailable AVIF encoder cannot publish a successful result', async t => {

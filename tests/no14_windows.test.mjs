@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {webcrypto,createHash} from 'node:crypto';
-import {panelSource,hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
+import {panelSource,hostBlock,hasCommonHostFiles,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
 const source=panelSource('no14-still-video');
 const W_MUSIC='C:\\Users\\\uD64D\uAE38\uB3D9\\.selects\\skills\\no14-still-video\\assets\\music.mp3';
 
-test('the host I/O block is Archive Vlog\'s, unchanged',()=>{
- assert.equal(hostBlock(source),REFERENCE_BLOCK);
+test('common host files stay canonical and owned media uses no POSIX shell',()=>{
+ assert.ok(hasCommonHostFiles(source));
+ assert.deepEqual(posixHits(hostBlock(source).replace('// av-host:start','').replace('// av-host:end','')),[]);
 });
 
 test('no POSIX shell syntax outside the host block',()=>{

@@ -46,10 +46,17 @@ test('Mini plan contract: repeating one photo Resource rejects before authoring 
 });
 test('Mini analysis source: content change after placement prevents the assembly commit',async()=>{
  const f=fixture(),file=f.addFile('/analysis-original'),create=f.project.createDraft;f.cfg.analysisSources=[file.observation];f.project.createDraft=async input=>{const d=await create(input);file.entry.bytes=Buffer.from('changed fixture bytes');return d;};
- await assert.rejects(f.run(),e=>e.code==='source-file-changed');assert.equal(f.calls.commits,0);assert.equal(file.entry.reads,2);
+ await assert.rejects(f.run(),e=>e.code==='source-file-changed');assert.equal(f.calls.commits,0);assert.equal(file.entry.nativeReads,2);assert.equal(file.entry.reads,2);
 });
 test('Mini analysis source: unavailable original stops before any source probe or working Draft',async()=>{
  const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];await assert.rejects(f.run(),e=>e.code==='source-file-missing');assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);
+});
+test('Mini large analysis source: generated assembly uses native bytes before placement and commit',async()=>{
+ const f=fixture(),file=f.addFile('/large-original');f.cfg.analysisSources=[file.observation];let starts=0;
+ const stat=f.files.stat;file.observation.size=4*1024**3;f.files.stat=async path=>({...await stat(path),size:file.observation.size});
+ const readRange=f.files.readRange;f.files.readRange=async input=>{assert.equal(input.offset,0);assert.ok(input.length<=10,'only a bounded ID3 signature may cross the bridge');return readRange(input);};
+ f.selects.media={startFFmpeg:async()=>({jobId:'hash-'+ ++starts}),job:()=>({status:async({cursor=0}={})=>({state:'succeeded',events:cursor?[]:[{cursor:1,stream:'stdout',text:'SHA256='+file.observation.sha256+'\n'}],nextCursor:1,truncated:false}),cancel:async()=>{throw Error('Completed hash must not be cancelled');}})};
+ await f.run();assert.equal(starts,2);assert.equal(f.calls.commits,1);
 });
 test('Mini source binding: a relink during assembly refuses commit even while the old file remains',async()=>{
  const f=fixture();f.cfg.sourceBindings=[{resourceId:'video',path:'/original.mp4'}];let reads=0;f.project.sourceFiles=async()=>({fileTree:[{type:'video',resourceId:'video',path:++reads===1?'/original.mp4':'/relinked.mp4'}]});
