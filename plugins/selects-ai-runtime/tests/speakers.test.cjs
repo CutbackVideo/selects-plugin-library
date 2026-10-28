@@ -76,10 +76,12 @@ test('speaker probe reads only the timestamp origin, not the range frames',async
   const video=await probeVideo({tools:{ffprobe:'ffprobe'}},request('speakers.detect'));
   const frameReads=calls.filter(a=>a.includes('-show_frames'));
   assert.deepEqual(frameReads.map(a=>a[a.indexOf('-read_intervals')+1]),['%+#64']);
+  assert.ok(frameReads.every(a=>a[a.indexOf('-threads')+1]==='2'));
   assert.equal(video.width,1920);assert.equal(video.height,1080);
   assert.ok(Math.abs(video.timestampOriginSeconds-1000/30000)<1e-12);assert.equal(video.formatStartTime,.033);
   calls.length=0;await probeVideo({tools:{ffprobe:'ffprobe'}},request('faces.detect'));
   assert.equal(calls.filter(a=>a.includes('-show_frames')).length,2);
+  assert.ok(calls.filter(a=>a.includes('-show_frames')).every(a=>a[a.indexOf('-threads')+1]==='2'));
  } finally {require.cache[processPath]=original;delete require.cache[videoPath];}
 });
 

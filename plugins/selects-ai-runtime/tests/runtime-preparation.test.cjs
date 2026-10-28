@@ -85,3 +85,17 @@ test('development media tools resolve through PATH without executing shell expre
   assert.equal(await resolveRuntimeTool('ffmpeg', { PATH: root }), await fs.realpath(path.join(root, filename)));
   await assert.rejects(resolveRuntimeTool('ffmpeg && command', { PATH: root }), /unavailable/);
 });
+
+test('installed runtime manifest includes every static local runtime dependency', async () => {
+  const root = path.resolve(__dirname, '..');
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'plugin.json'), 'utf8'));
+  const files = new Set(manifest.files);
+  for (const file of files) {
+    if (!file.endsWith('.cjs') || file.startsWith('tests/') || file.startsWith('scripts/')) continue;
+    const source = await fs.readFile(path.join(root, file), 'utf8');
+    for (const match of source.matchAll(/require\(['"](\.[^'"]+)['"]\)/g)) {
+      const relative = path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1]));
+      assert.ok(files.has(relative) || files.has(relative + '.cjs') || files.has(relative + '.json'), `${file} requires missing installed dependency ${relative}`);
+    }
+  }
+});
