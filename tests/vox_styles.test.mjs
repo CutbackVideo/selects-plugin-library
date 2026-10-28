@@ -89,3 +89,20 @@ for (const id of ids) {
   assert.equal(recovered.draftId,'prior');assert.equal(recovered.recovered,true);assert.equal(created,0);
  });
 }
+
+for (const id of ['vox-explainer',...ids]) for (const platform of ['desktop','web']) {
+ test(`${id}: ${platform} preserves generation scheduling`, async()=>{
+  const source=fs.readFileSync(new URL(`../plugins/${id}/panel.tsx`,import.meta.url),'utf8');
+  const start=source.indexOf('      const musicDone = generate(');
+  const end=source.indexOf('      setStep(3);',start);
+  assert(start>=0&&end>start);
+  let release,finished=false,next=false;
+  const music=new Promise(resolve=>{release=()=>{finished=true;resolve([]);};});
+  // Mark the next phase exactly where the production pipeline advances to step 3.
+  const begin=new Function('context','generate','advance',`return (async()=>{const st={},sc={},music=[];${source.slice(start,end)}advance();return musicDone;})();`);
+  const pending=begin({platform},()=>music,()=>{next=true;});
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(next,platform==='desktop');assert.equal(finished,false);
+  release();await pending;assert.equal(next,true);
+ });
+}

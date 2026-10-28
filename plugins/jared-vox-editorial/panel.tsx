@@ -1703,8 +1703,9 @@ function Panel({ sdk, context, ui }: any) {
       await generate(st, sc, (await run("requests", dir, ["narration"], "Narration requests")).requests, S.steps[2]);
       if (!pj.timed) pj = await savePanel(dir, { timed: (await run("timeline", dir, [], "Narration timing")).seconds });
       const music = (await run("requests", dir, ["music"], "Music request")).requests;
-      // Music persistence and subsequent engine writes share the same Project writer.
-      const musicFailed = await generate(st, sc, music, "", "keep").catch(() => [{ gen: "music" }]);
+      // Web script writes share a Project scope; desktop retains parallel generation.
+      const musicDone = generate(st, sc, music, "", "keep").catch(() => [{ gen: "music" }]);
+      if (context.platform === "web") await musicDone;
 
       setStep(3);
       await generate(st, sc, (await run("requests", dir, ["keyframes"], "Keyframe requests")).requests, S.steps[3], "keep");
@@ -1772,6 +1773,7 @@ function Panel({ sdk, context, ui }: any) {
         await persist(st);
         pj = await savePanel(dir, { fallback: STYLE.style === "editorial" ? [] : ids });
       }
+      const musicFailed = await musicDone;
       if (musicFailed.length) pj = await savePanel(dir, { noMusic: true });
 
       setStep(6);

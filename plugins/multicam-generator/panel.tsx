@@ -754,9 +754,9 @@ export function analysisPrompt(plan) {
 // Build the inspection contact sheet from ORIGINAL pixels. No analysis, no credits:
 // the same ffmpeg extraction that prepareReference() uses, tiled into one image so
 // the AI inspects exactly the frames the generation model will receive.
-export async function buildInspectionSheet(sdk, plan, jobId) {
+export async function buildInspectionSheet(sdk, plan, jobId, platform) {
   const fs = panelLocalClient(sdk).files, runtime = panelLocalClient(sdk).media;
-  if (!runtime?.runFFmpeg || !fs?.mkdir || !fs?.readFile || !fs?.writeFile || !fs?.join || !fs?.homedir)
+  if (!runtime?.runFFmpeg || !fs?.mkdir || !fs?.readFile || (platform === "web" && !fs?.writeFile) || !fs?.join || !fs?.homedir)
     throw new Error("Update Selects to use local media.");
   const dir = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", String(jobId), "inspect");
   (await fs.mkdir(dir, {recursive:true}));
@@ -769,12 +769,16 @@ export async function buildInspectionSheet(sdk, plan, jobId) {
         "-vf","scale=480:-2","-q:v","4", fs.join(dir, "insp" + i + ".jpg")], true, controller.signal);
     }
     const sheet = fs.join(dir, "sheet.jpg");
-    // Explicit inputs also work in browser virtual filesystems, without image2 glob expansion.
-    const list = fs.join(dir, "inspection.txt");
-    const entries = times.map((_, i) => "file '" + fs.join(dir, "insp" + i + ".jpg").replaceAll("\\", "/").replaceAll("'", "'\\''") + "'");
-    await fs.writeFile(list, new TextEncoder().encode(entries.join("\n")));
+    let inputs = ["-start_number", "0", "-i", fs.join(dir, "insp%d.jpg")];
+    if (platform === "web") {
+      // Browser virtual filesystems do not expand image2 filename patterns.
+      const list = fs.join(dir, "inspection.txt");
+      const entries = times.map((_, i) => "file '" + fs.join(dir, "insp" + i + ".jpg").replaceAll("\\", "/").replaceAll("'", "'\\''") + "'");
+      await fs.writeFile(list, new TextEncoder().encode(entries.join("\n")));
+      inputs = ["-f", "concat", "-safe", "0", "-i", list];
+    }
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
-      "-f","concat","-safe","0","-i", list,
+      ...inputs,
       "-vf","tile=4x2:padding=6:color=black","-frames:v","1","-q:v","4", sheet], true, controller.signal);
     const raw = (await fs.readFile(sheet));
     const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
@@ -1202,7 +1206,7 @@ function Session({ sdk, context }) {
       if (!(await current())) throw new Error("context_changed");
       report(LABELS[j.phase] || "Checking your generation…");
       if (j.phase === "new") {
-        const sheet = await buildInspectionSheet(sdk, j.plan, j.id);
+        const sheet = await buildInspectionSheet(sdk, j.plan, j.id, context.platform);
         const result = await retryRead(() => ai(analysisPrompt(j.plan), [sheet]), current);
         if (result?.error) throw new Error(["identity_reference_missing","single_person_required"].includes(result.error) ? result.error : "analysis_failed");
         const o = result?.observation;

@@ -59,3 +59,14 @@ test('media helpers await file and FFmpeg operations before returning', async ()
   assert.equal(sdk.events.at(-1), 'read');
   await assert.rejects(ctx.prepareMedia({}, {}), /Update Selects/);
 });
+
+for (const platform of ['desktop','web']) test(`${platform} inspection uses its own input protocol`, async()=>{
+ const sdk=localSdk(), calls=[];
+ const run=sdk.media.runFFmpeg;
+ sdk.media.runFFmpeg=async(...args)=>{calls.push(Array.from(args[0]));return run(...args);};
+ await ctx.buildInspectionSheet(sdk,{path:'/source.mp4',sourceStartSeconds:0,durationSeconds:4,fps:24},'job',platform);
+ const tile=calls.at(-1);
+ assert.equal(tile.includes('concat'),platform==='web');
+ assert.equal(tile.some(value=>String(value).endsWith('insp%d.jpg')),platform==='desktop');
+ assert.equal([...sdk.outputs.keys()].some(value=>value.endsWith('inspection.txt')),platform==='web');
+});

@@ -103,6 +103,7 @@ test('browser preview owns its blob URL and releases it without revoking the hos
  const revoked=[];let blob;
  const bytes=new Uint8Array([1,2,3]);
  const api=loadPanelFunctions(panel,['previewSource'],{
+  localPlatform:'web',
   getFS:()=>({pathToLocalURL:async()=> 'blob:host/source',readFile:async()=>bytes}),
   Blob,URL:{createObjectURL:value=>{blob=value;return 'blob:panel/source';},revokeObjectURL:url=>revoked.push(url)},
  });
@@ -122,4 +123,15 @@ test('recovery leaves already finished typography and audio unchanged',async()=>
   const result=await vm.runInNewContext('(async()=>{'+script+'})()',{selects});
   assert.equal(result.sequenceId,'saved');
  }
+});
+
+for (const platform of ['desktop','web']) test(`${platform} place analysis keeps its host concurrency`,()=>{
+ const select=vm.runInNewContext(panel.match(/const assistConcurrency=.*?;/)[0]+'assistConcurrency');
+ assert.equal(select(platform),platform==='web'?1:4);
+});
+test('desktop preview retains the native URL without reading the whole video',async()=>{
+ const api=loadPanelFunctions(panel,['previewSource'],{localPlatform:'desktop',
+  getFS:()=>({pathToLocalURL:async()=> 'file:///clip.mp4',readFile:()=>{throw Error('Unexpected copy');}}),
+ });
+ const source=await api.previewSource('/clip.mp4');assert.equal(source.url,'file:///clip.mp4');source.release();
 });
