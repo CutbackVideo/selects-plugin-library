@@ -36,11 +36,11 @@
     },
     "es": {
       "name": "Selects Clips",
-      "summary": "Crea una plantilla a partir de los mejores clips cortos de un canal y convierte cualquier vídeo largo en clips cortos editables que la siguen."
+      "summary": "Crea una plantilla a partir de los mejores clips cortos de un canal y convierte cualquier v\u00eddeo largo en clips cortos editables que la siguen."
     },
     "fr": {
       "name": "Selects Clips",
-      "summary": "Créez un modèle à partir des meilleurs shorts d'une chaîne, puis transformez n'importe quelle longue vidéo en shorts modifiables qui le suivent."
+      "summary": "Cr\u00e9ez un mod\u00e8le \u00e0 partir des meilleurs shorts d'une cha\u00eene, puis transformez n'importe quelle longue vid\u00e9o en shorts modifiables qui le suivent."
     },
     "it": {
       "name": "Selects Clips",
@@ -48,23 +48,23 @@
     },
     "ja": {
       "name": "Selects Clips",
-      "summary": "チャンネルの人気ショート動画からテンプレートを作り、長い動画をそのテンプレートに沿った編集可能なショート動画にします。"
+      "summary": "\u30c1\u30e3\u30f3\u30cd\u30eb\u306e\u4eba\u6c17\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u304b\u3089\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u3092\u4f5c\u308a\u3001\u9577\u3044\u52d5\u753b\u3092\u305d\u306e\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u306b\u6cbf\u3063\u305f\u7de8\u96c6\u53ef\u80fd\u306a\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u306b\u3057\u307e\u3059\u3002"
     },
     "ko": {
       "name": "Selects Clips",
-      "summary": "채널의 잘 된 숏폼으로 템플릿을 만들고, 긴 영상을 그 템플릿대로 편집 가능한 숏폼으로 만듭니다."
+      "summary": "\ucc44\ub110\uc758 \uc798 \ub41c \uc20f\ud3fc\uc73c\ub85c \ud15c\ud50c\ub9bf\uc744 \ub9cc\ub4e4\uace0, \uae34 \uc601\uc0c1\uc744 \uadf8 \ud15c\ud50c\ub9bf\ub300\ub85c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc20f\ud3fc\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Selects Clips",
-      "summary": "Crie um modelo a partir dos melhores shorts de um canal e transforme qualquer vídeo longo em shorts editáveis que o seguem."
+      "summary": "Crie um modelo a partir dos melhores shorts de um canal e transforme qualquer v\u00eddeo longo em shorts edit\u00e1veis que o seguem."
     },
     "tr": {
       "name": "Selects Clips",
-      "summary": "Bir kanalın en iyi kısa videolarından şablon oluşturun, ardından her uzun videoyu bu şablona uyan düzenlenebilir kısa videolara dönüştürün."
+      "summary": "Bir kanal\u0131n en iyi k\u0131sa videolar\u0131ndan \u015fablon olu\u015fturun, ard\u0131ndan her uzun videoyu bu \u015fablona uyan d\u00fczenlenebilir k\u0131sa videolara d\u00f6n\u00fc\u015ft\u00fcr\u00fcn."
     },
     "zh": {
       "name": "Selects Clips",
-      "summary": "用频道最受欢迎的短片制作模板，再把任何长视频做成符合该模板、可编辑的短片。"
+      "summary": "\u7528\u9891\u9053\u6700\u53d7\u6b22\u8fce\u7684\u77ed\u7247\u5236\u4f5c\u6a21\u677f\uff0c\u518d\u628a\u4efb\u4f55\u957f\u89c6\u9891\u505a\u6210\u7b26\u5408\u8be5\u6a21\u677f\u3001\u53ef\u7f16\u8f91\u7684\u77ed\u7247\u3002"
     }
   }
 }

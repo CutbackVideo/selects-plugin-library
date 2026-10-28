@@ -31,43 +31,43 @@
   "localized": {
     "de": {
       "name": "Depth-Type-Untertitel",
-      "summary": "Bearbeitbare Typografie, die den Sprecher mit Tiefenwirkung umfließt."
+      "summary": "Bearbeitbare Typografie, die den Sprecher mit Tiefenwirkung umflie\u00dft."
     },
     "en": {
       "name": "Depth Type Captions",
       "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth."
     },
     "es": {
-      "name": "Subtítulos Depth Type",
-      "summary": "Tipografía editable que rodea al hablante con profundidad según el sujeto."
+      "name": "Subt\u00edtulos Depth Type",
+      "summary": "Tipograf\u00eda editable que rodea al hablante con profundidad seg\u00fan el sujeto."
     },
     "fr": {
       "name": "Sous-titres Depth Type",
-      "summary": "Typographie modifiable qui entoure l’orateur avec une profondeur adaptée au sujet."
+      "summary": "Typographie modifiable qui entoure l\u2019orateur avec une profondeur adapt\u00e9e au sujet."
     },
     "it": {
       "name": "Sottotitoli Depth Type",
-      "summary": "Tipografia modificabile che avvolge chi parla con profondità sul soggetto."
+      "summary": "Tipografia modificabile che avvolge chi parla con profondit\u00e0 sul soggetto."
     },
     "ja": {
-      "name": "Depth Type 字幕",
-      "summary": "話者の輪郭に合わせ、前後の奥行きを持たせた編集可能なタイポグラフィ字幕。"
+      "name": "Depth Type \u5b57\u5e55",
+      "summary": "\u8a71\u8005\u306e\u8f2a\u90ed\u306b\u5408\u308f\u305b\u3001\u524d\u5f8c\u306e\u5965\u884c\u304d\u3092\u6301\u305f\u305b\u305f\u7de8\u96c6\u53ef\u80fd\u306a\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u5b57\u5e55\u3002"
     },
     "ko": {
-      "name": "Depth Type 자막",
-      "summary": "화자를 감싸며 앞뒤 깊이감을 주는 편집 가능한 타이포그래피 자막입니다."
+      "name": "Depth Type \uc790\ub9c9",
+      "summary": "\ud654\uc790\ub97c \uac10\uc2f8\uba70 \uc55e\ub4a4 \uae4a\uc774\uac10\uc744 \uc8fc\ub294 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \ud0c0\uc774\ud3ec\uadf8\ub798\ud53c \uc790\ub9c9\uc785\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Legendas Depth Type",
-      "summary": "Tipografia editável que envolve quem fala com profundidade ciente do assunto."
+      "summary": "Tipografia edit\u00e1vel que envolve quem fala com profundidade ciente do assunto."
     },
     "tr": {
-      "name": "Depth Type Altyazılar",
-      "summary": "Konuşmacının etrafını derinlik hissiyle saran düzenlenebilir tipografi."
+      "name": "Depth Type Altyaz\u0131lar",
+      "summary": "Konu\u015fmac\u0131n\u0131n etraf\u0131n\u0131 derinlik hissiyle saran d\u00fczenlenebilir tipografi."
     },
     "zh": {
-      "name": "Depth Type 字幕",
-      "summary": "围绕说话者、具有前后景深的可编辑文字排版字幕。"
+      "name": "Depth Type \u5b57\u5e55",
+      "summary": "\u56f4\u7ed5\u8bf4\u8bdd\u8005\u3001\u5177\u6709\u524d\u540e\u666f\u6df1\u7684\u53ef\u7f16\u8f91\u6587\u5b57\u6392\u7248\u5b57\u5e55\u3002"
     }
   },
   "collection": "visual-highlights",

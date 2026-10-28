@@ -38,7 +38,7 @@
     },
     "es": {
       "name": "Intro de vlog",
-      "summary": "Crea una intro de vlog de 12 a 22 segundos como nueva línea de tiempo, en uno de tres estilos, a partir del material analizado del proyecto abierto."
+      "summary": "Crea una intro de vlog de 12 a 22 segundos como nueva l\u00ednea de tiempo, en uno de tres estilos, a partir del material analizado del proyecto abierto."
     },
     "fr": {
       "name": "Intro de vlog",
@@ -49,8 +49,8 @@
       "summary": "Crea un'apertura per vlog di 12-22 secondi come nuova timeline, in uno di tre stili, dal materiale analizzato del progetto aperto."
     },
     "ja": {
-      "name": "Vlog オープニング",
-      "summary": "開いているプロジェクトの解析済み素材から、3 つのスタイルのいずれかで 12〜22 秒の Vlog オープニングを新しいタイムラインとして作成します。"
+      "name": "Vlog \u30aa\u30fc\u30d7\u30cb\u30f3\u30b0",
+      "summary": "\u958b\u3044\u3066\u3044\u308b\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u89e3\u6790\u6e08\u307f\u7d20\u6750\u304b\u3089\u30013 \u3064\u306e\u30b9\u30bf\u30a4\u30eb\u306e\u3044\u305a\u308c\u304b\u3067 12\u301c22 \u79d2\u306e Vlog \u30aa\u30fc\u30d7\u30cb\u30f3\u30b0\u3092\u65b0\u3057\u3044\u30bf\u30a4\u30e0\u30e9\u30a4\u30f3\u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
     },
     "pt": {
       "name": "Abertura de vlog",
@@ -58,11 +58,11 @@
     },
     "tr": {
       "name": "Vlog acilisi",
-      "summary": "Acik projenin analiz edilmis goruntulerinden, uc stilden biriyle 12-22 saniyelik bir vlog acilisi olusturur ve yeni bir zaman çizelgesi olarak kaydeder."
+      "summary": "Acik projenin analiz edilmis goruntulerinden, uc stilden biriyle 12-22 saniyelik bir vlog acilisi olusturur ve yeni bir zaman \u00e7izelgesi olarak kaydeder."
     },
     "zh": {
-      "name": "Vlog 片头",
-      "summary": "根据当前项目中已分析的素材，以三种风格之一生成 12-22 秒的 Vlog 片头，并保存为新的时间线。"
+      "name": "Vlog \u7247\u5934",
+      "summary": "\u6839\u636e\u5f53\u524d\u9879\u76ee\u4e2d\u5df2\u5206\u6790\u7684\u7d20\u6750\uff0c\u4ee5\u4e09\u79cd\u98ce\u683c\u4e4b\u4e00\u751f\u6210 12-22 \u79d2\u7684 Vlog \u7247\u5934\uff0c\u5e76\u4fdd\u5b58\u4e3a\u65b0\u7684\u65f6\u95f4\u7ebf\u3002"
     }
   },
   "collection": "visual-highlights",
@@ -84,7 +84,7 @@
     {
       "id": "whip-cut",
       "galleryOrder": 105,
-      "name": "Vlog Opening · Whip cut",
+      "name": "Vlog Opening \u00b7 Whip cut",
       "summary": "Quick cuts between places with flares, scope bars and a title.",
       "preview": {
         "video": "preview.mp4",
@@ -96,7 +96,7 @@
     {
       "id": "motion-graphics",
       "galleryOrder": 9,
-      "name": "Vlog Opening · Motion graphics",
+      "name": "Vlog Opening \u00b7 Motion graphics",
       "summary": "A drawn laptop push-in, an illustrated sky, a place label and a handwritten title.",
       "preview": {
         "video": "preview-motion-graphics.mp4",
@@ -107,7 +107,7 @@
     },
     {
       "id": "funny-quotes",
-      "name": "Vlog Opening · Funny quotes",
+      "name": "Vlog Opening \u00b7 Funny quotes",
       "summary": "Your funniest lines over the footage.",
       "inputs": [
         {

@@ -23,44 +23,44 @@
   },
   "localized": {
     "de": {
-      "name": "Medizinisches Erklärvideo",
-      "summary": "Aus einem Thema, einem Text oder einem Link entsteht ein Gesundheits-Kurzvideo mit passendem Erklärstil, generierten Bildern, Sprecher, Untertiteln und Einblendungen."
+      "name": "Medizinisches Erkl\u00e4rvideo",
+      "summary": "Aus einem Thema, einem Text oder einem Link entsteht ein Gesundheits-Kurzvideo mit passendem Erkl\u00e4rstil, generierten Bildern, Sprecher, Untertiteln und Einblendungen."
     },
     "en": {
       "name": "Medical Explainer",
       "summary": "Turns a topic, text or link into a vertical health explainer in a fitting style: zoom, myth or fact, timeline or steps, with generated pictures, narration, captions and cards."
     },
     "es": {
-      "name": "Vídeo explicativo médico",
-      "summary": "Convierte un tema, un texto o un enlace en un vídeo vertical de salud con el estilo adecuado, imágenes generadas, narración, subtítulos y tarjetas."
+      "name": "V\u00eddeo explicativo m\u00e9dico",
+      "summary": "Convierte un tema, un texto o un enlace en un v\u00eddeo vertical de salud con el estilo adecuado, im\u00e1genes generadas, narraci\u00f3n, subt\u00edtulos y tarjetas."
     },
     "fr": {
-      "name": "Vidéo explicative médicale",
-      "summary": "Transforme un sujet, un texte ou un lien en vidéo santé verticale au style adapté, avec images générées, narration, sous-titres et cartes."
+      "name": "Vid\u00e9o explicative m\u00e9dicale",
+      "summary": "Transforme un sujet, un texte ou un lien en vid\u00e9o sant\u00e9 verticale au style adapt\u00e9, avec images g\u00e9n\u00e9r\u00e9es, narration, sous-titres et cartes."
     },
     "it": {
       "name": "Video esplicativo medico",
       "summary": "Trasforma un argomento, un testo o un link in un video verticale sulla salute nello stile adatto, con immagini generate, voce narrante, sottotitoli e schede."
     },
     "ja": {
-      "name": "医療解説ショート",
-      "summary": "テーマ、文章、リンクから、内容に合った構成と画面で、生成画像とナレーション、字幕、カード付きの縦型健康解説動画を作ります。"
+      "name": "\u533b\u7642\u89e3\u8aac\u30b7\u30e7\u30fc\u30c8",
+      "summary": "\u30c6\u30fc\u30de\u3001\u6587\u7ae0\u3001\u30ea\u30f3\u30af\u304b\u3089\u3001\u5185\u5bb9\u306b\u5408\u3063\u305f\u69cb\u6210\u3068\u753b\u9762\u3067\u3001\u751f\u6210\u753b\u50cf\u3068\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3\u3001\u5b57\u5e55\u3001\u30ab\u30fc\u30c9\u4ed8\u304d\u306e\u7e26\u578b\u5065\u5eb7\u89e3\u8aac\u52d5\u753b\u3092\u4f5c\u308a\u307e\u3059\u3002"
     },
     "ko": {
-      "name": "의학 설명 쇼츠",
-      "summary": "주제나 글, 링크로 내용에 맞는 전개와 화면 구성의 세로형 건강 설명 영상을 만듭니다. 생성 이미지, 내레이션, 자막, 카드가 들어갑니다."
+      "name": "\uc758\ud559 \uc124\uba85 \uc1fc\uce20",
+      "summary": "\uc8fc\uc81c\ub098 \uae00, \ub9c1\ud06c\ub85c \ub0b4\uc6a9\uc5d0 \ub9de\ub294 \uc804\uac1c\uc640 \ud654\uba74 \uad6c\uc131\uc758 \uc138\ub85c\ud615 \uac74\uac15 \uc124\uba85 \uc601\uc0c1\uc744 \ub9cc\ub4ed\ub2c8\ub2e4. \uc0dd\uc131 \uc774\ubbf8\uc9c0, \ub0b4\ub808\uc774\uc158, \uc790\ub9c9, \uce74\ub4dc\uac00 \ub4e4\uc5b4\uac11\ub2c8\ub2e4."
     },
     "pt": {
-      "name": "Vídeo explicativo médico",
-      "summary": "Transforma um tema, um texto ou um link num vídeo vertical de saúde com o estilo certo, imagens geradas, narração, legendas e cartões."
+      "name": "V\u00eddeo explicativo m\u00e9dico",
+      "summary": "Transforma um tema, um texto ou um link num v\u00eddeo vertical de sa\u00fade com o estilo certo, imagens geradas, narra\u00e7\u00e3o, legendas e cart\u00f5es."
     },
     "tr": {
-      "name": "Tıbbi açıklama videosu",
-      "summary": "Bir konu, metin ya da bağlantıdan uygun anlatım biçiminde, üretilmiş görseller, seslendirme, altyazı ve kartlarla dikey bir sağlık açıklama videosu yapar."
+      "name": "T\u0131bbi a\u00e7\u0131klama videosu",
+      "summary": "Bir konu, metin ya da ba\u011flant\u0131dan uygun anlat\u0131m bi\u00e7iminde, \u00fcretilmi\u015f g\u00f6rseller, seslendirme, altyaz\u0131 ve kartlarla dikey bir sa\u011fl\u0131k a\u00e7\u0131klama videosu yapar."
     },
     "zh": {
-      "name": "医学解说短视频",
-      "summary": "将一个主题、一段文字或一个链接做成结构与画面契合内容的竖屏健康解说视频，带有生成画面、旁白、字幕和卡片。"
+      "name": "\u533b\u5b66\u89e3\u8bf4\u77ed\u89c6\u9891",
+      "summary": "\u5c06\u4e00\u4e2a\u4e3b\u9898\u3001\u4e00\u6bb5\u6587\u5b57\u6216\u4e00\u4e2a\u94fe\u63a5\u505a\u6210\u7ed3\u6784\u4e0e\u753b\u9762\u5951\u5408\u5185\u5bb9\u7684\u7ad6\u5c4f\u5065\u5eb7\u89e3\u8bf4\u89c6\u9891\uff0c\u5e26\u6709\u751f\u6210\u753b\u9762\u3001\u65c1\u767d\u3001\u5b57\u5e55\u548c\u5361\u7247\u3002"
     }
   }
 }
