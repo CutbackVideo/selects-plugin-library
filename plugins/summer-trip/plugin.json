@@ -59,7 +59,10 @@
     "sfx/whoosh-1.wav.b64"
   ],
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "web",
+      "desktop"
+    ],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; uses the ffmpeg bundled with Selects for music previews and your own music, so nothing else needs installing. Windows x64 hands-on verification is still pending."
   },
   "localized": {
@@ -73,35 +76,35 @@
     },
     "es": {
       "name": "Viaje de verano",
-      "summary": "Convierte tus tomas de viaje en un v\u00eddeo 16:9 de viaje de verano sincronizado con el ritmo, con un t\u00edtulo que se escribe palabra a palabra, una cuadr\u00edcula de pantalla dividida y un final con marco de pel\u00edcula, como un nuevo Draft editable."
+      "summary": "Convierte tus tomas de viaje en un vídeo 16:9 de viaje de verano sincronizado con el ritmo, con un título que se escribe palabra a palabra, una cuadrícula de pantalla dividida y un final con marco de película, como un nuevo Draft editable."
     },
     "fr": {
-      "name": "Voyage d'\u00e9t\u00e9",
-      "summary": "Transforme vos images de voyage en vid\u00e9o de voyage d'\u00e9t\u00e9 16:9 cal\u00e9e sur le rythme, avec un titre tap\u00e9 mot \u00e0 mot, une grille en \u00e9cran partag\u00e9 et une fin en cadre de pellicule, dans un nouveau Draft modifiable."
+      "name": "Voyage d'été",
+      "summary": "Transforme vos images de voyage en vidéo de voyage d'été 16:9 calée sur le rythme, avec un titre tapé mot à mot, une grille en écran partagé et une fin en cadre de pellicule, dans un nouveau Draft modifiable."
     },
     "it": {
       "name": "Viaggio d'estate",
       "summary": "Trasforma le riprese di viaggio in un video 16:9 di un viaggio d'estate a tempo di musica, con un titolo scritto parola per parola, una griglia a schermo diviso e un finale in cornice di pellicola, come nuovo Draft modificabile."
     },
     "ja": {
-      "name": "\u30b5\u30de\u30fc\u30c8\u30ea\u30c3\u30d7",
-      "summary": "\u65c5\u306e\u6620\u50cf\u304b\u3089\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f 16:9 \u306e\u590f\u65c5\u30e0\u30fc\u30d3\u30fc\u3092\u3001\u30bf\u30a4\u30d4\u30f3\u30b0\u98a8\u306e\u30bf\u30a4\u30c8\u30eb\u3001\u5206\u5272\u753b\u9762\u306e\u30b0\u30ea\u30c3\u30c9\u3001\u30d5\u30a3\u30eb\u30e0\u30d5\u30ec\u30fc\u30e0\u306e\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0\u4ed8\u304d\u3067\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
+      "name": "サマートリップ",
+      "summary": "旅の映像から、ビートに合わせた 16:9 の夏旅ムービーを、タイピング風のタイトル、分割画面のグリッド、フィルムフレームのエンディング付きで、編集可能な新しい Draft として作成します。"
     },
     "ko": {
-      "name": "\uc11c\uba38 \ud2b8\ub9bd",
-      "summary": "\uc5ec\ud589 \uc601\uc0c1\uc744 \ube44\ud2b8\uc5d0 \ub9de\ucd98 16:9 \uc5ec\ub984 \uc5ec\ud589 \uc601\uc0c1\uc73c\ub85c \ub9cc\ub4e4\uc5b4, \ud0c0\uc774\ud551\ub418\ub294 \ud0c0\uc774\ud2c0\uacfc \ubd84\ud560 \ud654\uba74 \uadf8\ub9ac\ub4dc, \ud544\ub984 \ud504\ub808\uc784 \uc5d4\ub529\uacfc \ud568\uaed8 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ud569\ub2c8\ub2e4."
+      "name": "서머 트립",
+      "summary": "여행 영상을 비트에 맞춘 16:9 여름 여행 영상으로 만들어, 타이핑되는 타이틀과 분할 화면 그리드, 필름 프레임 엔딩과 함께 편집 가능한 새 Draft로 저장합니다."
     },
     "pt": {
-      "name": "Viagem de ver\u00e3o",
-      "summary": "Transforma imagens de viagem em um v\u00eddeo 16:9 de viagem de ver\u00e3o no ritmo da m\u00fasica, com t\u00edtulo digitado palavra por palavra, grade em tela dividida e final em moldura de filme, como um novo Draft edit\u00e1vel."
+      "name": "Viagem de verão",
+      "summary": "Transforma imagens de viagem em um vídeo 16:9 de viagem de verão no ritmo da música, com título digitado palavra por palavra, grade em tela dividida e final em moldura de filme, como um novo Draft editável."
     },
     "tr": {
       "name": "Yaz Gezisi",
-      "summary": "Seyahat g\u00f6r\u00fcnt\u00fclerinden, kelime kelime yaz\u0131lan ba\u015fl\u0131k, b\u00f6l\u00fcnm\u00fc\u015f ekran \u0131zgaras\u0131 ve film karesi finaliyle ritme oturan 16:9 bir yaz gezisi videosu olu\u015fturur ve d\u00fczenlenebilir yeni bir Draft olarak kaydeder."
+      "summary": "Seyahat görüntülerinden, kelime kelime yazılan başlık, bölünmüş ekran ızgarası ve film karesi finaliyle ritme oturan 16:9 bir yaz gezisi videosu oluşturur ve düzenlenebilir yeni bir Draft olarak kaydeder."
     },
     "zh": {
-      "name": "\u590f\u65e5\u65c5\u884c",
-      "summary": "\u5c06\u65c5\u884c\u7d20\u6750\u526a\u6210\u5361\u70b9\u7684 16:9 \u590f\u65e5\u65c5\u884c\u89c6\u9891\uff0c\u914d\u4ee5\u9010\u8bcd\u6253\u51fa\u7684\u6807\u9898\u3001\u5206\u5c4f\u7f51\u683c\u548c\u80f6\u7247\u8fb9\u6846\u7ed3\u5c3e\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
+      "name": "夏日旅行",
+      "summary": "将旅行素材剪成卡点的 16:9 夏日旅行视频，配以逐词打出的标题、分屏网格和胶片边框结尾，并保存为可编辑的新 Draft。"
     }
   },
   "preview": {
@@ -174,6 +177,5 @@
     "Trip clips and photos, at least 6 different ones",
     "One video 5 seconds or longer, for the opening",
     "Videos analyzed, so the scene search can find their shots"
-  ],
-  "platforms": ["web", "desktop"]
+  ]
 }

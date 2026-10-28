@@ -60,7 +60,10 @@
     "tests/title.test.cjs"
   ],
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "web",
+      "desktop"
+    ],
     "selects": "Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified. Existing Runtime FFmpeg/FFprobe and FileSystem are required for optional native analysis; no additional tools to install."
   },
   "localized": {
@@ -206,6 +209,5 @@
   "prepare": [
     "Everyday clips and photos, at least 2 different ones",
     "Video analysis is optional; analyzed videos use scene search and unanalysed videos use the local check"
-  ],
-  "platforms": ["web", "desktop"]
+  ]
 }

@@ -195,9 +195,9 @@ packs or migrate user data.
 
 ## Supported platforms
 
-Every published plugin.json must declare a non-empty `platforms` array using only
+Every published plugin.json must declare a non-empty `compatibility.platforms` array using only
 `web` and `desktop`, without duplicates. Existing plugins start with
-`"platforms": ["desktop"]`. Add `web` only after running the actual web target, installing the plugin through
+`"compatibility": {"platforms": ["desktop"]}`. Add `web` only after running the actual web target, installing the plugin through
 the real installer, and directly verifying its core workflows and visible results,
 including required dependencies and persistence after reopening. Compilation,
 SDK-only tests, and source inspection are supporting evidence, not admission. Desktop support declarations
@@ -206,7 +206,7 @@ preserve the existing product support policy; they do not claim new OS testing.
 The install button remains available. After a web installation attempt, the client
 checks the pinned package and its required dependency closure before placing files.
 If any package omits `web` or requires a native runtime, installation fails with a
-desktop download prompt. Older manifests without platforms are desktop-only.
+desktop download prompt. Older manifests without compatibility.platforms are desktop-only.
 There is no separate webSupport field or unverified install state.
 
 A web declaration covers the main workflow. Optional desktop-only operations still
@@ -220,3 +220,6 @@ web/desktop-only-dependency contradictions.
 Panels receive the app target as `context.platform` (`"desktop"` or `"web"`).
 Use it to select platform-specific actions; it describes the host, not the OS
 running a browser, and does not guarantee that an individual operation succeeds.
+
+The top-level `platforms` field is not used and publication rejects it. Existing
+compatibility notes remain alongside the canonical platforms list.

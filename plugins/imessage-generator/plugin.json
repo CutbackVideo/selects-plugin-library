@@ -14,7 +14,9 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "desktop"
+    ],
     "selects": "Requires Panel SDK runScript/call, generated-media authoring, Project file-tree adapters, and the host FileSystem and bundled ffmpeg (Runtime.runFFmpeg) for narration audio. Local Kokoro voices are macOS-only (runShell + Python); on Windows narration uses ElevenLabs. Released-version and Linux compatibility are unverified."
   },
   "preview": {
@@ -22,6 +24,5 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  },
-  "platforms": ["desktop"]
+  }
 }

@@ -12,7 +12,10 @@
     "INSTALL.md"
   ],
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "web",
+      "desktop"
+    ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
   "localized": {
@@ -48,6 +51,5 @@
       "name": "Vlog 剪辑",
       "summary": "从真实素材库中剪出 Vlog，兼顾视频与大量无法分析的照片：素材盘点、故事结构、配以生成旁白与音乐的照片段落、清理冷场、叠化转场以及可编辑字幕标题。"
     }
-  },
-  "platforms": ["web", "desktop"]
+  }
 }

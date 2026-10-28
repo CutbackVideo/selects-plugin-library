@@ -8,7 +8,9 @@
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "desktop"
+    ],
     "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64."
   },
   "files": [
@@ -100,6 +102,5 @@
     "lib/frame-change.cjs",
     "tests/frame-change.test.cjs"
   ],
-  "runtime": "runtime.json",
-  "platforms": ["desktop"]
+  "runtime": "runtime.json"
 }

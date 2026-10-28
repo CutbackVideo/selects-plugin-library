@@ -18,7 +18,7 @@ class PluginFilesTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.target = self.root / 'new plugin'
         self.manifest = {'schemaVersion': 1, 'id': 'example', 'version': '1.0.0',
-                         'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'platforms': ['desktop'],
+                         'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'compatibility': {'platforms': ['desktop']},
                          'files': ['SKILL.md', 'INSTALL.md', 'scripts/use.py']}
         self.calls = []
 
@@ -39,19 +39,19 @@ class PluginFilesTest(unittest.TestCase):
 
     def test_platforms_contract(self):
         for platforms in (['web'], ['desktop'], ['web', 'desktop']):
-            plugins.validate_manifest(dict(self.manifest, platforms=platforms))
+            plugins.validate_manifest(dict(self.manifest, compatibility={"platforms": platforms}))
         for value in (None, 'web', [], ['linux'], ['macos'], ['windows'], ['web', 'web'], [{}]):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'Invalid plugin platforms'):
-                plugins.validate_manifest(dict(self.manifest, platforms=value))
+                plugins.validate_manifest(dict(self.manifest, compatibility={"platforms": value}))
 
     def test_publication_requires_platforms(self):
-        del self.manifest['platforms']
+        del self.manifest['compatibility']['platforms']
         self.write_local_plugin()
         with self.assertRaisesRegex(ValueError, 'platforms declaration required'):
             plugins.check('example', self.root)
 
     def test_web_declaration_cannot_hide_native_runtime_or_dependency(self):
-        self.manifest.update(platforms=['web'], runtime='runtime.json')
+        self.manifest.update(compatibility={'platforms':['web']}, runtime='runtime.json')
         self.write_local_plugin()
         with self.assertRaisesRegex(ValueError, 'Native runtime'):
             plugins.check('example', self.root)
@@ -60,11 +60,11 @@ class PluginFilesTest(unittest.TestCase):
         self.write_local_plugin()
         dependency = self.root / 'plugins/native'
         dependency.mkdir()
-        dependent = dict(self.manifest, id='native', platforms=['desktop'], requiresPlugins=[])
+        dependent = dict(self.manifest, id='native', compatibility={'platforms':['desktop']}, requiresPlugins=[])
         (dependency / 'plugin.json').write_text(json.dumps(dependent))
         with self.assertRaisesRegex(ValueError, 'desktop-only dependency native'):
             plugins.check('example', self.root)
-        dependent['platforms'] = ['web']
+        dependent['compatibility']['platforms'] = ['web']
         (dependency / 'plugin.json').write_text(json.dumps(dependent))
         self.assertEqual(plugins.check('example', self.root)['id'], 'example')
 

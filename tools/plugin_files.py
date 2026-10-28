@@ -56,8 +56,10 @@ def validate_manifest(manifest):
             item.isdigit() and len(item) > 1 and item.startswith('0')
             for item in prerelease.split('.')
         ), 'Invalid minSelectsVersion')
-    if 'platforms' in manifest:
-        platforms = manifest['platforms']
+    compatibility = manifest.get('compatibility', {})
+    require(isinstance(compatibility, dict), 'Invalid plugin compatibility')
+    if 'platforms' in compatibility:
+        platforms = compatibility['platforms']
         require(isinstance(platforms, list) and len(platforms) > 0 and
                 all(isinstance(p, str) and p in ('web', 'desktop') for p in platforms) and
                 len(set(platforms)) == len(platforms), 'Invalid plugin platforms')
@@ -116,9 +118,10 @@ def check(pid, root=ROOT):
     directory = Path(root).resolve() / 'plugins' / plugin_id(pid)
     manifest = json.loads((directory / 'plugin.json').read_text())
     require(manifest['id'] == pid, 'Folder and plugin ID differ')
-    require('platforms' in manifest, 'Plugin platforms declaration required')
+    require(isinstance(manifest.get('compatibility'), dict) and 'platforms' in manifest['compatibility'], 'Plugin compatibility.platforms declaration required')
+    require('platforms' not in manifest, 'Use compatibility.platforms, not root platforms')
     names = validate_manifest(manifest)
-    if 'web' in manifest['platforms']:
+    if 'web' in manifest['compatibility']['platforms']:
         require(not manifest.get('runtime'), 'Native runtime plugins cannot declare web')
         dependencies = manifest.get('requiresPlugins', [])
         require(isinstance(dependencies, list), 'Invalid requiresPlugins')
@@ -126,7 +129,7 @@ def check(pid, root=ROOT):
             dependency = plugin_id(dependency)
             dependent = json.loads((Path(root) / 'plugins' / dependency / 'plugin.json').read_text())
             validate_manifest(dependent)
-            require('web' in dependent.get('platforms', []) and not dependent.get('runtime'),
+            require('web' in dependent.get('compatibility', {}).get('platforms', []) and not dependent.get('runtime'),
                     f'Web plugin {pid} requires desktop-only dependency {dependency}')
     for name in names:
         path = directory / name

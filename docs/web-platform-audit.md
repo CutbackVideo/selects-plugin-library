@@ -1,6 +1,6 @@
 # Web platform admission audit
 
-This migration reviews all 50 current packages. `platforms` is the client's
+This migration reviews all 50 current packages. `compatibility.platforms` is the client's
 installation decision, not automatic inference from a panel's source code.
 Thirty-one packages have passed actual installation, core creation or interaction,
 visible output and reopening: Short Form Safe Zones, Fast Switching Stop Motion,
@@ -311,3 +311,7 @@ Fixed the web FFmpeg numbered-frame inspection sheet by using an explicit concat
 ## Final normal-platform-gate verification
 
 Ali, Recap, Selfie, Vlog Opening and Multicam were each reinstalled through the signed-in web UI from `1186c0f` using the unchanged production BrowserPluginInstaller. Each displayed the explicit installation-success setup message. With previously recorded normal-gate runs, all31 admitted packages have now passed the normal gate. Temporary audit catalog and all admission overrides were removed from the client checkout. Final manifest count is31 web/19 desktop-only across50 packages. No undecided packages remain. The historical checkpoints above are chronological evidence, superseded by this final result and the per-package table.
+
+## Manifest field ownership
+
+All50 packages use the existing `compatibility.platforms` field with desktop/web values; no root-level platforms field remains. Existing other compatibility notes are preserved. Client parsing treats missing declarations and historical descriptive OS labels as desktop-only. The Multicam Windows manifest contract test now checks desktop in this canonical field and rejects the duplicate root field. Admission totals remain31/19.

@@ -13,7 +13,10 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "web",
+      "desktop"
+    ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
   "preview": {
@@ -41,6 +44,5 @@
     "A video file of one person talking to camera",
     "No captions or effects already on the video",
     "English speech"
-  ],
-  "platforms": ["web", "desktop"]
+  ]
 }

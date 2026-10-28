@@ -60,13 +60,16 @@
     "tests/title.test.cjs"
   ],
   "compatibility": {
-    "platforms": ["desktop"],
+    "platforms": [
+      "web",
+      "desktop"
+    ],
     "selects": "Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified. Existing Runtime FFmpeg/FFprobe and FileSystem are required for optional native analysis; no additional tools to install."
   },
   "localized": {
     "de": {
       "name": "Archive Vlog",
-      "summary": "Macht aus Stadt- und Reiseclips und Fotos ein filmisches 16:9-Vlog: ein Letterbox-Auftakt mit sich entschl\u00fcsselndem Titel, ein \u201eArchived by\u201c-Credit, eine Montage im Takt und eine Abblende ins Schwarz, als neuen, bearbeitbaren Draft."
+      "summary": "Macht aus Stadt- und Reiseclips und Fotos ein filmisches 16:9-Vlog: ein Letterbox-Auftakt mit sich entschlüsselndem Titel, ein „Archived by“-Credit, eine Montage im Takt und eine Abblende ins Schwarz, als neuen, bearbeitbaren Draft."
     },
     "en": {
       "name": "Archive Vlog",
@@ -74,35 +77,35 @@
     },
     "es": {
       "name": "Archive Vlog",
-      "summary": "Convierte clips y fotos de ciudad y de viaje en un vlog cinematogr\u00e1fico 16:9: una apertura en letterbox con un t\u00edtulo que se descifra, un cr\u00e9dito \u00abarchived by\u00bb, un montaje al ritmo y un fundido a negro, como un nuevo Draft editable."
+      "summary": "Convierte clips y fotos de ciudad y de viaje en un vlog cinematográfico 16:9: una apertura en letterbox con un título que se descifra, un crédito «archived by», un montaje al ritmo y un fundido a negro, como un nuevo Draft editable."
     },
     "fr": {
       "name": "Archive Vlog",
-      "summary": "Transforme vos clips et photos de ville et de voyage en vlog cin\u00e9matographique 16:9 : une ouverture en letterbox avec un titre qui se d\u00e9chiffre, un cr\u00e9dit \u00ab archived by \u00bb, un montage sur le rythme et un fondu au noir, dans un nouveau Draft modifiable."
+      "summary": "Transforme vos clips et photos de ville et de voyage en vlog cinématographique 16:9 : une ouverture en letterbox avec un titre qui se déchiffre, un crédit « archived by », un montage sur le rythme et un fondu au noir, dans un nouveau Draft modifiable."
     },
     "it": {
       "name": "Archive Vlog",
-      "summary": "Trasforma clip e foto di citt\u00e0 e di viaggio in un vlog cinematografico 16:9: un'apertura letterbox con un titolo che si decifra, un credito \u00abarchived by\u00bb, un montaggio a tempo di musica e una dissolvenza al nero, come nuovo Draft modificabile."
+      "summary": "Trasforma clip e foto di città e di viaggio in un vlog cinematografico 16:9: un'apertura letterbox con un titolo che si decifra, un credito «archived by», un montaggio a tempo di musica e una dissolvenza al nero, come nuovo Draft modificabile."
     },
     "ja": {
       "name": "Archive Vlog",
-      "summary": "\u8857\u3084\u65c5\u306e\u30af\u30ea\u30c3\u30d7\u3068\u5199\u771f\u304b\u3089\u300116:9 \u306e\u30b7\u30cd\u30de\u30c6\u30a3\u30c3\u30af\u306a Vlog \u3092\u4f5c\u6210\u3057\u307e\u3059\u3002\u30ec\u30bf\u30fc\u30dc\u30c3\u30af\u30b9\u3067\u958b\u304f\u30aa\u30fc\u30d7\u30cb\u30f3\u30b0\u3068\u30c7\u30b3\u30fc\u30c9\u3059\u308b\u30bf\u30a4\u30c8\u30eb\u3001\u300carchived by\u300d\u30af\u30ec\u30b8\u30c3\u30c8\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f\u30e2\u30f3\u30bf\u30fc\u30b8\u30e5\u3001\u9ed2\u3078\u306e\u30d5\u30a7\u30fc\u30c9\u30a2\u30a6\u30c8\u3092\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4fdd\u5b58\u3057\u307e\u3059\u3002"
+      "summary": "街や旅のクリップと写真から、16:9 のシネマティックな Vlog を作成します。レターボックスで開くオープニングとデコードするタイトル、「archived by」クレジット、ビートに合わせたモンタージュ、黒へのフェードアウトを、編集可能な新しい Draft として保存します。"
     },
     "ko": {
       "name": "Archive Vlog",
-      "summary": "\ub3c4\uc2dc\uc640 \uc5ec\ud589 \uc601\uc0c1, \uc0ac\uc9c4\uc73c\ub85c 16:9 \uc2dc\ub124\ub9c8\ud2f1 \ube0c\uc774\ub85c\uadf8\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \ub808\ud130\ubc15\uc2a4\ub85c \uc5f4\ub9ac\ub294 \uc624\ud504\ub2dd\uacfc \ub514\ucf54\ub529 \ud0c0\uc774\ud2c0, 'archived by' \ud06c\ub808\ub527, \ube44\ud2b8\uc5d0 \ub9de\ucd98 \ubabd\ud0c0\uc8fc, \uac80\uc740 \ud654\uba74\uc73c\ub85c\uc758 \ud398\uc774\ub4dc\uc544\uc6c3\uae4c\uc9c0 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ud569\ub2c8\ub2e4."
+      "summary": "도시와 여행 영상, 사진으로 16:9 시네마틱 브이로그를 만듭니다. 레터박스로 열리는 오프닝과 디코딩 타이틀, 'archived by' 크레딧, 비트에 맞춘 몽타주, 검은 화면으로의 페이드아웃까지 편집 가능한 새 Draft로 저장합니다."
     },
     "pt": {
       "name": "Archive Vlog",
-      "summary": "Transforma clipes e fotos de cidade e de viagem em um vlog cinematogr\u00e1fico 16:9: uma abertura em letterbox com um t\u00edtulo que se decifra, um cr\u00e9dito \u201carchived by\u201d, uma montagem no ritmo da m\u00fasica e um fade para o preto, como um novo Draft edit\u00e1vel."
+      "summary": "Transforma clipes e fotos de cidade e de viagem em um vlog cinematográfico 16:9: uma abertura em letterbox com um título que se decifra, um crédito “archived by”, uma montagem no ritmo da música e um fade para o preto, como um novo Draft editável."
     },
     "tr": {
       "name": "Archive Vlog",
-      "summary": "\u015eehir ve seyahat kliplerinden ve foto\u011fraflardan 16:9 sinematik bir vlog olu\u015fturur: \u00e7\u00f6z\u00fclerek beliren ba\u015fl\u0131kl\u0131 letterbox a\u00e7\u0131l\u0131\u015f, \u201carchived by\u201d jeneri\u011fi, ritme g\u00f6re kesilmi\u015f montaj ve siyaha ge\u00e7i\u015f; d\u00fczenlenebilir yeni bir Draft olarak kaydeder."
+      "summary": "Şehir ve seyahat kliplerinden ve fotoğraflardan 16:9 sinematik bir vlog oluşturur: çözülerek beliren başlıklı letterbox açılış, “archived by” jeneriği, ritme göre kesilmiş montaj ve siyaha geçiş; düzenlenebilir yeni bir Draft olarak kaydeder."
     },
     "zh": {
       "name": "Archive Vlog",
-      "summary": "\u5c06\u57ce\u5e02\u548c\u65c5\u884c\u7247\u6bb5\u4e0e\u7167\u7247\u5236\u4f5c\u6210 16:9 \u7535\u5f71\u611f Vlog\uff1a\u906e\u5e45\u5c55\u5f00\u7684\u5f00\u573a\u4e0e\u89e3\u7801\u5f0f\u6807\u9898\u3001\u201carchived by\u201d\u7f72\u540d\u3001\u5361\u70b9\u8499\u592a\u5947\u548c\u6de1\u51fa\u5230\u9ed1\u573a\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
+      "summary": "将城市和旅行片段与照片制作成 16:9 电影感 Vlog：遮幅展开的开场与解码式标题、“archived by”署名、卡点蒙太奇和淡出到黑场，并保存为可编辑的新 Draft。"
     }
   },
   "preview": {
@@ -198,6 +201,5 @@
   "prepare": [
     "At least 2 different video clips of city or travel moments; photos are optional. Up to 50 files total.",
     "Videos analyzed, so the scene search can find their shots"
-  ],
-  "platforms": ["web", "desktop"]
+  ]
 }
