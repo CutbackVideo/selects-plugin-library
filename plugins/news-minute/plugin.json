@@ -23,8 +23,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS",
+      "Windows x64",
+      "web"
     ],
     "selects": "Scene editing also requires DraftHandle.setMotionGraphicProgram; older hosts ask for an update before editing. Requires a Selects release containing sdk.aiProviders and askAI.provider support, narration for plug-in panels (selects.narration), and plug-in storage. All LLM stages require explicit provider support; older hosts show an update message. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Provider routing is verified with simulated hosts; live Staging subscription verification is pending. Not yet verified on Windows."
   },

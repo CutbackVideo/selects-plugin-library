@@ -14,7 +14,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS",
+      "Windows"
     ],
     "selects": "Requires music.epidemic.mcp-key.v1 and the user's own Epidemic MCP API key. Download permissions depend on the user's Epidemic account. Creator MP3 download, editable Audio, reload and WAV export verified. Video is optional. Experimental; Epidemic MP4 export failed with local FFmpeg 9, and Windows remains unverified. Export usage reporting and safelisting are not integrated. Artlist requires music.artlist.web-session.v1 and a personal web login. Free accounts support previews only. Artlist Social Monthly Music MP3 and SFX WAV downloads, plus, cover drag, playback, WAV export and MP4 export were verified on macOS. Website changes can break this unpublished prototype; permission for public distribution remains unresolved."
   },

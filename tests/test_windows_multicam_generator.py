@@ -59,7 +59,7 @@ class MulticamGeneratorWindowsTest(unittest.TestCase):
 
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
-        self.assertIn("desktop", manifest["compatibility"]["platforms"])
+        self.assertIn("Windows x64", manifest["compatibility"]["platforms"])
         self.assertNotIn("platforms", manifest)
         for doc in ("INSTALL.md", "README.md"):
             self.assertNotIn("Python", read(os.path.join(PLUGIN, doc)), doc)

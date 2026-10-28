@@ -27,8 +27,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS development builds",
+      "Windows x64",
+      "web"
     ],
     "selects": "Requires public run_script Draft authoring, asynchronous SDK file access, project inventory reads, and persistent panel storage. Released-version compatibility is unverified. Windows x64 runs the same code (SDK file access, no shell commands) but has not been run on a Windows PC yet; HEVC or ProRes sources there depend on the system video decoders."
   },

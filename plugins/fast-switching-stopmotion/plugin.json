@@ -16,8 +16,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS arm64",
+      "Windows x64",
+      "web"
     ],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel SDK runScript/askAI and the host's bundled ffmpeg; no extra tools to install. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },

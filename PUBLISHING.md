@@ -195,9 +195,9 @@ packs or migrate user data.
 
 ## Supported platforms
 
-Every published plugin.json must declare a non-empty `compatibility.platforms` array using only
-`web` and `desktop`, without duplicates. Existing plugins start with
-`"compatibility": {"platforms": ["desktop"]}`. Add `web` only after running the actual web target, installing the plugin through
+Preserve each plugin’s existing OS labels in `compatibility.platforms` (for example,
+`["macOS", "Windows x64"]`). The array contains non-empty strings without duplicates.
+Append `web` only after running the actual web target, installing the plugin through
 the real installer, and directly verifying its core workflows and visible results,
 including required dependencies and persistence after reopening. Compilation,
 SDK-only tests, and source inspection are supporting evidence, not admission. Desktop support declarations

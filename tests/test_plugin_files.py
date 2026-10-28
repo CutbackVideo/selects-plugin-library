@@ -18,7 +18,7 @@ class PluginFilesTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.target = self.root / 'new plugin'
         self.manifest = {'schemaVersion': 1, 'id': 'example', 'version': '1.0.0',
-                         'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'compatibility': {'platforms': ['desktop']},
+                         'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'compatibility': {'platforms': ['macOS', 'Windows x64']},
                          'files': ['SKILL.md', 'INSTALL.md', 'scripts/use.py']}
         self.calls = []
 
@@ -38,9 +38,9 @@ class PluginFilesTest(unittest.TestCase):
                 plugins.validate_manifest(dict(self.manifest, minSelectsVersion=value))
 
     def test_platforms_contract(self):
-        for platforms in (['web'], ['desktop'], ['web', 'desktop']):
+        for platforms in (['web'], ['macOS', 'Windows x64'], ['macOS', 'Windows x64', 'web']):
             plugins.validate_manifest(dict(self.manifest, compatibility={"platforms": platforms}))
-        for value in (None, 'web', [], ['linux'], ['macos'], ['windows'], ['web', 'web'], [{}]):
+        for value in (None, 'web', [], [''], ['  '], ['web', 'web'], [{}]):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'Invalid plugin platforms'):
                 plugins.validate_manifest(dict(self.manifest, compatibility={"platforms": value}))
 
@@ -60,7 +60,7 @@ class PluginFilesTest(unittest.TestCase):
         self.write_local_plugin()
         dependency = self.root / 'plugins/native'
         dependency.mkdir()
-        dependent = dict(self.manifest, id='native', compatibility={'platforms':['desktop']}, requiresPlugins=[])
+        dependent = dict(self.manifest, id='native', compatibility={'platforms':['macOS', 'Windows x64']}, requiresPlugins=[])
         (dependency / 'plugin.json').write_text(json.dumps(dependent))
         with self.assertRaisesRegex(ValueError, 'desktop-only dependency native'):
             plugins.check('example', self.root)

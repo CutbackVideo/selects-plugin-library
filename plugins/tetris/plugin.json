@@ -14,7 +14,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS",
+      "Linux",
+      "Windows x64"
     ],
     "selects": "Single player needs only the Panel SDK. Two-player mode needs sdk.runShell, python3 on PATH, and outbound TCP 1883, so on Windows (single player only) the panel shows it as not available yet."
   },

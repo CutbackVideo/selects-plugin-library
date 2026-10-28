@@ -34,7 +34,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Requires the public selects.ai SDK and selects-ai-runtime installed from the same full library commit, plus current Selects panel runScript/askAI, getDraftCore/captureVisualFrames and host ffmpeg/FileSystem services. Shared YuNet face detection runs on CPU on macOS and Windows; macOS still uses runShell and its pinned Node.js engine for shot/B-roll preparation. Released-host compatibility must be verified with the installed build."
   },

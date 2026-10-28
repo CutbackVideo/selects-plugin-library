@@ -17,8 +17,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS arm64",
+      "Windows x64",
+      "web"
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },

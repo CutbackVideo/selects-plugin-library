@@ -23,8 +23,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS arm64",
+      "Windows x64",
+      "web"
     ],
     "selects": "Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified."
   },

@@ -9,7 +9,8 @@
   "installation": "INSTALL.md",
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64."
   },

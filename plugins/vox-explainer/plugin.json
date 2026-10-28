@@ -14,8 +14,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS",
+      "Windows x64",
+      "web"
     ],
     "selects": "Selects 2.0.512 or later with media generation for plug-in panels. Uses askAI and runScript, and the host's FileSystem (files and downloads) and bundled ffmpeg/ffprobe; no shell, no Python. The engine runs inside the panel on macOS and Windows (a Windows pass on the Staging build is pending)."
   },

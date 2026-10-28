@@ -24,7 +24,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Development build only. Released-version compatibility is unverified. Shared YuNet framing requires selects.ai and selects-ai-runtime installed from the same library revision (Selects 2.0.570 or later)."
   },

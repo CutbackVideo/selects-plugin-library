@@ -15,8 +15,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS development builds",
+      "Windows x64",
+      "web"
     ],
     "selects": "Tested in Selects Staging 2.0.443 on macOS. Requires Panel SDK askAI (including image attachments), runScript, managed media generation, and internal timeline/filesystem/FFmpeg adapters. Native Omni generation requires MediaGeneration service support (host 2.0.433+). Other builds and platforms are unverified."
   },

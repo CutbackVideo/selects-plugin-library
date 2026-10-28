@@ -17,7 +17,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },

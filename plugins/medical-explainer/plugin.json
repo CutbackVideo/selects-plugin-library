@@ -15,8 +15,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS",
+      "Windows x64",
+      "web"
     ],
     "selects": "Selects 2.0.512 or later with media generation for plug-in panels and plug-in storage. Uses askAI and runScript, and the host's FileSystem (files and downloads) and bundled ffmpeg/ffprobe; no shell, no Python. Generation uses Seedream 5.0 Pro, Nano Banana 2.1, Nano Banana Pro, GPT Image 2.5 or FLUX 3 (keyframes, user choice; Seedream by default), Kling v3 Standard 720p or Pro 1080p, Gemini Omni Flash 1.1 or Veo 3 Fast (video, user choice; Kling v3 Standard by default), ElevenLabs v3 or MiniMax Speech 2.8 HD (voice), billed to the user's Selects credits. Verified on macOS (Selects Staging 2.0.736: zoom/strip, myth/full frame, myth with inside-the-body shots) and on Windows x64 (Selects Staging 2.0.715: timeline/full frame, installed by the plugin installer, Draft with Korean captions). Not yet verified on Windows: user folders with Korean characters or spaces, the strip layout, resuming after an app restart; paths of 240 characters or more stop with a message (no long-path support)."
   },

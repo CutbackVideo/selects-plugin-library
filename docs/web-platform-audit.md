@@ -314,4 +314,4 @@ Ali, Recap, Selfie, Vlog Opening and Multicam were each reinstalled through the 
 
 ## Manifest field ownership
 
-All50 packages use the existing `compatibility.platforms` field with desktop/web values; no root-level platforms field remains. Existing other compatibility notes are preserved. Client parsing treats missing declarations and historical descriptive OS labels as desktop-only. The Multicam Windows manifest contract test now checks desktop in this canonical field and rejects the duplicate root field. Admission totals remain31/19.
+All50 packages preserve their original OS labels in `compatibility.platforms`; only the31 browser-verified packages append `web`. No root-level platforms field remains. Other compatibility metadata is preserved. The client checks for explicit `web` membership without replacing OS labels with desktop. The Multicam Windows contract still checks Windows x64. Admission totals remain31/19.

@@ -15,7 +15,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS",
+      "Windows x64"
     ],
     "selects": "Requires Panel SDK runScript/runShell/askAI with pictures, Draft setFrameSize, setClipTransform and addMotionGraphic, project transcription, and the panel runtime FileSystem service. No Python or separate setup."
   },

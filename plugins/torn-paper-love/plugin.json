@@ -44,8 +44,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS arm64",
+      "Windows x64",
+      "web"
     ],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring. Music previews and your own music use the ffmpeg built into Selects; nothing else to install."
   },

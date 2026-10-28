@@ -86,7 +86,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "desktop"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Needs Panel runScript and askAI, Draft motion graphics with generated-media authoring, and the bundled ffmpeg. Picture generation needs Selects 2.0.512 or later; stock B-roll needs stock footage search. Tested on a development build; released versions are unverified. Shared YuNet framing requires selects.ai and selects-ai-runtime installed from the same library revision (Selects 2.0.570 or later)."
   },

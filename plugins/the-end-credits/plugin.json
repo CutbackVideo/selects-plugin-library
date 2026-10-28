@@ -54,8 +54,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "web",
-      "desktop"
+      "macOS arm64",
+      "Windows x64",
+      "web"
     ],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; no extra tools to install (no Homebrew, Node.js or ffmpeg): music previews, your own music and in-shot motion use the ffmpeg bundled with Selects. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },
