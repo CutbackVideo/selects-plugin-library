@@ -916,7 +916,10 @@ export async function readPlan(context, settings, fixedFrame, sdk) {
   return {projectId:context.projectId,draftId:context.sequenceId,libraryId:state.libraryId,sourceId:source.id,path:source.path,sourceStartSeconds:sourceStart,startFrame:frame,endFrame:end,fps,durationSeconds:count/fps,settings,fingerprint:JSON.stringify({fps,mapping,path:source.path,checksum:source.checksum}),mapping};
 }
 export async function placeDirect(plan, resourceId, sdk) {
-  const input = {plan,resourceId};
+  // Bridge snapshots use host ids; script clip rows use project-scoped SDK ids.
+  const picks = [{resourceId,kind:'video'}, ...(plan.replaces ? [{resourceId:plan.replaces.resourceId,kind:'video'}] : [])];
+  const media = await sdkSelectedMedia(sdk, plan.projectId, picks);
+  const input = {plan:{...plan, ...(plan.replaces ? {replaces:{...plan.replaces,resourceId:media[1].resourceId}} : {})},resourceId:media[0].resourceId};
   const result = await multicamScript(sdk, `
     const {plan,resourceId}=${JSON.stringify(input)};
     const project=selects.project(plan.projectId), meta=await project.meta();
@@ -925,7 +928,7 @@ export async function placeDirect(plan, resourceId, sdk) {
     const prior=rows.filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame);
     if(prior.length===1)return {alreadyAdded:true,clipId:prior[0].clipId,trackId:prior[0].trackId};
     if(prior.length)throw new Error("placement_check_3");
-    const replacement = JSON.parse(${JSON.stringify(JSON.stringify(plan.replaces || null))});
+    const replacement = JSON.parse(${JSON.stringify(JSON.stringify(input.plan.replaces || null))});
     if(replacement){
       const r=replacement;
       const candidates=rows.filter(c=>c.trackKind==="video"&&c.resourceId===r.resourceId&&c.startFrame===r.startFrame&&c.endFrame===r.endFrame&&rows.filter(x=>x.trackId===c.trackId).length===1);

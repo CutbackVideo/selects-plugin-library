@@ -315,3 +315,32 @@ Ali, Recap, Selfie, Vlog Opening and Multicam were each reinstalled through the 
 ## Manifest field ownership
 
 All50 packages preserve their original OS labels in `compatibility.platforms`; only the31 browser-verified packages append `web`. No root-level platforms field remains. Other compatibility metadata is preserved. The client checks for explicit `web` membership without replacing OS labels with desktop. The Multicam Windows contract still checks Windows x64. Admission totals remain31/19.
+
+### Desktop isolation and regression verification — 2026-10-27
+
+Runtime `context.platform` selects web-only workarounds; manifest OS labels remain unchanged.
+
+| Operation | Desktop | Web |
+|---|---|---|
+| Vox / Tang / Jared music generation | Starts in parallel with later generation, awaited before finishing | Waits for music persistence before later Project writes |
+| Place Count place analysis | Original concurrency of 4 | Concurrency of 1 for the shared Project script scope |
+| Place Count preview | Original native URL, no full-file Blob copy | Panel-owned Blob URL, released after use |
+| Multicam inspection sheet | Original numbered image input | Explicit concat file list for the virtual filesystem |
+
+Common corrections remain shared: stale clip references, invalid SDK arguments, shader/program receipts, full-byte file identity, request-owned analysis identity, and avoiding commits with no changes. These address data correctness on both targets.
+
+Desktop verification uses the isolated `plugin-platform-audit` Electron session on macOS ARM64, the real installer pinned to `0b184a2`, and a disposable project. All 16 changed executable panels installed successfully. This is not Windows verification or a performance benchmark.
+
+- Eight templates (No14, Camera Shutter Dump, Four Photo Stop Motion, Polaroid, Photo Gallery No2, Mini Vlog, Archive Vlog and Place Count): created and saved Drafts, reopened after app restart, advanced playback from 1s to about 3s, and visually checked native output. Place Count's AI analysis path is separate from this template run.
+- Recap: created the 12s/19-clip sample, verified its native video/title composite and playback. The full 68.6s desktop variant was not exercised here.
+- Ali: ran the panel on a talking-head fixture, created the new portrait Draft, checked native output and playback. The panel intentionally rebuilds the whole source footage (30s in this fixture), unlike its in-place template mode.
+- Card News: planned three cards, generated images, saved an editable Draft, exported three PNGs and caption text, inspected the PNG output and verified Finder revealed the export folder. This found a desktop SDK bug: explicitly undefined `recursive`/`force` options make Node filesystem operations reject. The companion client now supplies false defaults, with a real filesystem regression test; export was rerun successfully.
+- Vox: completed paid narration/keyframe/motion generation, saved a 39.29s Draft, reopened/replayed it and inspected an exported native composite.
+- Tang: completed paid narration and all 12 motion shots, saved a 48.33s Draft, reopened/replayed it and inspected the native composite.
+- Jared: completed paid generation and four image-QA rerolls, saved a 43.17s Draft, reopened/replayed it and inspected the native composite. One QA warning remains for invented notation in shot 1b; successful execution does not certify generated imagery quality.
+- Multicam: native numbered-frame inspection passed. Seedance 2.5 refused the input; Gemini Omni Flash 1.1 plus Sync completed generation. Placement exposed a host-ID versus SDK-alias comparison bug. The existing selected-media mapping now normalizes both new and replacement IDs. After confirming the failed working copy had not persisted, the corrected production placement function ran through real MCP/renderer SDK adapters against the already-paid output: one overlay saved, the second call returned alreadyAdded without duplication. Reopened playback and native-window inspection confirmed V2 output over preserved V1/A1. This recovery tests the production function, not a fresh full generation through the revised panel UI. Standalone still export reported still_export_png_unavailable for this Draft; native UI rendering passed.
+- News: configured the development Codex executable and reran. Script generation passed; automatic fidelity checking timed out twice. Reviewed the fictional article and script manually and accepted the explicit warning. Narration (48.3s), nine-scene preview, confirmation and final 48.78s Draft completed. Reopened playback and native composite export passed. The automated fidelity check is not certified.
+
+Host-specific branch tests passed (Place Count/Multicam: 19; Vox-family: 45), and 217 shared client/file/receipt/authoring tests passed with serial test execution. The Vox-family FFmpeg test uses the official app-distributed binary: the machine's unrelated system FFmpeg lacks drawtext. Native preview pixels are outside Chromium screenshots, so blank CDP captures were not treated as rendering failures.
+
+The final Multicam identity regression checks seven cases across its placement/local-SDK suites, including distinct host/SDK IDs, replacement, persisted verification and duplicate prevention. The companion client normal pre-push suite passed 16,035 tests (22 skipped).
