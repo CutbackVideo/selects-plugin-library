@@ -15,10 +15,7 @@
     "assets/music.mp3"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel SDK runScript/askAI and the host's bundled ffmpeg; no extra tools to install. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },
   "preview": {
@@ -105,5 +102,5 @@
       "default": "mute"
     }
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

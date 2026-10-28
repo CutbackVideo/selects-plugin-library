@@ -85,10 +85,7 @@
     "fonts/urbanist-complete.ttf.gz.b64"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Needs Panel runScript and askAI, Draft motion graphics with generated-media authoring, and the bundled ffmpeg. Picture generation needs Selects 2.0.512 or later; stock B-roll needs stock footage search. Tested on a development build; released versions are unverified. Shared YuNet framing requires selects.ai and selects-ai-runtime installed from the same library revision (Selects 2.0.570 or later)."
   },
   "usesCredits": true,
@@ -134,5 +131,5 @@
       "summary": "\u4e00\u952e\u628a\u6700\u957f 95 \u79d2\u7684\u53e3\u64ad Draft \u505a\u6210\u5168\u65b0\u7684 EO \u98ce\u683c 9:16 \u77ed\u89c6\u9891\uff1a\u7d27\u51d1\u7684\u526a\u8f91\u3001\u4eba\u7269\u6784\u56fe\u3001\u914d\u6709\u56fe\u7247\u548c\u7d20\u6750 B-roll \u7684\u6587\u5b57\u6392\u7248\u573a\u666f\u3001\u97f3\u4e50\u4e0e\u54cd\u5ea6\uff0c\u5e76\u5b8c\u6210\u5bfc\u51fa\u548c\u68c0\u67e5\u3002"
     }
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

@@ -18,7 +18,7 @@ class PluginFilesTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.target = self.root / 'new plugin'
         self.manifest = {'schemaVersion': 1, 'id': 'example', 'version': '1.0.0',
-                         'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'platforms': ['macos', 'windows'],
+                         'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'platforms': ['desktop'],
                          'files': ['SKILL.md', 'INSTALL.md', 'scripts/use.py']}
         self.calls = []
 
@@ -38,9 +38,9 @@ class PluginFilesTest(unittest.TestCase):
                 plugins.validate_manifest(dict(self.manifest, minSelectsVersion=value))
 
     def test_platforms_contract(self):
-        for platforms in (['web'], ['macos', 'windows'], ['web', 'macos', 'windows']):
+        for platforms in (['web'], ['desktop'], ['web', 'desktop']):
             plugins.validate_manifest(dict(self.manifest, platforms=platforms))
-        for value in (None, 'web', [], ['linux'], ['web', 'web'], [{}]):
+        for value in (None, 'web', [], ['linux'], ['macos'], ['windows'], ['web', 'web'], [{}]):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'Invalid plugin platforms'):
                 plugins.validate_manifest(dict(self.manifest, platforms=value))
 
@@ -60,7 +60,7 @@ class PluginFilesTest(unittest.TestCase):
         self.write_local_plugin()
         dependency = self.root / 'plugins/native'
         dependency.mkdir()
-        dependent = dict(self.manifest, id='native', platforms=['macos', 'windows'], requiresPlugins=[])
+        dependent = dict(self.manifest, id='native', platforms=['desktop'], requiresPlugins=[])
         (dependency / 'plugin.json').write_text(json.dumps(dependent))
         with self.assertRaisesRegex(ValueError, 'desktop-only dependency native'):
             plugins.check('example', self.root)

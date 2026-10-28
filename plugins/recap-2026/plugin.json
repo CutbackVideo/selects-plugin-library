@@ -16,10 +16,7 @@
     "assets/CREDITS.md"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
   "preview": {
@@ -111,5 +108,5 @@
     "An intro clip at least 8.5 seconds long",
     "Other clips at least 1.7 seconds long"
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

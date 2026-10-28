@@ -59,7 +59,7 @@ def validate_manifest(manifest):
     if 'platforms' in manifest:
         platforms = manifest['platforms']
         require(isinstance(platforms, list) and len(platforms) > 0 and
-                all(isinstance(p, str) and p in ('web', 'macos', 'windows') for p in platforms) and
+                all(isinstance(p, str) and p in ('web', 'desktop') for p in platforms) and
                 len(set(platforms)) == len(platforms), 'Invalid plugin platforms')
     files = manifest.get('files')
     require(isinstance(files, list) and 0 < len(files) <= 1000 and all(isinstance(f, str) for f in files), 'Missing files list')

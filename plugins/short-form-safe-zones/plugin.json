@@ -13,10 +13,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires Panel support. Released-version and Linux compatibility are unverified. Windows x64 runs the same code (no shell commands) but has not been run on a Windows PC yet."
   },
   "preview": {
@@ -59,5 +56,5 @@
       "summary": "在预览中以可移除片段的形式叠加 TikTok、Reels、Shorts、Stories 和 LinkedIn 的安全区参考线与构图网格。"
     }
   },
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

@@ -14,10 +14,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires Panel SDK runScript/runShell/askAI with pictures, Draft setFrameSize, setClipTransform and addMotionGraphic, project transcription, and the panel runtime FileSystem service. No Python or separate setup."
   },
   "preview": {
@@ -67,5 +64,5 @@
       "summary": "\u7528\u9891\u9053\u6700\u53d7\u6b22\u8fce\u7684\u77ed\u7247\u5236\u4f5c\u6a21\u677f\uff0c\u518d\u628a\u4efb\u4f55\u957f\u89c6\u9891\u505a\u6210\u7b26\u5408\u8be5\u6a21\u677f\u3001\u53ef\u7f16\u8f91\u7684\u77ed\u7247\u3002"
     }
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

@@ -59,10 +59,7 @@
     "sfx/whoosh-1.wav.b64"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; uses the ffmpeg bundled with Selects for music previews and your own music, so nothing else needs installing. Windows x64 hands-on verification is still pending."
   },
   "localized": {
@@ -178,5 +175,5 @@
     "One video 5 seconds or longer, for the opening",
     "Videos analyzed, so the scene search can find their shots"
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

@@ -60,10 +60,7 @@
     "tests/face-track-contract.test.cjs"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Selects 2.0.560 or later with the public selects.ai SDK, plus selects-ai-runtime installed from the same library commit. Shared YuNet inference uses native CPU on macOS and Windows. Full paid reel generation is not part of this migration verification."
   },
   "localized": {
@@ -114,5 +111,5 @@
     "width": 540,
     "height": 960
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

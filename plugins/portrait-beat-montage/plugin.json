@@ -26,10 +26,7 @@
     "height": 720
   },
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },
   "localized": {
@@ -94,5 +91,5 @@
     "10 videos, at least 1.1 seconds each",
     "One person per clip, framed from the face to the chest"
   ],
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

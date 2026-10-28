@@ -14,10 +14,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS development builds",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Tested in Selects Staging 2.0.443 on macOS. Requires Panel SDK askAI (including image attachments), runScript, managed media generation, and internal timeline/filesystem/FFmpeg adapters. Native Omni generation requires MediaGeneration service support (host 2.0.433+). Other builds and platforms are unverified."
   },
   "preview": {
@@ -68,9 +65,5 @@
       "summary": "选择模型和摄像机角度，用原始语音校正口型，并自动向草稿添加独立、可编辑的片段。"
     }
   },
-  "platforms": [
-    "web",
-    "macos",
-    "windows"
-  ]
+  "platforms": ["web", "desktop"]
 }

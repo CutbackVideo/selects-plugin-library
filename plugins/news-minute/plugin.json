@@ -22,10 +22,7 @@
     "THIRD_PARTY.md"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Scene editing also requires DraftHandle.setMotionGraphicProgram; older hosts ask for an update before editing. Requires a Selects release containing sdk.aiProviders and askAI.provider support, narration for plug-in panels (selects.narration), and plug-in storage. All LLM stages require explicit provider support; older hosts show an update message. Uses askAI and runScript, the host's files and bundled ffmpeg; no shell, no Python. Narration is ElevenLabs v4 through Selects, billed to the user's Selects credits by input characters. Provider routing is verified with simulated hosts; live Staging subscription verification is pending. Not yet verified on Windows."
   },
   "localized": {
@@ -70,5 +67,5 @@
       "summary": "Bir haber makalesinden bir dakikal\u0131k dikey haber videosu yapar: makaleyle kar\u015f\u0131la\u015ft\u0131r\u0131lm\u0131\u015f metin, edit\u00f6r onay\u0131, seslendirme, makale foto\u011fraflar\u0131 ve veri kartlar\u0131, altyaz\u0131lar, d\u00fczenlenebilir bir Draft i\u00e7inde."
     }
   },
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

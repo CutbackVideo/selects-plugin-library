@@ -15,10 +15,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Selects 2.0.533+ with plugin media generation, host FileSystem and bundled media runtime. No external runtime or provider key."
   },
   "localized": {
@@ -63,5 +60,5 @@
       "summary": "\u5c06\u94fe\u63a5\u6216\u6587\u5b57\u5236\u4f5c\u6210\u5e26\u65c1\u767d\u7684\u5386\u53f2\u62fc\u8d34\u89c6\u9891\uff0c\u91c7\u7528\u6c34\u58a8\u666f\u7269\u3001\u6728\u7248\u753b\u4eba\u7269\u548c\u53ef\u7f16\u8f91\u6807\u9898\u3002"
     }
   },
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

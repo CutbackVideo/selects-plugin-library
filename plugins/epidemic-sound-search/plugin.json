@@ -13,10 +13,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS",
-      "Windows"
-    ],
+    "platforms": ["desktop"],
     "selects": "Needs Panel runShell, runScript, askAI and Selects browser control, and your own Epidemic Sound account. macOS uses the system python3 and curl. Windows 10 1803+/11 uses the built-in Windows PowerShell 5.1 and curl.exe by full path, so the Selects shell's System32-only PATH and temporary HOME are fine. Every host step (settings, library, search, waveform, cover art, Downloads scan, moving files) was exercised on Windows Server 2022 and 2025 under the same cmd.exe setup Selects uses, with output identical to macOS; the Windows folder picker, File Explorer reveal and in-app browser download are not yet verified on a Windows desktop. Linux is unsupported."
   },
   "preview": {
@@ -66,5 +63,5 @@
       "summary": "\u5728\u9762\u677f\u5185\u6309\u6d41\u6d3e\u3001\u60c5\u7eea\u3001\u901f\u5ea6\u548c\u4eba\u58f0\u7b5b\u9009\u641c\u7d22 Epidemic Sound\uff0c\u76f4\u63a5\u8bd5\u542c\uff0c\u628a\u6574\u4efd\u4e0b\u8f7d\u6e05\u5355\u5728\u4e00\u6b21\u52a9\u624b\u8fd0\u884c\u4e2d\u4fdd\u5b58\u5230\u4f60\u81ea\u5df1\u7684\u97f3\u4e50\u5e93\u6587\u4ef6\u5939\uff0c\u5e76\u628a\u5df2\u4fdd\u5b58\u7684\u66f2\u76ee\u653e\u5230\u6253\u5f00\u7684 Draft \u4e0a\u3002"
     }
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

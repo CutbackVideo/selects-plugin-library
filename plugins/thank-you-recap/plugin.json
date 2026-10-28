@@ -22,10 +22,7 @@
     "licenses/OFL-titanone.txt"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS development builds",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires Panel SDK runScript/askAI, Draft setFrameSize and addMotionGraphic, and the host FileSystem and bundled ffmpeg (Runtime.runFFmpeg); no shell. Released-version compatibility is unverified, and the Windows pass has not run yet."
   },
   "preview": {
@@ -108,5 +105,5 @@
     "Videos from your year",
     "One calm, wide video at least 3.4 seconds long for the hero shot"
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

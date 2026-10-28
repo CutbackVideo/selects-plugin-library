@@ -13,10 +13,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
   "preview": {
@@ -45,5 +42,5 @@
     "No captions or effects already on the video",
     "English speech"
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

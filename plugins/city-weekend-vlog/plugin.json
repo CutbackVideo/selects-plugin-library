@@ -85,10 +85,7 @@
     "tests/warm.test.cjs"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring, and the host's FileSystem and bundled ffmpeg (Runtime.runFFmpeg) through window.parent.__DI__; no shell, Node.js or other tools."
   },
   "localized": {
@@ -196,5 +193,5 @@
     "Clips or photos, enough for 16 short shots",
     "Clips analyzed"
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

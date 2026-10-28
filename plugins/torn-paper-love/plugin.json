@@ -43,10 +43,7 @@
     "scripts/search.js"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring. Music previews and your own music use the ffmpeg built into Selects; nothing else to install."
   },
   "localized": {
@@ -166,5 +163,5 @@
       "default": "bedroom-pop-love"
     }
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

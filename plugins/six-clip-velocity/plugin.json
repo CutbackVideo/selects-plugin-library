@@ -16,10 +16,7 @@
     "assets/music.mp3"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Needs the editor's existing original clip placement service (as Four Photo Reveal and Camera Shutter Dump use), clip retiming, public clip effects, motion graphics and Audio overlays; no extra tools to install. Verified on macOS in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },
   "preview": {
@@ -70,5 +67,5 @@
       "summary": "\u5c06\u516d\u6bb5\u89c6\u9891\u5236\u4f5c\u6210\u53ef\u7f16\u8f91\u768423\u79d2\u901f\u5ea6\u611f\u526a\u8f91\uff0c\u5305\u542b\u53d8\u901f\u3001\u7eb5\u5411\u6a21\u7cca\u3001\u767d\u8272\u95ea\u5149\u3001\u52a8\u6001\u5b57\u5e55\u3001\u6de1\u51fa\u81f3\u9ed1\u8272\u548c\u97f3\u4e50\u3002"
     }
   },
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

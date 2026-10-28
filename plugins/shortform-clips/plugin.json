@@ -15,9 +15,7 @@
     "update.cjs"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires the Panel SDK and local file service, editable Draft graphics and captions. Template API 6 (reads API 1-5 packs too). Landscape source-video templates preserve camera layout on a 1280x720 canvas with editable captions and mapped speaker nameplates. Scene templates require Project sourceFiles and transcription, askAI with images, SDK scripts, local media capture/probe/FFmpeg, and editable Draft overlays and text graphics. New foreground preparation additionally requires selects-ai-runtime person.matte and host selects.ai.prepareMatte support. Speaker framing requires selects-ai-runtime; otherwise face-following templates use the full picture. The picture check of face-following templates also uses selects.media.startFFmpeg, Project sourceFiles, selects.files.readRange and askAI with images; without them the first guess stands. Transcribed sources can start before visual analysis completes."
   },
   "localized": {
@@ -68,5 +66,5 @@
   "updates": {
     "protocol": 1
   },
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

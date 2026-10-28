@@ -18,10 +18,7 @@
     "tests/orientation.test.cjs"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
   "preview": {
@@ -138,9 +135,5 @@
   "prepare": [
     "3 or more trip clips, ideally from different places"
   ],
-  "platforms": [
-    "web",
-    "macos",
-    "windows"
-  ]
+  "platforms": ["web", "desktop"]
 }

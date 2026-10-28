@@ -196,8 +196,8 @@ packs or migrate user data.
 ## Supported platforms
 
 Every published plugin.json must declare a non-empty `platforms` array using only
-`web`, `macos`, and `windows`, without duplicates. Existing plugins start with
-`"platforms": ["macos", "windows"]`. Add `web` only after running the actual web target, installing the plugin through
+`web` and `desktop`, without duplicates. Existing plugins start with
+`"platforms": ["desktop"]`. Add `web` only after running the actual web target, installing the plugin through
 the real installer, and directly verifying its core workflows and visible results,
 including required dependencies and persistence after reopening. Compilation,
 SDK-only tests, and source inspection are supporting evidence, not admission. Desktop support declarations
@@ -216,3 +216,7 @@ shell commands; browser SDK, storage, network, and media paths also need verific
 See [the per-package web audit](docs/web-platform-audit.md) for admission evidence
 and outstanding browser checks. Publication rejects web/native-runtime and
 web/desktop-only-dependency contradictions.
+
+Panels receive the app target as `context.platform` (`"desktop"` or `"web"`).
+Use it to select platform-specific actions; it describes the host, not the OS
+running a browser, and does not guarantee that an individual operation succeeds.

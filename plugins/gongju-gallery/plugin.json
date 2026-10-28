@@ -20,10 +20,7 @@
     "height": 960
   },
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
   "localized": {
@@ -105,5 +102,5 @@
       "default": "ordered"
     }
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

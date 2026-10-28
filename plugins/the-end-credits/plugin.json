@@ -53,10 +53,7 @@
     "tests/windows.test.cjs"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; no extra tools to install (no Homebrew, Node.js or ffmpeg): music previews, your own music and in-shot motion use the ffmpeg bundled with Selects. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },
   "localized": {
@@ -190,5 +187,5 @@
     "Trip clips and photos, 4 or more different ones work best",
     "Videos analyzed, so the scene search can find their shots"
   ],
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

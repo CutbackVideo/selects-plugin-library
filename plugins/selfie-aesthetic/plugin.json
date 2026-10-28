@@ -28,10 +28,7 @@
     "scripts/search.js"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; uses the ffmpeg bundled with Selects, so nothing else needs installing. Windows x64 hands-on verification is still pending."
   },
   "localized": {
@@ -127,5 +124,5 @@
     "width": 540,
     "height": 960
   },
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }

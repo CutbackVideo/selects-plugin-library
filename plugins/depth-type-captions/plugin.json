@@ -16,10 +16,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS arm64",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },
   "preview": {
@@ -90,5 +87,5 @@
     "No captions or effects already on the video",
     "The resulting short must be no longer than 90 seconds"
   ],
-  "platforms": ["macos", "windows"]
+  "platforms": ["desktop"]
 }

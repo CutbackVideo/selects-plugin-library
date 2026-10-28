@@ -14,10 +14,7 @@
     "panel.tsx"
   ],
   "compatibility": {
-    "platforms": [
-      "macOS development builds",
-      "Windows x64"
-    ],
+    "platforms": ["desktop"],
     "selects": "Requires Panel support, generated-media authoring, and the host FileSystem, SequenceRepository, and SequenceEdit adapters. Worker and OffscreenCanvas support are optional; the panel falls back to sequential UI-thread image conversion. Released-version and Linux compatibility are unverified. Windows x64 runs the same code (host FileSystem, no shell commands) but has not been run on a Windows PC yet."
   },
   "preview": {
@@ -26,5 +23,5 @@
     "width": 576,
     "height": 1024
   },
-  "platforms": ["web", "macos", "windows"]
+  "platforms": ["web", "desktop"]
 }
