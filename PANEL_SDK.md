@@ -119,3 +119,32 @@ and retains originals. A quota/access/migration failure is visible and retries
 safely. Migration can remain blocked until storage space is freed; no automatic
 deletion of original work occurs. Never fall back to iframe storage, script
 execution, parent-window internals or IPC for persistence.
+
+### Platform-limited failures
+
+The host opens the shared desktop handoff dialog for typed platform refusals,
+including failures from already-installed plugins. In the panel, call
+`sdk.handleDesktopRequired?.(errorOrResult)` before displaying a generic error.
+It returns `true` only for the original SDK error or result whose guidance the
+host handled. It does not retry the failed operation or confirm desktop import.
+Ordinary errors return `false`. Do not match error strings or manufacture flags.
+
+```tsx
+try {
+  const reply = await sdk.runScript({ summary: "Run operation", script });
+  if (sdk.handleDesktopRequired?.(reply)) return;
+  if (reply.isError) throw new Error(reply.output);
+  // Use reply.result.
+} catch (error) {
+  if (sdk.handleDesktopRequired?.(error)) return;
+  // Show the panel's ordinary actionable error.
+} finally {
+  setBusy(false);
+}
+```
+
+Check the original value before wrapping it in another Error, converting it to
+text, copying it, or persisting it; handled identity is local to this panel
+runtime. The optional call preserves old-client behavior when the helper is
+absent. Keep ordinary error handling in that case. Do not suppress a template's
+completion/failure report: its owning app must still be told the run ended.
