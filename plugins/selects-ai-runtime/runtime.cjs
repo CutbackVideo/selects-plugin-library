@@ -14,6 +14,7 @@ const { probeImage, decodeImage } = require('./lib/image.cjs');
 const { verifyOutputs } = require('./lib/outputs.cjs');
 const { throwIfAborted } = require('./lib/errors.cjs');
 const { collectTool } = require('./lib/process.cjs');
+const { faceParameters, sampleSelector } = require('./tasks/faces-detect.cjs');
 
 function argument(name) {
   const position = process.argv.indexOf(name);
@@ -74,6 +75,8 @@ async function main() {
   const isImage = request.input.source.kind === 'image';
   const video = await (isImage ? probeImage : probeVideo)(config, request, controller.signal);
   const probeMs = performance.now() - probeBegan;
+  const selectFace = request.task === 'faces.detect' && !isImage ? sampleSelector(faceParameters(request)) : null;
+  const frameIndices = selectFace ? video.frameTimes.flatMap((time, index) => selectFace(time) ? [index] : []) : undefined;
   const decoderMetrics = { decoderWaitMs: 0, decodedFrames: 0 };
   const memorySampler = setInterval(() => { observedPeakRssBytes = Math.max(observedPeakRssBytes, process.memoryUsage().rss); }, 50);
   memorySampler.unref();
@@ -82,7 +85,7 @@ async function main() {
     const context = {
       request, config, outputDir, ort, video, emitProgress, decoderMetrics, signal: controller.signal,
       frames: () => (isImage ? decodeImage : decodeFrames)(config, request, video, controller.signal, emitProgress, decoderMetrics,
-        { reuseFrameBuffer: request.task === 'person.matte' }),
+        { reuseFrameBuffer: request.task === 'person.matte', frameIndices }),
     };
     const run = request.task === 'speakers.detect' ? require('./tasks/speakers-detect.cjs').runSpeakers : request.task === 'faces.detect' ? require('./tasks/faces-detect.cjs').runFaces : require('./tasks/person-matte.cjs').runMatte;
     result = await run(context);

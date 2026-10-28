@@ -4,6 +4,7 @@ const { throwIfAborted } = require('./errors.cjs');
 const { constantFrameRate } = require('./constant-frame-rate.cjs');
 const fs = require('node:fs/promises');
 const { timelineKey, readTimeline, writeTimeline } = require('./timeline-cache.cjs');
+const { probeJSON } = require('./probe-cache.cjs');
 
 function parseTimeBase(value) {
   const parts = typeof value === 'string' ? value.split('/').map(Number) : [];
@@ -41,11 +42,14 @@ function relativeTimeline(rawPts) {
 
 async function probeVideo(config, request, signal) {
   const filename = request.input.source.path;
-  const data = JSON.parse(await collectTool(config.tools.ffprobe, [
+  const data = await probeJSON(config, filename, [
     '-v', 'error', '-select_streams', 'v:0', '-show_entries',
     'stream=width,height,sample_aspect_ratio,avg_frame_rate,time_base,duration,start_time:stream_tags=rotate:stream_side_data=rotation:format=duration,start_time',
     '-of', 'json', filename,
-  ], { signal }));
+  ], signal, data => {
+    if (!data.streams?.[0]?.width || !data.streams[0].height) throw new Error('Source has no decodable video stream');
+    parseTimeBase(data.streams[0].time_base);
+  });
   const stream = data.streams?.[0];
   if (!stream || !stream.width || !stream.height) throw new Error('Source has no decodable video stream');
   const sourceSampleAspectRatio = stream.sample_aspect_ratio ?? null;
@@ -64,10 +68,16 @@ async function probeVideo(config, request, signal) {
   // verification below because its output promises exact source frame indices.
   if (request.task === 'faces.detect' || request.task === 'speakers.detect') {
     const readFrames = async interval => {
-      const result = JSON.parse(await collectTool(config.tools.ffprobe, [
-        '-v', 'error', '-select_streams', 'v:0', '-read_intervals', interval,
+      const result = await probeJSON(config, filename, [
+        // Use two decoding threads for frame timestamp probes, matching the RGB
+        // decoder below. The default probe decoding is slower on long ranges.
+        '-v', 'error', '-threads', '2', '-select_streams', 'v:0', '-read_intervals', interval,
         '-show_frames', '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
-      ], { signal }));
+      ], signal, result => {
+        if (!relativeTimeline((result.frames ?? []).map(frame => frame.best_effort_timestamp))) {
+          throw new Error('Source frame timestamps are unavailable or not ordered');
+        }
+      });
       const points = (result.frames ?? []).map(frame => frame.best_effort_timestamp);
       if (!relativeTimeline(points)) throw new Error('Source frame timestamps are unavailable or not ordered');
       return points;
@@ -94,6 +104,7 @@ async function probeVideo(config, request, signal) {
     if (!selected.length || selected.length > 20_000) throw new Error('Range has no frames or exceeds the PoC frame limit');
     return {
       width, height, rotation, sourceSampleAspectRatio, pixelAspectRatioPolicy,
+      framePts: selected,
       frameTimes: selected.map(pts => pts * timeBase.numerator / timeBase.denominator),
       timestampOriginSeconds: originSeconds, timestampOriginPts: origin,
       formatStartTime: Number(data.format?.start_time ?? 0),
@@ -147,12 +158,26 @@ async function probeVideo(config, request, signal) {
   };
 }
 
-async function* decodeFrames(config, request, video, signal, emitProgress, decoderMetrics, { reuseFrameBuffer = false } = {}) {
+async function* decodeFrames(config, request, video, signal, emitProgress, decoderMetrics, { reuseFrameBuffer = false, frameIndices } = {}) {
   throwIfAborted(signal);
   // Match the probe clock: first displayed video frame is source playback zero.
   // Integer PTS avoids ffprobe's rounded *_time strings disagreeing with trim.
   const fastSeek = Number.isFinite(video.seekSeconds);
-  const filters = `setpts=PTS-${fastSeek ? video.timestampOriginPts : 'STARTPTS'},trim=start_pts=${video.rangeStartPts}:end_pts=${video.rangeEndPts}`;
+  const indices = frameIndices ?? video.frameTimes.map((_, i) => i);
+  if (!indices.length || indices.some((n, i) => !Number.isInteger(n) || n < 0 || n >= video.frameTimes.length || (i && n <= indices[i - 1]))) {
+    throw new Error('Invalid selected source frame indices');
+  }
+  // Limit filter arguments for Windows command-line bounds. Dense selections
+  // keep the original decoder path; the face consumer still selects identically.
+  const sparse = indices.length < video.frameTimes.length && indices.length <= 256;
+  const outputIndices = sparse ? indices : video.frameTimes.map((_, i) => i);
+  if (sparse && (!Array.isArray(video.framePts) || video.framePts.length !== video.frameTimes.length)) {
+    throw new Error('Selected frames require verified source PTS');
+  }
+  // Check both index and exact PTS: dropped/corrupt decoder frames must fail
+  // the output count check rather than silently shifting a sampled picture.
+  const selection = sparse ? ',select=' + indices.map(n => `eq(n\\,${n})*eq(pts\\,${video.framePts[n]})`).join('+') : '';
+  const filters = `setpts=PTS-${fastSeek ? video.timestampOriginPts : 'STARTPTS'},trim=start_pts=${video.rangeStartPts}:end_pts=${video.rangeEndPts}${selection}`;
   const decoder = startTool(config.tools.ffmpeg, [
     '-v', 'error', '-nostdin', '-threads', '2',
     // Disable FFmpeg's seek-time discard: on offset containers it may discard
@@ -162,7 +187,7 @@ async function* decodeFrames(config, request, video, signal, emitProgress, decod
     '-map', '0:v:0', '-an', '-sn', '-dn', '-vf', filters, '-fps_mode', 'passthrough',
     // trim alone continues decoding the tail. The known frame bound makes ffmpeg
     // stop after the range's last output frame instead of traversing the file.
-    '-frames:v', String(video.frameTimes.length), '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1',
+    '-frames:v', String(outputIndices.length), '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1',
   ], { signal, onSpawn: pid => emitProgress({ step: 'decoding', decoderPid: pid }) });
   const size = video.width * video.height * 3;
   let frame = Buffer.allocUnsafe(size);
@@ -184,11 +209,12 @@ async function* decodeFrames(config, request, video, signal, emitProgress, decod
         filled += take;
         offset += take;
         if (filled === size) {
-          if (index >= video.frameTimes.length) throw new Error('Decoder produced more frames than the probed range');
+          if (index >= outputIndices.length) throw new Error('Decoder produced more frames than the probed range');
           // Reused RGB is borrowed until the consumer calls next() again. All
           // copying resumes after yield, so serial inference and its initial
           // provider fallback can finish with this frame before it is replaced.
-          yield { index, sourceTimeSeconds: video.frameTimes[index], rgb: frame };
+          const sourceIndex = outputIndices[index];
+          yield { index: sourceIndex, sourceTimeSeconds: video.frameTimes[sourceIndex], rgb: frame };
           index++;
           if (!reuseFrameBuffer) frame = Buffer.allocUnsafe(size);
           filled = 0;
@@ -196,7 +222,7 @@ async function* decodeFrames(config, request, video, signal, emitProgress, decod
       }
     }
     await decoder.completed;
-    if (filled || index !== video.frameTimes.length) throw new Error(`Decoder frame count mismatch: expected ${video.frameTimes.length}, got ${index}`);
+    if (filled || index !== outputIndices.length) throw new Error(`Decoder frame count mismatch: expected ${outputIndices.length}, got ${index}`);
     decoderMetrics.decodedFrames = index;
   } finally {
     if (decoder.child.exitCode === null) decoder.child.kill('SIGKILL');

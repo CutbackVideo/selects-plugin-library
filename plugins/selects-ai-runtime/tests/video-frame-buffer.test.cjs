@@ -30,7 +30,7 @@ function fixture({ chunks, count = 3, options } = {}) {
     settings.onSpawn(42);
     return { child, completed };
   };
-  const video = { width: 2, height: 1, frameTimes: [0, 0.04, 0.08].slice(0, count), rangeStartPts: 0, rangeEndPts: count };
+  const video = { width: 2, height: 1, frameTimes: Array.from({ length: count }, (_, i) => i * .04), framePts: Array.from({ length: count }, (_, i) => i), rangeStartPts: 0, rangeEndPts: count };
   const metrics = { decoderWaitMs: 0, decodedFrames: 0 }, progress = [];
   const iterator = decodeFrames({ tools: { ffmpeg: '/fake/ffmpeg' } }, { input: { source: { path: '/fake/input.mp4' } } },
     video, controller.signal, event => progress.push(event), metrics, options);
@@ -94,4 +94,38 @@ test('consumer return closes the decoder without waiting for unread frames', asy
   assert.equal((await f.iterator.return()).done, true);
   assert.equal(f.child.stdout.destroyed, true);
   assert.deepEqual(f.child.killed, ['SIGKILL']);
+});
+
+
+test('sparse decoder keeps source indices and requires matching PTS', async () => {
+  const bytes = Buffer.from(Array.from({ length: 18 }, (_, i) => i));
+  const f = fixture({ chunks: [bytes.subarray(0, 6), bytes.subarray(12)], options: { frameIndices: [0, 2] } });
+  const frames = [];
+  for await (const frame of f.iterator) frames.push(frame);
+  assert.deepEqual(frames.map(frame => frame.index), [0, 2]);
+  assert.deepEqual(frames.map(frame => frame.sourceTimeSeconds), [0, .08]);
+  assert.deepEqual(frames.map(frame => frame.rgb), [bytes.subarray(0, 6), bytes.subarray(12)]);
+  const filter = f.args()[f.args().indexOf('-vf') + 1];
+  assert.ok(filter.includes('eq(n\\,2)*eq(pts\\,2)'));
+  assert.equal(f.metrics.decodedFrames, 2);
+});
+
+test('sparse decoder rejects missing selected frames and invalid index lists', async () => {
+  const missing = fixture({ chunks: [Buffer.alloc(6)], options: { frameIndices: [0, 2] } });
+  await assert.rejects(async () => { for await (const _ of missing.iterator) {} }, /frame count mismatch/);
+  for (const frameIndices of [[], [2, 0], [0, 0], [-1], [3], [.5]]) {
+    const invalid = fixture({ options: { frameIndices } });
+    await assert.rejects(invalid.iterator.next(), /Invalid selected/);
+  }
+});
+
+
+test('large sparse selections keep full decoding instead of exceeding command-line bounds', async () => {
+  const f = fixture({ count: 300, chunks: [Buffer.alloc(300 * 6)], options: { frameIndices: Array.from({ length: 257 }, (_, i) => i) } });
+  const frames = [];
+  for await (const frame of f.iterator) frames.push(frame);
+  assert.equal(frames.length, 300);
+  assert.equal(frames.at(-1).index, 299);
+  assert.equal(f.metrics.decodedFrames, 300);
+  assert.ok(!f.args()[f.args().indexOf('-vf') + 1].includes('select='));
 });
