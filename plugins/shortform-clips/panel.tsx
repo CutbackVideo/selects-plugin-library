@@ -4648,15 +4648,16 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
       // One upper-body policy, shared across all occurrences. Padding estimates
       // hair/shoulders; it is not a claim that face detection tracks whole heads.
       const fw=Math.max(...refs.map(f=>f.box.xmax-f.box.xmin)),fh=Math.max(...refs.map(f=>f.box.ymax-f.box.ymin));
-      // Split cells need shoulder room, not just a face-safe close-up. Treat
-      // this estimated upper-body envelope as mandatory even if that requires
-      // independent vertical placement or letterboxing. Source edges remain hard.
+      // Prefer shoulder room, but fill side-by-side cells when only estimated
+      // padding is too wide. The face/hair envelope and source edges stay hard.
       const split=SPLIT_LAYOUTS.includes(first.style);
       const side=split?1.3:.25,below=split?1:.2;
       const head={xmin:Math.max(left,b.xmin-fw*side),xmax:Math.min(right,b.xmax+fw*side),ymin:Math.max(top,b.ymin-fh*(split?.8:.45)),ymax:Math.min(bottom,b.ymax+fh*below)};
       // Multicam summaries carry extrema across samples separately from the
       // mean face center/size. Preserve that envelope during fitting too.
       for(const f of refs)if(f.headBounds){const q=f.headBounds;head.xmin=Math.min(head.xmin,q.xmin);head.xmax=Math.max(head.xmax,q.xmax);head.ymin=Math.min(head.ymin,q.ymin);head.ymax=Math.max(head.ymax,q.ymax);}
+      const protectedHead=first.style==='side-by-side'?{xmin:Math.max(left,b.xmin-fw*.25),xmax:Math.min(right,b.xmax+fw*.25),ymin:Math.max(top,b.ymin-fh*.45),ymax:Math.min(bottom,b.ymax+fh*.2)}:head;
+      for(const f of refs)if(f.headBounds){const q=f.headBounds;protectedHead.xmin=Math.min(protectedHead.xmin,q.xmin);protectedHead.xmax=Math.max(protectedHead.xmax,q.xmax);protectedHead.ymin=Math.min(protectedHead.ymin,q.ymin);protectedHead.ymax=Math.max(protectedHead.ymax,q.ymax);}
       let safeLeft=left,safeRight=right;
       if(first.style!=='two-shot')for(const f of catalog){
         if(f.resourceId!==first.resourceId||ids.has(f.id)||!group.some(s=>f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame))continue;
@@ -4665,7 +4666,7 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
       // Close-up is a single-person preference. Group layouts retain their
       // own shoulder/group fitting and shared magnification policy.
       const singleCloseUp=Number.isFinite(layout.closeUp)&&layout.closeUp>=2&&layout.closeUp<=12?layout.closeUp:2.2;
-      const options={W,H,left:safeLeft,right:safeRight,top,bottom,aspect,boxes:[head],preferredWidth:Math.max(fw*(split?3.6:first.style==='speaker'?singleCloseUp:2.2),(head.ymax-head.ymin+fh*.35)*aspect,first.style==='two-shot'?head.xmax-head.xmin+fw*.8:0),faceY:.4,reservedAreas:layout.reservedAreas,destination};
+      const options={W,H,left:safeLeft,right:safeRight,top,bottom,aspect,boxes:[protectedHead],softBounds:head,preferredWidth:Math.max(fw*(split?3.6:first.style==='speaker'?singleCloseUp:2.2),(head.ymax-head.ymin+fh*.35)*aspect,first.style==='two-shot'?head.xmax-head.xmin+fw*.8:0),faceY:.4,reservedAreas:layout.reservedAreas,destination};
       let crop:any;
       try {crop=fitPortraitCrop(options);} catch(error:any) {
         if(!/cannot fit/.test(String(error?.message)))throw error;
@@ -4676,7 +4677,7 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
         crop={x,y,width:(split?head.xmax:safeRight)-x,height:Math.min(bottom,head.ymax+fh*.35)-y,letterbox:true};
       }
       fits.push({options,crop,pane:[left,right,top,bottom]});
-      return {x:crop.x/W,y:crop.y/H,width:crop.width/W,height:crop.height/H,exact:true,letterbox:!!crop.letterbox,focus:{x:head.xmin/W,y:head.ymin/H,width:(head.xmax-head.xmin)/W,height:(head.ymax-head.ymin)/H}};
+      return {x:crop.x/W,y:crop.y/H,width:crop.width/W,height:crop.height/H,exact:true,letterbox:!!crop.letterbox,focus:{x:protectedHead.xmin/W,y:protectedHead.ymin/H,width:(protectedHead.xmax-protectedHead.xmin)/W,height:(protectedHead.ymax-protectedHead.ymin)/H}};
     });
     // Repacking one continuous camera view must not independently magnify
     // single-person cells. Preserve the original relative person sizes by
@@ -4717,7 +4718,8 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
     // When fill cannot share a safe scale, try letterboxing at the widest
     // required scale before accepting independent magnification. Never shrink
     // the protected envelope merely to preserve alignment or fill a cell.
-    if(count>1&&fits.every(f=>f.pane.every((n:number,i:number)=>n===fits[0].pane[i]))){
+    // Already filled side-by-side cells must not gain bars for scale matching.
+    if(count>1&&(first.style!=='side-by-side'||regions.some(r=>r.letterbox))&&fits.every(f=>f.pane.every((n:number,i:number)=>n===fits[0].pane[i]))){
       const scales=regions.map((r,i)=>Math.max(r.width*W/fits[i].options.destination.width,r.height*H/fits[i].options.destination.height));
       if(Math.max(...scales)-Math.min(...scales)>1e-6){
         const ratio=Math.max(...scales);
