@@ -344,3 +344,50 @@ Desktop verification uses the isolated `plugin-platform-audit` Electron session 
 Host-specific branch tests passed (Place Count/Multicam: 19; Vox-family: 45), and 217 shared client/file/receipt/authoring tests passed with serial test execution. The Vox-family FFmpeg test uses the official app-distributed binary: the machine's unrelated system FFmpeg lacks drawtext. Native preview pixels are outside Chromium screenshots, so blank CDP captures were not treated as rendering failures.
 
 The final Multicam identity regression checks seven cases across its placement/local-SDK suites, including distinct host/SDK IDs, replacement, persisted verification and duplicate prevention. The companion client normal pre-push suite passed 16,035 tests (22 skipped).
+
+## Desktop compatibility run — 2026-10-28
+
+This run compares real macOS ARM64 Electron development apps, not mocked SDKs or a Windows machine:
+
+- Older desktop: `ac62869916b17f5907f51247a5b69cbaf0de1670` (package version `2.0.850`), before the web-platform SDK changes.
+- Newer desktop: `a95125da290e7f953a2a9694291c5a530d6fdadb` (package version `2.0.883`, client PR #8274).
+- Plugins: real installer pinned to `9754a676921d86c649c47353cc6b36f0faa7a7a9`, then Card News updated to `6b2cb5d4628ced7aa3a50c1f000d67d3c1fb14c3` after the reproduced compatibility fix. Other executable plugin bytes did not change between those commits.
+- Separate `--isolated-data` profiles, fresh disposable Projects, identical local fixtures. No existing user Project database was rewritten.
+- The plugin/runtime directory and existing installation caches under `~/.selects` were shared and reused. These are real install/update tests, not clean-machine runtime-bootstrap tests.
+
+Both clients installed all 50 plugins. The following 16 executable panels changed by this PR completed their core generation and saved their output on both clients. This count does not mean 50 full feature suites or all historical client versions were tested.
+
+| Plugin | Older desktop | Newer desktop | Exercised path |
+|---|---|---|---|
+| No14 Still Video | Saved | Saved | Four-photo template; full MP4 export |
+| Camera Shutter Dump | Saved | Saved | Twelve-photo template; composite frame |
+| Four Photo Stop Motion | Saved | Saved | Four-photo template; full MP4 export |
+| Polaroid Photo Dump | Saved | Saved | Seventeen-photo template; composite frame |
+| Photo Gallery No2 | Saved | Saved | Fifteen photos and six videos; composite frame |
+| Mini Vlog | Saved | Saved | Six-video template; composite frame |
+| Archive Vlog | Saved | Saved | Six-video template; composite frame |
+| Place Count | Saved | Saved | Template creation; composite frame. Separate place-analysis concurrency was not benchmarked. |
+| Recap 2026 | Saved | Saved | Twelve-second sample, nineteen video clips; composite frame. Full 68.6-second variant not rerun. |
+| Ali Abdaal Style | Saved | Saved | Real source analysis, transcript processing, new portrait Draft; composite frame |
+| A16z Style Captions | Saved | Saved | Face detection, pause tightening, paid music, captions and designed cards; full MP4 export |
+| Card News Maker | Saved + PNG export | Saved + PNG export | Fictional article planning, three paid images, editable Draft, three PNGs and caption text |
+| Vox Explainer | Saved, 45.4s | Saved, 45.3s | Paid narration, keyframes, image QA, motion and assembly |
+| Tang Poetry Explainer | Saved, 44.0s | Saved, 44.3s | Paid narration, keyframes, image QA, motion and assembly; older run recovered a provider request failure |
+| Jared Vox Editorial | Saved, 43.7s | Saved, 48.2s | Paid generation and image-QA rerolls. Older output still reports three imagery-quality warnings. |
+| Multicam Generator | Saved overlay | Saved overlay | Multi-person input rejected; single-person input accepted; Gemini Omni Flash 1.1 + lip sync + real panel placement; full MP4 export |
+
+Multicam preserved the original main-track clip and added exactly one five-second video overlay in the eight-second input Draft on both clients. The older run resumed its saved request after another app opened a different Draft; the already-paid media was placed without a second generation.
+
+News in One Minute, whose executable panel is unchanged here, was also exercised on both clients: script, narration, storyboard thumbnails, preview and final Draft completed (50.5s older / 50.9s newer). The older automatic fidelity check timed out twice; the fictional source and script were manually compared and the app's explicit warning accepted. This is not a passing automated-fidelity result.
+
+### Fix found by the actual older client
+
+Card News's embedded local client omitted `recursive` when deleting its raw render file. The older host forwarded `undefined` to Node and rejected the operation. The same deletion failed against the running `2.0.850` app before the fix, and succeeded with `{recursive:false,force:true}`. Commit `6b2cb5d` applies explicit flags to file cleanup, ordinary removal and failed-write cleanup. Both panels subsequently exported all three PNGs and caption text. The existing native-filesystem regression suite now runs against the Card News embedded helper as well as the canonical helper: 26 passed, 1 skipped. Normal pre-push checks and both GitHub workflow runs passed for this code commit.
+
+### Output verification and remaining limits
+
+- Eight representative HD MP4 exports succeeded: No14, Four Photo, A16z and Multicam on each client. All contain H.264 video and AAC audio. Output durations match the persisted Drafts; decoded frames were inspected. Four Photo deliberately has an empty interval around 1.58–2.67s, so its 2s black frame was not treated as a rendering failure; its 6s frame displays the photo.
+- Twenty-three standalone composite frames and the six Card News PNGs were generated and inspected. No14's standalone still-export path raised React error #130 on both clients; its full MP4 export succeeded on both. A plain-video baseline also returned `still_export_png_unavailable`. These standalone-still limitations remain unresolved; no claim is made that the PR caused them.
+- In this run, native in-app Preview remained `initializing` and timed out, including on an ordinary original-video Draft without a plugin effect. Rebooting the older app alone, foregrounding its window and retrying did not restore presentation. Logs report dropped/occluded drawables or no presentation witness. This prevents certification of live native Preview in this environment; exported pixels and successful generation are not substituted for a passing Preview test.
+- After actual app restarts on both clients, all 18 saved Drafts per client retained the same ids, names, frame settings, durations and clip positions. SDK-local Resource aliases were excluded from cross-session comparison because they may be reassigned.
+- This run does not certify Windows, every old release, every optional setting or a desktop performance benchmark.
