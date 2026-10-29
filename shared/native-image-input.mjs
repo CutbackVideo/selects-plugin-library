@@ -133,7 +133,7 @@ export async function observeSourceFiles(files,paths,expected=null) {
  const observed=[];
  for(const path of selected){
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{fingerprint=await (typeof files.fingerprint==='function'?files.fingerprint(path):fingerprintTemplateFile(files,path));}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');

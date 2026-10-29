@@ -1665,7 +1665,9 @@ function Panel({ sdk, context, ui }: any) {
       await generate(st, sc, (await run("requests", dir, ["narration"], "Narration requests")).requests, S.steps[2]);
       if (!pj.timed) pj = await savePanel(dir, { timed: (await run("timeline", dir, [], "Narration timing")).seconds });
       const music = (await run("requests", dir, ["music"], "Music request")).requests;
-      const musicDone = generate(st, sc, music, "", "keep").catch(() => [{ gen: "music" }]); // runs alongside
+      // Web script writes share a Project scope; desktop retains parallel generation.
+      const musicDone = generate(st, sc, music, "", "keep").catch(() => [{ gen: "music" }]);
+      if (context.platform === "web") await musicDone;
 
       setStep(3);
       await generate(st, sc, (await run("requests", dir, ["keyframes"], "Keyframe requests")).requests, S.steps[3], "keep");
@@ -1719,6 +1721,7 @@ function Panel({ sdk, context, ui }: any) {
       }
 
       setStep(5);
+      setStatus(S.steps[5]);
       const failedClips = await generate(st, sc, (await run("requests", dir, ["clips"], "Motion requests")).requests, S.steps[5], "keep");
       if (failedClips.length) {
         // LESSON: a refused clip is refused again on every retry; the pan-and-zoom fallback is immediate.

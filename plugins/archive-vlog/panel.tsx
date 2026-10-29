@@ -4715,7 +4715,7 @@ function validateTemplateRun(row,scope,digest,recordPath=null) {
   }
   if(r.programs!==undefined){
    const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
-   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s==='string'?(!s||s.length>49152):(!s||s.graph?.schema!=='Cutback.ShaderEffect.1'||JSON.stringify(s).length>49152))||new Set(p.sources.map(s=>JSON.stringify(s))).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
    const entry=(e,effect)=>{
     if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
     if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();
@@ -6880,9 +6880,10 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
 
  if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
  const observe=async operation=>{check();const result=await operation();check();return result;};
+ const identity=stat=>typeof stat?.sourceIdentity==='string'&&stat.sourceIdentity?stat.sourceIdentity:Number.isFinite(stat?.ino)?stat.ino:null;
  const before=await observe(()=>files.stat(path));
  if(before===null)return null;
- if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||!Number.isFinite(before.ino))throw Error("The file's size or identity could not be confirmed.");
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||identity(before)===null)throw Error("The file's size or identity could not be confirmed.");
  const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
  for(let offset=0;offset<before.size;){
   const length=Math.min(49152,before.size-offset);
@@ -6900,7 +6901,7 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
   hash.update(bytes);check();offset+=length;
  }
  const after=await observe(()=>files.stat(path));
- if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The file changed while its contents were read.');
+ if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||identity(before)!==identity(after))throw Error('The file changed while its contents were read.');
  const digest=hash.digest();check();
  let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
  return {size:before.size,sha256:hex};
@@ -7136,7 +7137,7 @@ export async function observeSourceFiles(files,paths,expected=null) {
  const observed=[];
  for(const path of selected){
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{fingerprint=await (typeof files.fingerprint==='function'?files.fingerprint(path):fingerprintTemplateFile(files,path));}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');

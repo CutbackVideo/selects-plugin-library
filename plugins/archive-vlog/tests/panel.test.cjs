@@ -93,7 +93,7 @@ assert.ok(!/\/Users\//.test(panel), 'no user paths');
 for (const f of plugin.files) assert.ok(fs.existsSync(path.join(root, f)), 'plugin.json file exists: ' + f);
 for (const f of ['panel.tsx', 'planner.js', 'beat-detect.cjs', 'assets/decode-title.tsx', 'assets/archived-credit.tsx', 'assets/letterbox-reveal.tsx', 'assets/cinematic-look.tsx',
   'assets/fade-out.tsx', 'assets/photo-motion.tsx', 'assets/fonts/presets.json', 'assets/cues/manifest.json', 'scripts/assemble.js', 'scripts/decorate.js']) assert.ok(plugin.files.includes(f), 'ships ' + f);
-assert.deepEqual(plugin.compatibility.platforms, ['macOS arm64', 'Windows x64']);
+assert.deepEqual(plugin.compatibility.platforms, ['macOS arm64', 'Windows x64', 'web']);
 assert.match(plugin.compatibility.selects, /no additional tools to install/i, 'no external tools to install; existing host FFmpeg is allowed');
 assert.deepEqual(Object.keys(plugin.localized).sort(), ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh']);
 for (const [lang, v] of Object.entries(plugin.localized)) assert.ok(v.name === 'Archive Vlog' && v.summary.length > 20, 'localized ' + lang);

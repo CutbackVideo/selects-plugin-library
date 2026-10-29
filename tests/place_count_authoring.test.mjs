@@ -98,3 +98,40 @@ test('known unsupported authoring does not leave a false uncertain-save checkpoi
  }
  assert.deepEqual(configs.map(c=>c.recoverOnly),[false,false]);
 });
+
+test('browser preview owns its blob URL and releases it without revoking the host URL',async()=>{
+ const revoked=[];let blob;
+ const bytes=new Uint8Array([1,2,3]);
+ const api=loadPanelFunctions(panel,['previewSource'],{
+  localPlatform:'web',
+  getFS:()=>({pathToLocalURL:async()=> 'blob:host/source',readFile:async()=>bytes}),
+  Blob,URL:{createObjectURL:value=>{blob=value;return 'blob:panel/source';},revokeObjectURL:url=>revoked.push(url)},
+ });
+ const source=await api.previewSource('/clip.mp4');
+ assert.equal(source.url,'blob:panel/source');
+ assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),bytes);
+ source.release();assert.deepEqual(revoked,['blob:panel/source']);
+});
+
+test('recovery leaves already finished typography and audio unchanged',async()=>{
+ const cfg={projectId:'p',sequenceId:'saved',sourceAudio:false,music:null,regions:[{place:0,startFrame:0,endFrame:60}]};
+ const clips=[{trackKind:'main',startFrame:0,endFrame:60},{trackKind:'video',resourceId:null,startFrame:0,endFrame:60},{trackKind:'audio',startFrame:0,endFrame:60}];
+ const d={clips:async()=>clips,rangeAtFrames:async()=>({}),setAudioTracks:async()=>({opCount:0}),meta:async()=>({fps:30}),commitAll:async()=>{throw Error('No working-copy edits to commit');}};
+ const selects={project:()=>({meta:async()=>({draftIds:['saved']})}),draft:()=>d};
+ for(const file of ['apply-design.js','finish-draft.js']){
+  const script=fs.readFileSync(new URL('../plugins/place-count/'+file,import.meta.url),'utf8').replace('__CONFIG__',JSON.stringify(cfg));
+  const result=await vm.runInNewContext('(async()=>{'+script+'})()',{selects});
+  assert.equal(result.sequenceId,'saved');
+ }
+});
+
+for (const platform of [undefined,'desktop','web']) test(`${platform} place analysis keeps its host concurrency`,()=>{
+ const select=vm.runInNewContext(panel.match(/const assistConcurrency=.*?;/)[0]+'assistConcurrency');
+ assert.equal(select(platform),platform==='web'?1:4);
+});
+for(const platform of [undefined,'desktop']) test(`${platform ?? 'legacy desktop'} preview retains the native URL without reading the whole video`,async()=>{
+ const api=loadPanelFunctions(panel,['previewSource'],{localPlatform:platform,
+  getFS:()=>({pathToLocalURL:async()=> 'file:///clip.mp4',readFile:()=>{throw Error('Unexpected copy');}}),
+ });
+ const source=await api.previewSource('/clip.mp4');assert.equal(source.url,'file:///clip.mp4');source.release();
+});

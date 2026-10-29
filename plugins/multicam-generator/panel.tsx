@@ -754,9 +754,9 @@ export function analysisPrompt(plan) {
 // Build the inspection contact sheet from ORIGINAL pixels. No analysis, no credits:
 // the same ffmpeg extraction that prepareReference() uses, tiled into one image so
 // the AI inspects exactly the frames the generation model will receive.
-export async function buildInspectionSheet(sdk, plan, jobId) {
+export async function buildInspectionSheet(sdk, plan, jobId, platform) {
   const fs = panelLocalClient(sdk).files, runtime = panelLocalClient(sdk).media;
-  if (!runtime?.runFFmpeg || !fs?.mkdir || !fs?.readFile || !fs?.join || !fs?.homedir)
+  if (!runtime?.runFFmpeg || !fs?.mkdir || !fs?.readFile || (platform === "web" && !fs?.writeFile) || !fs?.join || !fs?.homedir)
     throw new Error("Update Selects to use local media.");
   const dir = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", String(jobId), "inspect");
   (await fs.mkdir(dir, {recursive:true}));
@@ -769,8 +769,16 @@ export async function buildInspectionSheet(sdk, plan, jobId) {
         "-vf","scale=480:-2","-q:v","4", fs.join(dir, "insp" + i + ".jpg")], true, controller.signal);
     }
     const sheet = fs.join(dir, "sheet.jpg");
+    let inputs = ["-start_number", "0", "-i", fs.join(dir, "insp%d.jpg")];
+    if (platform === "web") {
+      // Browser virtual filesystems do not expand image2 filename patterns.
+      const list = fs.join(dir, "inspection.txt");
+      const entries = times.map((_, i) => "file '" + fs.join(dir, "insp" + i + ".jpg").replaceAll("\\", "/").replaceAll("'", "'\\''") + "'");
+      await fs.writeFile(list, new TextEncoder().encode(entries.join("\n")));
+      inputs = ["-f", "concat", "-safe", "0", "-i", list];
+    }
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
-      "-start_number","0","-i", fs.join(dir, "insp%d.jpg"),
+      ...inputs,
       "-vf","tile=4x2:padding=6:color=black","-frames:v","1","-q:v","4", sheet], true, controller.signal);
     const raw = (await fs.readFile(sheet));
     const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
@@ -908,7 +916,10 @@ export async function readPlan(context, settings, fixedFrame, sdk) {
   return {projectId:context.projectId,draftId:context.sequenceId,libraryId:state.libraryId,sourceId:source.id,path:source.path,sourceStartSeconds:sourceStart,startFrame:frame,endFrame:end,fps,durationSeconds:count/fps,settings,fingerprint:JSON.stringify({fps,mapping,path:source.path,checksum:source.checksum}),mapping};
 }
 export async function placeDirect(plan, resourceId, sdk) {
-  const input = {plan,resourceId};
+  // Bridge snapshots use host ids; script clip rows use project-scoped SDK ids.
+  const picks = [{resourceId,kind:'video'}, ...(plan.replaces ? [{resourceId:plan.replaces.resourceId,kind:'video'}] : [])];
+  const media = await sdkSelectedMedia(sdk, plan.projectId, picks);
+  const input = {plan:{...plan, ...(plan.replaces ? {replaces:{...plan.replaces,resourceId:media[1].resourceId}} : {})},resourceId:media[0].resourceId};
   const result = await multicamScript(sdk, `
     const {plan,resourceId}=${JSON.stringify(input)};
     const project=selects.project(plan.projectId), meta=await project.meta();
@@ -917,8 +928,9 @@ export async function placeDirect(plan, resourceId, sdk) {
     const prior=rows.filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame);
     if(prior.length===1)return {alreadyAdded:true,clipId:prior[0].clipId,trackId:prior[0].trackId};
     if(prior.length)throw new Error("placement_check_3");
-    if(plan.replaces){
-      const r=plan.replaces;
+    const replacement = JSON.parse(${JSON.stringify(JSON.stringify(input.plan.replaces || null))});
+    if(replacement){
+      const r=replacement;
       const candidates=rows.filter(c=>c.trackKind==="video"&&c.resourceId===r.resourceId&&c.startFrame===r.startFrame&&c.endFrame===r.endFrame&&rows.filter(x=>x.trackId===c.trackId).length===1);
       if(candidates.length!==1)throw new Error("draft_changed");
       await d.removeClips(candidates);
@@ -1197,7 +1209,7 @@ function Session({ sdk, context }) {
       if (!(await current())) throw new Error("context_changed");
       report(LABELS[j.phase] || "Checking your generation…");
       if (j.phase === "new") {
-        const sheet = await buildInspectionSheet(sdk, j.plan, j.id);
+        const sheet = await buildInspectionSheet(sdk, j.plan, j.id, context.platform);
         const result = await retryRead(() => ai(analysisPrompt(j.plan), [sheet]), current);
         if (result?.error) throw new Error(["identity_reference_missing","single_person_required"].includes(result.error) ? result.error : "analysis_failed");
         const o = result?.observation;
@@ -1380,6 +1392,10 @@ function Session({ sdk, context }) {
         if (!JOB_ID.test(response?.selects?.jobId || ""))
           throw new Error("submission_unknown");
         j = { ...j, generationId: response.selects.jobId, phase: "queued" };
+        await save(j);
+      } else if (j.phase === "placing" && /typecheck_error/.test(j.lastError?.cause || "")) {
+        // The SDK rejects type errors before executing any timeline mutation.
+        j = {...j, phase:"imported"};
         await save(j);
       } else if (["submitting", "lip_submitting", "placing"].includes(j.phase)) {
         throw new Error("submission_unknown");
@@ -1618,7 +1634,8 @@ function Session({ sdk, context }) {
   const active = job && !["placed", "failed"].includes(job.phase);
   const disabled = !restored || busy || !!active;
   const lengthError = !active ? durationError(modelKey,duration) : "";
-  const unknown = ["submitting", "lip_submitting", "placing"].includes(job?.phase);
+  const unknown = ["submitting", "lip_submitting", "placing"].includes(job?.phase)
+    && !(job?.phase === "placing" && /typecheck_error/.test(job.lastError?.cause || ""));
   const stepIndex = PHASE_STEP[job?.phase] ?? 0;
   return localizeUI(((
     <div

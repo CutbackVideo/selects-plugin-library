@@ -78,3 +78,15 @@ test('oversized program evidence is rejected before committing the Draft',async(
  const f=fixture('camera-shutter-dump'),get=f.selects.effectPresets.get;f.selects.effectPresets.get=async id=>({...await get(id),editableParameters:[{key:'large',label:'Large',type:'text',defaultValue:'x'.repeat(50000)}]});
  await assert.rejects(f.create(),/receipt|limit/i);assert.equal(f.commits.length,0);
 });
+
+test('No.14 verifies shader programs compiled for the actual fade parameters',async()=>{
+ const shader=values=>({uniforms:undefined,graph:{schema:'Cutback.ShaderEffect.1',passes:[{id:'fade',wgsl:'shader span '+values.span,inputs:['source'],parameters:[]}],output:'fade'}});
+ const f=fixture('no14-still-video',{presetShader:shader}),result=await f.create({music:'on'});
+ assert.ok(result.programs.sources.some(s=>s?.graph?.schema==='Cutback.ShaderEffect.1'));assert.equal(f.commits.length,1);
+});
+test('No.14 refuses a changed saved shader program',async()=>{
+ const shader={graph:{schema:'Cutback.ShaderEffect.1',passes:[{id:'fade',wgsl:'shader source',inputs:['source'],parameters:[]}],output:'fade'}};
+ const f=fixture('no14-still-video',{presetShader:shader});
+ f.hooks.afterScript=input=>{if(input.summary.startsWith('Create complete')){const clips=[...f.saved.values()][0].clips;clips.find(c=>c._effects?.some(e=>e.shader))._effects.find(e=>e.shader).shader.graph.passes[0].wgsl='changed';}};
+ await assert.rejects(f.create({music:'on'}),e=>e.code==='IMAGE_SAVE_UNVERIFIED');assert.equal(f.commits.length,1);
+});

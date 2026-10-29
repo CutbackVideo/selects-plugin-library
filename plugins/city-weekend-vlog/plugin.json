@@ -87,7 +87,8 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring, and the host's FileSystem and bundled ffmpeg (Runtime.runFFmpeg) through window.parent.__DI__; no shell, Node.js or other tools."
   },

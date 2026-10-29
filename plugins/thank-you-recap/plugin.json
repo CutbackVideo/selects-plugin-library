@@ -24,7 +24,8 @@
   "compatibility": {
     "platforms": [
       "macOS development builds",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Requires Panel SDK runScript/askAI, Draft setFrameSize and addMotionGraphic, and the host FileSystem and bundled ffmpeg (Runtime.runFFmpeg); no shell. Released-version compatibility is unverified, and the Windows pass has not run yet."
   },

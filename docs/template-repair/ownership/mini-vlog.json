@@ -490,7 +490,7 @@
       "reason": "Occurrence binding, native transforms/Audio reads and actual program normalization/serialization are shared authoring mechanics, already extracted. The source-native frame-cover calculation now has this same owner and is reused by Mini and Archive without moving their cut/music-offset policies.",
       "contract": {
         "input": "Native Draft handles, intended placement/programs, frozen source clocks/dimensions and saved-state evidence. Native windows take explicit source/Draft fps, a chosen whole-frame destination interval, requested source start, optional duration and still-image policy.",
-        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus.",
+        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus. Program receipts preserve either TSX source or the host-returned shader graph and actual preset parameter overrides.",
         "identity": "Opaque clip occurrence/track ids and source/draft timebases; labels alone are not content identity.",
         "dependencies": "Current SDK Draft primitives and canonical program normalization/representability rules.",
         "effects": "Private working Draft edits and independent saved readback as requested by durable owner.",
@@ -772,7 +772,7 @@
       "contract": {
         "input": "Existing SDK stat/readRange and an original file path.",
         "output": "Full byte size and streaming SHA-256, or explicit unconfirmed failure.",
-        "identity": "Exact selected file path and complete bytes; size/mtime/inode bracket the read.",
+        "identity": "Exact selected file path and complete bytes; size/mtime and native inode or browser sourceIdentity bracket the read.",
         "dependencies": "Existing SDK file primitives and bundled MIT @noble/hashes SHA-256.",
         "effects": "Read-only; no SDK, host capability, user database, file content or Draft mutation.",
         "lifetime": "One bounded observation; callers compare separate observations at execution boundaries.",
@@ -828,12 +828,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "22b203a94e0d5f296f5bce7f578fef7f98aac9594e3ff3be626ade3156d9844a",
+      "sha256": "e86b364046759c69b50e4b4c6fd89d35da7908964b7476e388a71d99f2d883c8",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7748,
+          "endLine": 7749,
           "feature": "panel-ui"
         },
         {
@@ -952,33 +952,33 @@
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6949,
-          "endLine": 6967,
+          "startLine": 6950,
+          "endLine": 6968,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6968,
-          "endLine": 7137,
+          "startLine": 6969,
+          "endLine": 7138,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7138,
-          "endLine": 7180,
+          "startLine": 7139,
+          "endLine": 7181,
           "feature": "panel-ui"
         },
         {
-          "startLine": 7297,
-          "endLine": 7700,
+          "startLine": 7298,
+          "endLine": 7701,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7701,
-          "endLine": 7747,
+          "startLine": 7702,
+          "endLine": 7748,
           "feature": "app-guard"
         },
         {
-          "startLine": 7747,
-          "endLine": 7747,
+          "startLine": 7748,
+          "endLine": 7748,
           "feature": "panel-ui"
         },
         {
@@ -1022,8 +1022,8 @@
           "feature": "asset-owner"
         },
         {
-          "startLine": 6699,
-          "endLine": 6948,
+          "startLine": 6700,
+          "endLine": 6949,
           "feature": "source-input"
         },
         {
@@ -1037,8 +1037,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7181,
-          "endLine": 7295,
+          "startLine": 7182,
+          "endLine": 7296,
           "feature": "catalog-read"
         },
         {
@@ -1058,12 +1058,12 @@
         },
         {
           "startLine": 6501,
-          "endLine": 6603,
+          "endLine": 6604,
           "feature": "file-observation"
         },
         {
-          "startLine": 6604,
-          "endLine": 6698,
+          "startLine": 6605,
+          "endLine": 6699,
           "feature": "draft-observation"
         }
       ],
@@ -1154,22 +1154,22 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/assemble.js",
-      "sha256": "fdb773a59c580c3d2c7ec4db9f233a3eaf5dbe8c4ad41b3c0939fdf6b16c3aae",
+      "sha256": "03c06a4af11055527b600d8aa7c815cdfbf74f343aeabe8eade3b24470d176df",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 482,
+          "endLine": 483,
           "feature": "source-input"
         },
         {
-          "startLine": 271,
-          "endLine": 350,
+          "startLine": 272,
+          "endLine": 351,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 351,
-          "endLine": 482,
+          "startLine": 352,
+          "endLine": 483,
           "feature": "assembly-policy"
         }
       ],
@@ -1200,17 +1200,17 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/decorate.js",
-      "sha256": "a5ba7cce85549c0b126e2c11bc2ae05322bf6b67163cb7215bbb3f7f11775922",
+      "sha256": "24d6f9dbc9967f007cf0b05e7da2114e3abf0b438721844982277c5ddc2c3e83",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 214,
+          "endLine": 224,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 145,
-          "endLine": 214,
+          "startLine": 155,
+          "endLine": 224,
           "feature": "program-policy"
         }
       ],
@@ -1648,12 +1648,12 @@
     {
       "path": "shared/native-image-authoring.js",
       "role": "build-source",
-      "sha256": "f19be1565f6afebcf9fc457bfe6010322a181633f3c29691bf2726bb56978bf2",
+      "sha256": "f232cef11439765dee190997ef92891712dd971d3b06a3f5c30da447021f0129",
       "hashMode": "lf-text",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 302,
+          "endLine": 312,
           "feature": "authoring-owner"
         }
       ]
@@ -1687,7 +1687,7 @@
     {
       "path": "shared/template-run.js",
       "role": "build-source",
-      "sha256": "c1c95c0db1c972d35608945c12ca61d6d43ac922813b6cf1fa6545b8aedde254",
+      "sha256": "8601846e8a8757939558f7ace16e7a27242f7407cacbfe6a505d108a5d427c84",
       "ranges": [
         {
           "startLine": 1,
@@ -1712,7 +1712,7 @@
       "path": "shared/native-image-input.mjs",
       "role": "build-source",
       "hashMode": "lf-text",
-      "sha256": "2ddf652faac31bc554d0e932097bb7527b49868a28be20e076b1e680739044af",
+      "sha256": "7c588765732e5686558f95eb3d57daae7cadb36896819c925e34c1228769da90",
       "ranges": [
         {
           "startLine": 1,
@@ -1840,12 +1840,12 @@
     },
     {
       "path": "shared/file-observation.js",
-      "sha256": "3792578ca5dcdbdaa9efbb3bbb54deb688cb582d78a9bc90df6cfd6c141e341d",
+      "sha256": "067957ba42d403b739ea8e80e74eed8cc173052ce31a766d5f6a3f953ed1e527",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 102,
+          "endLine": 103,
           "feature": "file-observation"
         }
       ]
@@ -2006,7 +2006,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "69a9c61a9e986e75f0eac94b5223dffc3bc1c9d12f85aac4ff3728cd516276be",
+      "sha256": "04c3010209077174c36ea6a3bdad651eab7815d88b3300b9974c1ed7f4089bdf",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
@@ -2144,7 +2144,7 @@
       "sources": [
         {
           "file": "plugins/mini-vlog/plugin.json",
-          "line": 67
+          "line": 68
         },
         {
           "file": "plugins/mini-vlog/INSTALL.md",

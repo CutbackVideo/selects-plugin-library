@@ -3479,10 +3479,16 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
         await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: job.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
         const rawPng = await store.fs.readFile(rawPath);
+        const still = await createImageBitmap(new Blob([rawPng], { type: "image/png" }));
         const role = job.plan.cards[i]?.role || "body";
         const pic = job.pictures?.[i];
-        const png = await finishCard(rawPng, t || BUILTIN_TEMPLATES[0], role, pic);
-        await store.fs.removeFile(rawPath);
+        let png: Uint8Array;
+        try {
+          png = await finishCard(still, t || BUILTIN_TEMPLATES[0], role, pic);
+        } finally {
+          still.close();
+        }
+        await store.fs.removeFile({ filePath: rawPath });
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.png`);
         await store.fs.writeFile(out, png);
         files.push(out);
@@ -3941,7 +3947,7 @@ async function createPanelLocalClient(sdk: any) {
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
       }
     },
     async compareAndReplace(path: string, expectedText: string | null, text: string) {
@@ -3957,8 +3963,8 @@ async function createPanelLocalClient(sdk: any) {
       return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from: string, to: string) => run("files.rename", [from, to], true),
     copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
     downloadFile: (url: string, path: string) => run("files.download", [url, path], true),

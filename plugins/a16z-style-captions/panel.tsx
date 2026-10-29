@@ -591,9 +591,10 @@ async function fingerprintTemplateFile(files, path, check = () => {
     check();
     return result;
   };
+  const identity = (stat) => typeof stat?.sourceIdentity === "string" && stat.sourceIdentity ? stat.sourceIdentity : Number.isFinite(stat?.ino) ? stat.ino : null;
   const before = await observe(() => files.stat(path));
   if (before === null) return null;
-  if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || !Number.isFinite(before.ino)) throw Error("The file's size or identity could not be confirmed.");
+  if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || identity(before) === null) throw Error("The file's size or identity could not be confirmed.");
   const hash3 = __templateFileHash.sha256.create(), alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   for (let offset = 0; offset < before.size; ) {
     const length = Math.min(49152, before.size - offset);
@@ -613,7 +614,7 @@ async function fingerprintTemplateFile(files, path, check = () => {
     offset += length;
   }
   const after = await observe(() => files.stat(path));
-  if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino) throw Error("The file changed while its contents were read.");
+  if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || identity(before) !== identity(after)) throw Error("The file changed while its contents were read.");
   const digest = hash3.digest();
   check();
   let hex = "";

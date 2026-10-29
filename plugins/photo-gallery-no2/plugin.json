@@ -26,7 +26,8 @@
   "compatibility": {
     "platforms": [
       "macOS Selects Staging",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Requires public original Image placement, Project Image dimensions, file stat/readRange, media probes, Video/Audio overlays, effects/transforms and gap-backed Draft persistence. Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified."
   },

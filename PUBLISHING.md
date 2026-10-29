@@ -192,3 +192,34 @@ The existing Shortform Clips update provider remains in place for compatibility
 with the first opt-in host. Removing that provider and its updater is a separate
 release after the common host is available. This change does not update template
 packs or migrate user data.
+
+## Supported platforms
+
+Preserve each plugin’s existing OS labels in `compatibility.platforms` (for example,
+`["macOS", "Windows x64"]`). The array contains non-empty strings without duplicates.
+Append `web` only after running the actual web target, installing the plugin through
+the real installer, and directly verifying its core workflows and visible results,
+including required dependencies and persistence after reopening. Compilation,
+SDK-only tests, and source inspection are supporting evidence, not admission. Desktop support declarations
+preserve the existing product support policy; they do not claim new OS testing.
+
+The install button remains available. After a web installation attempt, the client
+checks the pinned package and its required dependency closure before placing files.
+If any package omits `web` or requires a native runtime, installation fails with a
+desktop download prompt. Older manifests without compatibility.platforms are desktop-only.
+There is no separate webSupport field or unverified install state.
+
+A web declaration covers the main workflow. Optional desktop-only operations still
+report their limitation when invoked. Do not add web based only on an absence of
+shell commands; browser SDK, storage, network, and media paths also need verification.
+
+See [the per-package web audit](docs/web-platform-audit.md) for admission evidence
+and outstanding browser checks. Publication rejects web/native-runtime and
+web/desktop-only-dependency contradictions.
+
+Panels receive the app target as `context.platform` (`"desktop"` or `"web"`).
+Use it to select platform-specific actions; it describes the host, not the OS
+running a browser, and does not guarantee that an individual operation succeeds.
+
+The top-level `platforms` field is not used and publication rejects it. Existing
+compatibility notes remain alongside the canonical platforms list.

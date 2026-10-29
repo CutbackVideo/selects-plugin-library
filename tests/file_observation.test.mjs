@@ -66,3 +66,10 @@ test('the pure JS copy passes the SDK TypeScript shape check without suppressing
  const valid=check('');assert.equal(valid.length,0,valid.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('\n'));
  const invalid=check('selects.files.readRange({path:"/a",offset:0,length:"wrong"});');assert(invalid.some(d=>d.code===2322),'SDK argument errors must remain visible');
 });
+
+for(const changed of [false,true])test('browser source identity without inode; replacement='+changed,async()=>{
+ const bytes=Buffer.from('browser input'),f=fixture(bytes);let count=0;
+ f.files.stat=async()=>({size:bytes.length,mtimeMs:123,isDirectory:false,sourceIdentity:++count===1||!changed?'/selects-sources/a':'/selects-sources/b'});
+ if(changed)await assert.rejects(execute(f.files),/changed/);
+ else assert.equal((await execute(f.files)).sha256,createHash('sha256').update(bytes).digest('hex'));
+});

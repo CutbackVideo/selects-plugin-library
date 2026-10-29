@@ -18,7 +18,8 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Needs the editor's existing original clip placement service (as Four Photo Reveal and Camera Shutter Dump use), clip retiming, public clip effects, motion graphics and Audio overlays; no extra tools to install. Verified on macOS in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },

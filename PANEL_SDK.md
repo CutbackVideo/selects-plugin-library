@@ -15,6 +15,21 @@ if (response.result === null) return; // User canceled the picker.
 const outputFolder = response.result;
 ```
 
+## App target and older desktop clients
+
+Use `context.platform === "web"` for browser-only behavior. Older desktop
+clients supply the panel context without a `platform` field; absence must keep
+the desktop path, just like `"desktop"`. Do not require this field or infer the
+app target from the operating system returned by `selects.files.environment()`.
+The existing OS labels in `compatibility.platforms` remain unchanged; `web` is
+an additional declaration, not a new installation requirement for desktop.
+
+The library's `files.fingerprint` helper is implemented with the existing
+`selects.files.stat` and `readRange` calls; it does not require a host fingerprint
+API. File observations accept the existing native `ino` when `sourceIdentity`
+is absent. Effect receipts accept both existing TSX programs and shader programs
+returned by the host. Preserve these paths when adding web-specific behavior.
+
 ## Local files and media
 
 Read platform and paths with `selects.files.environment()`. Files use absolute
@@ -104,3 +119,32 @@ and retains originals. A quota/access/migration failure is visible and retries
 safely. Migration can remain blocked until storage space is freed; no automatic
 deletion of original work occurs. Never fall back to iframe storage, script
 execution, parent-window internals or IPC for persistence.
+
+### Platform-limited failures
+
+The host opens the shared desktop handoff dialog for typed platform refusals,
+including failures from already-installed plugins. In the panel, call
+`sdk.handleDesktopRequired?.(errorOrResult)` before displaying a generic error.
+It returns `true` only for the original SDK error or result whose guidance the
+host handled. It does not retry the failed operation or confirm desktop import.
+Ordinary errors return `false`. Do not match error strings or manufacture flags.
+
+```tsx
+try {
+  const reply = await sdk.runScript({ summary: "Run operation", script });
+  if (sdk.handleDesktopRequired?.(reply)) return;
+  if (reply.isError) throw new Error(reply.output);
+  // Use reply.result.
+} catch (error) {
+  if (sdk.handleDesktopRequired?.(error)) return;
+  // Show the panel's ordinary actionable error.
+} finally {
+  setBusy(false);
+}
+```
+
+Check the original value before wrapping it in another Error, converting it to
+text, copying it, or persisting it; handled identity is local to this panel
+runtime. The optional call preserves old-client behavior when the helper is
+absent. Keep ordinary error handling in that case. Do not suppress a template's
+completion/failure report: its owning app must still be told the run ended.

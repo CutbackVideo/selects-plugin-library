@@ -15,7 +15,8 @@
   "compatibility": {
     "platforms": [
       "macOS",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Requires Panel support. Released-version and Linux compatibility are unverified. Windows x64 runs the same code (no shell commands) but has not been run on a Windows PC yet."
   },

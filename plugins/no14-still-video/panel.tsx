@@ -180,7 +180,6 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
    if(rows.some(c=>c.trackKind==='audio'&&c.resourceId))throw Error('This new Draft already contains audio; inspect it before continuing');
   }
   const created=[],transforms=[],programTargets=[];
-  const preset=workingDraft&&plan.occurrences.some(o=>o.fadeDown)?await programs.preset('reveal-fade-down'):null;
   for(const occurrence of plan.occurrences){
    const placed=input.placements.find(p=>p.key===occurrence.key);
    const photo=input.photos['ABCD'.indexOf(occurrence.slot)];
@@ -214,7 +213,7 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
     const withEffect=(await d.clips({trackScope:'all'})).find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);
     const parameters={style:'fade',direction:'out',span:occurrence.fadeDown,amount:60};
     await d.applyEffectPreset({clip:withEffect,presetId:'reveal-fade-down',parameters});
-    if(workingDraft)target.effects.push({...preset,parameters:{...preset.parameters,...parameters}});
+    if(workingDraft)target.effects.push(await programs.preset('reveal-fade-down',parameters));
    }
   }
   // Semin's hand-edited clips overlap by other lengths than the effects' crossfade; only the plugin's own plan is checked.
@@ -350,9 +349,10 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
 
  if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
  const observe=async operation=>{check();const result=await operation();check();return result;};
+ const identity=stat=>typeof stat?.sourceIdentity==='string'&&stat.sourceIdentity?stat.sourceIdentity:Number.isFinite(stat?.ino)?stat.ino:null;
  const before=await observe(()=>files.stat(path));
  if(before===null)return null;
- if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||!Number.isFinite(before.ino))throw Error("The file's size or identity could not be confirmed.");
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||identity(before)===null)throw Error("The file's size or identity could not be confirmed.");
  const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
  for(let offset=0;offset<before.size;){
   const length=Math.min(49152,before.size-offset);
@@ -370,7 +370,7 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
   hash.update(bytes);check();offset+=length;
  }
  const after=await observe(()=>files.stat(path));
- if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ino!==after.ino)throw Error('The file changed while its contents were read.');
+ if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||identity(before)!==identity(after))throw Error('The file changed while its contents were read.');
  const digest=hash.digest();check();
  let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
  return {size:before.size,sha256:hex};
@@ -606,7 +606,7 @@ export async function observeSourceFiles(files,paths,expected=null) {
  const observed=[];
  for(const path of selected){
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{fingerprint=await (typeof files.fingerprint==='function'?files.fingerprint(path):fingerprintTemplateFile(files,path));}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
@@ -848,8 +848,16 @@ function imageProgramsFeature(selects,config=null,format=null){
   if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
   const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
  };
- const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
- const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ const source=program=>{
+  if(!program.shader)return {tsxCode:program.tsxCode};
+  const shader={...program.shader};
+  // Optional bindings disappear in persisted JSON; absence and undefined agree.
+  if(shader.uniforms===undefined)delete shader.uniforms;
+  return {shader};
+ };
+ const validSource=program=>program&&((typeof program.tsxCode==='string'&&program.tsxCode.length>0&&!program.shader)||(!program.tsxCode&&program.shader?.graph?.schema==='Cutback.ShaderEffect.1'));
+ const normalized=program=>({...source(program),editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
+ const matches=(actual,wanted)=>actual&&same(source(actual),source(wanted))&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
  // Reconcile a caller-owned program intent on Main or overlay visuals. Names
  // only locate candidates; code, values, controls, intervals and order prove a
  // match. Preflight the whole intent before the caller's optional mutation.
@@ -860,11 +868,11 @@ function imageProgramsFeature(selects,config=null,format=null){
   const intent=JSON.parse(text),names=value=>Array.isArray(value)&&value.length<=32&&new Set(value).size===value.length&&value.every(name=>typeof name==='string'&&name.length>0&&name.length<=256);
   if(!intent||!names(intent.graphicNames)||!names(intent.effectNames)||!Array.isArray(intent.graphics)||intent.graphics.length>256||!Array.isArray(intent.clips)||intent.clips.length>256||new Set(intent.graphics.map(g=>g.name)).size!==intent.graphics.length||new Set(intent.clips.map(c=>c.clipId)).size!==intent.clips.length||beforeApply!==null&&typeof beforeApply!=='function')throw issue('Program intent is incomplete.');
   const prepare=program=>{
-   if(!program||typeof program.tsxCode!=='string'||!program.tsxCode||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
+   if(!validSource(program)||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
    return normalized(program);
   };
   const graphicPlans=intent.graphics.map(g=>{
-   if(!g||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
+   if(!g||typeof g.tsxCode!=='string'||g.shader||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
    return {...g,program:prepare(g)};
   });
   const clipPlans=intent.clips.map(c=>{
@@ -908,7 +916,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   for(const c of clipPlans){
    for(const [index,e] of c.effects.entries()){
     if(index<c.before.count){effects[e.name].kept++;continue;}
-    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,tsxCode:e.program.tsxCode,parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
+    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,...source(e.program),parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
    }
   }
   // Writer acknowledgements are not evidence that a program was applied.
@@ -924,7 +932,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
   if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');
   const sources=[],clips=[];
-  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
+  const pack=program=>{const p=normalized(program);const value=p.shader||p.tsxCode;let source=sources.findIndex(s=>same(s,value));if(source<0){source=sources.length;sources.push(value);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
   for(const wanted of expected){
    const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');
    const effects=await draft.videoEffects(clip);
@@ -942,11 +950,13 @@ function imageProgramsFeature(selects,config=null,format=null){
   return {sources,clips};
  };
  const presets=new Map();
- const preset=async id=>{
+ const preset=async (id,overrides={})=>{
   if(!config)throw issue('Effect preset preparation requires an authoring target.');
-  if(presets.has(id))return presets.get(id);
+  const key=JSON.stringify([id,overrides]);
+  if(presets.has(key))return presets.get(key);
   const definition=await selects.effectPresets.get(id);
   if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');
+  const parameters={...definition.parameters,...overrides};
   // The public preset definition omits effect TSX. Resolve a canonical program
   // in an isolated unsaved reference, never by adopting the target's output.
   const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});
@@ -954,13 +964,13 @@ function imageProgramsFeature(selects,config=null,format=null){
   await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});
   if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');
   let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');
-  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});
+  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters});
   if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
   clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
   const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
-  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});
-  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
-  const value={name:definition.label,...expected};presets.set(id,value);return value;
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({...source(program||{}),parameters,editableParameters:definition.editableParameters});
+  if(!validSource(program)||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
+  const value={name:definition.label,...expected};presets.set(key,value);return value;
  };
  const confirm=details=>{
   if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');
@@ -969,7 +979,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   // journal envelope and ASCII encoding before the only persistence boundary.
   try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
  };
- const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
+ const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({...typeof receipt.sources[p.source]==='string'?{tsxCode:receipt.sources[p.source]}:{shader:receipt.sources[p.source]},parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
  return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};
 }
 async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format,bindPlacement){
@@ -1154,7 +1164,7 @@ function validateTemplateRun(row,scope,digest,recordPath=null) {
   }
   if(r.programs!==undefined){
    const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
-   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s==='string'?(!s||s.length>49152):(!s||s.graph?.schema!=='Cutback.ShaderEffect.1'||JSON.stringify(s).length>49152))||new Set(p.sources.map(s=>JSON.stringify(s))).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
    const entry=(e,effect)=>{
     if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
     if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();

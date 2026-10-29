@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {topLevel} from './windows_host.mjs';
 const source=fs.readFileSync(new URL('../plugins/multicam-generator/panel.tsx',import.meta.url),'utf8');
-const context=vm.createContext({window:{get parent(){throw Error('Parent access is blocked');}}});
+const context=vm.createContext({sdkSelectedMedia:async(sdk,pid,picks)=>picks.map(p=>({resourceId:'sdk:'+p.resourceId})),window:{get parent(){throw Error('Parent access is blocked');}}});
 vm.runInContext(['multicamScript','readPlan','placeDirect'].map(name=>topLevel(source,name)).join('\n'),context);
 const owner={projectId:'project',sequenceId:'draft'};
 function fixture({speed=1,gap=false}={}) {
@@ -20,12 +20,12 @@ function fixture({speed=1,gap=false}={}) {
   },
   runScript:async({script,allowCommit})=>{
    const d={
-    clips:async()=>pending.map(c=>({...c})),rangeAtFrames:async(startFrame,endFrame)=>({startFrame,endFrame}),
+    clips:async()=>pending.map(c=>({...c,resourceId:"sdk:"+c.resourceId})),rangeAtFrames:async(startFrame,endFrame)=>({startFrame,endFrame}),
     removeClips:async rows=>{assert(allowCommit);pending=pending.filter(c=>!rows.some(r=>r.clipId===c.clipId));},
     overlayResource:async({resource,over})=>{assert(allowCommit);pending.push({clipId:2,trackId:'generated',trackKind:'video',resourceId:resource,...over});},
     commitAll:async()=>{assert(allowCommit);commits++;persisted=pending.slice();},
    };
-   const selects={project:()=>({meta:async()=>({draftIds:['draft']}),resource:id=>id}),draft:()=>d,editor:{seekDraftFrame:async()=>{seek++;return {requested:true}}}};
+   const selects={project:()=>({meta:async()=>({draftIds:['draft']}),resource:id=>id.replace(/^sdk:/,'')}),draft:()=>d,editor:{seekDraftFrame:async()=>{seek++;return {requested:true}}}};
    try{return {result:await new Function('selects','return (async()=>{'+script+'})()')(selects)}}catch(error){return {isError:true,output:error.message}}
   },
  };
@@ -47,6 +47,11 @@ test('placement commits one overlay, verifies persistence, and retries without d
  assert.equal(JSON.stringify(f.persisted.slice(0,1)),original);
  const retry=await context.placeDirect(plan,'generated-resource',f.sdk);
  assert.equal(retry.alreadyAdded,true);assert.equal(f.commits,1);
+ plan.replaces={resourceId:'generated-resource',startFrame:plan.startFrame,endFrame:plan.endFrame};
+ await context.placeDirect(plan,'replacement-resource',f.sdk);
+ assert.equal(f.commits,2);
+ assert.equal(f.persisted.filter(c=>c.trackKind==='video').length,1);
+ assert.equal(f.persisted.at(-1).resourceId,'replacement-resource');
 });
 test('an ambiguous replacement aborts before commit',async()=>{
  const f=fixture(),plan=await context.readPlan(owner,{duration:2},undefined,f.sdk);
