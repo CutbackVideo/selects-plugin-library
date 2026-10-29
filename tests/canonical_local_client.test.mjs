@@ -390,17 +390,19 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
     return {isError:false,result};
   }};
   try{
-    const client=await load().createPanelLocalClient(sdk);
-    for(const operation of [file=>client.files.rm(file),file=>client.files.rm(file,{force:true}),file=>client.files.removeFile({filePath:file})]){
-      const file=path.join(directory,'temporary.rgb');await fs.promises.writeFile(file,'pixels');
-      await operation(file);assert.equal(fs.existsSync(file),false);
+    for(const clientSource of [source,fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx',import.meta.url),'utf8')]){
+      const client=await load({},clientSource).createPanelLocalClient(sdk);
+      for(const operation of [file=>client.files.rm(file),file=>client.files.rm(file,{force:true}),file=>client.files.removeFile({filePath:file})]){
+        const file=path.join(directory,'temporary.rgb');await fs.promises.writeFile(file,'pixels');
+        await operation(file);assert.equal(fs.existsSync(file),false);
+      }
+      await client.files.rm(path.join(directory,'missing'),{force:true});
+      const folder=path.join(directory,'nested');await fs.promises.mkdir(folder);await fs.promises.writeFile(path.join(folder,'mask.png'),'mask');
+      await assert.rejects(client.files.rm(folder),/directory|EISDIR/);
+      assert.equal(fs.existsSync(path.join(folder,'mask.png')),true);
+      await client.files.rm(folder,{recursive:true,force:true});assert.equal(fs.existsSync(folder),false);
+      assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
     }
-    await client.files.rm(path.join(directory,'missing'),{force:true});
-    const folder=path.join(directory,'nested');await fs.promises.mkdir(folder);await fs.promises.writeFile(path.join(folder,'mask.png'),'mask');
-    await assert.rejects(client.files.rm(folder),/directory|EISDIR/);
-    assert.equal(fs.existsSync(path.join(folder,'mask.png')),true);
-    await client.files.rm(folder,{recursive:true,force:true});assert.equal(fs.existsSync(folder),false);
-    assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
 });
 test('local client observes full originals in one read-only SDK script without a fingerprint API',async()=>{
