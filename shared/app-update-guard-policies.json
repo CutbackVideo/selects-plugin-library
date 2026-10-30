@@ -15,7 +15,7 @@
     "PhotoTemplateRun": "true"
   },
   "card-news-maker": {
-    "ProjectPanel": "busy || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)",
+    "ProjectPanel": "busy || tplNew || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)",
     "TemplateEditor": "saving || dirty"
   },
   "chris-williamson-style": {
