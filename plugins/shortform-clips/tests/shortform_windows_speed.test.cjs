@@ -52,7 +52,7 @@ function rawHost({statusCall=true,taint=false}={}){
 }
 
 function setup(){
- return h.loadPanel(['prepareSourceSurvey','sdkFiles','throttledSave']).exports;
+ return h.loadPanel(['prepareSourceSurvey','sdkFiles','throttledSave','removeSurveyCaptures']).exports;
 }
 function withCanvas(fn){return async()=>{const c=h.installCanvas();h.installCanvas.current=c;try{await fn(c);}finally{c.restore();h.installCanvas.current=null;}};}
 const rawScenario=()=>{const s=h.scenario();s.before.sources[0].path='F:\\episode.mp4';return s;};
@@ -109,6 +109,22 @@ test('shortform survey and saves on hosts where file access is costly',{skip:!mo
   await survey(m,host.sdk,host.store,'retry',other);
   assert.ok(host.calls.starts.length>starts,'a different face catalog is a different survey');
  }));
+
+ await t.test('cleanup touches only this survey, regardless of unrelated captures',async()=>{
+  const {esbuild}=h.loadPanel([]),removed=[];
+  const own=[ROOT+'\\frames\\survey-own-a.jpg',ROOT+'\\frames\\survey-own-b.jpg'];
+  const sdk={runScript:async({script})=>{
+   const code=esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code;
+   await new Function('selects',code)({files:{
+    stat:async()=>{throw Error('cleanup must not stat the shared directory');},
+    readdir:async()=>{throw Error('cleanup must not enumerate old captures');},
+    remove:async(p,options)=>{assert.ok(own.includes(p));assert.equal(options.force,true);removed.push(p);if(p===own[0])throw Error('already gone');},
+   }});
+   return {result:null};
+  }};
+  await m.removeSurveyCaptures(sdk,[...own,own[0]]);
+  assert.deepEqual(removed,own,'a missing capture does not prevent other owned captures being removed');
+ });
 
  await t.test('a 340 KB save takes three host scripts that each fit the script cap',async()=>{
   const scripts=[],files=new Map();

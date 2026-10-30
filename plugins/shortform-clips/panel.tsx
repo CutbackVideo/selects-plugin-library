@@ -5159,15 +5159,13 @@ async function captureRawSourceFrames({sdk,guard,store,source,frames,outputs}:an
     wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,pollMs:150,stopped:()=>false,stopError:()=>new RunCancelled()});
   return {url,output,frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:(i%columns)*width,y:Math.floor(i/columns)*height,width,height}))};
 }
-// Captures are removed together when the survey ends. Earlier versions of this panel
-// left every capture behind, so captures older than a day go in the same script.
+// Delete only files created by this survey. Enumerating and stat-ing the shared
+// frame directory here made cleanup scale with every previous run on Windows.
 async function removeSurveyCaptures(sdk:any,paths:string[]) {
   if(!paths.length)return;
-  const J=JSON.stringify,dir=folderOf(paths[0]),sep=paths[0].charAt(dir.length);
   await sdk.runScript({allowCommit:true,summary:'Remove original source frame captures',script:
-    `const paths: string[] = ${J(paths)}; const dir = ${J(dir)}; const d = await selects.files.stat(dir); `+
-    `if (d && d.isDirectory) for (const name of await selects.files.readdir(dir)) { if (!/^survey-.*\\.jpg$/.test(String(name))) continue; const p = dir + ${J(sep)} + String(name); const s = await selects.files.stat(p); if (s && !s.isDirectory && s.mtimeMs < Date.now() - 86400000 && !paths.includes(p)) paths.push(p); } `+
-    `for (const p of paths) { try { const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true }); } catch (e) {} }`,
+    `const paths: string[] = ${JSON.stringify([...new Set(paths)])}; `+
+    `for (const p of paths) { try { await selects.files.remove(p, { recursive: true, force: true }); } catch (e) {} }`,
   }).catch(()=>{});
 }
 async function loadSurveyImage(src:string,crossOrigin:boolean) {
