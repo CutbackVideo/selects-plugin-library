@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "card-news-maker",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.7",
   "name": "Card News Maker",
-  "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft, then export each card as an image.",
+  "summary": "Turn an article, pasted text or a project video into editable news cards. Optionally supply your own photos, choose any built-in or imported team design, edit in the same card tools, and export PNG or JPEG.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -17,7 +17,7 @@
       "macOS",
       "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize, setClipTransform and addMotionGraphic, Project createFolder and moveToFolder, and the panel runtime services FileSystem, MediaGeneration and RemotionOverlay. Windows: the panel uses the host FileSystem and reveal, with cmd.exe fallbacks; not yet run on a Windows PC."
+    "selects": "Requires Panel SDK runScript/runShell/askAI/aiProviders, a connected ChatGPT or Claude subscription for text, the local file workspace, Draft setFrameSize/setClipTransform/addMotionGraphic, Project folders and export.still. User photos and article photos share the same card editor and PNG/JPEG export. Windows: host FileSystem and reveal with cmd.exe fallbacks; actual Windows GUI validation pending."
   },
   "preview": {
     "video": "preview.mp4",
@@ -32,7 +32,7 @@
     },
     "en": {
       "name": "Card News Maker",
-      "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft, then export each card as an image."
+      "summary": "Turn an article, pasted text or a project video into editable news cards. Optionally supply your own photos, choose any built-in or imported team design, edit in the same card tools, and export PNG or JPEG."
     },
     "es": {
       "name": "Creador de tarjetas de noticias",
@@ -52,7 +52,7 @@
     },
     "ko": {
       "name": "\uce74\ub4dc\ub274\uc2a4 \uba54\uc774\ucee4",
-      "summary": "\ub274\uc2a4 \uae30\uc0ac, \ubd99\uc5ec \ub123\uc740 \uae00, \ud504\ub85c\uc81d\ud2b8 \uc601\uc0c1\uc73c\ub85c \ud3b8\uc9d1\ud560 \uc218 \uc788\ub294 4:5 \uce74\ub4dc\ub274\uc2a4 Draft\ub97c \ub9cc\ub4e4\uace0 \uce74\ub4dc\ub9c8\ub2e4 \uc774\ubbf8\uc9c0\ub85c \ub0b4\ubcf4\ub0c5\ub2c8\ub2e4."
+      "summary": "\ub274\uc2a4 \uae30\uc0ac, \ubd99\uc5ec \ub123\uc740 \uae00, \ud504\ub85c\uc81d\ud2b8 \uc601\uc0c1\uc73c\ub85c \ud3b8\uc9d1\ud560 \uc218 \uc788\ub294 4:5 \uce74\ub4dc\ub274\uc2a4 Draft\ub97c \ub9cc\ub4e4\uace0 \uce74\ub4dc\ub9c8\ub2e4 \uc774\ubbf8\uc9c0\ub85c \ub0b4\ubcf4\ub0c5\ub2c8\ub2e4. \ub0b4 \uc0ac\uc9c4\uacfc \uae30\uc0ac\ub85c, \ud300\uc774 \uac00\uc838\uc628 \ub808\uc774\uc544\uc6c3 \ud15c\ud50c\ub9bf\uc5d0 \ub9de\ucdb0 AI\uac00 \ucd08\uc548\uc744 \uc4f4 \uc218\uc815 \uac00\ub2a5\ud55c \ud5e4\ub4dc\ub77c\uc778 \uce74\ub4dc\ub3c4 \ub9cc\ub4ed\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Criador de cards de not\u00edcias",
@@ -66,5 +66,6 @@
       "name": "\u5361\u7247\u65b0\u95fb\u5236\u4f5c\u5668",
       "summary": "\u5c06\u65b0\u95fb\u6587\u7ae0\u3001\u7c98\u8d34\u7684\u6587\u672c\u6216\u9879\u76ee\u89c6\u9891\u5236\u4f5c\u6210\u53ef\u7f16\u8f91\u7684 4:5 \u5361\u7247\u65b0\u95fb\u8349\u7a3f\uff0c\u5e76\u5c06\u6bcf\u5f20\u5361\u7247\u5bfc\u51fa\u4e3a\u56fe\u7247\u3002"
     }
-  }
+  },
+  "templatePackInstall": 1
 }
