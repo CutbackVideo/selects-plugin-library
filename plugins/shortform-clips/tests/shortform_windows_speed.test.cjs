@@ -26,7 +26,7 @@ function rawHost({statusCall=true,taint=false}={}){
  const framesOf=args=>{
   const first=Math.round(Number(args[args.indexOf('-ss')+1])*h.FPS);
   const graph=args[args.indexOf('-filter_complex')+1];
-  return [...graph.matchAll(/trim=start_frame=(\d+)/g)].map(m=>first+Number(m[1]));
+  return [...graph.matchAll(/eq\(n,(\d+)\)/g)].map(m=>first+Number(m[1]));
  };
  const sdk={
   call:async(method,id)=>{
@@ -73,9 +73,9 @@ test('shortform survey and saves on hosts where file access is costly',{skip:!mo
   const host=rawHost();
   const r=await survey(m,host.sdk,host.store,'raw');
   assert.deepEqual(h.summarize(r),GOLDEN);
-  assert.ok(host.calls.starts.every(f=>f.length<=24));
-  // 105 coarse and chosen frames, then 71 refinement frames, in batches of at most 24 frames within 12 seconds.
-  assert.equal(host.calls.starts.length,9);
+  assert.ok(host.calls.starts.every(f=>f.length<=48));
+  // Preserve all 175 sampled frames and exact boundaries with fewer host round trips.
+  assert.equal(host.calls.starts.length,6);
   assert.equal(host.calls.statusScripts,0);assert.ok(host.calls.statusCalls>=host.calls.starts.length);
   assert.deepEqual(host.calls.reads,[]);
   assert.equal(host.calls.removeScripts,1);

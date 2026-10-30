@@ -7,8 +7,8 @@ test('raw source capture works without a Resource analysis',{skip:!modules},asyn
  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {rawSourceFrameArgs};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const input={path:'/source with spaces.mp4',meta:{fps:30000/1001,frameSize:{width:1920,height:1080}}};
  await t.test('rejects out-of-range batch sizes and noninteger source frames',()=>{
-  for(const frames of [[],[-1],[1.5],Array.from({length:25},(_,i)=>i)])assert.throws(()=>m.exports.rawSourceFrameArgs(input,frames,'/out.jpg'));
-  assert.equal(m.exports.rawSourceFrameArgs(input,Array.from({length:24},(_,i)=>i),'/out.jpg').args.filter(x=>x===input.path).length,1);
+  for(const frames of [[],[-1],[1.5],Array.from({length:49},(_,i)=>i)])assert.throws(()=>m.exports.rawSourceFrameArgs(input,frames,'/out.jpg'));
+  assert.equal(m.exports.rawSourceFrameArgs(input,Array.from({length:48},(_,i)=>i),'/out.jpg').args.filter(x=>x===input.path).length,1);
  });
  await t.test('one decoder preserves the requested source clock and literal file paths',()=>{
   const r=m.exports.rawSourceFrameArgs(input,[0,66,156],'/out.jpg');
@@ -23,19 +23,20 @@ test('raw source capture works without a Resource analysis',{skip:!modules},asyn
   assert.match(filter,/\[s2\]trim=start_frame=0:end_frame=1/);
  });
  const ffmpeg=process.env.SHORTFORM_TEST_FFMPEG,video=process.env.SHORTFORM_TEST_VIDEO;
- await t.test('real seeked frames match sequential decode across wide/single/grid cuts',{skip:!ffmpeg||!video},()=>{
+ await t.test('real seeked multirow sheets match sequential decode at fractional FPS',{skip:!ffmpeg||!video},()=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'shortform-source-'));
   try{
    const actual=path.join(dir,'actual.jpg'),expected=path.join(dir,'expected.png');
-   const frames=[69,70,170,171,220];
+   for(const frames of [[69,70,80,90,100,110,120,130,140,170,171,220],Array.from({length:48},(_,i)=>60+i*3)]) {
    const spec=m.exports.rawSourceFrameArgs({...input,path:video},frames,actual);
    execFileSync(ffmpeg,spec.args,{stdio:'pipe'});
-   execFileSync(ffmpeg,['-v','error','-i',video,'-vf',`select='${frames.map(n=>`eq(n,${n})`).join('+')}',scale=640:360,setsar=1,tile=${frames.length}x1`,'-frames:v','1',expected],{stdio:'pipe'});
+   execFileSync(ffmpeg,['-v','error','-i',video,'-vf',`select='${frames.map(n=>`eq(n,${n})`).join('+')}',scale=640:360,setsar=1,tile=${Math.min(8,frames.length)}x${Math.ceil(frames.length/8)}`,'-frames:v','1',expected],{stdio:'pipe'});
    const gray=file=>execFileSync(ffmpeg,['-v','error','-i',file,'-f','rawvideo','-pix_fmt','gray','pipe:1'],{maxBuffer:10e6});
-   const a=gray(actual),b=gray(expected);assert.equal(a.length,640*360*frames.length);assert.equal(b.length,a.length);
+   const a=gray(actual),b=gray(expected);assert.equal(a.length,640*360*8*Math.ceil(frames.length/8));assert.equal(b.length,a.length);
    for(let tile=0;tile<frames.length;tile++){
-    let error=0;for(let y=0;y<360;y++)for(let x=0;x<640;x++){const i=y*640*frames.length+tile*640+x;error+=Math.abs(a[i]-b[i]);}
+    let error=0;for(let y=0;y<360;y++)for(let x=0;x<640;x++){const i=(Math.floor(tile/8)*360+y)*640*8+(tile%8)*640+x;error+=Math.abs(a[i]-b[i]);}
     const mae=error/(640*360);assert.ok(mae<3,`source frame ${frames[tile]} differs: MAE ${mae}`);
+   }
    }
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  });
