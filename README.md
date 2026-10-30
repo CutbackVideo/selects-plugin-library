@@ -40,7 +40,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Vox Style Explainer](plugins/vox-explainer) — a Vox-style explainer video from a link or text | Experimental |
 | [Jared Vox Editorial](plugins/jared-vox-editorial) — archival paper explainers with editable evidence cards | Experimental |
 | [Tang Poetry Explainer](plugins/tang-poetry-explainer) — historical ink and woodblock collage explainers | Experimental |
-| [Card News Maker](plugins/card-news-maker) — editable 4:5 card news from a news article | Experimental |
+| [Card News Maker](plugins/card-news-maker) — editable 4:5 card news from a news article, or from your own photos and an article on a layout template your team imports | Experimental |
 | [Medical Explainer](plugins/medical-explainer) — 9:16 health explainer shorts from a topic, text or link: the script picks zoom, myth or fact, timeline or steps, with a matching art style and layout | Experimental |
 | [News in One Minute](plugins/news-minute) — one-minute vertical news shorts from an article: script checked against the source, editor review, narration, article photos and data cards, timed captions (Chosun Ilbo preset) | Experimental |
 
