@@ -212,3 +212,42 @@ placement; this is not a blanket visual-quality pass. Each AI variant ran once,
 so differences in plan segmentation cannot be attributed solely to detection.
 Videos, images, full observations and editable draft links remain in the local
 test report, not in this repository.
+
+### Windows successful-worker shutdown regression (2026-10-31)
+
+Tested the signed Selects 2.0.878 host (Electron 43.2.0 / Node 24.18.0,
+ONNX Runtime 1.30.0) on Windows 11 build 26300, EPYC 9354 4 cores / 8 threads,
+16 GB RAM and RTX 2000 Ada. The test footage was synthetic; the customer's
+source video was unavailable.
+
+The cached runtime snapshot could finish inference, validate and write its
+outputs, then abort with `PostQueuedCompletionStatus: (6) The handle is invalid`
+and exit `0x80000003`. The real app rejected that completed job. One identical
+28.26-second speaker request failed in 3/5 fresh app runs. Explicit Windows
+exit after the awaited output writes and synchronous result event passed 10/10
+fresh app runs. All 15 speaker-output hashes were identical. A subsequent
+24-request app run with the complete candidate passed 24/24, with normal exit
+codes and no native stderr; the matching request retained the same output hash.
+This proves the shutdown failure and fix, not the source of the customer's
+entire Main/IPC delay.
+
+The expanded `scripts/verify-lifecycle.cjs` passed on that same embedded Electron
+runtime for `speakers.detect`, `faces.detect`, and `person.matte` with CPU and
+auto-selected DirectML. Each configuration checked three successful process
+exits, disk/event result equality, cancellation during inference, parent crash,
+checksum rejection, cancellation during output validation, timeout, and child
+process cleanup. Matte verification included foreground video and AVIF masks;
+the DirectML profile observed both DML kernels and CPU shape operations.
+
+Reproduce against disposable request/config paths with:
+
+```sh
+ELECTRON_RUN_AS_NODE=1 /path/to/electron scripts/verify-lifecycle.cjs \
+  --request request.json --config config.json --output /path/to/disposable-run \
+  --success-runs 3
+```
+
+`--successful-exit-only --success-runs 10` isolates the exit regression. A
+successful result file by itself is deliberately insufficient: the host must
+also observe exit code zero and the identical result event. Failed/canceled
+execution does not use the explicit successful exit path.

@@ -24,7 +24,7 @@ async function cancelCase(requestFile, configFile, runRoot) {
   const seen = [];
   const job = await startJob({ requestFile, configFile, jobDir: path.join(runRoot, 'cancel'), onEvent: event => {
     if (event.decoderPid) seen.push(event.decoderPid);
-    if (event.type === 'progress' && event.step === 'inference' && event.completed >= 1 && !requestedAt) {
+    if (event.type === 'progress' && ['inference', 'faces.detect', 'speakers.detect'].includes(event.step) && event.completed >= 1 && !requestedAt) {
       requestedAt = performance.now();
       cancel();
     }
@@ -57,7 +57,7 @@ async function crashCase(requestFile, configFile, runRoot) {
       const event = JSON.parse(line);
       if (event.workerPid) seen.push(event.workerPid);
       if (event.decoderPid) seen.push(event.decoderPid);
-      if (event.type === 'progress' && event.step === 'inference' && event.completed >= 1 && !crashed) {
+      if (event.type === 'progress' && ['inference', 'faces.detect', 'speakers.detect'].includes(event.step) && event.completed >= 1 && !crashed) {
         crashed = true;
         child.kill('SIGKILL'); // Only this task's host; do not kill its process group.
       }
@@ -77,7 +77,9 @@ async function crashCase(requestFile, configFile, runRoot) {
 
 async function failureCase(requestFile, configFile, runRoot) {
   const wrong = await readJson(configFile);
-  wrong.models.rvm.sha256 = '0'.repeat(64);
+  const request = await readJson(requestFile);
+  const model = { 'person.matte': 'rvm', 'faces.detect': 'yunet', 'speakers.detect': 'lightAsd' }[request.task];
+  wrong.models[model].sha256 = '0'.repeat(64);
   const badConfig = path.join(runRoot, 'wrong-checksum.json');
   await writeJson(badConfig, wrong);
   const job = await startJob({ requestFile, configFile: badConfig, jobDir: path.join(runRoot, 'wrong-checksum') });
@@ -136,6 +138,23 @@ async function timeoutCase(requestFile, configFile, runRoot) {
   return { status: 'passed', terminalStatus: record.status, errorCode: record.error.code, workerCancellationCode, exitedPids: exited };
 }
 
+async function successfulExitCase(requestFile, configFile, runRoot, repetitions) {
+  const runs = [];
+  for (let i = 0; i < repetitions; i++) {
+    const job = await startJob({ requestFile, configFile, jobDir: path.join(runRoot, `successful-exit-${i}`) });
+    const record = await job.done;
+    // A result file alone is insufficient: Windows native teardown used to
+    // abort after writing it, causing the actual host to reject the result.
+    assert.equal(record.status, 'succeeded', JSON.stringify(record.error));
+    assert.equal(record.exitCode, 0);
+    assert.deepEqual(await readJson(path.join(record.outputDir, 'result.json')), record.result);
+    assert.equal((await readJson(path.join(record.outputDir, 'worker-state.json'))).status, 'succeeded');
+    const exited = await verifyExited([record.workerPid]);
+    runs.push({ exitCode: record.exitCode, workerMilliseconds: record.result.metrics.totalMs, exitedPids: exited });
+  }
+  return { status: 'passed', runs };
+}
+
 async function main() {
   const value = name => { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1]; };
   if (!value('--request') || !value('--config') || !value('--output')) throw new Error('Expected --request, --config, --output');
@@ -144,15 +163,21 @@ async function main() {
   const output = path.resolve(value('--output'));
   await fs.mkdir(output, { recursive: true });
   const extraOnly = process.argv.includes('--finalization-only');
+  const successOnly = process.argv.includes('--successful-exit-only');
+  const repetitions = Number(value('--success-runs') ?? (successOnly ? 5 : 1));
+  if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 100) throw Error('Expected 1-100 successful exit runs');
   const report = {
     runtime: { node: process.versions.node, electron: process.versions.electron ?? null, platform: process.platform, arch: process.arch },
-    ...(extraOnly ? {} : {
+    successfulExit: await successfulExitCase(requestFile, configFile, output, repetitions),
+    ...(extraOnly || successOnly ? {} : {
       cancellation: await cancelCase(requestFile, configFile, output),
       parentCrash: await crashCase(requestFile, configFile, output),
       checksumFailure: await failureCase(requestFile, configFile, output),
     }),
-    validationCancellation: await validationCancelCase(requestFile, configFile, output),
-    timeout: await timeoutCase(requestFile, configFile, output),
+    ...(successOnly ? {} : {
+      validationCancellation: await validationCancelCase(requestFile, configFile, output),
+      timeout: await timeoutCase(requestFile, configFile, output),
+    }),
   };
   await writeJson(path.join(output, 'lifecycle-report.json'), report);
   console.log(JSON.stringify(report, null, 2));
