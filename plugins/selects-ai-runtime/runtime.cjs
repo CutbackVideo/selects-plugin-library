@@ -130,6 +130,11 @@ async function runEntry() {
   });
   await main();
   finished = true;
+  // All output writes, validation and the synchronous result event are done.
+  // Windows can abort in native teardown after this successful commit with
+  // PostQueuedCompletionStatus(ERROR_INVALID_HANDLE). This dedicated one-shot
+  // worker has no remaining application work; let the OS reclaim native state.
+  if (process.platform === 'win32') process.exit(0);
   if (process.connected) process.disconnect();
 }
 
