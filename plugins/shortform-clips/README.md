@@ -652,3 +652,5 @@ Node-based SDK simulations are regression evidence, not measured Windows latency
 The initial list contains no image data or editable design fields. Every selected
 template is verified before it reaches editing, export or generation. Switching
 selection ignores late results from the previous request.
+
+Source surveys select the same coarse samples and exact appearance-change boundaries in bounded raw-frame sheets (up to 48 frames, eight columns, 24 seconds per batch). Sorted frames share one decode, selection and scale path; this reduces host script round trips without reducing visual evidence. This is a capture-path optimization, not a verified end-to-end generation-time guarantee.
