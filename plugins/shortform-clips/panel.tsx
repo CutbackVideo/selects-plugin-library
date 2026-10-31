@@ -5091,10 +5091,10 @@ function sourceAppearanceChange(a:ArrayLike<number>,b:ArrayLike<number>) {
 
 // Survey the whole selected source, not just face-bearing instants. Pixel changes
 // are candidates for the agent to interpret; motion and flashes can also trigger.
-// Each capture costs a host script round trip, so raw source batches are twice
-// the size of sequence-frame batches. A batch spans at most RAW_BATCH_SPAN_SECONDS
+// Each capture costs a host script round trip, so raw source batches are
+// larger than sequence-frame batches. A batch spans at most RAW_BATCH_SPAN_SECONDS
 // of source, because one decoder reads everything from its first frame to its last.
-const RAW_FRAME_BATCH=24,SEQUENCE_FRAME_BATCH=12,RAW_BATCH_SPAN_SECONDS=12;
+const RAW_FRAME_BATCH=48,SEQUENCE_FRAME_BATCH=12,RAW_BATCH_SPAN_SECONDS=24;
 function surveyBatches(frames:number[],size:number,span:number) {
   const out:number[][]=[];
   for(const f of frames){const last=out[out.length-1];if(last&&last.length<size&&f-last[0]<=span)last.push(f);else out.push([f]);}
@@ -5109,11 +5109,22 @@ function rawSourceFrameArgs(source:any,frames:number[],output:string) {
   // this preserves request order (including duplicates) at fractional FPS.
   const first=Math.min(...frames);
   const args=['-v','error','-y','-threads','2','-ss',(first/source.meta.fps).toFixed(9),'-i',source.path];
-  const filters=[frames.length===1?'[0:v:0]null[s0]':`[0:v:0]split=${frames.length}`+frames.map((_,i)=>`[s${i}]`).join('')];
-  filters.push(...frames.map((f,i)=>`[s${i}]trim=start_frame=${f-first}:end_frame=${f-first+1},setpts=PTS-STARTPTS,scale=${width}:${height},setsar=1[v${i}]`));
-  filters.push(frames.length===1?'[v0]null[out]':frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}:shortest=1[out]`);
+  const ordered=frames.every((f,i)=>i===0||f>frames[i-1]);
+  // Production requests are sorted and unique. Select before scaling and tile
+  // into a bounded-width sheet instead of retaining one decoder branch per tile.
+  // Keep the branch route for callers requesting duplicates or reordered frames.
+  const columns=ordered?Math.min(8,frames.length):frames.length;
+  const filters:string[]=[];
+  if(ordered) {
+    const select=frames.map(f=>`eq(n,${f-first})`).join('+');
+    filters.push(`[0:v:0]select='${select}',scale=${width}:${height},setsar=1,tile=${columns}x${Math.ceil(frames.length/columns)}:nb_frames=${frames.length}[out]`);
+  } else {
+    filters.push(`[0:v:0]split=${frames.length}`+frames.map((_,i)=>`[s${i}]`).join(''));
+    filters.push(...frames.map((f,i)=>`[s${i}]trim=start_frame=${f-first}:end_frame=${f-first+1},setpts=PTS-STARTPTS,scale=${width}:${height},setsar=1[v${i}]`));
+    filters.push(frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}:shortest=1[out]`);
+  }
   args.push('-filter_complex_threads','1','-filter_complex',filters.join(';'),'-map','[out]','-frames:v','1','-q:v','3',output);
-  return {args,width,height};
+  return {args,width,height,columns};
 }
 // What this panel session learned about the host: whether job status can be read
 // without a script, and whether a capture can be drawn straight from its local URL.
@@ -5133,7 +5144,7 @@ async function captureRawSourceFrames({sdk,guard,store,source,frames,outputs}:an
   const J=JSON.stringify,host=surveyHost(sdk);
   const read=async(script:string,allowCommit=false)=>{const r=await sdk.runScript({script,summary:'Capture original source frames',allowCommit});if(r.isError)throw Error(r.output||'Source frame capture failed');return r.result;};
   const dir=store.join(store.root,'frames'),output=store.join(dir,`survey-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
-  const {args,width,height}=rawSourceFrameArgs(source,frames,output);
+  const {args,width,height,columns}=rawSourceFrameArgs(source,frames,output);
   const state=async(id:string)=>{
     if(host.statusCall){try{return String((await sdk.call('getLocalMediaJobStatus',id,{cursor:0})).state);}catch(e){host.statusCall=false;}}
     return String((await read(`return await selects.media.job(${J(id)}).status();`)).state);
@@ -5146,7 +5157,7 @@ async function captureRawSourceFrames({sdk,guard,store,source,frames,outputs}:an
       url=typeof started?.url==='string'?started.url:null;return started.jobId;},
     state:id=>guard(state(id)),settled:state,cancel:async id=>{await read(`await selects.media.job(${J(id)}).cancel();`,true);},
     wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,pollMs:150,stopped:()=>false,stopError:()=>new RunCancelled()});
-  return {url,output,frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:i*width,y:0,width,height}))};
+  return {url,output,frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:(i%columns)*width,y:Math.floor(i/columns)*height,width,height}))};
 }
 // Captures are removed together when the survey ends. Earlier versions of this panel
 // left every capture behind, so captures older than a day go in the same script.

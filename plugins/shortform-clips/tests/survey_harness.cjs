@@ -29,7 +29,7 @@ function installCanvas(){
  FakeImage.byUrl=new Map();FakeImage.failUrls=new Set();
  const canvas=()=>{const c={width:0,height:0,frame:null,drawn:[],texts:[]};c.getContext=()=>({
   fillStyle:'',font:'',fillRect(){},fillText(t){c.texts.push(t);},
-  drawImage(src,...a){if(src instanceof FakeImage){if(FakeImage.tainted.has(src._src))c.tainted=true;c.frame=src.frames[Math.round(a[0]/TILE_W)];}else{if(src.tainted)c.tainted=true;c.frame=src.frame;c.drawn.push(src.frame);}},
+  drawImage(src,...a){if(src instanceof FakeImage){if(FakeImage.tainted.has(src._src))c.tainted=true;c.frame=src.frames[Math.round(a[1]/TILE_H)*Math.min(8,src.frames.length)+Math.round(a[0]/TILE_W)];}else{if(src.tainted)c.tainted=true;c.frame=src.frame;c.drawn.push(src.frame);}},
   getImageData(){if(c.tainted)throw Object.assign(Error('tainted'),{name:'SecurityError'});return {data:pixelsOf(c.frame)};},
  });c.toDataURL=()=>'page:'+JSON.stringify(c.drawn);return c;};
  FakeImage.tainted=new Set();
