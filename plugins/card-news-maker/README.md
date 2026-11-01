@@ -18,15 +18,21 @@ Open **Card News Maker** with a Project open.
 4. **Review:** every design uses the same card previews and editable headline/body fields. Change the
    picture, crop, order or credit. End cards stay last. Editing a built set creates a revised Draft on
    the next build or export; the previous Draft remains in the Project.
-5. **Export:** choose PNG or JPEG, then **Export card images**. It builds the Draft when needed and
-   writes `card-01`, `card-02`, ... plus `caption.txt` into a new folder. **Build Draft** is also available
-   separately. Generated pictures use Selects image-generation credits, as shown before building.
+5. **Export:** choose PNG or JPEG, then **Export card images**. On the first export, choose a save
+   folder; canceling stops before any Draft or image is created. The app reuses that folder until
+   **Change folder** is selected, writes `card-01`, `card-02`, ... plus `caption.txt` into a new subfolder,
+   and adds the finished images to the current Project. The actual output path and **Open folder**
+   remain visible, including after a partial failure. Success appears only after every image is
+   confirmed in the Project. **Build Draft** is also available separately. Generated pictures use
+   Selects image-generation credits, as shown before building.
 
 Work is saved as you edit. **Start over** returns to the inputs; **Saved** reopens a card set. Each new
 set keeps a template snapshot. **Apply template changes** explicitly takes newer library settings.
 A fixed text-box design rejects extra or overflowing text before build/export, so copy is never silently
-cut off. The default export location is `~/.selects/plugin-data/card-news-maker/exports/`; older photo
-sets retain their output-folder setting and default to `Pictures/Card news`.
+cut off. Existing saved output-folder choices are retained. New exports require a folder choice
+instead of silently using the app's internal storage. Caption text stays a file and is not imported
+as a Project asset. A failed export preserves completed files and any images already imported;
+retrying exports a new batch without deleting the earlier output.
 
 ## Edit templates
 

@@ -9,7 +9,7 @@ const layout = { kind: 'layout', id: 'team', name: 'Team design', version: 1, la
 const work = { id: 'legacy', name: 'Saved photo work', articleUrl: 'https://example.test/news', createdAt: '2026-10-30', updatedAt: '2026-10-30', requirements: 'Saved instructions', format: 'jpeg', template: layout, cards: [{ lines: ['One', 'Two'], crop: { zoom: 1.6, x: -.25, y: .4 }, photo: { path: '/photos/a.png', name: 'a.png', width: 1920, height: 1080 } }] };
 const root = '/memory/.selects/plugin-data/card-news-maker';
 function nodes(tree) { const out = [], seen = new Set(); function visit(v) { if (!v || typeof v !== 'object' || seen.has(v)) return; seen.add(v); if ('type' in v && 'props' in v) out.push(v); if (v.type === 'TemplateTransferDialog' && !v.props.open) return; for (const x of Object.values(v)) visit(x); } visit(tree); return out; }
-function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: existingDisk, layouts = [layout], language = 'en' } = {}) {
+function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: existingDisk, layouts = [layout], language = 'en', dialogs = { pickDirectoryPath: async () => '/photos' } } = {}) {
   const disk = existingDisk || new Map(layouts.map(l => [root + '/layout-templates/' + l.id + '.json', new TextEncoder().encode(JSON.stringify(l))]));
   if (legacy) disk.set(root + '/photo-works/legacy.json', new TextEncoder().encode(JSON.stringify(work)));
   if (job) disk.set(root + '/jobs/' + job.id + '.json', new TextEncoder().encode(JSON.stringify(job)));
@@ -28,7 +28,7 @@ function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: exi
   const ui = new Proxy({}, { get: (_, k) => String(k) });
   const context = { projectId: 'p', language, templatePack };
   const canvas = () => ({ getContext: () => ({ measureText: () => ({ width: 1 }), fillRect() {}, drawImage() {}, fillText() {}, getImageData: () => ({ data: [0, 0, 0, 255] }) }), toDataURL: () => 'data:image/jpeg;base64,YQ==', toBlob: (fn, mime) => fn(new Blob([new Uint8Array([1, 2, 3])], { type: mime })) });
-  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs: { pickDirectoryPath: async () => '/photos' } }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { Blob, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
+  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { Blob, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
   function render() { hooks = mainHooks; at = 0; tree = bindings.ProjectPanel({ sdk, ui, context }); return tree; }
   function renderEditor() { const node = nodes(render()).find(n => n.type === bindings.TemplateEditor); if (!node) return null; hooks = editorHooks; at = 0; return bindings.TemplateEditor(node.props); }
   return {
@@ -136,6 +136,7 @@ test('failed still export retains the common Draft receipt, and retry does not b
     if (summary.startsWith('Build ')) return { result: { draftId: 'd' + (++builds), fps: 24, bounds: [[0, 72]] } };
     if (summary === 'Read the card ranges') return { result: { fps: 24, cards: [['Card 01', 0, 72]] } };
     if (summary === 'Export card composite') return ++renders === 1 ? { isError: true, output: 'render failed' } : { result: {} };
+    if (summary === 'Add exported card images to the project') return { result: { added: 1 } };
     return { result: { folderId: 'f', moved: 0, skipped: 0 } };
   } } });
   try {
@@ -199,6 +200,7 @@ test('an older background Saved read cannot replace a newer edit in cache or on 
     if (summary === 'Check for an existing draft') return { result: null };
     if (summary.startsWith('Build ')) return { result: { draftId: 'd', fps: 24, bounds: [[0, 72]] } };
     if (summary === 'Read the card ranges') return { result: { fps: 24, cards: [['Card 01', 0, 72]] } };
+    if (summary === 'Add exported card images to the project') return { result: { added: 1 } };
     return { result: { folderId: 'f' } };
   } } });
   let release;
@@ -679,5 +681,38 @@ test('generation and photo inputs use Korean UI labels while English labels stay
       await h.find('Button',ko?'\uce74\ub4dc \uc0dd\uc131':'Generate').props.onClick();await h.settle();
       assert.ok(h.find('TextField',ko?'\uae30\uc0ac \ubcf8\ubb38':'Article text'));
     }finally{h.close()}
+  }
+});
+
+test('first manual export cancellation leaves work untouched and never builds, renders or imports',async()=>{
+  const job={id:'cancel-export',projectId:'p',templateId:'layout-team',plan:{cards:[{role:'cover',headline:'Cover'}]}};let picks=0,writes=0;
+  const h=harness({job,dialogs:{pickDirectoryPath:async()=>{picks++;return null}},sdk:{runScript:async({summary})=>{if(summary!=='List project videos')writes++;return{result:[]}}}});
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const before=h.disk.get(root+'/jobs/'+job.id+'.json');await h.find('Button','Export card images').props.onClick();await h.settle();assert.equal(picks,1);assert.equal(writes,0);assert.equal(h.disk.get(root+'/jobs/'+job.id+'.json'),before);assert.ok(![...h.disk.keys()].some(p=>p.endsWith('/card-01.png')))}finally{h.close()}
+});
+
+test('manual export uses the chosen folder, verifies saved image resources and shows the actual output location',async()=>{
+  let picks=0,imports=0;const paths=[];const job={id:'visible-export',projectId:'p',templateId:'layout-team',draftId:'existing',plan:{cards:[{role:'cover',headline:'Cover'},{role:'body',body:'Body'}],caption:'Caption',hashtags:'#tag'}};
+  const h=harness({job,dialogs:{pickDirectoryPath:async()=>{picks++;return '/chosen/cards'}},sdk:{runScript:async({summary,script,allowCommit})=>{
+    if(summary==='Read the card ranges')return{result:{fps:24,cards:[['Card 01',0,72],['Card 02',72,144]]}};
+    if(summary==='Add exported card images to the project'){
+      assert.equal(allowCommit,true);const rows=[];
+      const result=await new (Object.getPrototypeOf(async()=>{}).constructor)('selects',script)({project:id=>{assert.equal(id,'p');return{importFiles:async({paths:files})=>{imports++;assert.equal(files.length,2);for(const p of files){assert.ok(h.disk.has(p));assert.match(p,/^\/chosen\/cards\/visible-export-.*\/card-0[12]\.png$/);paths.push(p)}rows.push(...files.map((_,i)=>({resourceId:'png-'+i})));return{addedResourceIds:rows.map(r=>r.resourceId)}},resources:async()=>rows}}});return{result};
+    }return{result:[]};
+  }}});
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();assert.equal(imports,0);await h.find('Button','Export card images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.saveTo,'/chosen/cards');assert.equal(saved.done,true);assert.equal(saved.export.files.length,2);assert.ok(h.disk.has(saved.export.dir+'/caption.txt'));assert.equal(imports,1);assert.equal(picks,1);assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.includes(saved.export.dir)));assert.ok(h.find('Button','Open folder'));assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.some(v=>typeof v==='string'&&v.includes('Added the card images to the project'))));await h.find('Button','Export card images').props.onClick();await h.settle();assert.equal(picks,1);assert.equal(imports,2)}finally{h.close()}
+});
+
+test('partial rendering, caption writes and project imports retain saved files without a success message',async()=>{
+  for(const failure of ['render','caption','partial-import','missing-inventory','import-throw']){
+    let renders=0,imports=0;const job={id:'partial-'+failure,projectId:'p',templateId:'layout-team',draftId:'existing',saveTo:'/chosen',plan:{cards:[{role:'cover',headline:'Cover'},{role:'body',body:'Body'}],caption:'Caption'}};
+    const h=harness({job,dialogs:{pickDirectoryPath:async()=>{throw Error('Existing selected folder must be reused')}},sdk:{runScript:async({summary,script})=>{
+      if(summary==='Read the card ranges')return{result:{fps:24,cards:[['Card 01',0,72],['Card 02',72,144]]}};
+      if(summary==='Export card composite'&&++renders===2&&failure==='render')return{isError:true,output:'Still render failed'};
+      if(summary==='Add exported card images to the project'){
+        imports++;if(failure==='import-throw')throw Error('Project import unavailable');
+        const result=await new (Object.getPrototypeOf(async()=>{}).constructor)('selects',script)({project:()=>({importFiles:async()=>({addedResourceIds:failure==='partial-import'?['one']:['one','two']}),resources:async()=>failure==='missing-inventory'?[]:[{resourceId:'one'},{resourceId:'two'}]})});return{result};
+      }return{result:[]};
+    }}});
+    try{if(failure==='caption'){const write=h.files.writeFile;h.files.writeFile=async(p,v)=>{if(p.endsWith('/caption.txt'))throw Error('Caption write failed');return write(p,v)}}await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();await h.find('Button','Export card images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.done,false);assert.equal(saved.export.files.length,failure==='render'?1:2);assert.ok(saved.export.files.every(p=>h.disk.has(p)));assert.equal(imports,['render','caption'].includes(failure)?0:1);assert.ok(h.find('Button','Open folder'));const messages=nodes(h.render()).filter(n=>n.type==='Message');assert.ok(messages.some(n=>n.props.tone==='error'));assert.ok(!messages.some(n=>n.props.children.some(v=>typeof v==='string'&&v.startsWith('Saved '))))}finally{h.close()}
   }
 });

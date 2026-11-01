@@ -285,6 +285,9 @@ const IMAGE_MODEL = { id: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", recipe: "na
 
 const STRINGS: any = {
   en: {
+    saveFolder: "Save folder",
+    exportImporting: "Adding card images to the project...",
+    exportImportFailed: "The files were saved, but not all card images could be added to the project. Open the export folder to check them.",
     savedTemplateNotice: "This set keeps its saved template. The library template has changed.",
     applyTemplateChanges: "Apply template changes",
     ownImages: "Use my own images",
@@ -377,7 +380,7 @@ const STRINGS: any = {
     exportPng: "Export card images",
     exporting: "Exporting…",
     rendering: (n: number, all: number) => `Rendering card image ${n}/${all}…`,
-    exportDone: (n: number) => `Saved ${n} card images and the caption.`,
+    exportDone: (n: number) => `Saved ${n} card images and the caption. Added the card images to the project.`,
     noStill: "This Selects version cannot render card images from an app. Update Selects and try again.",
     openFolder: "Open folder",
     exportFailed: "Export failed: ",
@@ -510,6 +513,9 @@ const STRINGS: any = {
     editable: { headline: "Headline", label: "Label", heading: "Heading", body: "Body", cta: "Call to action", credit: "Credit", size: "Size", color: "Color", highlight: "Highlight", font: "Font", tagline: "Tagline", handles: "Handles" },
   },
   ko: {
+    saveFolder: "\uc800\uc7a5 \ud3f4\ub354",
+    exportImporting: "\uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4...",
+    exportImportFailed: "\ud30c\uc77c\uc740 \uc800\uc7a5\ud588\uc9c0\ub9cc \uc77c\ubd80 \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud3f4\ub354\ub97c \uc5f4\uc5b4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
     savedTemplateNotice: "\uc774 \uce74\ub4dc\ub274\uc2a4\ub294 \uc800\uc7a5 \ub2f9\uc2dc\uc758 \ud15c\ud50c\ub9bf\uc744 \uc720\uc9c0\ud569\ub2c8\ub2e4. \ud604\uc7ac \ud15c\ud50c\ub9bf\uc774 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
     applyTemplateChanges: "\ud604\uc7ac \ud15c\ud50c\ub9bf \uc801\uc6a9",
     ownImages: "\ub0b4 \uc0ac\uc9c4 \uc0ac\uc6a9",
@@ -606,7 +612,7 @@ const STRINGS: any = {
     exportPng: "\uce74\ub4dc \uc774\ubbf8\uc9c0 \ub0b4\ubcf4\ub0b4\uae30",
     exporting: "\ub0b4\ubcf4\ub0b4\ub294 \uc911…",
     rendering: (n: number, all: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}/${all}\uc7a5 \ub80c\ub354\ub9c1 \uc911…`,
-    exportDone: (n: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}\uc7a5\uacfc \uc124\uba85\uae00\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4.`,
+    exportDone: (n: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}\uc7a5\uacfc \uc124\uba85\uae00\uc744 \uc800\uc7a5\ud558\uace0, \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.`,
     noStill: "\uc774 \ubc84\uc804\uc758 Selects\ub294 \uc571\uc5d0\uc11c \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ub80c\ub354\ub9c1\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     openFolder: "\ud3f4\ub354 \uc5f4\uae30",
     exportFailed: "\ub0b4\ubcf4\ub0b4\uae30 \uc2e4\ud328: ",
@@ -4260,22 +4266,28 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   async function exportCards() {
     if (!job?.plan) return;
     setError("");
+    setStatus("");
+    setExported([]);
     setBusy(true);
     try {
       if (!store.fs) throw new Error(S.noFileAccess);
       let j = job;
       validateCardText(j.plan, jobTemplate(j, templates));
+      const base = j.saveTo || await hostSdk.dialogs.pickDirectoryPath();
+      if (!base) return;
+      j = await saveJob({ ...j, saveTo: base, done: false });
       if (!j.draftId) { setPhase(2); j = await pictures(await saveJob(j)); setPhase(3); j = await buildDraft(j); j = await organize(j); }
       setPhase(4);
       const t = jobTemplate(j, templates);
-      const base = j.saveTo || (j.legacyPhotoId ? store.join(store.fs.homedir(), "Pictures", "Card news") : store.join(store.root, "exports"));
       const dir = store.join(base, `${j.id}-${Date.now().toString(36)}`);
       await store.ensure(dir);
+      j = await saveJob({ ...j, export: { dir, files: [] }, done: false });
       // Card ranges come from the Draft as it is now, so edits made in Selects are kept.
       const info = await script(
         `const d = selects.draft(${JSON.stringify(j.draftId)}); const m = await d.meta(); const g = (await d.motionGraphics()).filter((x: any) => /^Card \\d+/.test(x.name)).map((x: any) => [x.name, x.clip.startFrame, x.clip.endFrame]).sort((a: any, b: any) => a[1] - b[1]); return { fps: m.fps, cards: g };`,
         "Read the card ranges"
       );
+      if (!info.cards.length) throw new Error("No card images to export.");
       const files: string[] = [];
       for (let i = 0; i < info.cards.length; i++) {
         setStatus(S.rendering(i + 1, info.cards.length));
@@ -4296,14 +4308,24 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.${j.format === "jpeg" ? "jpg" : "png"}`);
         await store.fs.writeFile(out, j.format === "jpeg" ? await CardSupport.pngToJpeg(png) : png);
         files.push(out);
+        j = await saveJob({ ...j, export: { dir, files: [...files] }, done: false });
+        setExported([...files]);
       }
       const caption = [j.plan.caption, j.plan.hashtags].filter(Boolean).join("\n\n");
       await store.fs.writeFile(store.join(dir, "caption.txt"), enc(caption));
-      setStatus(S.exportDone(files.length));
+      setStatus(S.exportImporting);
+      const imported = await script(
+        `const p = selects.project(${JSON.stringify(projectId)}); const result = await p.importFiles({ paths: ${JSON.stringify(files)} }); const rows = await p.resources(); const ids = [...new Set(result?.addedResourceIds || [])]; return { added: ids.filter(id => rows.some(r => r.resourceId === id)).length };`,
+        "Add exported card images to the project",
+        true
+      );
+      if (imported?.added !== files.length) throw new Error(S.exportImportFailed);
       await saveJob({ ...j, export: { dir, files }, done: true });
+      setStatus(S.exportDone(files.length));
       setExported(files);
       loadJobs();
     } catch (e: any) {
+      setStatus("");
       setError(S.exportFailed + String(e?.message || e));
     } finally {
       setBusy(false);
@@ -4493,7 +4515,9 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         <ui.Section title={S.steps[4]}>
           <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
           <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
-          {job.saveTo ? <ui.Message tone="muted">{job.saveTo}</ui.Message> : null}
+          {job.saveTo ? <ui.Message tone="muted">{S.saveFolder}: {job.saveTo}</ui.Message> : null}
+          {job.export?.dir && <ui.Message tone="muted">{job.export.dir}</ui.Message>}
+          {job.export?.dir && <ui.Button variant="secondary" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
         </ui.Section>
         <ui.Actions>
           <ui.Button variant="ghost" onClick={() => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); }} disabled={busy}>
@@ -4507,11 +4531,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             <ui.Button variant="secondary" onClick={() => openDraft(job.draftId)} disabled={busy}>
               {S.open}
             </ui.Button>
-            {job.export?.dir && (
-              <ui.Button variant="secondary" onClick={() => openFolder(job.export.dir)} disabled={busy}>
-                {S.openFolder}
-              </ui.Button>
-            )}
+
           </ui.Row>
         )}
         {exported.length > 0 && (
