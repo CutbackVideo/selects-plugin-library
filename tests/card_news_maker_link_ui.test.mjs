@@ -519,3 +519,52 @@ test('layout locale names reject malformed values and keep old single names unch
     for(const names of [null,[],{ko:12},{ko:''},{ko:' '}])assert.throws(()=>h.bindings.CardSupport.templateFromFile({...layout,names}),/names must map/);
   }finally{h.close()}
 });
+
+
+test('Chosun editor hides the unused ending and safely displays body for a stale end selection',async()=>{
+  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
+  const h=harness({layouts:[raw]});try{
+    await h.settleEditor();const state=h.component('TemplateEditor').props.state;
+    const before=JSON.stringify(h.component('TemplateEditor').props.templates);
+    assert.deepEqual(plain(h.editorFind('Select','Preview').props.options).map(o=>o.value),['cover','body']);
+    assert.equal(nodes(h.renderEditor()).some(n=>n.type==='TemplateSettingsSection'&&n.props.title==='Last card'),false);
+    assert.equal(h.editorFind('TextField','Last card'),undefined);
+    state.setRole('end');await h.settleEditor();
+    assert.equal(h.editorFind('Select','Preview').props.value,'body');
+    assert.equal(h.editorFind('NumberField','Top').props.value,944);
+    const preview=nodes(h.renderEditor()).find(n=>typeof n.type==='function'&&n.type.name==='CardPreview');
+    assert.equal(preview.props.card.role,'body');assert.equal(h.editorFind('Button','Save').props.disabled,true);
+    assert.equal(JSON.stringify(h.component('TemplateEditor').props.templates),before);
+    h.editorFind('Select','Preview').props.onChange('cover');await h.settleEditor();
+    assert.equal(h.editorFind('NumberField','Top').props.value,942);
+  }finally{h.close()}
+});
+
+test('Chosun ending restriction survives Import and rename, while old installed designs remain untouched',async()=>{
+  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
+  const h=harness({layouts:[]});try{
+    const old={...h.bindings.CardSupport.fromLayout(raw),id:'told-chosun-copy',name:'Custom newsroom name'};delete old.end.editable;delete old.importedLayoutId;
+    const path=root+'/templates/'+old.id+'.json',bytes=new TextEncoder().encode(JSON.stringify(old));h.disk.set(path,bytes);
+    await h.settleEditor();assert.equal(h.editorFind('Select','Preview').props.options.length,2);assert.equal(h.disk.get(path),bytes);
+    h.disk.set('/chosun.json',new TextEncoder().encode(JSON.stringify(raw)));h.editorFind('TemplateToolbar').props.onImport();
+    await h.editorFind('FileDrop').props.onChange({path:'/chosun.json'});await h.settleEditor();
+    const copy=h.component('TemplateEditor').props.templates.find(t=>t.id!==old.id);
+    assert.equal(copy.importedLayoutId,undefined);assert.equal(copy.end.editable,false);assert.equal(copy.end.kind,'none');
+    assert.equal(h.editorFind('Select','Preview').props.options.length,2);
+    h.editorFind('TextField','Name').props.onChange('Renamed copy');await h.editorFind('Button','Save').props.onClick();await h.settleEditor();
+    assert.equal(h.editorFind('Select','Preview').props.options.length,2);assert.equal(h.disk.get(path),bytes);
+  }finally{h.close()}
+});
+
+test('ordinary templates with no ending can still enable and preview a CTA',async()=>{
+  const h=harness();try{
+    await h.settleEditor();assert.equal(h.component('TemplateEditor').props.state.edit.end.kind,'none');
+    assert.deepEqual(plain(h.editorFind('Select','Preview').props.options).map(o=>o.value),['cover','body','end']);
+    assert.ok(h.editorFind('TextField','Last card'));
+    const ending=nodes(h.renderEditor()).find(n=>n.type==='TemplateSettingsSection'&&n.props.title==='Last card');assert.ok(ending);
+    const select=nodes(ending).find(n=>n.type==='Select');select.props.onChange('cta');await h.settleEditor();
+    h.editorFind('Select','Preview').props.onChange('end');await h.settleEditor();
+    assert.equal(h.editorFind('Select','Preview').props.value,'end');
+    assert.equal(h.component('TemplateEditor').props.state.edit.end.kind,'cta');
+  }finally{h.close()}
+});

@@ -2723,7 +2723,10 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   const edit = !current ? null : fresh ? JSON.parse(currentKey) : saved;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
   const dirty = !!pending || (!!current && JSON.stringify(edit) !== currentKey);
-  const layoutRole = role === "cover" ? "cover" : "body";
+  // Legacy imported copies dropped layout IDs but retained the original names metadata.
+  const canEditEnd = edit?.end?.editable !== false && edit?.importedLayoutId !== "chosun-basic" && edit?.names?.en !== "Chosun Ilbo Basic (feed)";
+  const previewRole = !canEditEnd && role === "end" ? "body" : role;
+  const layoutRole = previewRole === "cover" ? "cover" : "body";
   const layoutPath = `look.${layoutRole}`;
   const layout = edit ? roleLook(edit, layoutRole) : null;
   const get = (path: string) => {
@@ -2877,9 +2880,9 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   // Sample copy is in the template's card language, whatever the app's language.
   const L = STRINGS[cardLangOf(edit)];
   const sample: any =
-    role === "cover"
+    previewRole === "cover"
       ? { role: "cover", headline: L.sampleHeadline, credit: edit.credit.article.replace("{credit}", "Reuters") }
-      : role === "end"
+      : previewRole === "end"
         ? { role: "end", cta: L.sampleCta }
         : { role: "body", heading: L.sampleHeading, body: L.sampleBody, credit: edit.credit.ai };
   const vars = SAMPLE_VARS[cardLangOf(edit)];
@@ -2887,15 +2890,15 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
     <ui.Stack gap={8}>
       <ui.Select
         label={S.previewOf}
-        value={role}
+        value={previewRole}
         onChange={setRole}
         options={[
           { value: "cover", label: S.cover },
           { value: "body", label: S.roleBody },
-          { value: "end", label: S.end },
+          ...(canEditEnd ? [{ value: "end", label: S.end }] : []),
         ]}
       />
-      {role === "end" && endKindOf(edit) === "none" ? <small>{S.endNone}</small> : <CardPreview t={edit} card={sample} bodyIndex={1} vars={vars} S={S} />}
+      {previewRole === "end" && endKindOf(edit) === "none" ? <small>{S.endNone}</small> : <CardPreview t={edit} card={sample} bodyIndex={1} vars={vars} S={S} />}
     </ui.Stack>
   );
   const placement = (key: string, title: string) => (
@@ -3023,7 +3026,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
         {txt("credit.article", S.creditArticle, false)}
         {txt("credit.ai", S.creditAi, false)}
       </ui.TemplateSettingsSection>
-      <ui.TemplateSettingsSection title={S.end}>
+      {canEditEnd && <ui.TemplateSettingsSection title={S.end}>
         <ui.Select
           label={S.endKind}
           value={edit.end.kind}
@@ -3051,7 +3054,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
             )}
           </ui.Stack>
         )}
-      </ui.TemplateSettingsSection>
+      </ui.TemplateSettingsSection>}
     </ui.Stack>
   );
   const ai = (
@@ -3076,7 +3079,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
         {txt("prompt.voice", S.pVoice)}
         {txt("prompt.cover", S.pCover)}
         {txt("prompt.body", S.pBody)}
-        {txt("prompt.end", S.pEnd)}
+        {canEditEnd && txt("prompt.end", S.pEnd)}
         {txt("prompt.caption", S.pCaption)}
         {txt("prompt.rules", S.pRules)}
       </ui.TemplateSettingsSection>
@@ -3439,7 +3442,7 @@ function fromLayout(l: LayoutTemplate): any {
     headline: { ...t.headline, size: l.font.size, weight: l.font.weight, color: l.font.color, highlight: l.font.color, lineHeight: l.font.lineHeight / l.font.size, tracking: l.font.tracking },
     body: { ...t.body, size: bodyFont.size, weight: bodyFont.weight, color: bodyFont.color, italic: false, lineHeight: bodyFont.lineHeight / bodyFont.size, tracking: bodyFont.tracking },
     heading: { ...t.heading, on: false }, wordmark: { ...t.wordmark, text: "", logo: l.logo ? { ...l.logo, left: l.logo.left ?? (l.size.width - l.logo.width) / 2 } : null },
-    credit: { ...t.credit, article: "", ai: "" }, end: { ...t.end, kind: "none" }, images: { ...t.images, source: "article" },
+    credit: { ...t.credit, article: "", ai: "" }, end: { ...t.end, kind: "none", ...(l.id === "chosun-basic" ? { editable: false } : {}) }, images: { ...t.images, source: "article" },
     prompt: { ...t.prompt, cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: `Each card has one concise news point in up to ${(body?.lines || l.lines).length} lines.`, end: "No separate last card." },
   };
 }
