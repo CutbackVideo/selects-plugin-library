@@ -2505,22 +2505,23 @@ function fillVars(s: string, vars: any): string {
 function templateSize(t: any) { return t?.look?.size || { width: CW, height: CH }; }
 function jobTemplate(j: any, templates: any[]) { return j?.templateSnapshot || templates.find((t) => t.id === j?.templateId) || BUILTIN_TEMPLATES.find((t) => t.id === j?.templateId) || null; }
 function roleLook(t: any, role: string) {
-  return role === "cover" ? t.look.cover : t.look.body;
+  return { ...t.look, logo: t.wordmark.logo, ...(role === "cover" ? t.look.cover : t.look.body) };
 }
 
 function cardParams(t: any, card: any, bodyIndex: number, vars: any) {
-  const L = t.look;
+  const L = roleLook(t, card.role);
   const size = templateSize(t);
-  const exact: any = card.role !== "end" && t.look.textSlots?.length ? {
-    textSlots: JSON.stringify(t.look.textSlots),
-    gradient: !!t.look.gradient, shadeTop: t.look.gradient?.top ?? 0, shadeBottom: t.look.gradient?.bottom ?? size.height,
-    shadeColor: t.look.gradient?.color ?? "#000000", shadeFrom: t.look.gradient?.from ?? 0, shadeTo: t.look.gradient?.to ?? .8,
+  const exact: any = card.role !== "end" && L.textSlots?.length ? {
+    textSlots: JSON.stringify(L.textSlots),
+    gradient: !!L.gradient, shadeTop: L.gradient?.top ?? 0, shadeBottom: L.gradient?.bottom ?? size.height,
+    shadeColor: L.gradient?.color ?? "#000000", shadeFrom: L.gradient?.from ?? 0, shadeTo: L.gradient?.to ?? .8,
     headline: card.headline || "", body: card.body || "", bodySize: t.body.size, bodyWeight: t.body.weight, bodyColor: t.body.color,
     headlineSize: t.headline.size, headlineWeight: t.headline.weight, headlineColor: t.headline.color,
   } : {};
   if (t.look.size) Object.assign(exact, { cardWidth: size.width, cardHeight: size.height });
-  if (Object.prototype.hasOwnProperty.call(t.look, "gradient")) Object.assign(exact, { customShade: true, gradient: !!t.look.gradient, shadeTop: t.look.gradient?.top ?? 0, shadeBottom: t.look.gradient?.bottom ?? size.height, shadeColor: t.look.gradient?.color ?? "#000000", shadeFrom: t.look.gradient?.from ?? 0, shadeTo: t.look.gradient?.to ?? .8 });
-  const logo = t.wordmark.logo;
+  if (Object.prototype.hasOwnProperty.call(L, "gradient")) Object.assign(exact, { customShade: true, gradient: !!L.gradient, shadeTop: L.gradient?.top ?? 0, shadeBottom: L.gradient?.bottom ?? size.height, shadeColor: L.gradient?.color ?? "#000000", shadeFrom: L.gradient?.from ?? 0, shadeTo: L.gradient?.to ?? .8 });
+  const logo = L.logo;
+  if (logo === null) exact.logo = null;
   if (logo) Object.assign(exact, { logo: logo.dataUrl, logoLeft: logo.left ?? (size.width - logo.width) / 2, logoTop: logo.top, logoWidth: logo.width });
   const tracking = card.role === "cover" ? t.headline.tracking : t.body.tracking;
   if (tracking !== undefined) exact.tracking = tracking;
@@ -2602,7 +2603,7 @@ function cardParams(t: any, card: any, bodyIndex: number, vars: any) {
 }
 
 function editableDefs(S: any, role: string, t?: any) {
-  if (role !== "end" && t?.look.textSlots?.length) {
+  if (role !== "end" && t && roleLook(t, role).textSlots?.length) {
     const field = role === "cover" ? "headline" : "body";
     return [{ key: field, label: S.editable[field], type: "text", defaultValue: "" }, { key: "fontFamily", label: S.editable.font, type: "text", defaultValue: "" }, { key: field + "Size", label: S.editable.size, type: "number", defaultValue: t[field].size, min: 8, max: 400, step: 1 }, { key: field + "Color", label: S.editable.color, type: "color", defaultValue: t[field].color }];
   }
@@ -2640,7 +2641,7 @@ function editableDefs(S: any, role: string, t?: any) {
 // Scale and place a picture so it covers the card's photo area. Selects sizes a clip relative to "fit" in
 // the frame and places it in percent of frame height from the centre, +Y up.
 function transformFor(t: any, role: string, w: number, h: number, crop?: any) {
-  if (crop || t.look.textSlots?.length) {
+  if (crop || roleLook(t, role).textSlots?.length) {
     const size = templateSize(t), R = role === "end" ? { variant: "overlay" } : roleLook(t, role);
     const areaH = R.variant === "panel" ? size.height * R.photoPercent / 100 + 40 : size.height;
     const placed = CardSupport.photoPlacement(w, h, crop, { width: size.width, height: areaH });
@@ -2722,12 +2723,21 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   const edit = !current ? null : fresh ? JSON.parse(currentKey) : saved;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
   const dirty = !!pending || (!!current && JSON.stringify(edit) !== currentKey);
-  const get = (path: string) => path.split(".").reduce((o: any, k) => (o == null ? o : o[k]), edit);
+  const layoutRole = role === "cover" ? "cover" : "body";
+  const layoutPath = `look.${layoutRole}`;
+  const layout = edit ? roleLook(edit, layoutRole) : null;
+  const get = (path: string) => {
+    const match = /^look\.(cover|body)\.(.+)$/.exec(path);
+    return (match ? match[2] : path).split(".").reduce((o: any, k) => o?.[k], match && edit ? roleLook(edit, match[1]) : edit);
+  };
   const set = (path: string, value: any) => {
     setMsg(null);
     setEdit((e: any) => {
       const n = clone(e);
       const ks = path.split(".");
+      if (ks.length > 3 && ks[0] === "look" && ["cover", "body"].includes(ks[1]) && n.look[ks[1]][ks[2]] === undefined) {
+        n.look[ks[1]][ks[2]] = clone(roleLook(n, ks[1])[ks[2]]);
+      }
       let o = n;
       for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
       o[ks[ks.length - 1]] = value;
@@ -2781,7 +2791,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       if (bytes.length > 96 * 1024 || !/\.(png|svg)$/i.test(file.path)) throw new Error("Choose a PNG or SVG logo up to 96 KB.");
       const size = templateSize(edit);
       const width = Math.min(155, size.width);
-      set("wordmark.logo", { dataUrl: `data:image/${/\.svg$/i.test(file.path) ? "svg+xml" : "png"};base64,${CardSupport.bytesToBase64(bytes)}`, left: (size.width - width) / 2, top: Math.max(0, size.height - 130), width });
+      set(`${layoutPath}.logo`, { dataUrl: `data:image/${/\.svg$/i.test(file.path) ? "svg+xml" : "png"};base64,${CardSupport.bytesToBase64(bytes)}`, left: (size.width - width) / 2, top: Math.max(0, size.height - 130), width });
     } catch (e: any) { setMsg({ tone: "error", text: String(e?.message || e) }); }
   }
   async function save() {
@@ -2912,25 +2922,25 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   const look = (
     <ui.Stack gap={16}>
       <ui.TemplateSettingsSection title="Text placement">
-        <ui.Toggle label="Use fixed text boxes" value={!!edit.look.textSlots?.length} onChange={(on: boolean) => {
-          const size = templateSize(edit), height = Math.round(edit.headline.size * edit.headline.lineHeight);
+        <ui.Toggle label="Use fixed text boxes" value={!!layout.textSlots?.length} onChange={(on: boolean) => {
+          const size = templateSize(edit), height = Math.round(edit[layoutRole === "cover" ? "headline" : "body"].size * edit[layoutRole === "cover" ? "headline" : "body"].lineHeight);
           const left = edit.look.margin;
-          set("look.textSlots", on ? [0, 1].map((i) => ({ left, top: Math.max(0, size.height - 400 + i * (height + edit.body.gap)), width: size.width - left * 2, height, align: "center" })) : null);
+          set(`${layoutPath}.textSlots`, on ? [0, 1].map((i) => ({ left, top: Math.max(0, size.height - 400 + i * (height + edit.body.gap)), width: size.width - left * 2, height, align: "center" })) : null);
         }} disabled={saving} />
-        {edit.look.textSlots?.map((box: any, i: number) => <ui.Stack key={i}>
+        {layout.textSlots?.map((box: any, i: number) => <ui.Stack key={i}>
           <small>{`Text line ${i + 1}`}</small>
-          {num(`look.textSlots.${i}.left`, "Left", 0, templateSize(edit).width, 1, "px")}
-          {num(`look.textSlots.${i}.top`, "Top", 0, templateSize(edit).height, 1, "px")}
-          {num(`look.textSlots.${i}.width`, "Width", 1, templateSize(edit).width, 1, "px")}
-          {num(`look.textSlots.${i}.height`, "Height", 1, templateSize(edit).height, 1, "px")}
-          {seg(`look.textSlots.${i}.align`, "Alignment", [{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }])}
+          {num(`${layoutPath}.textSlots.${i}.left`, "Left", 0, templateSize(edit).width, 1, "px")}
+          {num(`${layoutPath}.textSlots.${i}.top`, "Top", 0, templateSize(edit).height, 1, "px")}
+          {num(`${layoutPath}.textSlots.${i}.width`, "Width", 1, templateSize(edit).width, 1, "px")}
+          {num(`${layoutPath}.textSlots.${i}.height`, "Height", 1, templateSize(edit).height, 1, "px")}
+          {seg(`${layoutPath}.textSlots.${i}.align`, "Alignment", [{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }])}
         </ui.Stack>)}
-        {edit.look.gradient ? <ui.Stack>
-          {num("look.gradient.top", "Shade top", 0, templateSize(edit).height, 1, "px")}
-          {num("look.gradient.bottom", "Shade bottom", 0, templateSize(edit).height, 1, "px")}
-          {col("look.gradient.color", "Shade color")}
-          {num("look.gradient.from", "Shade start opacity", 0, 1, .01)}
-          {num("look.gradient.to", "Shade end opacity", 0, 1, .01)}
+        {layout.gradient ? <ui.Stack>
+          {num(`${layoutPath}.gradient.top`, "Shade top", 0, templateSize(edit).height, 1, "px")}
+          {num(`${layoutPath}.gradient.bottom`, "Shade bottom", 0, templateSize(edit).height, 1, "px")}
+          {col(`${layoutPath}.gradient.color`, "Shade color")}
+          {num(`${layoutPath}.gradient.from`, "Shade start opacity", 0, 1, .01)}
+          {num(`${layoutPath}.gradient.to`, "Shade end opacity", 0, 1, .01)}
         </ui.Stack> : null}
       </ui.TemplateSettingsSection>
       <ui.TemplateSettingsSection title={S.cards}>
@@ -2941,7 +2951,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       {placement("cover", S.cover)}
       {placement("body", S.bodyCards)}
       <ui.TemplateSettingsSection title={S.type}>
-        <ui.FontField label={S.font} value={edit.look.font || ""} onChange={(v: string) => set("look.font", v)} disabled={saving} />
+        <ui.FontField label={S.font} value={layout.font || ""} onChange={(v: string) => set(`${layoutPath}.font`, v)} disabled={saving} />
         {num("look.margin", S.margin, 0, 300, 1, "px")}
         {col("look.panelColor", S.panelColor)}
         {num("headline.size", S.headlineSize, 30, 160, 1, "px")}
@@ -2988,12 +2998,12 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       <ui.TemplateSettingsSection title={S.brand}>
         {txt("wordmark.text", S.wordmark, false)}
         <ui.FileDrop accept={["png", "svg"]} value={null} onChange={logoFile} labels={{ drop: "Drop a logo (PNG or SVG)", choose: "Choose logo" }} disabled={saving} />
-        {edit.wordmark.logo ? <ui.Stack>
-          <img src={edit.wordmark.logo.dataUrl} style={{ maxWidth: 155, maxHeight: 60, objectFit: "contain" }} />
-          {num("wordmark.logo.left", "Logo left", 0, templateSize(edit).width, 1, "px")}
-          {num("wordmark.logo.top", "Logo top", 0, templateSize(edit).height, 1, "px")}
-          {num("wordmark.logo.width", "Logo width", 1, templateSize(edit).width, 1, "px")}
-          <ui.Button variant="ghost" onClick={() => set("wordmark.logo", null)} disabled={saving}>Remove logo</ui.Button>
+        {layout.logo ? <ui.Stack>
+          <img src={layout.logo.dataUrl} style={{ maxWidth: 155, maxHeight: 60, objectFit: "contain" }} />
+          {num(`${layoutPath}.logo.left`, "Logo left", 0, templateSize(edit).width, 1, "px")}
+          {num(`${layoutPath}.logo.top`, "Logo top", 0, templateSize(edit).height, 1, "px")}
+          {num(`${layoutPath}.logo.width`, "Logo width", 1, templateSize(edit).width, 1, "px")}
+          <ui.Button variant="ghost" onClick={() => set(`${layoutPath}.logo`, null)} disabled={saving}>Remove logo</ui.Button>
         </ui.Stack> : null}
         {tog("handles.on", S.handlesOn)}
         {edit.handles.on && txt("handles.text", S.handles)}
@@ -3146,7 +3156,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
         <ui.NumberField label="Left / right" value={CardSupport.clampCrop(card.crop).x * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), x: v / 100 } })} disabled={busy} />
         <ui.NumberField label="Up / down" value={CardSupport.clampCrop(card.crop).y * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), y: v / 100 } })} disabled={busy} />
       </ui.Stack> : null}
-      {card.role !== "end" && t.look.textSlots?.length && String(card.role === "cover" ? card.headline : card.body).split("\n").length > t.look.textSlots.length ? <ui.Message tone="error">{`This template has ${t.look.textSlots.length} text lines. Shorten the card text before exporting.`}</ui.Message> : null}
+      {card.role !== "end" && roleLook(t, card.role).textSlots?.length && String(card.role === "cover" ? card.headline : card.body).split("\n").length > roleLook(t, card.role).textSlots.length ? <ui.Message tone="error">{`This template has ${roleLook(t, card.role).textSlots.length} text lines. Shorten the card text before exporting.`}</ui.Message> : null}
       <ui.Actions>
         <ui.Button variant="ghost" onClick={() => onMove(-1)} disabled={busy || index === 0 || card.role === "end"}>Move earlier</ui.Button>
         <ui.Button variant="ghost" onClick={() => onMove(1)} disabled={busy || index === plan.cards.length - 1 || card.role === "end" || plan.cards[index + 1]?.role === "end"}>Move later</ui.Button>
@@ -3184,6 +3194,7 @@ type LayoutTemplate = {
   lines: { left: number; top: number; width: number; align: "left" | "center" | "right" }[];
   /** The logo image at `top`, `width` wide (height from its proportions), at `left` or centred. */
   logo: { top: number; width: number; left?: number; dataUrl: string } | null;
+  body?: { font: LayoutFont; lines: LayoutTemplate["lines"]; shade: LayoutTemplate["shade"]; logo: LayoutTemplate["logo"] };
 };
 
 /** What is wrong with a template file, or nothing. */
@@ -3205,7 +3216,7 @@ function validateLayout(t: any): string[] {
   if (!num(f.weight, 100, 900)) errors.push("font.weight must be 100-900.");
   if (!num(f.size, 8, 400)) errors.push("font.size must be 8-400.");
   if (!num(f.tracking, -0.5, 0.5)) errors.push("font.tracking must be between -0.5 and 0.5 (em).");
-  if (!color(f.color)) errors.push("font.color must be #RRGGBB.");
+  if (typeof f.color !== "string" || !/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(f.color)) errors.push("font.color must be #RRGGBB or #RRGGBBAA.");
   if (!num(f.lineHeight, 8, 800)) errors.push("font.lineHeight must be 8-800.");
   if (!Array.isArray(t.lines) || t.lines.length < 1 || t.lines.length > 4) errors.push("lines must list 1 to 4 boxes.");
   else
@@ -3223,6 +3234,10 @@ function validateLayout(t: any): string[] {
     if (!num(g.top, 0, h) || !num(g.width, 1, w) || (g.left !== undefined && !num(g.left, 0, w))) errors.push("logo needs top and width inside the card (and left, if not centred), or null.");
     if (typeof g.dataUrl !== "string" || !/^data:image\/(svg\+xml|png);base64,/.test(g.dataUrl)) errors.push("logo.dataUrl must be a base64 SVG or PNG data URL.");
     else if (g.dataUrl.length > Math.ceil((LOGO_LIMIT * 4) / 3) + 40) errors.push(`The logo is over ${LOGO_LIMIT / 1024} KB.`);
+  }
+  if (t.body !== undefined) {
+    if (!t.body || typeof t.body !== "object" || Array.isArray(t.body)) errors.push("body must be a layout object.");
+    else errors.push(...validateLayout({ ...t, font: t.body.font, lines: t.body.lines, shade: t.body.shade, logo: t.body.logo, body: undefined }).map((error) => `body: ${error}`));
   }
   return errors;
 }
@@ -3406,6 +3421,7 @@ async function pngToJpeg(png: Uint8Array): Promise<Uint8Array> {
 function fromLayout(l: LayoutTemplate): any {
   const base = BUILTIN_TEMPLATES.find((t: any) => t.id === `essay-${l.language}`) || BUILTIN_TEMPLATES[0];
   const t = JSON.parse(JSON.stringify(base));
+  const body = l.body, bodyFont = body?.font || l.font;
   return {
     ...t, id: `layout-${l.id}`, name: l.name, names: { en: l.name, ko: l.name }, builtIn: false,
     importedLayoutId: l.id, version: l.version, language: l.language,
@@ -3413,13 +3429,16 @@ function fromLayout(l: LayoutTemplate): any {
     counts: { min: 1, max: 20 },
     look: { ...t.look, font: l.font.family, size: { ...l.size },
       textSlots: l.lines.map((box) => ({ ...box, height: l.font.lineHeight })), gradient: l.shade,
-      cover: { ...t.look.cover, variant: "overlay", textBottom: Math.min(t.look.cover.textBottom, l.size.height * .95) }, body: { ...t.look.body, variant: "overlay", textBottom: Math.min(t.look.body.textBottom, l.size.height * .95) } },
+      cover: { ...t.look.cover, variant: "overlay", textBottom: Math.min(t.look.cover.textBottom, l.size.height * .95) }, body: { ...t.look.body, variant: "overlay", textBottom: Math.min(t.look.body.textBottom, l.size.height * .95), ...(body ? {
+        font: body.font.family, textSlots: body.lines.map((box) => ({ ...box, height: body.font.lineHeight })), gradient: body.shade,
+        logo: body.logo ? { ...body.logo, left: body.logo.left ?? (l.size.width - body.logo.width) / 2 } : null,
+      } : {}) } },
     label: { ...t.label, style: "none", text: "" },
     headline: { ...t.headline, size: l.font.size, weight: l.font.weight, color: l.font.color, highlight: l.font.color, lineHeight: l.font.lineHeight / l.font.size, tracking: l.font.tracking },
-    body: { ...t.body, size: l.font.size, weight: l.font.weight, color: l.font.color, italic: false, lineHeight: l.font.lineHeight / l.font.size, tracking: l.font.tracking },
+    body: { ...t.body, size: bodyFont.size, weight: bodyFont.weight, color: bodyFont.color, italic: false, lineHeight: bodyFont.lineHeight / bodyFont.size, tracking: bodyFont.tracking },
     heading: { ...t.heading, on: false }, wordmark: { ...t.wordmark, text: "", logo: l.logo ? { ...l.logo, left: l.logo.left ?? (l.size.width - l.logo.width) / 2 } : null },
     credit: { ...t.credit, article: "", ai: "" }, end: { ...t.end, kind: "none" }, images: { ...t.images, source: "article" },
-    prompt: { ...t.prompt, cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: `Each card has one concise news point in up to ${l.lines.length} lines.`, end: "No separate last card." },
+    prompt: { ...t.prompt, cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: `Each card has one concise news point in up to ${(body?.lines || l.lines).length} lines.`, end: "No separate last card." },
   };
 }
 function validateTemplate(t: any) {
@@ -3430,16 +3449,18 @@ function validateTemplate(t: any) {
   for (const f of [t.headline, t.body]) {
     if (!finite(f.size, 8, 400) || !finite(f.weight, 100, 900) || (f.tracking !== undefined && !finite(f.tracking, -.5, .5))) throw new Error("Invalid template typography.");
   }
-  if (t.look.textSlots) {
-    if (!Array.isArray(t.look.textSlots) || !t.look.textSlots.length || t.look.textSlots.length > 4) throw new Error("Use one to four text boxes.");
-    for (const box of t.look.textSlots) if (!finite(box.left, 0, size.width) || !finite(box.top, 0, size.height) || !finite(box.width, 1, size.width - box.left) || !finite(box.height, 1, size.height - box.top) || !["left", "center", "right"].includes(box.align)) throw new Error("Text boxes must fit inside the card.");
+  for (const layout of [t.look, t.look.cover, t.look.body]) {
+    if (layout?.font !== undefined && typeof layout.font !== "string") throw new Error("Invalid template font.");
+    if (layout?.textSlots) {
+      if (!Array.isArray(layout.textSlots) || !layout.textSlots.length || layout.textSlots.length > 4) throw new Error("Use one to four text boxes.");
+      for (const box of layout.textSlots) if (!finite(box.left, 0, size.width) || !finite(box.top, 0, size.height) || !finite(box.width, 1, size.width - box.left) || !finite(box.height, 1, size.height - box.top) || !["left", "center", "right"].includes(box.align)) throw new Error("Text boxes must fit inside the card.");
+    }
+    if (layout?.gradient) {
+      const g = layout.gradient;
+      if (!finite(g.top, 0, size.height) || !finite(g.bottom, g.top + 1, size.height) || !finite(g.from, 0, 1) || !finite(g.to, 0, 1) || !/^#[0-9a-f]{6}$/i.test(g.color || "")) throw new Error("Invalid template gradient.");
+    }
   }
-  if (t.look.gradient) {
-    const g = t.look.gradient;
-    if (!finite(g.top, 0, size.height) || !finite(g.bottom, g.top + 1, size.height) || !finite(g.from, 0, 1) || !finite(g.to, 0, 1) || !/^#[0-9a-f]{6}$/i.test(g.color || "")) throw new Error("Invalid template gradient.");
-  }
-  if (t.wordmark.logo) {
-    const logo = t.wordmark.logo;
+  for (const logo of [t.wordmark.logo, t.look.cover?.logo, t.look.body?.logo]) if (logo) {
     if (!/^data:image\/(svg\+xml|png);base64,/.test(logo.dataUrl || "") || logo.dataUrl.length > 131112 || !finite(logo.top, 0, size.height) || !finite(logo.width, 1, size.width) || (logo.left !== undefined && !finite(logo.left, 0, size.width))) throw new Error("Use a PNG or SVG logo up to 96 KB with a position inside the card.");
   }
 }
@@ -3500,7 +3521,10 @@ function Panel(props: any) {
       pic,
       K.genPrompt,
       src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
-      t.look.textSlots?.length ? `Each cover headline and each body card body must have 1 to ${t.look.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...t.look.textSlots.map((b: any) => b.width)) / t.headline.size)} full-width characters. Body cards need no heading. Do not add text outside these boxes.` : "",
+      ...["cover", "body"].map((role) => {
+        const layout = roleLook(t, role), font = role === "cover" ? t.headline : t.body;
+        return layout.textSlots?.length ? `Each ${role === "cover" ? "cover headline" : "body card body"} must have 1 to ${layout.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...layout.textSlots.map((b: any) => b.width)) / font.size)} full-width characters. Body cards need no heading. Do not add text outside these boxes.` : "";
+      }),
       cNote ? K.note(cNote) : "",
       K.noTools,
       K.json,
@@ -3540,18 +3564,18 @@ function Panel(props: any) {
   }
 
 function validateCardText(plan: any, t: any) {
-  if (!t.look.textSlots?.length) return;
   const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
   for (const [i, card] of plan.cards.entries()) {
-    if (card.role === "end") continue;
+    const layout = roleLook(t, card.role);
+    if (card.role === "end" || !layout.textSlots?.length) continue;
     const lines = String(card.role === "cover" ? card.headline || "" : card.body || "").split("\n");
-    if (lines.length > t.look.textSlots.length) throw new Error(`Card ${i + 1}: this template has only ${t.look.textSlots.length} text lines. Shorten the text before exporting.`);
+    if (lines.length > layout.textSlots.length) throw new Error(`Card ${i + 1}: this template has only ${layout.textSlots.length} text lines. Shorten the text before exporting.`);
     const font = card.role === "cover" ? t.headline : t.body;
     if (ctx) {
-      ctx.font = `${font.weight} ${font.size}px "${t.look.font || "sans-serif"}"`;
+      ctx.font = `${font.weight} ${font.size}px "${layout.font || "sans-serif"}"`;
       for (const [line, text] of lines.entries()) {
         const width = ctx.measureText(text).width + Math.max(0, [...text].length - 1) * font.size * (font.tracking || 0);
-        if (width > t.look.textSlots[line].width + .5) throw new Error(`Card ${i + 1}, line ${line + 1}: the text is wider than its box. Shorten it before exporting.`);
+        if (width > layout.textSlots[line].width + .5) throw new Error(`Card ${i + 1}, line ${line + 1}: the text is wider than its box. Shorten it before exporting.`);
       }
     }
   }
@@ -3601,7 +3625,8 @@ function validatePlan(plan: any, t: any, photos: any[] = []) {
   for (const card of cards) {
     const text = card.role === "cover" ? card.headline : card.body || card.heading;
     if (!String(text || "").trim()) throw new Error("Every card needs text from the article.");
-    if (t.look.textSlots?.length && String(text).split("\n").length > t.look.textSlots.length) throw new Error(`Use at most ${t.look.textSlots.length} lines per card.`);
+    const slots = roleLook(t, card.role).textSlots;
+    if (slots?.length && String(text).split("\n").length > slots.length) throw new Error(`Use at most ${slots.length} lines per card.`);
   }
   validateCardText(plan, t);
   return plan;
@@ -4034,7 +4059,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
       };
     });
     setStatus(S.buildingDraft);
-    const logo = t.wordmark.logo?.dataUrl || "";
+    const logo = t.wordmark.logo?.dataUrl && cards.every((card: any) => card.params.logo === t.wordmark.logo.dataUrl) ? t.wordmark.logo.dataUrl : "";
     if (logo) for (const card of cards) delete card.params.logo;
     const P = { projectId, name, cardSeconds: t.cardSeconds || 3, size: templateSize(t), logo, cards };
     j = await saveJob({ ...j, draftPending: true });

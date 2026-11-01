@@ -421,3 +421,62 @@ test('empty library can import a design, and a saved legacy-ID edit remains owne
     assert.equal(h.find('TemplateChoice','Template').props.options.length,2);
   } finally { h.close(); }
 });
+
+test('one template editor switches cover/body placement and saves body edits without changing its cover',async()=>{
+  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
+  const h=harness({layouts:[raw]});
+  try{
+    await h.settleEditor();
+    assert.equal(h.editorFind('NumberField','Left').props.value,125);
+    h.editorFind('Select','Preview').props.onChange('body');await h.settleEditor();
+    assert.equal(h.editorFind('NumberField','Left').props.value,105);
+    h.editorFind('NumberField','Left').props.onChange(110);
+    h.editorFind('NumberField','Shade top').props.onChange(820);
+    await h.settleEditor();await h.editorFind('Button','Save').props.onClick();await h.settleEditor();
+    const saved=h.component('TemplateEditor').props.templates[0];
+    assert.equal(saved.look.body.textSlots[0].left,110);assert.equal(saved.look.body.gradient.top,820);
+    assert.equal(saved.look.textSlots[0].left,125);assert.equal(saved.look.gradient.top,830);assert.equal(saved.look.body.logo,null);
+    h.editorFind('Select','Preview').props.onChange('cover');await h.settleEditor();
+    assert.equal(h.editorFind('NumberField','Left').props.value,125);
+    assert.equal(h.editorFind('NumberField','Shade top').props.value,830);
+    assert.equal(h.editorFind('TemplateToolbar').props.options.length,1);
+  }finally{h.close()}
+});
+
+test('editing one legacy role copies inherited placement without changing the other role',async()=>{
+  const h=harness();try{
+    await h.settleEditor();h.editorFind('NumberField','Left').props.onChange(150);await h.settleEditor();
+    const edit=h.component('TemplateEditor').props.state.edit;
+    assert.equal(edit.look.cover.textSlots[0].left,150);assert.equal(edit.look.textSlots[0].left,125);
+    h.editorFind('Select','Preview').props.onChange('body');await h.settleEditor();
+    assert.equal(h.editorFind('NumberField','Left').props.value,125);
+  }finally{h.close()}
+});
+
+
+test('Last card font uses its existing body role without modifying cover placement',async()=>{
+  const h=harness();try{
+    await h.settleEditor();h.editorFind('Select','Preview').props.onChange('end');await h.settleEditor();
+    h.editorFind('FontField','Font').props.onChange('End font');await h.settleEditor();
+    const edit=h.component('TemplateEditor').props.state.edit;
+    assert.equal(edit.look.body.font,'End font');assert.equal(edit.look.cover.font,undefined);assert.equal(edit.look.font,'Test');
+  }finally{h.close()}
+});
+
+test('a v2 install link preserves a saved v1 design, while Import creates a new combined design',async()=>{
+  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
+  const oldRaw=structuredClone(raw);oldRaw.version=1;delete oldRaw.body;
+  const h=harness({layouts:[],templatePack:{requestId:'v2-existing-v1',url:packUrl},sdk:{finishTemplatePackInstall(){}}});
+  try{
+    const old={...h.bindings.CardSupport.fromLayout(oldRaw),id:'pack-chosun-basic'};
+    const p=root+'/templates/'+old.id+'.json',bytes=new TextEncoder().encode(JSON.stringify(old));h.disk.set(p,bytes);
+    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(raw)));
+    await h.settleEditor();assert.equal(h.component('TemplateEditor').props.templates.length,1);
+    assert.equal(h.component('TemplateEditor').props.templates[0].version,1);assert.equal(h.disk.get(p),bytes);
+    h.disk.set('/v2.json',new TextEncoder().encode(JSON.stringify(raw)));h.editorFind('TemplateToolbar').props.onImport();
+    await h.editorFind('FileDrop').props.onChange({path:'/v2.json'});await h.settleEditor();
+    const state=h.component('TemplateEditor').props;assert.equal(state.templates.length,2);
+    const added=state.templates.find(t=>t.id!==old.id);assert.equal(added.version,2);assert.equal(added.look.body.textSlots.length,3);
+    assert.equal(state.state.selId,added.id);assert.equal(h.disk.get(p),bytes);
+  }finally{h.close()}
+});

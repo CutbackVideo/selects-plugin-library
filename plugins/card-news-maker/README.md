@@ -62,3 +62,21 @@ official pack folder, imports its validated `template.json` and opens Templates.
 Existing edits, saved card sets and Drafts are preserved, and repeated links
 select the existing design. Running work and unsaved template edits finish first.
 Download errors offer an explicit retry. Installation never starts AI or export.
+
+## Cover and body layouts in one template
+
+The preview's existing **Cover / Card / Last card** selector chooses the layout you edit.
+Fixed text boxes, gradient, font family and logo overrides follow that selection;
+headline and body typography retain their existing controls. Older templates with only
+common placement fields keep that placement until you edit a specific role.
+
+The Chosun Basic pack version 2 keeps the original two-line centered feed cover and adds
+three left-aligned body lines without a logo, matching the supplied card examples.
+The first generated card uses the cover and subsequent cards use the body layout.
+This does not add the other numbered formats in the PDF specification.
+
+Existing imported version 1 designs and saved job snapshots are not overwritten by an update
+or a repeated install link. To use the new pack while keeping an existing design, download
+`template-packs/chosun-basic/template.json` and use **Templates → + → Import template**;
+this creates a separate saved copy containing both cover and body layouts. Select that copy
+for new card sets. Existing card sets retain their saved template snapshot.
