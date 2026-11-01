@@ -23,14 +23,14 @@ function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: exi
     useCallback(fn, deps) { return React.useMemo(() => fn, deps); },
     useEffect(fn, deps) { const slots = hooks, i = at++; if (!slots[i] || !same(slots[i].deps, deps)) { const old = slots[i]; slots[i] = { deps, cleanup: old?.cleanup }; effects.push(() => { old?.cleanup?.(); slots[i].cleanup = fn(); }); } },
   };
-  const files = { join: path.posix.join, homedir: () => '/memory', exists: async () => true, mkdir: async () => {}, stat: async (p) => ({ isDirectory: p === '/photos', size: 10000 }), readdir: async (p) => p === '/photos' ? ['b.png', 'a.png'] : [...disk.keys()].filter((n) => path.posix.dirname(n) === p).map((n) => path.posix.basename(n)), readFile: async (p) => disk.get(p) || new Uint8Array([1, 2, 3]), writeFile: async (p, data) => { disk.set(p, data); }, rm: async (p) => { disk.delete(p); }, removeFile: async ({ filePath }) => { disk.delete(filePath); }, getOrCreateTmpDirPath: async () => '/tmp', downloadFile: async (_, p) => { disk.set(p, new TextEncoder().encode('<meta property="og:type" content="article"><meta property="og:title" content="Article"><article><p>' + 'Verified article facts. '.repeat(40) + '</p></article>')); } };
+  const files = { join: path.posix.join, homedir: () => '/memory', exists: async () => true, mkdir: async () => {}, stat: async (p) => ({ isDirectory: p === '/photos', size: 10000 }), readdir: async (p) => p === '/photos' ? ['b.png', 'a.png'] : [...disk.keys()].filter((n) => path.posix.dirname(n) === p).map((n) => path.posix.basename(n)), readFile: async (p) => disk.get(p) || new Uint8Array([1, 2, 3]), writeFile: async (p, data) => { disk.set(p, data); }, compareAndReplace: async (p, expected, text) => { const current=disk.has(p)?new TextDecoder().decode(disk.get(p)):null; if(current!==expected)return false;disk.set(p,new TextEncoder().encode(text));return true; }, rm: async (p) => { disk.delete(p); }, removeFile: async ({ filePath }) => { disk.delete(filePath); }, getOrCreateTmpDirPath: async () => '/tmp', downloadFile: async (_, p) => { disk.set(p, new TextEncoder().encode('<meta property="og:type" content="article"><meta property="og:title" content="Article"><article><p>' + 'Verified article facts. '.repeat(40) + '</p></article>')); } };
   const sdk = { runScript: async () => ({ result: [] }), aiProviders: async () => ({ chatgpt: 'connected', selects: 'connected' }), ...extra };
   const ui = new Proxy({}, { get: (_, k) => String(k) });
   const context = { projectId: 'p', language, templatePack };
   const canvas = () => ({ getContext: () => ({ measureText: () => ({ width: 1 }), fillRect() {}, drawImage() {}, fillText() {}, getImageData: () => ({ data: [0, 0, 0, 255] }) }), toDataURL: () => 'data:image/jpeg;base64,YQ==', toBlob: (fn, mime) => fn(new Blob([new Uint8Array([1, 2, 3])], { type: mime })) });
   const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs: { pickDirectoryPath: async () => '/photos' } }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { Blob, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
   function render() { hooks = mainHooks; at = 0; tree = bindings.ProjectPanel({ sdk, ui, context }); return tree; }
-  function renderEditor() { const node = nodes(render()).find(n => n.type === bindings.TemplateEditor); hooks = editorHooks; at = 0; return bindings.TemplateEditor(node.props); }
+  function renderEditor() { const node = nodes(render()).find(n => n.type === bindings.TemplateEditor); if (!node) return null; hooks = editorHooks; at = 0; return bindings.TemplateEditor(node.props); }
   return {
     bindings, disk, files, sdk, context, render, tree: () => tree,
     renderEditor,
@@ -463,23 +463,7 @@ test('Last card font uses its existing body role without modifying cover placeme
   }finally{h.close()}
 });
 
-test('a v2 install link preserves a saved v1 design, while Import creates a new combined design',async()=>{
-  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
-  const oldRaw=structuredClone(raw);oldRaw.version=1;delete oldRaw.body;
-  const h=harness({layouts:[],templatePack:{requestId:'v2-existing-v1',url:packUrl},sdk:{finishTemplatePackInstall(){}}});
-  try{
-    const old={...h.bindings.CardSupport.fromLayout(oldRaw),id:'pack-chosun-basic'};
-    const p=root+'/templates/'+old.id+'.json',bytes=new TextEncoder().encode(JSON.stringify(old));h.disk.set(p,bytes);
-    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(raw)));
-    await h.settleEditor();assert.equal(h.component('TemplateEditor').props.templates.length,1);
-    assert.equal(h.component('TemplateEditor').props.templates[0].version,1);assert.equal(h.disk.get(p),bytes);
-    h.disk.set('/v2.json',new TextEncoder().encode(JSON.stringify(raw)));h.editorFind('TemplateToolbar').props.onImport();
-    await h.editorFind('FileDrop').props.onChange({path:'/v2.json'});await h.settleEditor();
-    const state=h.component('TemplateEditor').props;assert.equal(state.templates.length,2);
-    const added=state.templates.find(t=>t.id!==old.id);assert.equal(added.version,2);assert.equal(added.look.body.textSlots.length,3);
-    assert.equal(state.state.selId,added.id);assert.equal(h.disk.get(p),bytes);
-  }finally{h.close()}
-});
+
 
 
 test('Chosun pack and imported copies use UI locale names while custom names survive save and reinstall',async()=>{
@@ -531,7 +515,7 @@ test('Chosun editor hides the unused ending and safely displays body for a stale
     assert.equal(h.editorFind('TextField','Last card'),undefined);
     state.setRole('end');await h.settleEditor();
     assert.equal(h.editorFind('Select','Preview').props.value,'body');
-    assert.equal(h.editorFind('NumberField','Top').props.value,944);
+    assert.equal(h.editorFind('NumberField','Top').props.value,943);
     const preview=nodes(h.renderEditor()).find(n=>typeof n.type==='function'&&n.type.name==='CardPreview');
     assert.equal(preview.props.card.role,'body');assert.equal(h.editorFind('Button','Save').props.disabled,true);
     assert.equal(JSON.stringify(h.component('TemplateEditor').props.templates),before);
@@ -567,4 +551,133 @@ test('ordinary templates with no ending can still enable and preview a CTA',asyn
     assert.equal(h.editorFind('Select','Preview').props.value,'end');
     assert.equal(h.component('TemplateEditor').props.state.edit.end.kind,'cta');
   }finally{h.close()}
+});
+
+
+const chosunV1=JSON.parse(fs.readFileSync(new URL('./fixtures/card-news-chosun-v1.json',import.meta.url)));
+const chosunV2=()=>JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
+test('the same pack link upgrades an untouched legacy Chosun item in place and leaves source and job snapshots intact',async()=>{
+  const job={id:'old-set',projectId:'p',templateId:'layout-chosun-basic',templateSnapshot:chosunV1.installed};
+  const h=harness({layouts:[chosunV1.raw],job,templatePack:{requestId:'upgrade-legacy',url:packUrl},sdk:{finishTemplatePackInstall(){}}});
+  try{
+    const oldPath=root+'/layout-templates/chosun-basic.json',old=h.disk.get(oldPath),jobPath=root+'/jobs/old-set.json',snapshot=h.disk.get(jobPath);
+    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+    await h.settleEditor();const editor=h.component('TemplateEditor').props;
+    assert.equal(editor.templates.length,1);assert.equal(editor.templates[0].id,'layout-chosun-basic');assert.equal(editor.templates[0].version,2);
+    assert.equal(editor.templates[0].look.body.textSlots.length,3);assert.equal(editor.templates[0].headline.size,70.75);assert.equal(editor.templates[0].body.tracking,-.0425);assert.equal(editor.templates[0].body.weight,400);assert.equal(editor.templates[0].headline.weight,700);assert.equal(editor.state.selId,'layout-chosun-basic');
+    assert.equal(h.find('TemplateChoice','Template').props.value,'layout-chosun-basic');
+    assert.equal(h.disk.get(oldPath),old);assert.equal(h.disk.get(jobPath),snapshot);
+    const backups=await h.bindings.makeStore().list('template-backups');assert.equal(backups.length,1);assert.equal(backups[0].version,1);
+    h.context.templatePack={requestId:'upgrade-repeat',url:packUrl};await h.settleEditor();
+    assert.equal(h.component('TemplateEditor').props.templates.length,1);assert.equal((await h.bindings.makeStore().list('template-backups')).length,1);
+  }finally{h.close()}
+});
+
+test('actual published v1 installed records and unmodified imported copies retain their IDs when upgraded',async()=>{
+  for(const imported of [false,true]){
+    const h=harness({layouts:[]});try{
+      const old=structuredClone(chosunV1.installed);if(imported){old.id='timported-v1';delete old.importedLayoutId}
+      const store=h.bindings.makeStore();await store.put('templates',old.id,old);
+      h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+      const updated=await h.bindings.installLinkedTemplate(store,packUrl,[old]);
+      assert.equal(updated.id,old.id);assert.equal(updated.version,2);assert.equal(updated.look.body.textSlots.length,3);
+      assert.equal((await store.list('templates')).length,1);assert.equal((await store.list('template-backups'))[0].version,1);
+    }finally{h.close()}
+  }
+});
+
+test('edited Chosun designs are never overwritten or duplicated and display the keep-edits notice',async()=>{
+  const changes=[t=>t.name='My design',t=>t.headline.size=55,t=>t.body.weight=400,t=>t.look.textSlots[0].left=150,t=>t.wordmark.logo.top=1100,t=>t.prompt.body='My instructions',t=>t.end.kind='cta'];
+  for(const change of changes){
+    const h=harness({layouts:[],templatePack:{requestId:'edited',url:packUrl},sdk:{finishTemplatePackInstall(){}}});try{
+      const old=structuredClone(chosunV1.installed);change(old);const path=root+'/templates/'+old.id+'.json';const bytes=new TextEncoder().encode(JSON.stringify(old));h.disk.set(path,bytes);
+      h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+      await h.settleEditor();assert.equal(h.disk.get(path),bytes);assert.equal(h.component('TemplateEditor').props.templates.length,1);
+      assert.equal((await h.bindings.makeStore().list('template-backups')).length,0);
+      assert.ok(h.find('Message','Your edited design was kept. It was not replaced with the new default template.'));
+    }finally{h.close()}
+  }
+});
+
+test('an edit saved by another window during the download is preserved and backup failure stops an upgrade',async()=>{
+  for(const failBackup of [false,true]){
+    const h=harness({layouts:[]});try{
+      const old=structuredClone(chosunV1.installed),store=h.bindings.makeStore();await store.put('templates',old.id,old);
+      const path=root+'/templates/'+old.id+'.json',original=h.disk.get(path);let edited;
+      h.files.downloadFile=async(_,to)=>{h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));if(!failBackup){edited=new TextEncoder().encode(JSON.stringify({...old,name:'Saved in another window'}));h.disk.set(path,edited)}};
+      if(failBackup){const put=store.put;store.put=async(kind,...args)=>{if(kind==='template-backups')throw Error('Backup unavailable');return put(kind,...args)};await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,[old]),/Backup unavailable/);assert.equal(h.disk.get(path),original)}
+      else{let kept=false;const result=await h.bindings.installLinkedTemplate(store,packUrl,[old],()=>kept=true);assert.equal(result.version,1);assert.equal(kept,true);assert.equal(h.disk.get(path),edited)}
+    }finally{h.close()}
+  }
+});
+
+test('an older pack never downgrades an installed v2 design',async()=>{
+  const h=harness({layouts:[]});try{
+    const current={...h.bindings.CardSupport.fromLayout(chosunV2()),id:'pack-chosun-basic'},store=h.bindings.makeStore();await store.put('templates',current.id,current);
+    const path=root+'/templates/'+current.id+'.json',bytes=h.disk.get(path);h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV1.raw)));
+    assert.equal(await h.bindings.installLinkedTemplate(store,packUrl,[current]),current);assert.equal(h.disk.get(path),bytes);assert.equal((await store.list('template-backups')).length,0);
+  }finally{h.close()}
+});
+
+
+test('atomic update failure keeps the old file readable and never enters the partial write queue',async()=>{
+  const h=harness({layouts:[]});try{
+    const old=structuredClone(chosunV1.installed),store=h.bindings.makeStore();await store.put('templates',old.id,old);
+    const path=root+'/templates/'+old.id+'.json',original=h.disk.get(path);let targetWrites=0;
+    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+    const write=h.files.writeFile;h.files.writeFile=async(p,data)=>{if(p===path){targetWrites++;h.disk.set(p,new TextEncoder().encode('{partial'));throw Error('Partial write')}return write(p,data)};
+    h.files.compareAndReplace=async()=>{throw Error('Atomic update unavailable')};
+    await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,[old]),/Atomic update unavailable/);
+    assert.equal(targetWrites,0);assert.equal(h.disk.get(path),original);assert.equal((await store.list('templates'))[0].version,1);
+    assert.equal((await store.list('template-backups')).length,1);
+  }finally{h.close()}
+});
+
+test('a rename saved during backup is preserved by the final atomic comparison',async()=>{
+  const h=harness({layouts:[]});try{
+    const old=structuredClone(chosunV1.installed),store=h.bindings.makeStore();await store.put('templates',old.id,old);
+    const path=root+'/templates/'+old.id+'.json';let edited;
+    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+    const write=h.files.writeFile;h.files.writeFile=async(p,data)=>{if(p.includes('/template-backups/')){edited=new TextEncoder().encode(JSON.stringify({...old,name:'Concurrent rename'}));h.disk.set(path,edited)}return write(p,data)};
+    let kept=false;const result=await h.bindings.installLinkedTemplate(store,packUrl,[old],()=>kept=true);
+    assert.equal(result.version,1);assert.equal(kept,true);assert.equal(h.disk.get(path),edited);assert.equal((await store.list('templates'))[0].name,'Concurrent rename');
+  }finally{h.close()}
+});
+
+test('template editing is unavailable while a linked pack download is running',async()=>{
+  let release;const gate=new Promise(resolve=>release=resolve);
+  const h=harness({layouts:[chosunV1.raw],templatePack:{requestId:'pending-upgrade',url:packUrl},sdk:{finishTemplatePackInstall(){}}});
+  try{
+    h.files.downloadFile=async(_,to)=>{await gate;h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())))};
+    await h.settle();assert.equal(h.component('TemplateEditor'),undefined);
+    release();await h.settleEditor();assert.equal(h.component('TemplateEditor').props.templates[0].version,2);
+  }finally{release();h.close()}
+});
+
+
+test('an existing managed pack is updated ahead of a separate customized legacy copy',async()=>{
+  const h=harness({layouts:[]});try{
+    const managed=structuredClone(chosunV1.installed),custom={...structuredClone(managed),id:'layout-chosun-basic',name:'My separate design'};
+    const store=h.bindings.makeStore();await store.put('templates',managed.id,managed);await store.put('templates',custom.id,custom);
+    const path=root+'/templates/'+custom.id+'.json',bytes=h.disk.get(path);h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+    const updated=await h.bindings.installLinkedTemplate(store,packUrl,[custom,managed]);assert.equal(updated.id,managed.id);assert.equal(updated.version,2);assert.equal(h.disk.get(path),bytes);
+  }finally{h.close()}
+});
+
+test('generation and photo inputs use Korean UI labels while English labels stay unchanged',async()=>{
+  for(const language of ['en','ko']){
+    const ko=language==='ko',h=harness({language});try{
+      await h.settle();assert.ok(h.find('TextField',ko?'\uae30\uc0ac \ub9c1\ud06c':'Article link'));
+      const own=ko?'\ub0b4 \uc0ac\uc9c4 \uc0ac\uc6a9':'Use my own images';assert.equal(h.find('Toggle',own).props.value,false);
+      assert.ok(h.find('Button',ko?'\uce74\ub4dc \uc0dd\uc131':'Generate'));
+      h.find('Toggle',own).props.onChange(true);h.render();
+      const drop=nodes(h.render()).find(n=>n.type==='FileDrop');assert.equal(drop.props.labels.choose,ko?'\uc0ac\uc9c4 \ucd94\uac00':'Add a photo');
+      assert.ok(h.find('Button',ko?'\uc0ac\uc9c4 \ud3f4\ub354 \ucd94\uac00':'Add a folder of photos'));
+      h.find('Toggle',own).props.onChange(false);h.render();
+      h.find('TextField',ko?'\uae30\uc0ac \ub9c1\ud06c':'Article link').props.onChange('https://example.test/article');
+      h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode('<article>Short</article>'));
+      await h.find('Button',ko?'\uce74\ub4dc \uc0dd\uc131':'Generate').props.onClick();await h.settle();
+      assert.ok(h.find('TextField',ko?'\uae30\uc0ac \ubcf8\ubb38':'Article text'));
+    }finally{h.close()}
+  }
 });

@@ -37,6 +37,13 @@ The existing catalog installer pins the app revision and delivers its template
 folder through `context.templatePack`. Card News Maker reads that revision's
 `template-packs/chosun-basic/template.json`, validates it through the same JSON
 importer, selects the template and opens Templates. It waits for running work or
-unsaved template edits. Reopening the link preserves an existing local design;
-a failed download offers Retry template import. No AI generation or export runs.
+unsaved template edits. Reopening the link upgrades an untouched Chosun v1 default
+to v2 with the same ID/selection and saves a v1 backup first. Customized designs and
+existing card-set snapshots are preserved; an edited design displays a keep-edits notice.
+A failed download offers Retry template import. No AI generation or export runs.
 Manual JSON import/export remains available.
+
+App/plugin source updates alone do not import a pack. After this revision is published,
+existing customers should finish editing this design in other windows, then reopen
+the same installation address; they do not need to
+manually Import a v2 copy. Manual Import remains available for separate copies.

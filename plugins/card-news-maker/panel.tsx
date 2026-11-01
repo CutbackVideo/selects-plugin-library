@@ -285,6 +285,24 @@ const IMAGE_MODEL = { id: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", recipe: "na
 
 const STRINGS: any = {
   en: {
+    savedTemplateNotice: "This set keeps its saved template. The library template has changed.",
+    applyTemplateChanges: "Apply template changes",
+    ownImages: "Use my own images",
+    dropPhotos: "Drop a photo or a folder of photos",
+    addPhoto: "Add a photo",
+    addPhotoFolder: "Add a folder of photos",
+    photosHint: "Each photo supplies one card. Template, instructions, preview and export are shared with article photos.",
+    generate: "Generate",
+    savedPicker: "Saved",
+    savedPlaceholder: "Choose a saved card set",
+    exportFormat: "Format",
+    changeFolder: "Change folder",
+    zoomPhoto: "Zoom",
+    photoX: "Left / right",
+    photoY: "Up / down",
+    moveEarlier: "Move earlier",
+    moveLater: "Move later",
+    deleteCard: "Delete card",
     tabMake: "Make cards",
     tabTemplates: "Templates",
     noProject: "Open a project first.",
@@ -398,6 +416,7 @@ const STRINGS: any = {
     builtInNote: "Built-in template. Changes are saved on this computer; Reset to default restores the original, and Delete removes it from this computer.",
     modifiedNote: "Built-in template, changed on this computer.",
     customNote: "Your template.",
+    packEditsKept: "Your edited design was kept. It was not replaced with the new default template.",
     tabLook: "Look",
     tabBrand: "Brand",
     tabAI: "AI",
@@ -491,6 +510,29 @@ const STRINGS: any = {
     editable: { headline: "Headline", label: "Label", heading: "Heading", body: "Body", cta: "Call to action", credit: "Credit", size: "Size", color: "Color", highlight: "Highlight", font: "Font", tagline: "Tagline", handles: "Handles" },
   },
   ko: {
+    savedTemplateNotice: "\uc774 \uce74\ub4dc\ub274\uc2a4\ub294 \uc800\uc7a5 \ub2f9\uc2dc\uc758 \ud15c\ud50c\ub9bf\uc744 \uc720\uc9c0\ud569\ub2c8\ub2e4. \ud604\uc7ac \ud15c\ud50c\ub9bf\uc774 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+    applyTemplateChanges: "\ud604\uc7ac \ud15c\ud50c\ub9bf \uc801\uc6a9",
+    ownImages: "\ub0b4 \uc0ac\uc9c4 \uc0ac\uc6a9",
+    dropPhotos: "\uc0ac\uc9c4 \ub610\ub294 \uc0ac\uc9c4 \ud3f4\ub354\ub97c \uc5ec\uae30\uc5d0 \ub193\uc73c\uc138\uc694",
+    addPhoto: "\uc0ac\uc9c4 \ucd94\uac00",
+    addPhotoFolder: "\uc0ac\uc9c4 \ud3f4\ub354 \ucd94\uac00",
+    photosHint: "\uc0ac\uc9c4 \ud55c \uc7a5\ub9c8\ub2e4 \uce74\ub4dc \ud55c \uc7a5\uc744 \ub9cc\ub4ed\ub2c8\ub2e4. \uac19\uc740 \ud15c\ud50c\ub9bf\uacfc \uc9c0\uce68\uc744 \uc0ac\uc6a9\ud558\uba70 \uc0dd\uc131 \ud6c4 \ubb38\uad6c\uc640 \uc0ac\uc9c4\uc744 \ud655\uc778\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    generate: "\uce74\ub4dc \uc0dd\uc131",
+    savedPicker: "\uc800\uc7a5\ub41c \uce74\ub4dc\ub274\uc2a4",
+    savedPlaceholder: "\uc774\uc5b4\uc11c \ud560 \uce74\ub4dc\ub274\uc2a4\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    exportFormat: "\ud30c\uc77c \ud615\uc2dd",
+    changeFolder: "\uc800\uc7a5 \ud3f4\ub354 \ubcc0\uacbd",
+    zoomPhoto: "\uc0ac\uc9c4 \ud655\ub300",
+    photoX: "\uc0ac\uc9c4 \uc88c\uc6b0 \uc704\uce58",
+    photoY: "\uc0ac\uc9c4 \uc704\uc544\ub798 \uc704\uce58",
+    moveEarlier: "\uc55e\uc73c\ub85c \uc774\ub3d9",
+    moveLater: "\ub4a4\ub85c \uc774\ub3d9",
+    deleteCard: "\uce74\ub4dc \uc0ad\uc81c",
+    myTemplates: "\ub0b4 \ud15c\ud50c\ub9bf",
+    addTemplate: "\ud15c\ud50c\ub9bf \ucd94\uac00",
+    cancel: "\ucde8\uc18c",
+    other: "\uae30\ud0c0",
+    retryGenerate: "\uc785\ub825 \ub0b4\uc6a9\uc740 \ubcf4\uc874\ub429\ub2c8\ub2e4. \ub2e4\uc2dc \uc9c4\ud589\ud558\ub824\uba74 [\uce74\ub4dc \uc0dd\uc131]\uc744 \ub20c\ub7ec \uc8fc\uc138\uc694.",
     tabMake: "\uce74\ub4dc \ub9cc\ub4e4\uae30",
     tabTemplates: "\ud15c\ud50c\ub9bf",
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
@@ -527,7 +569,7 @@ const STRINGS: any = {
     templateGone: "\uc774 \uc791\uc5c5\uc774 \uc4f0\ub358 \ud15c\ud50c\ub9bf\uc774 \uc0ad\uc81c\ub410\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud15c\ud50c\ub9bf\uc73c\ub85c \ucc98\uc74c\ubd80\ud130 \ub2e4\uc2dc \uc2dc\uc791\ud574 \uc8fc\uc138\uc694.",
     folderName: (title: string, id: string) => `\uce74\ub4dc\ub274\uc2a4 · ${title || id} · ${id}`,
     review: "\uce74\ub4dc \uac80\ud1a0",
-    reviewHint: "\ubb38\uad6c\ub97c \uace0\uce58\uace0 \uce74\ub4dc\ub9c8\ub2e4 \uc0ac\uc9c4\uc744 \uace0\ub978 \ub4a4 \ucd08\uc548\uc744 \ub9cc\ub4dc\uc138\uc694. \uadf8 \uc804\uc5d0\ub294 \uc544\ubb34\uac83\ub3c4 \uc0dd\uc131\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    reviewHint: "\uce74\ub4dc\ub9c8\ub2e4 \ubb38\uad6c\u00b7\uc0ac\uc9c4\u00b7\uc21c\uc11c\ub97c \ud655\uc778\ud558\uc138\uc694. [\uce74\ub4dc \uc774\ubbf8\uc9c0 \ub0b4\ubcf4\ub0b4\uae30]\ub97c \ub204\ub97c \ub54c \uc774\ubbf8\uc9c0 \ud30c\uc77c\uc774 \uc800\uc7a5\ub429\ub2c8\ub2e4.",
     recommended: (n: number, why: string) => `\ucd94\ucc9c ${n}\uc7a5. ${why}`,
     roleCover: "\ud45c\uc9c0",
     roleBody: "\uce74\ub4dc",
@@ -586,6 +628,7 @@ const STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub294 \uc6d0\ub798\ub300\ub85c \ub418\ub3cc\ub9ac\uba70, \"\uc0ad\uc81c\"\ub294 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc9c0\uc6c1\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
+    packEditsKept: "\uc218\uc815\ud55c \ub514\uc790\uc778\uc744 \ubcf4\uc874\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uae30\ubcf8 \ud15c\ud50c\ub9bf\uc73c\ub85c \ub36e\uc5b4\uc4f0\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
     tabLook: "\ud654\uba74",
     tabBrand: "\ube0c\ub79c\ub4dc",
     tabAI: "AI",
@@ -2434,7 +2477,7 @@ async function imageSize(fs: any, path: string): Promise<{ w: number; h: number 
   return { w: bmp.width, h: bmp.height };
 }
 
-async function installLinkedTemplate(store: any, url: string, templates: any[]) {
+async function installLinkedTemplate(store: any, url: string, templates: any[], onKeepEdits?: () => void) {
   const match = /^https:\/\/github\.com\/CutbackVideo\/selects-plugin-library\/tree\/([a-f0-9]{40})\/plugins\/card-news-maker\/template-packs\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(url);
   if (!match) throw new Error("Use a template link from the official Card News Maker catalog.");
   if (!store.fs) throw new Error("Local file access is required to add this template.");
@@ -2444,11 +2487,44 @@ async function installLinkedTemplate(store: any, url: string, templates: any[]) 
     await fs.downloadFile(`https://raw.githubusercontent.com/CutbackVideo/selects-plugin-library/${match[1]}/plugins/card-news-maker/template-packs/${match[2]}/template.json`, path);
     const bytes = await fs.readFile(path);
     if (bytes.length > 1024 * 1024) throw new Error("The template file is too large.");
-    const template = CardSupport.templateFromFile(JSON.parse(dec(bytes)));
+    const raw = JSON.parse(dec(bytes));
+    const template = CardSupport.templateFromFile(raw);
     const id = `pack-${match[2]}`;
-    // Reopening an install link selects the user's existing design without replacing edits.
-    const existing = templates.find((t: any) => t.id === id || t.id === template.id || (template.importedLayoutId && t.importedLayoutId === template.importedLayoutId));
-    if (existing) return existing;
+    const existing = templates.find((t: any) => t.id === id)
+      || templates.find((t: any) => t.id === template.id)
+      || templates.find((t: any) => template.importedLayoutId && t.importedLayoutId === template.importedLayoutId)
+      || (match[2] === "chosun-basic" ? templates.find((t: any) => t.names?.en === "Chosun Ilbo Basic (feed)") : undefined);
+    if (existing) {
+      if (raw.kind !== "layout" || raw.id !== "chosun-basic" || existing.version !== 1 || template.version !== 2) return existing;
+      // Published v1 predates the body layout, locale names and raster calibration.
+      const previous = { ...raw, version: 1, font: { ...raw.font, size: 72 }, lines: raw.lines.map((line: any, i: number) => ({ ...line, top: i === 1 ? 1058 : 942 })) }; delete previous.body; delete previous.names;
+      const baseline = CardSupport.fromLayout(previous);
+      const design = (t: any) => {
+        const n = clone(t); delete n.id; delete n.builtIn; delete n.modified; delete n.importedLayoutId;
+        if (n.end) delete n.end.editable;
+        return n;
+      };
+      const same = (a: any, b: any): boolean => {
+        if (a === b) return true;
+        if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
+        const keys = Object.keys(a);
+        return keys.length === Object.keys(b).length && keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && same(a[key], b[key]));
+      };
+      const unchanged = (t: any) => same(design(t), design(baseline));
+      if (!unchanged(existing)) { onKeepEdits?.(); return existing; }
+      if (typeof fs.compareAndReplace !== "function") throw new Error("Update Selects to update installed templates safely.");
+      const target = store.join(store.root, "templates", existing.id + ".json");
+      const saved = (await store.list("templates")).find((t: any) => t.id === existing.id);
+      const expected = saved ? dec(await fs.readFile(target)) : null;
+      const layout = (await store.list("layout-templates")).find((t: any) => `layout-${t.id}` === existing.id);
+      if ((expected !== null && !unchanged(JSON.parse(expected))) || (layout && (CardSupport.validateLayout(layout).length || !unchanged(CardSupport.fromLayout(layout))))) { onKeepEdits?.(); return existing; }
+      await store.put("template-backups", `${existing.id}-v1-${crypto.randomUUID()}`, existing);
+      const updated = { ...template, id: existing.id };
+      await store.ensure(store.join(store.root, "templates"));
+      // Compare exact bytes after the backup; the host publishes complete bytes atomically.
+      if (!await fs.compareAndReplace(target, expected, JSON.stringify(updated))) { onKeepEdits?.(); return existing; }
+      return updated;
+    }
     const copy = { ...template, id };
     await store.put("templates", id, copy);
     return copy;
@@ -3155,15 +3231,15 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
       {card.role === "body" && <ui.TextField label={S.body} value={card.body || ""} onChange={(v: string) => onChange({ ...card, body: v })} multiline disabled={busy} />}
       {card.role === "end" && t.end.kind === "cta" && <ui.TextField label={S.cta} value={card.cta || ""} onChange={(v: string) => onChange({ ...card, cta: v })} multiline disabled={busy} />}
       {path && card.role !== "end" ? <ui.Stack>
-        <ui.NumberField label="Zoom" value={CardSupport.clampCrop(card.crop).zoom * 100} min={100} max={300} step={1} unit="%" onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), zoom: v / 100 } })} disabled={busy} />
-        <ui.NumberField label="Left / right" value={CardSupport.clampCrop(card.crop).x * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), x: v / 100 } })} disabled={busy} />
-        <ui.NumberField label="Up / down" value={CardSupport.clampCrop(card.crop).y * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), y: v / 100 } })} disabled={busy} />
+        <ui.NumberField label={S.zoomPhoto} value={CardSupport.clampCrop(card.crop).zoom * 100} min={100} max={300} step={1} unit="%" onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), zoom: v / 100 } })} disabled={busy} />
+        <ui.NumberField label={S.photoX} value={CardSupport.clampCrop(card.crop).x * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), x: v / 100 } })} disabled={busy} />
+        <ui.NumberField label={S.photoY} value={CardSupport.clampCrop(card.crop).y * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), y: v / 100 } })} disabled={busy} />
       </ui.Stack> : null}
       {card.role !== "end" && roleLook(t, card.role).textSlots?.length && String(card.role === "cover" ? card.headline : card.body).split("\n").length > roleLook(t, card.role).textSlots.length ? <ui.Message tone="error">{`This template has ${roleLook(t, card.role).textSlots.length} text lines. Shorten the card text before exporting.`}</ui.Message> : null}
       <ui.Actions>
-        <ui.Button variant="ghost" onClick={() => onMove(-1)} disabled={busy || index === 0 || card.role === "end"}>Move earlier</ui.Button>
-        <ui.Button variant="ghost" onClick={() => onMove(1)} disabled={busy || index === plan.cards.length - 1 || card.role === "end" || plan.cards[index + 1]?.role === "end"}>Move later</ui.Button>
-        <ui.IconButton icon="trash" label="Delete card" onClick={onRemove} disabled={busy || plan.cards.length < 2 || (card.role !== "end" && plan.cards.filter((c: any) => c.role !== "end").length < 2)} />
+        <ui.Button variant="ghost" onClick={() => onMove(-1)} disabled={busy || index === 0 || card.role === "end"}>{S.moveEarlier}</ui.Button>
+        <ui.Button variant="ghost" onClick={() => onMove(1)} disabled={busy || index === plan.cards.length - 1 || card.role === "end" || plan.cards[index + 1]?.role === "end"}>{S.moveLater}</ui.Button>
+        <ui.IconButton icon="trash" label={S.deleteCard} onClick={onRemove} disabled={busy || plan.cards.length < 2 || (card.role !== "end" && plan.cards.filter((c: any) => c.role !== "end").length < 2)} />
       </ui.Actions>
       {showPicture && card.role !== "end" && (
         <ui.Stack gap={8}>
@@ -3427,10 +3503,11 @@ function fromLayout(l: LayoutTemplate): any {
   const base = BUILTIN_TEMPLATES.find((t: any) => t.id === `essay-${l.language}`) || BUILTIN_TEMPLATES[0];
   const t = JSON.parse(JSON.stringify(base));
   const body = l.body, bodyFont = body?.font || l.font;
+  const chosun = l.id === "chosun-basic" && l.version === 2;
   return {
     ...t, id: `layout-${l.id}`, name: l.names ? "" : l.name, names: { en: l.name, ko: l.name, ...l.names }, builtIn: false,
     importedLayoutId: l.id, version: l.version, language: l.language,
-    descriptions: { en: "Photo cards with a team's typography and placement.", ko: "Photo cards with a team's typography and placement." },
+    descriptions: { en: "Photo cards with a team's typography and placement.", ko: l.id === "chosun-basic" && l.version === 2 ? "\uc870\uc120\uc77c\ubcf4\uc758 \uae00\uaf34\uacfc \ubc30\uce58\ub97c \uc801\uc6a9\ud55c \ud45c\uc9c0\u00b7\ubcf8\ubb38 \uce74\ub4dc\uc785\ub2c8\ub2e4." : "Photo cards with a team's typography and placement." },
     counts: { min: 1, max: 20 },
     look: { ...t.look, font: l.font.family, size: { ...l.size },
       textSlots: l.lines.map((box) => ({ ...box, height: l.font.lineHeight })), gradient: l.shade,
@@ -3443,7 +3520,12 @@ function fromLayout(l: LayoutTemplate): any {
     body: { ...t.body, size: bodyFont.size, weight: bodyFont.weight, color: bodyFont.color, italic: false, lineHeight: bodyFont.lineHeight / bodyFont.size, tracking: bodyFont.tracking },
     heading: { ...t.heading, on: false }, wordmark: { ...t.wordmark, text: "", logo: l.logo ? { ...l.logo, left: l.logo.left ?? (l.size.width - l.logo.width) / 2 } : null },
     credit: { ...t.credit, article: "", ai: "" }, end: { ...t.end, kind: "none", ...(l.id === "chosun-basic" ? { editable: false } : {}) }, images: { ...t.images, source: "article" },
-    prompt: { ...t.prompt, cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: `Each card has one concise news point in up to ${(body?.lines || l.lines).length} lines.`, end: "No separate last card." },
+    prompt: { ...t.prompt, ...(chosun ? {
+      role: "You are a Chosun Ilbo news editor. Explain the source article as factual photo card news.",
+      voice: "Use compact Korean news-report prose, not conversational photo-essay endings such as ~\ud588\uc5b4\uc694 or ~\uac70\uc8e0. Preserve attribution and uncertainty.",
+    } : {}), cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: chosun
+      ? "Each body card is a cohesive factual explanation in exactly 3 explicit lines. Aim for 85-100% of the text-box width on the first two lines and a natural final line, typically about 20-26 mixed Korean characters including spaces, numbers and Latin letters per line. Carry a sentence across lines at phrase boundaries rather than splitting one short sentence into three fragments. Use relevant source details, figures and attribution to provide reference-card density. Use compact news endings such as ~\uc784, ~\ubcf4\ub3c4\ud568 or ~\ud3c9\uac00. Never invent facts or add filler just to fill the width; use a shorter line when the source does not support more. No heading."
+      : `Each card has one concise news point in up to ${(body?.lines || l.lines).length} lines.`, end: "No separate last card." },
   };
 }
 function validateTemplate(t: any) {
@@ -3528,7 +3610,7 @@ function Panel(props: any) {
       src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
       ...["cover", "body"].map((role) => {
         const layout = roleLook(t, role), font = role === "cover" ? t.headline : t.body;
-        return layout.textSlots?.length ? `Each ${role === "cover" ? "cover headline" : "body card body"} must have 1 to ${layout.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...layout.textSlots.map((b: any) => b.width)) / font.size)} full-width characters. Body cards need no heading. Do not add text outside these boxes.` : "";
+        return layout.textSlots?.length ? `Each ${role === "cover" ? "cover headline" : "body card body"} must have 1 to ${layout.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...layout.textSlots.map((b: any) => b.width)) / font.size)} full-width ${t.importedLayoutId === "chosun-basic" || t.names?.en === "Chosun Ilbo Basic (feed)" ? "glyph equivalents (one Hangul/CJK glyph is about 1, spaces and Latin characters about 0.5; this is NOT a limit on the total character count)" : "characters"}. Body cards need no heading. Do not add text outside these boxes.` : "";
       }),
       cNote ? K.note(cNote) : "",
       K.noTools,
@@ -3666,6 +3748,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const [phase, setPhase] = React.useState<number | null>(null);
   const linkedRequest = React.useRef<string | null>(null);
   const [linkedFailure, setLinkedFailure] = React.useState<any>(null);
+  const [linkedNotice, setLinkedNotice] = React.useState(false);
   // Template editor state lives here so unsaved edits survive a tab switch.
   const [tplSel, setTplSel] = React.useState<string>("");
   const [tplEdit, setTplEdit] = React.useState<any>(null);
@@ -3750,9 +3833,9 @@ function ProjectPanel({ sdk, context, ui }: any) {
 
   async function receiveLinkedTemplate(request: any) {
     linkedRequest.current = request.requestId;
-    setBusy(true); setLinkedFailure(null);
+    setBusy(true); setLinkedFailure(null); setLinkedNotice(false);
     try {
-      const template = await installLinkedTemplate(store, request.url, await loadTemplates());
+      const template = await installLinkedTemplate(store, request.url, await loadTemplates(), () => setLinkedNotice(true));
       if (activeProject.current !== projectId) return;
       await loadTemplates();
       await selectTemplate(template); await selectEditorTemplate(template.id);
@@ -4314,7 +4397,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       </ui.Section>
       <ui.Actions>
         <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || !tplOf(tplId) || (mode === "link" && ownPhotos && !photos.length)}>
-          {mode === "link" ? "Generate" : S.plan}
+          {mode === "link" ? S.generate : S.plan}
         </ui.Button>
       </ui.Actions>
     </ui.Stack>
@@ -4335,20 +4418,20 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   const form = (
     <ui.Stack gap={16}>
       {jobs.length > 0 && <ui.Section title={S.saved}>
-        <ui.Select label="Saved" value={null} placeholder="Choose a saved card set" options={jobs.map((j: any) => ({ value: j.id, label: j.name || j.plan?.article?.title || j.source?.url || j.id }))} onChange={(id: string) => { const j = jobs.find((x: any) => x.id === id); if (j) openJob(j); }} disabled={busy} />
+        <ui.Select label={S.savedPicker} value={null} placeholder={S.savedPlaceholder} options={jobs.map((j: any) => ({ value: j.id, label: j.name || j.plan?.article?.title || j.source?.url || j.id }))} onChange={(id: string) => { const j = jobs.find((x: any) => x.id === id); if (j) openJob(j); }} disabled={busy} />
       </ui.Section>}
       <ui.Section title={S.source}>
         {sourcePicker}
         {mode === "link" && <ui.Stack>
-          <ui.TextField label="Article link" value={url} onChange={(v: string) => { setUrl(v); setArticleText(""); setArticleFallback(false); }} placeholder="https://..." disabled={busy} />
-          <ui.Toggle label="Use my own images" value={ownPhotos} onChange={setOwnPhotos} disabled={busy} />
+          <ui.TextField label={S.url} value={url} onChange={(v: string) => { setUrl(v); setArticleText(""); setArticleFallback(false); }} placeholder="https://..." disabled={busy} />
+          <ui.Toggle label={S.ownImages} value={ownPhotos} onChange={setOwnPhotos} disabled={busy} />
           {ownPhotos ? <ui.Stack>
-            <ui.FileDrop accept={[]} value={null} onChange={(f: any) => addPhotos(f?.path || null)} labels={{ drop: "Drop a photo or a folder of photos", choose: "Add a photo" }} disabled={busy} />
-            <ui.Button variant="secondary" onClick={async () => { try { await addPhotos(await hostSdk.dialogs.pickDirectoryPath()); } catch (e: any) { setError(String(e?.message || e)); } }} disabled={busy}>Add a folder of photos</ui.Button>
+            <ui.FileDrop accept={[]} value={null} onChange={(f: any) => addPhotos(f?.path || null)} labels={{ drop: S.dropPhotos, choose: S.addPhoto }} disabled={busy} />
+            <ui.Button variant="secondary" onClick={async () => { try { await addPhotos(await hostSdk.dialogs.pickDirectoryPath()); } catch (e: any) { setError(String(e?.message || e)); } }} disabled={busy}>{S.addPhotoFolder}</ui.Button>
             {photos.map((p: any, i: number) => <ui.Row key={i}><small>{`${i + 1}. ${p.name}`}</small><ui.IconButton icon="trash" label={`Remove photo ${i + 1}`} onClick={() => setPhotos((all) => all.filter((_, at) => at !== i))} disabled={busy} /></ui.Row>)}
-            <ui.Message tone="muted">Each photo supplies one card. Template, instructions, preview and export are shared with article photos.</ui.Message>
+            <ui.Message tone="muted">{S.photosHint}</ui.Message>
           </ui.Stack> : null}
-          {articleFallback ? <ui.TextField label="Article text" value={articleText} onChange={setArticleText} multiline disabled={busy} /> : null}
+          {articleFallback ? <ui.TextField label={S.text} value={articleText} onChange={setArticleText} multiline disabled={busy} /> : null}
         </ui.Stack>}
         {mode === "text" && <ui.TextField label={S.text} value={text} onChange={setText} placeholder={S.textPh} multiline disabled={busy} />}
         {mode === "video" && (
@@ -4368,11 +4451,11 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     job?.plan && reviewT ? (
       <ui.Stack gap={16}>
         <ui.Section title={S.review}>
-          <ui.TextField label="Name" value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
+          <ui.TextField label={S.tplName} value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
           <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={reviewT.id} options={[...templates, ...(templates.some((x: any) => x.id === reviewT.id) ? [] : [reviewT])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) setJob(revised({ templateId: id, templateSnapshot: clone(next) })); }} disabled={busy} />
           {job.templateSnapshot && tplOf(reviewT.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(reviewT.id)) ? <ui.Stack>
-            <ui.Message tone="muted">This set keeps its saved template. The library template has changed.</ui.Message>
-            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>Apply template changes</ui.Button>
+            <ui.Message tone="muted">{S.savedTemplateNotice}</ui.Message>
+            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
           </ui.Stack> : null}
           <small>{S.reviewHint}</small>
           {job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
@@ -4407,9 +4490,9 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           <ui.TextField label={S.hashtags} value={job.plan.hashtags} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, hashtags: v } })} disabled={busy} />
         </ui.Section>
         {!job.draftId && job.plan.cards.some((c: any) => c.picture?.kind === "generate") && <small>{S.creditsNote}</small>}
-        <ui.Section title="Export">
-          <ui.Select label="Format" value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
-          <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>Change folder</ui.Button>
+        <ui.Section title={S.steps[4]}>
+          <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
+          <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
           {job.saveTo ? <ui.Message tone="muted">{job.saveTo}</ui.Message> : null}
         </ui.Section>
         <ui.Actions>
@@ -4417,7 +4500,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             {S.startOver}
           </ui.Button>
           {!job.draftId ? <ui.Button variant="secondary" busy={busy} busyLabel={S.building} onClick={build}>{S.build}</ui.Button> : null}
-          <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>Export card images</ui.Button>
+          <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
         </ui.Actions>
         {job.draftId && (
           <ui.Row gap={8}>
@@ -4464,6 +4547,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
 
   return (
     <ui.Stack gap={12}>
+    {linkedNotice && <ui.Message>{S.packEditsKept}</ui.Message>}
     {linkedFailure && <ui.Stack gap={8}>
       <ui.Message tone="error">{linkedFailure.message}</ui.Message>
       <ui.Button disabled={busy || !!tplNew || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)} onClick={() => receiveLinkedTemplate(linkedFailure.request)}>Retry template import</ui.Button>
@@ -4477,7 +4561,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         {
           value: "templates",
           label: S.tabTemplates,
-          content: (
+          content: busy ? <ui.Message>{S.importTemplate}</ui.Message> : (
             <TemplateEditor sdk={sdk} ui={ui} S={S} lang={lang} templates={templates} store={store} onChanged={loadTemplates}
               state={{ selId: tplSel, setSelId: selectEditorTemplate, edit: tplEdit, setEdit: setTplEdit, baseKey: tplBase, setBaseKey: setTplBase, sub: tplSub, setSub: setTplSub, role: tplRole, setRole: setTplRole, pending: tplNew, setPending: setTplNew }} />
           ),

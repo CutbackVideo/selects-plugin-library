@@ -19,7 +19,7 @@
   "font": {
     "family": "Noto Sans KR",
     "weight": 700,
-    "size": 72,
+    "size": 70.75,
     "tracking": -0.04,
     "color": "#FFFFFF",
     "lineHeight": 88
@@ -33,7 +33,7 @@
     },
     {
       "left": 125,
-      "top": 1058,
+      "top": 1056,
       "width": 830,
       "align": "center"
     }
@@ -46,28 +46,28 @@
   "body": {
     "font": {
       "family": "Noto Sans KR",
-      "weight": 500,
+      "weight": 400,
       "size": 54,
-      "tracking": -0.04,
+      "tracking": -0.0425,
       "color": "#FFFFFFEB",
       "lineHeight": 82
     },
     "lines": [
       {
         "left": 105,
-        "top": 944,
+        "top": 943,
         "width": 880,
         "align": "left"
       },
       {
         "left": 105,
-        "top": 1026,
+        "top": 1025,
         "width": 880,
         "align": "left"
       },
       {
         "left": 105,
-        "top": 1108,
+        "top": 1107,
         "width": 880,
         "align": "left"
       }

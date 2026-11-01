@@ -59,8 +59,9 @@ Existing saved design edits and card-set snapshots are preserved.
 This uses the existing Selects catalog installer; publish this app revision and a
 host with Panel UI kit 6 before distributing the link. The app receives a pinned
 official pack folder, imports its validated `template.json` and opens Templates.
-Existing edits, saved card sets and Drafts are preserved, and repeated links
-select the existing design. Running work and unsaved template edits finish first.
+Existing edited designs, saved card sets and Drafts are preserved. Reopening the
+link upgrades an untouched Chosun v1 default to v2 under the same template ID,
+backs up v1 first, and selects that same item. An edited v1 is kept with a notice. Running work and unsaved template edits finish first.
 Download errors offer an explicit retry. Installation never starts AI or export.
 
 ## Cover and body layouts in one template
@@ -73,10 +74,18 @@ common placement fields keep that placement until you edit a specific role.
 The Chosun Basic pack version 2 keeps the original two-line centered feed cover and adds
 three left-aligned body lines without a logo, matching the supplied card examples.
 The first generated card uses the cover and subsequent cards use the body layout.
+Chosun offers only **Cover / Card** in the editor; its body uses Regular 400 and the
+cover keeps weight 700. Other templates retain their end-card controls.
 This does not add the other numbered formats in the PDF specification.
 
-Existing imported version 1 designs and saved job snapshots are not overwritten by an update
-or a repeated install link. To use the new pack while keeping an existing design, download
-`template-packs/chosun-basic/template.json` and use **Templates → + → Import template**;
-this creates a separate saved copy containing both cover and body layouts. Select that copy
-for new card sets. Existing card sets retain their saved template snapshot.
+Updating the app or plugin source alone does not deliver a template pack. After this
+revision is published, reopen the same `pack=chosun-basic` installation link to update
+an untouched v1 default in place; no manual JSON Import or duplicate selection is needed.
+The updater compares the entire v1 default design, including its name, against the
+original published 72px layout before writing the body, locale and raster-calibrated update. Saved edits are rechecked
+after the download and the final write uses the existing host compare-and-replace API.
+Finish editing this design in other Selects windows before updating: the host serializes
+files within one renderer bridge, not other bridges or external file writers. Backups are kept under `template-backups/` and old `layout-templates/`
+source files remain untouched. Existing card sets retain their saved template snapshots.
+Manual Import still creates an independent copy and is intended for copying/sharing designs,
+not for normal pack upgrades. Ordinary templates and newer pack versions are not migrated.
