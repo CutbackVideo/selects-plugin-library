@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "card-news-maker",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.9",
   "name": "Card News Maker",
-  "summary": "Turn an article, pasted text or a project video into editable news cards. Optionally supply your own photos, choose any built-in or imported team design, edit in the same card tools, and export PNG or JPEG.",
+  "summary": "Turn an article, pasted text or a project video into editable news cards. Optionally supply your own photos, choose a saved or imported team design, edit in the same card tools, and export PNG or JPEG.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -32,7 +32,7 @@
     },
     "en": {
       "name": "Card News Maker",
-      "summary": "Turn an article, pasted text or a project video into editable news cards. Optionally supply your own photos, choose any built-in or imported team design, edit in the same card tools, and export PNG or JPEG."
+      "summary": "Turn an article, pasted text or a project video into editable news cards. Optionally supply your own photos, choose a saved or imported team design, edit in the same card tools, and export PNG or JPEG."
     },
     "es": {
       "name": "Creador de tarjetas de noticias",

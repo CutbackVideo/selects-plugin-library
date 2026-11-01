@@ -180,3 +180,48 @@ test('shared preview keeps enlarged photo width instead of inheriting the host m
   assert.ok(image.props.style.width > 1080);
   assert.equal(image.props.style.maxWidth, 'none');
 });
+
+test('one Chosun pack has its calibrated cover and separate three-line body in preview and planning', () => {
+  const raw = JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json', import.meta.url)));
+  const before = JSON.stringify(raw), t = b.CardSupport.templateFromFile(raw);
+  const cover = b.cardParams(t, {role:'cover',headline:'Cover\nHeadline'}, 0, {});
+  const body = b.cardParams(t, {role:'body',body:'First\nSecond\nThird'}, 1, {});
+  assert.deepEqual(JSON.parse(cover.textSlots).map(x=>[x.left,x.top,x.width,x.height,x.align]), [[125,942,830,88,'center'],[125,1056,830,88,'center']]);
+  assert.equal(cover.headlineSize,70.75); assert.equal(cover.headlineWeight,700); assert.ok(cover.logo);
+  assert.deepEqual(JSON.parse(body.textSlots).map(x=>[x.left,x.top,x.width,x.height,x.align]), [[105,943,880,82,'left'],[105,1025,880,82,'left'],[105,1107,880,82,'left']]);
+  assert.equal(body.tracking,-.0425); assert.equal(body.bodySize,54); assert.equal(body.bodyWeight,400); assert.equal(body.logo,null);
+  const tree=nodes(b.PreviewCard({data:body}));
+  assert.equal(tree.filter(n=>n.type==='span').length,3); assert.ok(tree.filter(n=>n.type==='span').every(n=>n.props.style.fontWeight===400)); assert.equal(tree.filter(n=>n.type==='img').length,0);
+  assert.ok(tree.filter(n=>n.type==='div'&&n.props.style?.height===82).every(n=>n.props.style.justifyContent==='flex-start'));
+  const prompt=b.planPrompt(t,{},'manual',4,'','Facts');
+  assert.match(prompt,/cover headline[^\n]*1 to 2/); assert.match(prompt,/body[^\n]*1 to 3/);
+  const plan=b.normalizePlan({cards:[{headline:'Cover\nHeadline'},{body:'First\nSecond\nThird'}]},t);
+  assert.deepEqual(plan.cards.map(c=>c.role),['cover','body']); assert.doesNotThrow(()=>b.validatePlan(plan,t));
+  assert.throws(()=>b.validatePlan({...plan,cards:[{role:'body',body:'One\nTwo\nThree\nFour'}]},t),/3/);
+  assert.equal(JSON.stringify(raw),before);
+});
+
+test('body layout import validates every role and round-trips without changing legacy layout behavior',()=>{
+  const raw=layout();raw.body={font:{...raw.font,size:54,weight:500,lineHeight:82},lines:[{left:105,top:942,width:880,align:'left'},{left:105,top:1024,width:880,align:'left'},{left:105,top:1106,width:880,align:'left'}],shade:raw.shade,logo:null};
+  assert.equal(b.CardSupport.validateLayout(raw).length,0);
+  const t=b.CardSupport.templateFromFile(raw);b.CardSupport.validateTemplate(t);
+  assert.equal(JSON.stringify(b.CardSupport.templateFromFile({kind:'card-news-template',version:1,template:JSON.parse(JSON.stringify(t))})),JSON.stringify(t));
+  const invalid=structuredClone(raw);invalid.body.lines[2].top=1340;assert.ok(b.CardSupport.validateLayout(invalid).length);
+  assert.ok(b.CardSupport.validateLayout({...raw,body:{}}).length);
+  const escaped=structuredClone(raw);escaped.body.size={width:1080,height:4000};escaped.body.lines[2].top=2000;assert.ok(b.CardSupport.validateLayout(escaped).length);
+  const bad=structuredClone(t);bad.look.body.textSlots[2].width=2000;assert.throws(()=>b.CardSupport.validateTemplate(bad),/fit/);
+  const legacy=b.CardSupport.fromLayout(layout());const old=b.cardParams(legacy,{role:'body',body:'One\nTwo'},1,{});
+  assert.equal(JSON.parse(old.textSlots).length,2);assert.ok(old.logo);assert.equal(old.bodySize,72);
+});
+
+test('Chosun body planning uses news density without treating mixed text as sixteen total characters',()=>{
+  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url))),t=b.CardSupport.fromLayout(raw);
+  const prompt=b.planPrompt(t,{},'manual',2,'','Verified article facts');
+  assert.match(t.prompt.role,/Chosun Ilbo news editor/);assert.match(t.prompt.body,/exactly 3 explicit lines/);
+  assert.match(t.prompt.body,/85-100%/);assert.match(t.prompt.body,/Never invent facts or add filler/);
+  assert.match(prompt,/16 full-width glyph equivalents/);assert.match(prompt,/NOT a limit on the total character count/);
+  const imported=structuredClone(t);delete imported.importedLayoutId;assert.match(b.planPrompt(imported,{},'manual',2,'','Facts'),/glyph equivalents/);
+  const ordinary=b.CardSupport.fromLayout(layout());assert.doesNotMatch(b.planPrompt(ordinary,{},'manual',2,'','Facts'),/glyph equivalents|85-100%/);
+  const v1=JSON.parse(fs.readFileSync(new URL('./fixtures/card-news-chosun-v1.json',import.meta.url)));assert.deepEqual(JSON.parse(JSON.stringify(b.CardSupport.fromLayout(v1.raw).prompt)),v1.installed.prompt);
+  assert.equal(t.body.size,54);assert.equal(t.look.body.textSlots[0].width,880);
+});

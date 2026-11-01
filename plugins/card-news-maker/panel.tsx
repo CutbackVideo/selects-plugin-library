@@ -285,6 +285,27 @@ const IMAGE_MODEL = { id: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", recipe: "na
 
 const STRINGS: any = {
   en: {
+    saveFolder: "Save folder",
+    exportImporting: "Adding card images to the project...",
+    exportImportFailed: "The files were saved, but not all card images could be added to the project. Open the export folder to check them.",
+    savedTemplateNotice: "This set keeps its saved template. The library template has changed.",
+    applyTemplateChanges: "Apply template changes",
+    ownImages: "Use my own images",
+    dropPhotos: "Drop a photo or a folder of photos",
+    addPhoto: "Add a photo",
+    addPhotoFolder: "Add a folder of photos",
+    photosHint: "Each photo supplies one card. Template, instructions, preview and export are shared with article photos.",
+    generate: "Generate",
+    savedPicker: "Saved",
+    savedPlaceholder: "Choose a saved card set",
+    exportFormat: "Format",
+    changeFolder: "Change folder",
+    zoomPhoto: "Zoom",
+    photoX: "Left / right",
+    photoY: "Up / down",
+    moveEarlier: "Move earlier",
+    moveLater: "Move later",
+    deleteCard: "Delete card",
     tabMake: "Make cards",
     tabTemplates: "Templates",
     noProject: "Open a project first.",
@@ -301,7 +322,7 @@ const STRINGS: any = {
     template: "Template",
     cardLang: "Card language",
     langName: { en: "English", ko: "Korean" },
-    noTplForLang: "There is no template in this language. In Templates, duplicate one and change its card language.",
+    noTplForLang: "No saved template in this language. Open Templates to create or import a design.",
     count: "Number of cards",
     countAuto: "Recommended",
     countManual: "Set",
@@ -359,7 +380,7 @@ const STRINGS: any = {
     exportPng: "Export card images",
     exporting: "Exporting…",
     rendering: (n: number, all: number) => `Rendering card image ${n}/${all}…`,
-    exportDone: (n: number) => `Saved ${n} card images and the caption.`,
+    exportDone: (n: number) => `Saved ${n} card images and the caption. Added the card images to the project.`,
     noStill: "This Selects version cannot render card images from an app. Update Selects and try again.",
     openFolder: "Open folder",
     exportFailed: "Export failed: ",
@@ -398,6 +419,7 @@ const STRINGS: any = {
     builtInNote: "Built-in template. Changes are saved on this computer; Reset to default restores the original, and Delete removes it from this computer.",
     modifiedNote: "Built-in template, changed on this computer.",
     customNote: "Your template.",
+    packEditsKept: "Your edited design was kept. It was not replaced with the new default template.",
     tabLook: "Look",
     tabBrand: "Brand",
     tabAI: "AI",
@@ -491,6 +513,32 @@ const STRINGS: any = {
     editable: { headline: "Headline", label: "Label", heading: "Heading", body: "Body", cta: "Call to action", credit: "Credit", size: "Size", color: "Color", highlight: "Highlight", font: "Font", tagline: "Tagline", handles: "Handles" },
   },
   ko: {
+    saveFolder: "\uc800\uc7a5 \ud3f4\ub354",
+    exportImporting: "\uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4...",
+    exportImportFailed: "\ud30c\uc77c\uc740 \uc800\uc7a5\ud588\uc9c0\ub9cc \uc77c\ubd80 \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud3f4\ub354\ub97c \uc5f4\uc5b4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
+    savedTemplateNotice: "\uc774 \uce74\ub4dc\ub274\uc2a4\ub294 \uc800\uc7a5 \ub2f9\uc2dc\uc758 \ud15c\ud50c\ub9bf\uc744 \uc720\uc9c0\ud569\ub2c8\ub2e4. \ud604\uc7ac \ud15c\ud50c\ub9bf\uc774 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
+    applyTemplateChanges: "\ud604\uc7ac \ud15c\ud50c\ub9bf \uc801\uc6a9",
+    ownImages: "\ub0b4 \uc0ac\uc9c4 \uc0ac\uc6a9",
+    dropPhotos: "\uc0ac\uc9c4 \ub610\ub294 \uc0ac\uc9c4 \ud3f4\ub354\ub97c \uc5ec\uae30\uc5d0 \ub193\uc73c\uc138\uc694",
+    addPhoto: "\uc0ac\uc9c4 \ucd94\uac00",
+    addPhotoFolder: "\uc0ac\uc9c4 \ud3f4\ub354 \ucd94\uac00",
+    photosHint: "\uc0ac\uc9c4 \ud55c \uc7a5\ub9c8\ub2e4 \uce74\ub4dc \ud55c \uc7a5\uc744 \ub9cc\ub4ed\ub2c8\ub2e4. \uac19\uc740 \ud15c\ud50c\ub9bf\uacfc \uc9c0\uce68\uc744 \uc0ac\uc6a9\ud558\uba70 \uc0dd\uc131 \ud6c4 \ubb38\uad6c\uc640 \uc0ac\uc9c4\uc744 \ud655\uc778\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    generate: "\uce74\ub4dc \uc0dd\uc131",
+    savedPicker: "\uc800\uc7a5\ub41c \uce74\ub4dc\ub274\uc2a4",
+    savedPlaceholder: "\uc774\uc5b4\uc11c \ud560 \uce74\ub4dc\ub274\uc2a4\ub97c \uc120\ud0dd\ud558\uc138\uc694",
+    exportFormat: "\ud30c\uc77c \ud615\uc2dd",
+    changeFolder: "\uc800\uc7a5 \ud3f4\ub354 \ubcc0\uacbd",
+    zoomPhoto: "\uc0ac\uc9c4 \ud655\ub300",
+    photoX: "\uc0ac\uc9c4 \uc88c\uc6b0 \uc704\uce58",
+    photoY: "\uc0ac\uc9c4 \uc704\uc544\ub798 \uc704\uce58",
+    moveEarlier: "\uc55e\uc73c\ub85c \uc774\ub3d9",
+    moveLater: "\ub4a4\ub85c \uc774\ub3d9",
+    deleteCard: "\uce74\ub4dc \uc0ad\uc81c",
+    myTemplates: "\ub0b4 \ud15c\ud50c\ub9bf",
+    addTemplate: "\ud15c\ud50c\ub9bf \ucd94\uac00",
+    cancel: "\ucde8\uc18c",
+    other: "\uae30\ud0c0",
+    retryGenerate: "\uc785\ub825 \ub0b4\uc6a9\uc740 \ubcf4\uc874\ub429\ub2c8\ub2e4. \ub2e4\uc2dc \uc9c4\ud589\ud558\ub824\uba74 [\uce74\ub4dc \uc0dd\uc131]\uc744 \ub20c\ub7ec \uc8fc\uc138\uc694.",
     tabMake: "\uce74\ub4dc \ub9cc\ub4e4\uae30",
     tabTemplates: "\ud15c\ud50c\ub9bf",
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
@@ -507,7 +555,7 @@ const STRINGS: any = {
     template: "\ud15c\ud50c\ub9bf",
     cardLang: "\uce74\ub4dc \uc5b8\uc5b4",
     langName: { en: "\uc601\uc5b4", ko: "\ud55c\uad6d\uc5b4" },
-    noTplForLang: "\uc774 \uc5b8\uc5b4\uc758 \ud15c\ud50c\ub9bf\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud558\ub098\ub97c \ubcf5\uc81c\ud558\uace0 \uce74\ub4dc \uc5b8\uc5b4\ub97c \ubc14\uafb8\uc138\uc694.",
+    noTplForLang: "\uc774 \uc5b8\uc5b4\ub85c \uc800\uc7a5\ub41c \ud15c\ud50c\ub9bf\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ub514\uc790\uc778\uc744 \ub9cc\ub4e4\uac70\ub098 \uac00\uc838\uc624\uc138\uc694.",
     count: "\uce74\ub4dc \uc218",
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
@@ -527,7 +575,7 @@ const STRINGS: any = {
     templateGone: "\uc774 \uc791\uc5c5\uc774 \uc4f0\ub358 \ud15c\ud50c\ub9bf\uc774 \uc0ad\uc81c\ub410\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud15c\ud50c\ub9bf\uc73c\ub85c \ucc98\uc74c\ubd80\ud130 \ub2e4\uc2dc \uc2dc\uc791\ud574 \uc8fc\uc138\uc694.",
     folderName: (title: string, id: string) => `\uce74\ub4dc\ub274\uc2a4 · ${title || id} · ${id}`,
     review: "\uce74\ub4dc \uac80\ud1a0",
-    reviewHint: "\ubb38\uad6c\ub97c \uace0\uce58\uace0 \uce74\ub4dc\ub9c8\ub2e4 \uc0ac\uc9c4\uc744 \uace0\ub978 \ub4a4 \ucd08\uc548\uc744 \ub9cc\ub4dc\uc138\uc694. \uadf8 \uc804\uc5d0\ub294 \uc544\ubb34\uac83\ub3c4 \uc0dd\uc131\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    reviewHint: "\uce74\ub4dc\ub9c8\ub2e4 \ubb38\uad6c\u00b7\uc0ac\uc9c4\u00b7\uc21c\uc11c\ub97c \ud655\uc778\ud558\uc138\uc694. [\uce74\ub4dc \uc774\ubbf8\uc9c0 \ub0b4\ubcf4\ub0b4\uae30]\ub97c \ub204\ub97c \ub54c \uc774\ubbf8\uc9c0 \ud30c\uc77c\uc774 \uc800\uc7a5\ub429\ub2c8\ub2e4.",
     recommended: (n: number, why: string) => `\ucd94\ucc9c ${n}\uc7a5. ${why}`,
     roleCover: "\ud45c\uc9c0",
     roleBody: "\uce74\ub4dc",
@@ -564,7 +612,7 @@ const STRINGS: any = {
     exportPng: "\uce74\ub4dc \uc774\ubbf8\uc9c0 \ub0b4\ubcf4\ub0b4\uae30",
     exporting: "\ub0b4\ubcf4\ub0b4\ub294 \uc911…",
     rendering: (n: number, all: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}/${all}\uc7a5 \ub80c\ub354\ub9c1 \uc911…`,
-    exportDone: (n: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}\uc7a5\uacfc \uc124\uba85\uae00\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4.`,
+    exportDone: (n: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}\uc7a5\uacfc \uc124\uba85\uae00\uc744 \uc800\uc7a5\ud558\uace0, \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.`,
     noStill: "\uc774 \ubc84\uc804\uc758 Selects\ub294 \uc571\uc5d0\uc11c \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ub80c\ub354\ub9c1\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     openFolder: "\ud3f4\ub354 \uc5f4\uae30",
     exportFailed: "\ub0b4\ubcf4\ub0b4\uae30 \uc2e4\ud328: ",
@@ -586,6 +634,7 @@ const STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub294 \uc6d0\ub798\ub300\ub85c \ub418\ub3cc\ub9ac\uba70, \"\uc0ad\uc81c\"\ub294 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc9c0\uc6c1\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
+    packEditsKept: "\uc218\uc815\ud55c \ub514\uc790\uc778\uc744 \ubcf4\uc874\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uae30\ubcf8 \ud15c\ud50c\ub9bf\uc73c\ub85c \ub36e\uc5b4\uc4f0\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
     tabLook: "\ud654\uba74",
     tabBrand: "\ube0c\ub79c\ub4dc",
     tabAI: "AI",
@@ -695,7 +744,7 @@ const STRINGS: any = {
     template: "Vorlage",
     cardLang: "Kartensprache",
     langName: { en: "Englisch", ko: "Koreanisch" },
-    noTplForLang: "Es gibt keine Vorlage in dieser Sprache. Duplizieren Sie unter Vorlagen eine Vorlage und ändern Sie deren Kartensprache.",
+    noTplForLang: "Keine gespeicherte Vorlage in dieser Sprache. Erstellen oder importieren Sie ein Design unter Vorlagen.",
     count: "Anzahl der Karten",
     countAuto: "Empfohlen",
     countManual: "Festlegen",
@@ -884,7 +933,7 @@ const STRINGS: any = {
     template: "Plantilla",
     cardLang: "Idioma de las tarjetas",
     langName: { en: "Inglés", ko: "Coreano" },
-    noTplForLang: "No hay ninguna plantilla en este idioma. En Plantillas, duplica una y cambia el idioma de sus tarjetas.",
+    noTplForLang: "No hay plantillas guardadas en este idioma. Crea o importa un dise\u00f1o en Plantillas.",
     count: "Número de tarjetas",
     countAuto: "Recomendado",
     countManual: "Manual",
@@ -1073,7 +1122,7 @@ const STRINGS: any = {
     template: "Modèle",
     cardLang: "Langue des cartes",
     langName: { en: "Anglais", ko: "Coréen" },
-    noTplForLang: "Il n'y a aucun modèle dans cette langue. Dans Modèles, dupliquez-en un et changez sa langue des cartes.",
+    noTplForLang: "Aucun mod\u00e8le enregistr\u00e9 dans cette langue. Cr\u00e9ez ou importez un design dans Mod\u00e8les.",
     count: "Nombre de cartes",
     countAuto: "Recommandé",
     countManual: "Choisir",
@@ -1262,7 +1311,7 @@ const STRINGS: any = {
     template: "Modello",
     cardLang: "Lingua delle card",
     langName: { en: "Inglese", ko: "Coreano" },
-    noTplForLang: "Non c'è nessun modello in questa lingua. In Modelli, duplicane uno e cambia la lingua delle card.",
+    noTplForLang: "Nessun modello salvato in questa lingua. Crea o importa un design in Modelli.",
     count: "Numero di card",
     countAuto: "Consigliato",
     countManual: "Personalizzato",
@@ -1451,7 +1500,7 @@ const STRINGS: any = {
     template: "テンプレート",
     cardLang: "カードの言語",
     langName: { en: "英語", ko: "韓国語" },
-    noTplForLang: "この言語のテンプレートがありません。テンプレートタブでいずれかを複製し、カードの言語を変更してください。",
+    noTplForLang: "\u3053\u306e\u8a00\u8a9e\u306e\u4fdd\u5b58\u6e08\u307f\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u306f\u3042\u308a\u307e\u305b\u3093\u3002\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u30bf\u30d6\u3067\u30c7\u30b6\u30a4\u30f3\u3092\u4f5c\u6210\u307e\u305f\u306f\u30a4\u30f3\u30dd\u30fc\u30c8\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     count: "カードの枚数",
     countAuto: "おすすめ",
     countManual: "指定",
@@ -1640,7 +1689,7 @@ const STRINGS: any = {
     template: "Modelo",
     cardLang: "Idioma dos cartões",
     langName: { en: "Inglês", ko: "Coreano" },
-    noTplForLang: "Não há nenhum modelo neste idioma. Em Modelos, duplique um e altere o idioma dos cartões.",
+    noTplForLang: "N\u00e3o h\u00e1 modelos salvos neste idioma. Crie ou importe um design em Modelos.",
     count: "Número de cartões",
     countAuto: "Recomendado",
     countManual: "Manual",
@@ -1829,7 +1878,7 @@ const STRINGS: any = {
     template: "Şablon",
     cardLang: "Kart dili",
     langName: { en: "İngilizce", ko: "Korece" },
-    noTplForLang: "Bu dilde şablon yok. Şablonlar sekmesinde birini çoğaltın ve kart dilini değiştirin.",
+    noTplForLang: "Bu dilde kay\u0131tl\u0131 \u015fablon yok. \u015eablonlar b\u00f6l\u00fcm\u00fcnde bir tasar\u0131m olu\u015fturun veya i\u00e7e aktar\u0131n.",
     count: "Kart sayısı",
     countAuto: "Önerilen",
     countManual: "Elle belirle",
@@ -2018,7 +2067,7 @@ const STRINGS: any = {
     template: "模板",
     cardLang: "卡片语言",
     langName: { en: "英语", ko: "韩语" },
-    noTplForLang: "没有该语言的模板。请在“模板”中复制一个模板，然后更改它的卡片语言。",
+    noTplForLang: "\u6b64\u8bed\u8a00\u6ca1\u6709\u5df2\u4fdd\u5b58\u7684\u6a21\u677f\u3002\u8bf7\u5728\u6a21\u677f\u9875\u521b\u5efa\u6216\u5bfc\u5165\u8bbe\u8ba1\u3002",
     count: "卡片数量",
     countAuto: "推荐",
     countManual: "自定义",
@@ -2434,7 +2483,7 @@ async function imageSize(fs: any, path: string): Promise<{ w: number; h: number 
   return { w: bmp.width, h: bmp.height };
 }
 
-async function installLinkedTemplate(store: any, url: string, templates: any[]) {
+async function installLinkedTemplate(store: any, url: string, templates: any[], onKeepEdits?: () => void) {
   const match = /^https:\/\/github\.com\/CutbackVideo\/selects-plugin-library\/tree\/([a-f0-9]{40})\/plugins\/card-news-maker\/template-packs\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(url);
   if (!match) throw new Error("Use a template link from the official Card News Maker catalog.");
   if (!store.fs) throw new Error("Local file access is required to add this template.");
@@ -2444,11 +2493,44 @@ async function installLinkedTemplate(store: any, url: string, templates: any[]) 
     await fs.downloadFile(`https://raw.githubusercontent.com/CutbackVideo/selects-plugin-library/${match[1]}/plugins/card-news-maker/template-packs/${match[2]}/template.json`, path);
     const bytes = await fs.readFile(path);
     if (bytes.length > 1024 * 1024) throw new Error("The template file is too large.");
-    const template = CardSupport.templateFromFile(JSON.parse(dec(bytes)));
+    const raw = JSON.parse(dec(bytes));
+    const template = CardSupport.templateFromFile(raw);
     const id = `pack-${match[2]}`;
-    // Reopening an install link selects the user's existing design without replacing edits.
-    const existing = templates.find((t: any) => t.id === id || t.id === template.id || (template.importedLayoutId && t.importedLayoutId === template.importedLayoutId));
-    if (existing) return existing;
+    const existing = templates.find((t: any) => t.id === id)
+      || templates.find((t: any) => t.id === template.id)
+      || templates.find((t: any) => template.importedLayoutId && t.importedLayoutId === template.importedLayoutId)
+      || (match[2] === "chosun-basic" ? templates.find((t: any) => t.names?.en === "Chosun Ilbo Basic (feed)") : undefined);
+    if (existing) {
+      if (raw.kind !== "layout" || raw.id !== "chosun-basic" || existing.version !== 1 || template.version !== 2) return existing;
+      // Published v1 predates the body layout, locale names and raster calibration.
+      const previous = { ...raw, version: 1, font: { ...raw.font, size: 72 }, lines: raw.lines.map((line: any, i: number) => ({ ...line, top: i === 1 ? 1058 : 942 })) }; delete previous.body; delete previous.names;
+      const baseline = CardSupport.fromLayout(previous);
+      const design = (t: any) => {
+        const n = clone(t); delete n.id; delete n.builtIn; delete n.modified; delete n.importedLayoutId;
+        if (n.end) delete n.end.editable;
+        return n;
+      };
+      const same = (a: any, b: any): boolean => {
+        if (a === b) return true;
+        if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
+        const keys = Object.keys(a);
+        return keys.length === Object.keys(b).length && keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && same(a[key], b[key]));
+      };
+      const unchanged = (t: any) => same(design(t), design(baseline));
+      if (!unchanged(existing)) { onKeepEdits?.(); return existing; }
+      if (typeof fs.compareAndReplace !== "function") throw new Error("Update Selects to update installed templates safely.");
+      const target = store.join(store.root, "templates", existing.id + ".json");
+      const saved = (await store.list("templates")).find((t: any) => t.id === existing.id);
+      const expected = saved ? dec(await fs.readFile(target)) : null;
+      const layout = (await store.list("layout-templates")).find((t: any) => `layout-${t.id}` === existing.id);
+      if ((expected !== null && !unchanged(JSON.parse(expected))) || (layout && (CardSupport.validateLayout(layout).length || !unchanged(CardSupport.fromLayout(layout))))) { onKeepEdits?.(); return existing; }
+      await store.put("template-backups", `${existing.id}-v1-${crypto.randomUUID()}`, existing);
+      const updated = { ...template, id: existing.id };
+      await store.ensure(store.join(store.root, "templates"));
+      // Compare exact bytes after the backup; the host publishes complete bytes atomically.
+      if (!await fs.compareAndReplace(target, expected, JSON.stringify(updated))) { onKeepEdits?.(); return existing; }
+      return updated;
+    }
     const copy = { ...template, id };
     await store.put("templates", id, copy);
     return copy;
@@ -2503,24 +2585,25 @@ function fillVars(s: string, vars: any): string {
 }
 
 function templateSize(t: any) { return t?.look?.size || { width: CW, height: CH }; }
-function jobTemplate(j: any, templates: any[]) { return j?.templateSnapshot || templates.find((t) => t.id === j?.templateId) || null; }
+function jobTemplate(j: any, templates: any[]) { return j?.templateSnapshot || templates.find((t) => t.id === j?.templateId) || BUILTIN_TEMPLATES.find((t) => t.id === j?.templateId) || null; }
 function roleLook(t: any, role: string) {
-  return role === "cover" ? t.look.cover : t.look.body;
+  return { ...t.look, logo: t.wordmark.logo, ...(role === "cover" ? t.look.cover : t.look.body) };
 }
 
 function cardParams(t: any, card: any, bodyIndex: number, vars: any) {
-  const L = t.look;
+  const L = roleLook(t, card.role);
   const size = templateSize(t);
-  const exact: any = card.role !== "end" && t.look.textSlots?.length ? {
-    textSlots: JSON.stringify(t.look.textSlots),
-    gradient: !!t.look.gradient, shadeTop: t.look.gradient?.top ?? 0, shadeBottom: t.look.gradient?.bottom ?? size.height,
-    shadeColor: t.look.gradient?.color ?? "#000000", shadeFrom: t.look.gradient?.from ?? 0, shadeTo: t.look.gradient?.to ?? .8,
+  const exact: any = card.role !== "end" && L.textSlots?.length ? {
+    textSlots: JSON.stringify(L.textSlots),
+    gradient: !!L.gradient, shadeTop: L.gradient?.top ?? 0, shadeBottom: L.gradient?.bottom ?? size.height,
+    shadeColor: L.gradient?.color ?? "#000000", shadeFrom: L.gradient?.from ?? 0, shadeTo: L.gradient?.to ?? .8,
     headline: card.headline || "", body: card.body || "", bodySize: t.body.size, bodyWeight: t.body.weight, bodyColor: t.body.color,
     headlineSize: t.headline.size, headlineWeight: t.headline.weight, headlineColor: t.headline.color,
   } : {};
   if (t.look.size) Object.assign(exact, { cardWidth: size.width, cardHeight: size.height });
-  if (Object.prototype.hasOwnProperty.call(t.look, "gradient")) Object.assign(exact, { customShade: true, gradient: !!t.look.gradient, shadeTop: t.look.gradient?.top ?? 0, shadeBottom: t.look.gradient?.bottom ?? size.height, shadeColor: t.look.gradient?.color ?? "#000000", shadeFrom: t.look.gradient?.from ?? 0, shadeTo: t.look.gradient?.to ?? .8 });
-  const logo = t.wordmark.logo;
+  if (Object.prototype.hasOwnProperty.call(L, "gradient")) Object.assign(exact, { customShade: true, gradient: !!L.gradient, shadeTop: L.gradient?.top ?? 0, shadeBottom: L.gradient?.bottom ?? size.height, shadeColor: L.gradient?.color ?? "#000000", shadeFrom: L.gradient?.from ?? 0, shadeTo: L.gradient?.to ?? .8 });
+  const logo = L.logo;
+  if (logo === null) exact.logo = null;
   if (logo) Object.assign(exact, { logo: logo.dataUrl, logoLeft: logo.left ?? (size.width - logo.width) / 2, logoTop: logo.top, logoWidth: logo.width });
   const tracking = card.role === "cover" ? t.headline.tracking : t.body.tracking;
   if (tracking !== undefined) exact.tracking = tracking;
@@ -2602,7 +2685,7 @@ function cardParams(t: any, card: any, bodyIndex: number, vars: any) {
 }
 
 function editableDefs(S: any, role: string, t?: any) {
-  if (role !== "end" && t?.look.textSlots?.length) {
+  if (role !== "end" && t && roleLook(t, role).textSlots?.length) {
     const field = role === "cover" ? "headline" : "body";
     return [{ key: field, label: S.editable[field], type: "text", defaultValue: "" }, { key: "fontFamily", label: S.editable.font, type: "text", defaultValue: "" }, { key: field + "Size", label: S.editable.size, type: "number", defaultValue: t[field].size, min: 8, max: 400, step: 1 }, { key: field + "Color", label: S.editable.color, type: "color", defaultValue: t[field].color }];
   }
@@ -2640,7 +2723,7 @@ function editableDefs(S: any, role: string, t?: any) {
 // Scale and place a picture so it covers the card's photo area. Selects sizes a clip relative to "fit" in
 // the frame and places it in percent of frame height from the centre, +Y up.
 function transformFor(t: any, role: string, w: number, h: number, crop?: any) {
-  if (crop || t.look.textSlots?.length) {
+  if (crop || roleLook(t, role).textSlots?.length) {
     const size = templateSize(t), R = role === "end" ? { variant: "overlay" } : roleLook(t, role);
     const areaH = R.variant === "panel" ? size.height * R.photoPercent / 100 + 40 : size.height;
     const placed = CardSupport.photoPlacement(w, h, crop, { width: size.width, height: areaH });
@@ -2683,6 +2766,25 @@ function CardPreview({ t, card, bodyIndex, vars, S, image, made, maxWidth = 240 
 }
 
 // ---- Template editor ----
+function blankTemplate(language: string): any {
+  const placement = { variant: "overlay", photoPercent: 60, gradientFrom: 50, gradientStrength: .8, textBottom: 1200, panelPad: 40 };
+  return {
+    version: 1, language, names: {}, descriptions: {}, counts: { min: 1, max: 5 }, cardSeconds: 3,
+    look: { font: "", margin: 70, panelColor: "#000000", smallColor: "#FFFFFF94", smallSize: 17, cover: { ...placement }, body: { ...placement } },
+    label: { text: "", style: "none", color: "#FFFFFF", textColor: "#000000", size: 32, radius: 0 },
+    wordmark: { text: "", size: 26, color: "#FFFFFF", logo: null },
+    headline: { size: 72, weight: 700, color: "#FFFFFF", highlight: "#FFFFFF", lineHeight: 1.3, shadow: false },
+    heading: { on: false, numbered: false, size: 46, weight: 700, color: "#FFFFFF" },
+    body: { size: 36, weight: 500, italic: false, color: "#FFFFFF", lineHeight: 1.6, gap: 24, paragraphGap: 24 },
+    credit: { pos: "bottomRight", article: "", ai: "" }, footer: { on: false, text: "" }, handles: { on: false, text: "" },
+    end: { kind: "none", background: "solid", dim: .5, solidBg: "#000000", monogram: "", tagline: "", handle: "", ctaSize: 50 },
+    images: { source: "article", style: "Editorial photograph, natural light, no text or logos." },
+    prompt: { role: "Turn the supplied source into factual card news.", voice: "Write clear, concise news sentences.",
+      cover: "Write a concise headline.", body: "Each card explains one point from the source.", end: "No separate last card.",
+      caption: "Summarize the source facts.", rules: "Use only source facts. Preserve figures, dates and attribution; never invent quotes." },
+  };
+}
+
 function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }: any) {
   useAppUpdateGuard(sdk, lang, () => !!(saving || dirty));
   const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub, role, setRole, pending, setPending } = state;
@@ -2699,17 +2801,28 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       setBaseKey(currentKey);
     }
   }, [selId, currentKey]);
-  if (!current) return null;
-  const fresh = !saved || saved.id !== current.id || baseKey !== currentKey;
-  const edit = fresh ? JSON.parse(currentKey) : saved;
+  const fresh = !saved || saved.id !== current?.id || baseKey !== currentKey;
+  const edit = !current ? null : fresh ? JSON.parse(currentKey) : saved;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
-  const dirty = !!pending || JSON.stringify(edit) !== currentKey;
-  const get = (path: string) => path.split(".").reduce((o: any, k) => (o == null ? o : o[k]), edit);
+  const dirty = !!pending || (!!current && JSON.stringify(edit) !== currentKey);
+  // Legacy imported copies dropped layout IDs but retained the original names metadata.
+  const canEditEnd = edit?.end?.editable !== false && edit?.importedLayoutId !== "chosun-basic" && edit?.names?.en !== "Chosun Ilbo Basic (feed)";
+  const previewRole = !canEditEnd && role === "end" ? "body" : role;
+  const layoutRole = previewRole === "cover" ? "cover" : "body";
+  const layoutPath = `look.${layoutRole}`;
+  const layout = edit ? roleLook(edit, layoutRole) : null;
+  const get = (path: string) => {
+    const match = /^look\.(cover|body)\.(.+)$/.exec(path);
+    return (match ? match[2] : path).split(".").reduce((o: any, k) => o?.[k], match && edit ? roleLook(edit, match[1]) : edit);
+  };
   const set = (path: string, value: any) => {
     setMsg(null);
     setEdit((e: any) => {
       const n = clone(e);
       const ks = path.split(".");
+      if (ks.length > 3 && ks[0] === "look" && ["cover", "body"].includes(ks[1]) && n.look[ks[1]][ks[2]] === undefined) {
+        n.look[ks[1]][ks[2]] = clone(roleLook(n, ks[1])[ks[2]]);
+      }
       let o = n;
       for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
       o[ks[ks.length - 1]] = value;
@@ -2763,7 +2876,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       if (bytes.length > 96 * 1024 || !/\.(png|svg)$/i.test(file.path)) throw new Error("Choose a PNG or SVG logo up to 96 KB.");
       const size = templateSize(edit);
       const width = Math.min(155, size.width);
-      set("wordmark.logo", { dataUrl: `data:image/${/\.svg$/i.test(file.path) ? "svg+xml" : "png"};base64,${CardSupport.bytesToBase64(bytes)}`, left: (size.width - width) / 2, top: Math.max(0, size.height - 130), width });
+      set(`${layoutPath}.logo`, { dataUrl: `data:image/${/\.svg$/i.test(file.path) ? "svg+xml" : "png"};base64,${CardSupport.bytesToBase64(bytes)}`, left: (size.width - width) / 2, top: Math.max(0, size.height - 130), width });
     } catch (e: any) { setMsg({ tone: "error", text: String(e?.message || e) }); }
   }
   async function save() {
@@ -2790,7 +2903,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   function startTemplate() {
     const name = newName.trim();
     if (!name) return;
-    const source = dialog === "duplicate" ? edit : BUILTIN_TEMPLATES.find((t: any) => cardLangOf(t) === cardLangOf(edit)) || BUILTIN_TEMPLATES[0];
+    const source = dialog === "duplicate" ? edit : blankTemplate(current ? cardLangOf(edit) : defaultCardLang(lang));
     const next = { ...clean(clone(source)), id: "t" + crypto.randomUUID(), name, version: 1 };
     delete next.importedLayoutId;
     delete next.baseId;
@@ -2823,12 +2936,35 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
     }
   }
 
+  const toolbar = (<ui.TemplateToolbar
+      labels={{title:S.myTemplates,template:S.template,add:S.addTemplate,create:S.newTemplate,import:S.importTemplate,export:S.exportTemplate}}
+      value={current?.id || ""} options={(pending ? [pending] : templates).map((t: any) => ({value:t.id,label:tplLabel(t,lang,S)}))}
+      onChange={(id: string) => { if (dirty) setPendingSelection(id); else switchTemplate(id); }}
+      disabled={saving || !!pending} actionsDisabled={dirty || saving} exportDisabled={!current || saving || !!pending}
+      onCreate={() => create("new")} onImport={() => { setMsg(null); setDialog("import"); }} onExport={() => { setMsg(null); setDialog("export"); }}
+    />);
+  const transferDialog = (<ui.TemplateTransferDialog open={!!dialog} onOpenChange={(open: boolean) => { if (!open) setDialog(null); }} title={dialog === "import" ? S.importTemplate : dialog === "export" ? S.exportTemplate : dialog === "delete" ? S.deleteTitle : dialog === "duplicate" ? S.duplicate : S.newTemplate} busy={saving} method="file" onMethodChange={() => {}} methods={[]}>
+      {dialog === "import" ? <ui.FileDrop activation="surface" accept={["json"]} value={null} disabled={dirty || saving} onChange={importTemplate} />
+        : dialog === "delete" ? <ui.Message>{S.deleteBody(nameOf(current,lang))} {S.deleteKeepCards}</ui.Message>
+        : dialog === "export" ? <ui.Message>{S.shareFileHint}</ui.Message>
+        : <ui.TextField label={S.tplName} value={newName} onChange={setNewName} disabled={saving} />}
+      {dialog === "export" && dirty && <ui.Message>{S.unsaved}</ui.Message>}
+      {msg?.tone === "error" && <ui.Message tone="error">{msg.text}</ui.Message>}
+      <ui.Actions>
+        <ui.Button variant="secondary" onClick={() => setDialog(null)} disabled={saving}>{S.cancel}</ui.Button>
+        {dialog === "export" ? <ui.Button onClick={exportTemplate} disabled={dirty || saving}>{S.exportTemplate}</ui.Button>
+          : dialog === "delete" ? <ui.Button variant="danger" onClick={remove} busy={saving}>{S.del}</ui.Button>
+          : dialog !== "import" && <ui.Button onClick={startTemplate} disabled={!newName.trim() || saving}>{dialog === "duplicate" ? S.duplicate : S.newTemplate}</ui.Button>}
+      </ui.Actions>
+    </ui.TemplateTransferDialog>);
+  if (!current) return <ui.Stack gap={8}>{toolbar}<ui.Message>{S.noTplForLang}</ui.Message>{transferDialog}</ui.Stack>;
+
   // Sample copy is in the template's card language, whatever the app's language.
   const L = STRINGS[cardLangOf(edit)];
   const sample: any =
-    role === "cover"
+    previewRole === "cover"
       ? { role: "cover", headline: L.sampleHeadline, credit: edit.credit.article.replace("{credit}", "Reuters") }
-      : role === "end"
+      : previewRole === "end"
         ? { role: "end", cta: L.sampleCta }
         : { role: "body", heading: L.sampleHeading, body: L.sampleBody, credit: edit.credit.ai };
   const vars = SAMPLE_VARS[cardLangOf(edit)];
@@ -2836,15 +2972,15 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
     <ui.Stack gap={8}>
       <ui.Select
         label={S.previewOf}
-        value={role}
+        value={previewRole}
         onChange={setRole}
         options={[
           { value: "cover", label: S.cover },
           { value: "body", label: S.roleBody },
-          { value: "end", label: S.end },
+          ...(canEditEnd ? [{ value: "end", label: S.end }] : []),
         ]}
       />
-      {role === "end" && endKindOf(edit) === "none" ? <small>{S.endNone}</small> : <CardPreview t={edit} card={sample} bodyIndex={1} vars={vars} S={S} />}
+      {previewRole === "end" && endKindOf(edit) === "none" ? <small>{S.endNone}</small> : <CardPreview t={edit} card={sample} bodyIndex={1} vars={vars} S={S} />}
     </ui.Stack>
   );
   const placement = (key: string, title: string) => (
@@ -2871,25 +3007,25 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   const look = (
     <ui.Stack gap={16}>
       <ui.TemplateSettingsSection title="Text placement">
-        <ui.Toggle label="Use fixed text boxes" value={!!edit.look.textSlots?.length} onChange={(on: boolean) => {
-          const size = templateSize(edit), height = Math.round(edit.headline.size * edit.headline.lineHeight);
+        <ui.Toggle label="Use fixed text boxes" value={!!layout.textSlots?.length} onChange={(on: boolean) => {
+          const size = templateSize(edit), height = Math.round(edit[layoutRole === "cover" ? "headline" : "body"].size * edit[layoutRole === "cover" ? "headline" : "body"].lineHeight);
           const left = edit.look.margin;
-          set("look.textSlots", on ? [0, 1].map((i) => ({ left, top: Math.max(0, size.height - 400 + i * (height + edit.body.gap)), width: size.width - left * 2, height, align: "center" })) : null);
+          set(`${layoutPath}.textSlots`, on ? [0, 1].map((i) => ({ left, top: Math.max(0, size.height - 400 + i * (height + edit.body.gap)), width: size.width - left * 2, height, align: "center" })) : null);
         }} disabled={saving} />
-        {edit.look.textSlots?.map((box: any, i: number) => <ui.Stack key={i}>
+        {layout.textSlots?.map((box: any, i: number) => <ui.Stack key={i}>
           <small>{`Text line ${i + 1}`}</small>
-          {num(`look.textSlots.${i}.left`, "Left", 0, templateSize(edit).width, 1, "px")}
-          {num(`look.textSlots.${i}.top`, "Top", 0, templateSize(edit).height, 1, "px")}
-          {num(`look.textSlots.${i}.width`, "Width", 1, templateSize(edit).width, 1, "px")}
-          {num(`look.textSlots.${i}.height`, "Height", 1, templateSize(edit).height, 1, "px")}
-          {seg(`look.textSlots.${i}.align`, "Alignment", [{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }])}
+          {num(`${layoutPath}.textSlots.${i}.left`, "Left", 0, templateSize(edit).width, 1, "px")}
+          {num(`${layoutPath}.textSlots.${i}.top`, "Top", 0, templateSize(edit).height, 1, "px")}
+          {num(`${layoutPath}.textSlots.${i}.width`, "Width", 1, templateSize(edit).width, 1, "px")}
+          {num(`${layoutPath}.textSlots.${i}.height`, "Height", 1, templateSize(edit).height, 1, "px")}
+          {seg(`${layoutPath}.textSlots.${i}.align`, "Alignment", [{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }])}
         </ui.Stack>)}
-        {edit.look.gradient ? <ui.Stack>
-          {num("look.gradient.top", "Shade top", 0, templateSize(edit).height, 1, "px")}
-          {num("look.gradient.bottom", "Shade bottom", 0, templateSize(edit).height, 1, "px")}
-          {col("look.gradient.color", "Shade color")}
-          {num("look.gradient.from", "Shade start opacity", 0, 1, .01)}
-          {num("look.gradient.to", "Shade end opacity", 0, 1, .01)}
+        {layout.gradient ? <ui.Stack>
+          {num(`${layoutPath}.gradient.top`, "Shade top", 0, templateSize(edit).height, 1, "px")}
+          {num(`${layoutPath}.gradient.bottom`, "Shade bottom", 0, templateSize(edit).height, 1, "px")}
+          {col(`${layoutPath}.gradient.color`, "Shade color")}
+          {num(`${layoutPath}.gradient.from`, "Shade start opacity", 0, 1, .01)}
+          {num(`${layoutPath}.gradient.to`, "Shade end opacity", 0, 1, .01)}
         </ui.Stack> : null}
       </ui.TemplateSettingsSection>
       <ui.TemplateSettingsSection title={S.cards}>
@@ -2900,7 +3036,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       {placement("cover", S.cover)}
       {placement("body", S.bodyCards)}
       <ui.TemplateSettingsSection title={S.type}>
-        <ui.FontField label={S.font} value={edit.look.font || ""} onChange={(v: string) => set("look.font", v)} disabled={saving} />
+        <ui.FontField label={S.font} value={layout.font || ""} onChange={(v: string) => set(`${layoutPath}.font`, v)} disabled={saving} />
         {num("look.margin", S.margin, 0, 300, 1, "px")}
         {col("look.panelColor", S.panelColor)}
         {num("headline.size", S.headlineSize, 30, 160, 1, "px")}
@@ -2947,12 +3083,12 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       <ui.TemplateSettingsSection title={S.brand}>
         {txt("wordmark.text", S.wordmark, false)}
         <ui.FileDrop accept={["png", "svg"]} value={null} onChange={logoFile} labels={{ drop: "Drop a logo (PNG or SVG)", choose: "Choose logo" }} disabled={saving} />
-        {edit.wordmark.logo ? <ui.Stack>
-          <img src={edit.wordmark.logo.dataUrl} style={{ maxWidth: 155, maxHeight: 60, objectFit: "contain" }} />
-          {num("wordmark.logo.left", "Logo left", 0, templateSize(edit).width, 1, "px")}
-          {num("wordmark.logo.top", "Logo top", 0, templateSize(edit).height, 1, "px")}
-          {num("wordmark.logo.width", "Logo width", 1, templateSize(edit).width, 1, "px")}
-          <ui.Button variant="ghost" onClick={() => set("wordmark.logo", null)} disabled={saving}>Remove logo</ui.Button>
+        {layout.logo ? <ui.Stack>
+          <img src={layout.logo.dataUrl} style={{ maxWidth: 155, maxHeight: 60, objectFit: "contain" }} />
+          {num(`${layoutPath}.logo.left`, "Logo left", 0, templateSize(edit).width, 1, "px")}
+          {num(`${layoutPath}.logo.top`, "Logo top", 0, templateSize(edit).height, 1, "px")}
+          {num(`${layoutPath}.logo.width`, "Logo width", 1, templateSize(edit).width, 1, "px")}
+          <ui.Button variant="ghost" onClick={() => set(`${layoutPath}.logo`, null)} disabled={saving}>Remove logo</ui.Button>
         </ui.Stack> : null}
         {tog("handles.on", S.handlesOn)}
         {edit.handles.on && txt("handles.text", S.handles)}
@@ -2972,7 +3108,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
         {txt("credit.article", S.creditArticle, false)}
         {txt("credit.ai", S.creditAi, false)}
       </ui.TemplateSettingsSection>
-      <ui.TemplateSettingsSection title={S.end}>
+      {canEditEnd && <ui.TemplateSettingsSection title={S.end}>
         <ui.Select
           label={S.endKind}
           value={edit.end.kind}
@@ -3000,7 +3136,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
             )}
           </ui.Stack>
         )}
-      </ui.TemplateSettingsSection>
+      </ui.TemplateSettingsSection>}
     </ui.Stack>
   );
   const ai = (
@@ -3025,7 +3161,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
         {txt("prompt.voice", S.pVoice)}
         {txt("prompt.cover", S.pCover)}
         {txt("prompt.body", S.pBody)}
-        {txt("prompt.end", S.pEnd)}
+        {canEditEnd && txt("prompt.end", S.pEnd)}
         {txt("prompt.caption", S.pCaption)}
         {txt("prompt.rules", S.pRules)}
       </ui.TemplateSettingsSection>
@@ -3040,18 +3176,12 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
     <ui.Segmented label={S.cardLang} value={cardLangOf(edit)} onChange={(v: string) => set("language", v)} options={[{value:"en",label:S.langName.en},{value:"ko",label:S.langName.ko}]} disabled={saving} />
     <ui.Actions>
       <ui.Button variant="secondary" onClick={() => create("duplicate")} disabled={dirty || saving}>{S.duplicate}</ui.Button>
-      <ui.Button variant="danger" onClick={() => { setMsg(null); setDialog("delete"); }} disabled={dirty || saving || !!pending || templates.length <= 1}>{S.del}</ui.Button>
+      <ui.Button variant="danger" onClick={() => { setMsg(null); setDialog("delete"); }} disabled={dirty || saving || !!pending}>{S.del}</ui.Button>
       {current.builtIn && current.modified && <ui.Button variant="ghost" onClick={reset} disabled={dirty || saving}>{S.reset}</ui.Button>}
     </ui.Actions>
   </ui.Stack>;
   return <ui.Stack gap={8}>
-    <ui.TemplateToolbar
-      labels={{title:S.myTemplates,template:S.template,add:S.addTemplate,create:S.newTemplate,import:S.importTemplate,export:S.exportTemplate}}
-      value={current.id} options={(pending ? [pending] : templates).map((t: any) => ({value:t.id,label:tplLabel(t,lang,S)}))}
-      onChange={(id: string) => { if (dirty) setPendingSelection(id); else switchTemplate(id); }}
-      disabled={saving || !!pending} actionsDisabled={dirty || saving} exportDisabled={saving || !!pending}
-      onCreate={() => create("new")} onImport={() => { setMsg(null); setDialog("import"); }} onExport={() => { setMsg(null); setDialog("export"); }}
-    />
+    {toolbar}
     {pendingSelection && <ui.Stack gap={8}>
       <ui.Message>{S.unsaved}</ui.Message>
       <ui.Actions>
@@ -3060,20 +3190,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
         <ui.Button variant="ghost" onClick={() => setPendingSelection(null)} disabled={saving}>{S.cancel}</ui.Button>
       </ui.Actions>
     </ui.Stack>}
-    <ui.TemplateTransferDialog open={!!dialog} onOpenChange={(open: boolean) => { if (!open) setDialog(null); }} title={dialog === "import" ? S.importTemplate : dialog === "export" ? S.exportTemplate : dialog === "delete" ? S.deleteTitle : dialog === "duplicate" ? S.duplicate : S.newTemplate} busy={saving} method="file" onMethodChange={() => {}} methods={[]}>
-      {dialog === "import" ? <ui.FileDrop activation="surface" accept={["json"]} value={null} disabled={dirty || saving} onChange={importTemplate} />
-        : dialog === "delete" ? <ui.Message>{S.deleteBody(nameOf(current,lang))} {S.deleteKeepCards}</ui.Message>
-        : dialog === "export" ? <ui.Message>{S.shareFileHint}</ui.Message>
-        : <ui.TextField label={S.tplName} value={newName} onChange={setNewName} disabled={saving} />}
-      {dialog === "export" && dirty && <ui.Message>{S.unsaved}</ui.Message>}
-      {msg?.tone === "error" && <ui.Message tone="error">{msg.text}</ui.Message>}
-      <ui.Actions>
-        <ui.Button variant="secondary" onClick={() => setDialog(null)} disabled={saving}>{S.cancel}</ui.Button>
-        {dialog === "export" ? <ui.Button onClick={exportTemplate} disabled={dirty || saving}>{S.exportTemplate}</ui.Button>
-          : dialog === "delete" ? <ui.Button variant="danger" onClick={remove} busy={saving}>{S.del}</ui.Button>
-          : dialog !== "import" && <ui.Button onClick={startTemplate} disabled={!newName.trim() || saving}>{dialog === "duplicate" ? S.duplicate : S.newTemplate}</ui.Button>}
-      </ui.Actions>
-    </ui.TemplateTransferDialog>
+    {transferDialog}
     <ui.TemplateSections value={sub} onChange={setSub} label={S.template} preview={preview} previewAspectRatio={templateSize(edit).width / templateSize(edit).height}
       actions={<ui.Row gap={4}><ui.Button onClick={save} disabled={!dirty || saving}>{S.save}</ui.Button><ui.Button variant="ghost" onClick={discard} disabled={!dirty || saving}>{S.cancel}</ui.Button></ui.Row>}
       feedback={msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
@@ -3120,15 +3237,15 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
       {card.role === "body" && <ui.TextField label={S.body} value={card.body || ""} onChange={(v: string) => onChange({ ...card, body: v })} multiline disabled={busy} />}
       {card.role === "end" && t.end.kind === "cta" && <ui.TextField label={S.cta} value={card.cta || ""} onChange={(v: string) => onChange({ ...card, cta: v })} multiline disabled={busy} />}
       {path && card.role !== "end" ? <ui.Stack>
-        <ui.NumberField label="Zoom" value={CardSupport.clampCrop(card.crop).zoom * 100} min={100} max={300} step={1} unit="%" onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), zoom: v / 100 } })} disabled={busy} />
-        <ui.NumberField label="Left / right" value={CardSupport.clampCrop(card.crop).x * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), x: v / 100 } })} disabled={busy} />
-        <ui.NumberField label="Up / down" value={CardSupport.clampCrop(card.crop).y * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), y: v / 100 } })} disabled={busy} />
+        <ui.NumberField label={S.zoomPhoto} value={CardSupport.clampCrop(card.crop).zoom * 100} min={100} max={300} step={1} unit="%" onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), zoom: v / 100 } })} disabled={busy} />
+        <ui.NumberField label={S.photoX} value={CardSupport.clampCrop(card.crop).x * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), x: v / 100 } })} disabled={busy} />
+        <ui.NumberField label={S.photoY} value={CardSupport.clampCrop(card.crop).y * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), y: v / 100 } })} disabled={busy} />
       </ui.Stack> : null}
-      {card.role !== "end" && t.look.textSlots?.length && String(card.role === "cover" ? card.headline : card.body).split("\n").length > t.look.textSlots.length ? <ui.Message tone="error">{`This template has ${t.look.textSlots.length} text lines. Shorten the card text before exporting.`}</ui.Message> : null}
+      {card.role !== "end" && roleLook(t, card.role).textSlots?.length && String(card.role === "cover" ? card.headline : card.body).split("\n").length > roleLook(t, card.role).textSlots.length ? <ui.Message tone="error">{`This template has ${roleLook(t, card.role).textSlots.length} text lines. Shorten the card text before exporting.`}</ui.Message> : null}
       <ui.Actions>
-        <ui.Button variant="ghost" onClick={() => onMove(-1)} disabled={busy || index === 0 || card.role === "end"}>Move earlier</ui.Button>
-        <ui.Button variant="ghost" onClick={() => onMove(1)} disabled={busy || index === plan.cards.length - 1 || card.role === "end" || plan.cards[index + 1]?.role === "end"}>Move later</ui.Button>
-        <ui.IconButton icon="trash" label="Delete card" onClick={onRemove} disabled={busy || plan.cards.length < 2 || (card.role !== "end" && plan.cards.filter((c: any) => c.role !== "end").length < 2)} />
+        <ui.Button variant="ghost" onClick={() => onMove(-1)} disabled={busy || index === 0 || card.role === "end"}>{S.moveEarlier}</ui.Button>
+        <ui.Button variant="ghost" onClick={() => onMove(1)} disabled={busy || index === plan.cards.length - 1 || card.role === "end" || plan.cards[index + 1]?.role === "end"}>{S.moveLater}</ui.Button>
+        <ui.IconButton icon="trash" label={S.deleteCard} onClick={onRemove} disabled={busy || plan.cards.length < 2 || (card.role !== "end" && plan.cards.filter((c: any) => c.role !== "end").length < 2)} />
       </ui.Actions>
       {showPicture && card.role !== "end" && (
         <ui.Stack gap={8}>
@@ -3151,6 +3268,7 @@ type LayoutTemplate = {
   kind: "layout";
   id: string;
   name: string;
+  names?: Record<string, string>;
   version: number;
   /** The headlines' language: "ko" or "en". */
   language: string;
@@ -3162,6 +3280,7 @@ type LayoutTemplate = {
   lines: { left: number; top: number; width: number; align: "left" | "center" | "right" }[];
   /** The logo image at `top`, `width` wide (height from its proportions), at `left` or centred. */
   logo: { top: number; width: number; left?: number; dataUrl: string } | null;
+  body?: { font: LayoutFont; lines: LayoutTemplate["lines"]; shade: LayoutTemplate["shade"]; logo: LayoutTemplate["logo"] };
 };
 
 /** What is wrong with a template file, or nothing. */
@@ -3173,6 +3292,7 @@ function validateLayout(t: any): string[] {
   if (t.kind !== "layout") errors.push('kind must be "layout".');
   if (typeof t.id !== "string" || !/^[\w-]{1,64}$/.test(t.id)) errors.push("id must be 1-64 letters, digits, - or _.");
   if (typeof t.name !== "string" || !t.name.trim()) errors.push("name is missing.");
+  if (t.names !== undefined && (!t.names || typeof t.names !== "object" || Array.isArray(t.names) || Object.values(t.names).some((name) => typeof name !== "string" || !name.trim()))) errors.push("names must map locales to non-empty strings.");
   if (!Number.isSafeInteger(t.version) || t.version < 1) errors.push("version must be a positive whole number.");
   if (!["ko", "en"].includes(t.language)) errors.push('language must be "ko" or "en".');
   const w = t.size?.width;
@@ -3183,7 +3303,7 @@ function validateLayout(t: any): string[] {
   if (!num(f.weight, 100, 900)) errors.push("font.weight must be 100-900.");
   if (!num(f.size, 8, 400)) errors.push("font.size must be 8-400.");
   if (!num(f.tracking, -0.5, 0.5)) errors.push("font.tracking must be between -0.5 and 0.5 (em).");
-  if (!color(f.color)) errors.push("font.color must be #RRGGBB.");
+  if (typeof f.color !== "string" || !/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(f.color)) errors.push("font.color must be #RRGGBB or #RRGGBBAA.");
   if (!num(f.lineHeight, 8, 800)) errors.push("font.lineHeight must be 8-800.");
   if (!Array.isArray(t.lines) || t.lines.length < 1 || t.lines.length > 4) errors.push("lines must list 1 to 4 boxes.");
   else
@@ -3201,6 +3321,10 @@ function validateLayout(t: any): string[] {
     if (!num(g.top, 0, h) || !num(g.width, 1, w) || (g.left !== undefined && !num(g.left, 0, w))) errors.push("logo needs top and width inside the card (and left, if not centred), or null.");
     if (typeof g.dataUrl !== "string" || !/^data:image\/(svg\+xml|png);base64,/.test(g.dataUrl)) errors.push("logo.dataUrl must be a base64 SVG or PNG data URL.");
     else if (g.dataUrl.length > Math.ceil((LOGO_LIMIT * 4) / 3) + 40) errors.push(`The logo is over ${LOGO_LIMIT / 1024} KB.`);
+  }
+  if (t.body !== undefined) {
+    if (!t.body || typeof t.body !== "object" || Array.isArray(t.body)) errors.push("body must be a layout object.");
+    else errors.push(...validateLayout({ ...t, font: t.body.font, lines: t.body.lines, shade: t.body.shade, logo: t.body.logo, body: undefined }).map((error) => `body: ${error}`));
   }
   return errors;
 }
@@ -3384,20 +3508,30 @@ async function pngToJpeg(png: Uint8Array): Promise<Uint8Array> {
 function fromLayout(l: LayoutTemplate): any {
   const base = BUILTIN_TEMPLATES.find((t: any) => t.id === `essay-${l.language}`) || BUILTIN_TEMPLATES[0];
   const t = JSON.parse(JSON.stringify(base));
+  const body = l.body, bodyFont = body?.font || l.font;
+  const chosun = l.id === "chosun-basic" && l.version === 2;
   return {
-    ...t, id: `layout-${l.id}`, name: l.name, names: { en: l.name, ko: l.name }, builtIn: false,
+    ...t, id: `layout-${l.id}`, name: l.names ? "" : l.name, names: { en: l.name, ko: l.name, ...l.names }, builtIn: false,
     importedLayoutId: l.id, version: l.version, language: l.language,
-    descriptions: { en: "Photo cards with a team's typography and placement.", ko: "Photo cards with a team's typography and placement." },
+    descriptions: { en: "Photo cards with a team's typography and placement.", ko: l.id === "chosun-basic" && l.version === 2 ? "\uc870\uc120\uc77c\ubcf4\uc758 \uae00\uaf34\uacfc \ubc30\uce58\ub97c \uc801\uc6a9\ud55c \ud45c\uc9c0\u00b7\ubcf8\ubb38 \uce74\ub4dc\uc785\ub2c8\ub2e4." : "Photo cards with a team's typography and placement." },
     counts: { min: 1, max: 20 },
     look: { ...t.look, font: l.font.family, size: { ...l.size },
       textSlots: l.lines.map((box) => ({ ...box, height: l.font.lineHeight })), gradient: l.shade,
-      cover: { ...t.look.cover, variant: "overlay", textBottom: Math.min(t.look.cover.textBottom, l.size.height * .95) }, body: { ...t.look.body, variant: "overlay", textBottom: Math.min(t.look.body.textBottom, l.size.height * .95) } },
+      cover: { ...t.look.cover, variant: "overlay", textBottom: Math.min(t.look.cover.textBottom, l.size.height * .95) }, body: { ...t.look.body, variant: "overlay", textBottom: Math.min(t.look.body.textBottom, l.size.height * .95), ...(body ? {
+        font: body.font.family, textSlots: body.lines.map((box) => ({ ...box, height: body.font.lineHeight })), gradient: body.shade,
+        logo: body.logo ? { ...body.logo, left: body.logo.left ?? (l.size.width - body.logo.width) / 2 } : null,
+      } : {}) } },
     label: { ...t.label, style: "none", text: "" },
     headline: { ...t.headline, size: l.font.size, weight: l.font.weight, color: l.font.color, highlight: l.font.color, lineHeight: l.font.lineHeight / l.font.size, tracking: l.font.tracking },
-    body: { ...t.body, size: l.font.size, weight: l.font.weight, color: l.font.color, italic: false, lineHeight: l.font.lineHeight / l.font.size, tracking: l.font.tracking },
+    body: { ...t.body, size: bodyFont.size, weight: bodyFont.weight, color: bodyFont.color, italic: false, lineHeight: bodyFont.lineHeight / bodyFont.size, tracking: bodyFont.tracking },
     heading: { ...t.heading, on: false }, wordmark: { ...t.wordmark, text: "", logo: l.logo ? { ...l.logo, left: l.logo.left ?? (l.size.width - l.logo.width) / 2 } : null },
-    credit: { ...t.credit, article: "", ai: "" }, end: { ...t.end, kind: "none" }, images: { ...t.images, source: "article" },
-    prompt: { ...t.prompt, cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: `Each card has one concise news point in up to ${l.lines.length} lines.`, end: "No separate last card." },
+    credit: { ...t.credit, article: "", ai: "" }, end: { ...t.end, kind: "none", ...(l.id === "chosun-basic" ? { editable: false } : {}) }, images: { ...t.images, source: "article" },
+    prompt: { ...t.prompt, ...(chosun ? {
+      role: "You are a Chosun Ilbo news editor. Explain the source article as factual photo card news.",
+      voice: "Use compact Korean news-report prose, not conversational photo-essay endings such as ~\ud588\uc5b4\uc694 or ~\uac70\uc8e0. Preserve attribution and uncertainty.",
+    } : {}), cover: `Write a concise headline in up to ${l.lines.length} lines.`, body: chosun
+      ? "Each body card is a cohesive factual explanation in exactly 3 explicit lines. Aim for 85-100% of the text-box width on the first two lines and a natural final line, typically about 20-26 mixed Korean characters including spaces, numbers and Latin letters per line. Carry a sentence across lines at phrase boundaries rather than splitting one short sentence into three fragments. Use relevant source details, figures and attribution to provide reference-card density. Use compact news endings such as ~\uc784, ~\ubcf4\ub3c4\ud568 or ~\ud3c9\uac00. Never invent facts or add filler just to fill the width; use a shorter line when the source does not support more. No heading."
+      : `Each card has one concise news point in up to ${(body?.lines || l.lines).length} lines.`, end: "No separate last card." },
   };
 }
 function validateTemplate(t: any) {
@@ -3408,16 +3542,18 @@ function validateTemplate(t: any) {
   for (const f of [t.headline, t.body]) {
     if (!finite(f.size, 8, 400) || !finite(f.weight, 100, 900) || (f.tracking !== undefined && !finite(f.tracking, -.5, .5))) throw new Error("Invalid template typography.");
   }
-  if (t.look.textSlots) {
-    if (!Array.isArray(t.look.textSlots) || !t.look.textSlots.length || t.look.textSlots.length > 4) throw new Error("Use one to four text boxes.");
-    for (const box of t.look.textSlots) if (!finite(box.left, 0, size.width) || !finite(box.top, 0, size.height) || !finite(box.width, 1, size.width - box.left) || !finite(box.height, 1, size.height - box.top) || !["left", "center", "right"].includes(box.align)) throw new Error("Text boxes must fit inside the card.");
+  for (const layout of [t.look, t.look.cover, t.look.body]) {
+    if (layout?.font !== undefined && typeof layout.font !== "string") throw new Error("Invalid template font.");
+    if (layout?.textSlots) {
+      if (!Array.isArray(layout.textSlots) || !layout.textSlots.length || layout.textSlots.length > 4) throw new Error("Use one to four text boxes.");
+      for (const box of layout.textSlots) if (!finite(box.left, 0, size.width) || !finite(box.top, 0, size.height) || !finite(box.width, 1, size.width - box.left) || !finite(box.height, 1, size.height - box.top) || !["left", "center", "right"].includes(box.align)) throw new Error("Text boxes must fit inside the card.");
+    }
+    if (layout?.gradient) {
+      const g = layout.gradient;
+      if (!finite(g.top, 0, size.height) || !finite(g.bottom, g.top + 1, size.height) || !finite(g.from, 0, 1) || !finite(g.to, 0, 1) || !/^#[0-9a-f]{6}$/i.test(g.color || "")) throw new Error("Invalid template gradient.");
+    }
   }
-  if (t.look.gradient) {
-    const g = t.look.gradient;
-    if (!finite(g.top, 0, size.height) || !finite(g.bottom, g.top + 1, size.height) || !finite(g.from, 0, 1) || !finite(g.to, 0, 1) || !/^#[0-9a-f]{6}$/i.test(g.color || "")) throw new Error("Invalid template gradient.");
-  }
-  if (t.wordmark.logo) {
-    const logo = t.wordmark.logo;
+  for (const logo of [t.wordmark.logo, t.look.cover?.logo, t.look.body?.logo]) if (logo) {
     if (!/^data:image\/(svg\+xml|png);base64,/.test(logo.dataUrl || "") || logo.dataUrl.length > 131112 || !finite(logo.top, 0, size.height) || !finite(logo.width, 1, size.width) || (logo.left !== undefined && !finite(logo.left, 0, size.width))) throw new Error("Use a PNG or SVG logo up to 96 KB with a position inside the card.");
   }
 }
@@ -3478,7 +3614,10 @@ function Panel(props: any) {
       pic,
       K.genPrompt,
       src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
-      t.look.textSlots?.length ? `Each cover headline and each body card body must have 1 to ${t.look.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...t.look.textSlots.map((b: any) => b.width)) / t.headline.size)} full-width characters. Body cards need no heading. Do not add text outside these boxes.` : "",
+      ...["cover", "body"].map((role) => {
+        const layout = roleLook(t, role), font = role === "cover" ? t.headline : t.body;
+        return layout.textSlots?.length ? `Each ${role === "cover" ? "cover headline" : "body card body"} must have 1 to ${layout.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...layout.textSlots.map((b: any) => b.width)) / font.size)} full-width ${t.importedLayoutId === "chosun-basic" || t.names?.en === "Chosun Ilbo Basic (feed)" ? "glyph equivalents (one Hangul/CJK glyph is about 1, spaces and Latin characters about 0.5; this is NOT a limit on the total character count)" : "characters"}. Body cards need no heading. Do not add text outside these boxes.` : "";
+      }),
       cNote ? K.note(cNote) : "",
       K.noTools,
       K.json,
@@ -3518,18 +3657,18 @@ function Panel(props: any) {
   }
 
 function validateCardText(plan: any, t: any) {
-  if (!t.look.textSlots?.length) return;
   const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
   for (const [i, card] of plan.cards.entries()) {
-    if (card.role === "end") continue;
+    const layout = roleLook(t, card.role);
+    if (card.role === "end" || !layout.textSlots?.length) continue;
     const lines = String(card.role === "cover" ? card.headline || "" : card.body || "").split("\n");
-    if (lines.length > t.look.textSlots.length) throw new Error(`Card ${i + 1}: this template has only ${t.look.textSlots.length} text lines. Shorten the text before exporting.`);
+    if (lines.length > layout.textSlots.length) throw new Error(`Card ${i + 1}: this template has only ${layout.textSlots.length} text lines. Shorten the text before exporting.`);
     const font = card.role === "cover" ? t.headline : t.body;
     if (ctx) {
-      ctx.font = `${font.weight} ${font.size}px "${t.look.font || "sans-serif"}"`;
+      ctx.font = `${font.weight} ${font.size}px "${layout.font || "sans-serif"}"`;
       for (const [line, text] of lines.entries()) {
         const width = ctx.measureText(text).width + Math.max(0, [...text].length - 1) * font.size * (font.tracking || 0);
-        if (width > t.look.textSlots[line].width + .5) throw new Error(`Card ${i + 1}, line ${line + 1}: the text is wider than its box. Shorten it before exporting.`);
+        if (width > layout.textSlots[line].width + .5) throw new Error(`Card ${i + 1}, line ${line + 1}: the text is wider than its box. Shorten it before exporting.`);
       }
     }
   }
@@ -3579,7 +3718,8 @@ function validatePlan(plan: any, t: any, photos: any[] = []) {
   for (const card of cards) {
     const text = card.role === "cover" ? card.headline : card.body || card.heading;
     if (!String(text || "").trim()) throw new Error("Every card needs text from the article.");
-    if (t.look.textSlots?.length && String(text).split("\n").length > t.look.textSlots.length) throw new Error(`Use at most ${t.look.textSlots.length} lines per card.`);
+    const slots = roleLook(t, card.role).textSlots;
+    if (slots?.length && String(text).split("\n").length > slots.length) throw new Error(`Use at most ${slots.length} lines per card.`);
   }
   validateCardText(plan, t);
   return plan;
@@ -3593,14 +3733,14 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const projectId: string | null = context?.projectId ?? null;
   const store = React.useMemo(() => makeStore(), []);
   const [tab, setTab] = React.useState<string>("make");
-  const [templates, setTemplates] = React.useState<any[]>(BUILTIN_TEMPLATES.map((t: any) => ({ ...t, builtIn: true })));
+  const [templates, setTemplates] = React.useState<any[]>([]);
   const [mode, setMode] = React.useState<string>("link");
   const [url, setUrl] = React.useState<string>("");
   const [text, setText] = React.useState<string>("");
   const [resources, setResources] = React.useState<any[]>([]);
   const [pick, setPick] = React.useState<string | null>(null);
   const [cardLang, setCardLang] = React.useState<string>(defaultCardLang(lang));
-  const [tplId, setTplId] = React.useState<string>((BUILTIN_TEMPLATES.find((t: any) => cardLangOf(t) === defaultCardLang(lang)) || BUILTIN_TEMPLATES[0]).id);
+  const [tplId, setTplId] = React.useState<string>("");
   const [countMode, setCountMode] = React.useState<string>("auto");
   const [count, setCount] = React.useState<number>(4);
   const [note, setNote] = React.useState<string>("");
@@ -3614,8 +3754,9 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const [phase, setPhase] = React.useState<number | null>(null);
   const linkedRequest = React.useRef<string | null>(null);
   const [linkedFailure, setLinkedFailure] = React.useState<any>(null);
+  const [linkedNotice, setLinkedNotice] = React.useState(false);
   // Template editor state lives here so unsaved edits survive a tab switch.
-  const [tplSel, setTplSel] = React.useState<string>(BUILTIN_TEMPLATES[0].id);
+  const [tplSel, setTplSel] = React.useState<string>("");
   const [tplEdit, setTplEdit] = React.useState<any>(null);
   const [tplBase, setTplBase] = React.useState<string>("");
   const [tplSub, setTplSub] = React.useState<string>("look");
@@ -3639,42 +3780,71 @@ function ProjectPanel({ sdk, context, ui }: any) {
     return { ...r, stdout: String(r.stdout || ""), stderr: String(r.stderr || ""), output: String(r.output || "") };
   };
 
+  const selections = React.useRef<any>({ makeId: null, editorId: null });
+  function rememberSelection(field: string, id: string) {
+    selections.current = { ...selections.current, [field]: id };
+    return store.put("settings", "selection", { id: "selection", ...selections.current })
+      .catch((e: any) => setError(String(e?.message || e)));
+  }
+  function selectTemplate(t: any) {
+    setCardLang(cardLangOf(t)); setTplId(t.id);
+    return rememberSelection("makeId", t.id);
+  }
+  function selectEditorTemplate(id: string) {
+    setTplSel(id);
+    return rememberSelection("editorId", id);
+  }
   const loadTemplates = React.useCallback(async () => {
-    const saved: any[] = (await store.list("templates")).filter((t: any) => t && t.id);
-    const layouts = (await store.list("layout-templates")).filter((l: any) => !CardSupport.validateLayout(l).length).map(CardSupport.fromLayout);
+    const [stored, storedLayouts, settings] = await Promise.all([store.list("templates"), store.list("layout-templates"), store.list("settings")]);
+    const saved: any[] = stored.filter((t: any) => t && t.id);
+    const layouts = storedLayouts.filter((l: any) => !CardSupport.validateLayout(l).length).map(CardSupport.fromLayout);
     const bases = [...BUILTIN_TEMPLATES, ...layouts];
     const byId = new Map(saved.map((t) => [t.id, t]));
-    const list: any[] = bases.filter((b: any) => !byId.get(b.id)?.deleted).map((b: any) =>
-      byId.has(b.id) ? { ...merge(b, byId.get(b.id)), builtIn: !b.importedLayoutId, modified: true } : { ...b, builtIn: !b.importedLayoutId }
+    const list: any[] = bases.filter((b: any) => !byId.get(b.id)?.deleted && (b.importedLayoutId || byId.has(b.id))).map((b: any) =>
+      byId.has(b.id) ? { ...merge(b, byId.get(b.id)), builtIn: false, modified: true } : { ...b, builtIn: false }
     );
     for (const t of saved) {
       if (t.deleted || bases.some((b: any) => b.id === t.id)) continue;
       const base = bases.find((b: any) => b.id === t.baseId) || BUILTIN_TEMPLATES[0];
-      list.push({ ...merge(base, t), builtIn: false });
+      list.push({ ...merge(base, t), descriptions: t.descriptions ?? base.descriptions, builtIn: false });
+    }
+    const preference = settings.find((x: any) => x?.id === "selection");
+    if (selections.current.makeId === null || (!selections.current.makeId && list.length > 0)) {
+      const t = list.find((x: any) => x.id === preference?.makeId) || list.find((x: any) => cardLangOf(x) === defaultCardLang(lang)) || list[0];
+      selections.current.makeId = t?.id || "";
+      setTplId(t?.id || "");
+      if (t) setCardLang(cardLangOf(t));
+    }
+    if (selections.current.editorId === null || (!selections.current.editorId && list.length > 0)) {
+      const t = list.find((x: any) => x.id === preference?.editorId) || list.find((x: any) => x.id === selections.current.makeId) || list[0];
+      selections.current.editorId = t?.id || "";
+      setTplSel(t?.id || "");
     }
     setTemplates(list);
     return list;
-  }, [store]);
+  }, [store, lang]);
   const langTemplates = templates.filter((x: any) => cardLangOf(x) === cardLang);
   React.useEffect(() => {
     // The template list follows the card language; keep the choice when it still fits.
-    if (!langTemplates.some((x: any) => x.id === tplId)) setTplId(langTemplates[0]?.id || "");
-  }, [cardLang, templates]);
+    if (selections.current.makeId !== null && !langTemplates.some((x: any) => x.id === tplId)) {
+      const id = langTemplates[0]?.id || ""; setTplId(id); void rememberSelection("makeId", id);
+    }
+  }, [cardLang, templates, tplId]);
   React.useEffect(() => {
-    if (templates.length && !templates.some((x: any) => x.id === tplSel)) setTplSel(templates[0].id);
-  }, [templates]);
+    if (selections.current.editorId !== null && !templates.some((x: any) => x.id === tplSel)) void selectEditorTemplate(templates[0]?.id || "");
+  }, [templates, tplSel]);
   React.useEffect(() => {
     loadTemplates().catch((e) => setError(String(e?.message || e)));
   }, [loadTemplates]);
 
   async function receiveLinkedTemplate(request: any) {
     linkedRequest.current = request.requestId;
-    setBusy(true); setLinkedFailure(null);
+    setBusy(true); setLinkedFailure(null); setLinkedNotice(false);
     try {
-      const template = await installLinkedTemplate(store, request.url, await loadTemplates());
+      const template = await installLinkedTemplate(store, request.url, await loadTemplates(), () => setLinkedNotice(true));
       if (activeProject.current !== projectId) return;
       await loadTemplates();
-      setCardLang(cardLangOf(template)); setTplId(template.id); setTplSel(template.id);
+      await selectTemplate(template); await selectEditorTemplate(template.id);
       setTab("templates");
     } catch (e: any) {
       if (activeProject.current === projectId) setLinkedFailure({ request, message: String(e?.message || e) });
@@ -3775,7 +3945,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
     setMode(j.source?.mode || "link"); setUrl(j.source?.url || ""); setText(j.source?.text || "");
     setArticleText(j.source?.articleText || ""); setArticleFallback(!!j.source?.articleText);
     setOwnPhotos(!!j.source?.ownPhotos); setPhotos(j.source?.photos || []); setNote(j.note || "");
-    const t = jobTemplate(j, templates); if (t) { setTplId(t.id); setCardLang(cardLangOf(t)); }
+    const t = templates.find((x: any) => x.id === j.templateId); if (t) void selectTemplate(t);
   }
   async function plan() {
     setError(""); setExported([]);
@@ -3983,7 +4153,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
       };
     });
     setStatus(S.buildingDraft);
-    const logo = t.wordmark.logo?.dataUrl || "";
+    const logo = t.wordmark.logo?.dataUrl && cards.every((card: any) => card.params.logo === t.wordmark.logo.dataUrl) ? t.wordmark.logo.dataUrl : "";
     if (logo) for (const card of cards) delete card.params.logo;
     const P = { projectId, name, cardSeconds: t.cardSeconds || 3, size: templateSize(t), logo, cards };
     j = await saveJob({ ...j, draftPending: true });
@@ -4096,22 +4266,28 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   async function exportCards() {
     if (!job?.plan) return;
     setError("");
+    setStatus("");
+    setExported([]);
     setBusy(true);
     try {
       if (!store.fs) throw new Error(S.noFileAccess);
       let j = job;
       validateCardText(j.plan, jobTemplate(j, templates));
+      const base = j.saveTo || await hostSdk.dialogs.pickDirectoryPath();
+      if (!base) return;
+      j = await saveJob({ ...j, saveTo: base, done: false });
       if (!j.draftId) { setPhase(2); j = await pictures(await saveJob(j)); setPhase(3); j = await buildDraft(j); j = await organize(j); }
       setPhase(4);
       const t = jobTemplate(j, templates);
-      const base = j.saveTo || (j.legacyPhotoId ? store.join(store.fs.homedir(), "Pictures", "Card news") : store.join(store.root, "exports"));
       const dir = store.join(base, `${j.id}-${Date.now().toString(36)}`);
       await store.ensure(dir);
+      j = await saveJob({ ...j, export: { dir, files: [] }, done: false });
       // Card ranges come from the Draft as it is now, so edits made in Selects are kept.
       const info = await script(
         `const d = selects.draft(${JSON.stringify(j.draftId)}); const m = await d.meta(); const g = (await d.motionGraphics()).filter((x: any) => /^Card \\d+/.test(x.name)).map((x: any) => [x.name, x.clip.startFrame, x.clip.endFrame]).sort((a: any, b: any) => a[1] - b[1]); return { fps: m.fps, cards: g };`,
         "Read the card ranges"
       );
+      if (!info.cards.length) throw new Error("No card images to export.");
       const files: string[] = [];
       for (let i = 0; i < info.cards.length; i++) {
         setStatus(S.rendering(i + 1, info.cards.length));
@@ -4132,14 +4308,24 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.${j.format === "jpeg" ? "jpg" : "png"}`);
         await store.fs.writeFile(out, j.format === "jpeg" ? await CardSupport.pngToJpeg(png) : png);
         files.push(out);
+        j = await saveJob({ ...j, export: { dir, files: [...files] }, done: false });
+        setExported([...files]);
       }
       const caption = [j.plan.caption, j.plan.hashtags].filter(Boolean).join("\n\n");
       await store.fs.writeFile(store.join(dir, "caption.txt"), enc(caption));
-      setStatus(S.exportDone(files.length));
+      setStatus(S.exportImporting);
+      const imported = await script(
+        `const p = selects.project(${JSON.stringify(projectId)}); const result = await p.importFiles({ paths: ${JSON.stringify(files)} }); const rows = await p.resources(); const ids = [...new Set(result?.addedResourceIds || [])]; return { added: ids.filter(id => rows.some(r => r.resourceId === id)).length };`,
+        "Add exported card images to the project",
+        true
+      );
+      if (imported?.added !== files.length) throw new Error(S.exportImportFailed);
       await saveJob({ ...j, export: { dir, files }, done: true });
+      setStatus(S.exportDone(files.length));
       setExported(files);
       loadJobs();
     } catch (e: any) {
+      setStatus("");
       setError(S.exportFailed + String(e?.message || e));
     } finally {
       setBusy(false);
@@ -4211,7 +4397,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           disabled={busy}
         />
         {langTemplates.length ? (
-          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={tplId} onChange={(id: string) => { const t = tplOf(id); if (t) { setTplId(id); setCardLang(cardLangOf(t)); } }} options={templates.map((x: any) => ({ value:x.id, label:tplLabel(x,lang,S), description:<span style={{display:"block",width:96,margin:"0 auto"}}><CardPreview t={x} card={{role:"cover",headline:STRINGS[cardLangOf(x)].sampleHeadline}} bodyIndex={1} vars={{}} S={S} /></span> }))} disabled={busy} />
+          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={tplId} onChange={(id: string) => { const t = tplOf(id); if (t) void selectTemplate(t); }} options={templates.map((x: any) => ({ value:x.id, label:tplLabel(x,lang,S), description:<span style={{display:"block",width:96,margin:"0 auto"}}><CardPreview t={x} card={{role:"cover",headline:STRINGS[cardLangOf(x)].sampleHeadline}} bodyIndex={1} vars={{}} S={S} /></span> }))} disabled={busy} />
         ) : (
           <ui.Message>{S.noTplForLang}</ui.Message>
         )}
@@ -4232,8 +4418,8 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} multiline disabled={busy} />
       </ui.Section>
       <ui.Actions>
-        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || (mode === "link" && ownPhotos && !photos.length)}>
-          {mode === "link" ? "Generate" : S.plan}
+        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || !tplOf(tplId) || (mode === "link" && ownPhotos && !photos.length)}>
+          {mode === "link" ? S.generate : S.plan}
         </ui.Button>
       </ui.Actions>
     </ui.Stack>
@@ -4254,20 +4440,20 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   const form = (
     <ui.Stack gap={16}>
       {jobs.length > 0 && <ui.Section title={S.saved}>
-        <ui.Select label="Saved" value={null} placeholder="Choose a saved card set" options={jobs.map((j: any) => ({ value: j.id, label: j.name || j.plan?.article?.title || j.source?.url || j.id }))} onChange={(id: string) => { const j = jobs.find((x: any) => x.id === id); if (j) openJob(j); }} disabled={busy} />
+        <ui.Select label={S.savedPicker} value={null} placeholder={S.savedPlaceholder} options={jobs.map((j: any) => ({ value: j.id, label: j.name || j.plan?.article?.title || j.source?.url || j.id }))} onChange={(id: string) => { const j = jobs.find((x: any) => x.id === id); if (j) openJob(j); }} disabled={busy} />
       </ui.Section>}
       <ui.Section title={S.source}>
         {sourcePicker}
         {mode === "link" && <ui.Stack>
-          <ui.TextField label="Article link" value={url} onChange={(v: string) => { setUrl(v); setArticleText(""); setArticleFallback(false); }} placeholder="https://..." disabled={busy} />
-          <ui.Toggle label="Use my own images" value={ownPhotos} onChange={setOwnPhotos} disabled={busy} />
+          <ui.TextField label={S.url} value={url} onChange={(v: string) => { setUrl(v); setArticleText(""); setArticleFallback(false); }} placeholder="https://..." disabled={busy} />
+          <ui.Toggle label={S.ownImages} value={ownPhotos} onChange={setOwnPhotos} disabled={busy} />
           {ownPhotos ? <ui.Stack>
-            <ui.FileDrop accept={[]} value={null} onChange={(f: any) => addPhotos(f?.path || null)} labels={{ drop: "Drop a photo or a folder of photos", choose: "Add a photo" }} disabled={busy} />
-            <ui.Button variant="secondary" onClick={async () => { try { await addPhotos(await hostSdk.dialogs.pickDirectoryPath()); } catch (e: any) { setError(String(e?.message || e)); } }} disabled={busy}>Add a folder of photos</ui.Button>
+            <ui.FileDrop accept={[]} value={null} onChange={(f: any) => addPhotos(f?.path || null)} labels={{ drop: S.dropPhotos, choose: S.addPhoto }} disabled={busy} />
+            <ui.Button variant="secondary" onClick={async () => { try { await addPhotos(await hostSdk.dialogs.pickDirectoryPath()); } catch (e: any) { setError(String(e?.message || e)); } }} disabled={busy}>{S.addPhotoFolder}</ui.Button>
             {photos.map((p: any, i: number) => <ui.Row key={i}><small>{`${i + 1}. ${p.name}`}</small><ui.IconButton icon="trash" label={`Remove photo ${i + 1}`} onClick={() => setPhotos((all) => all.filter((_, at) => at !== i))} disabled={busy} /></ui.Row>)}
-            <ui.Message tone="muted">Each photo supplies one card. Template, instructions, preview and export are shared with article photos.</ui.Message>
+            <ui.Message tone="muted">{S.photosHint}</ui.Message>
           </ui.Stack> : null}
-          {articleFallback ? <ui.TextField label="Article text" value={articleText} onChange={setArticleText} multiline disabled={busy} /> : null}
+          {articleFallback ? <ui.TextField label={S.text} value={articleText} onChange={setArticleText} multiline disabled={busy} /> : null}
         </ui.Stack>}
         {mode === "text" && <ui.TextField label={S.text} value={text} onChange={setText} placeholder={S.textPh} multiline disabled={busy} />}
         {mode === "video" && (
@@ -4287,11 +4473,11 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     job?.plan && reviewT ? (
       <ui.Stack gap={16}>
         <ui.Section title={S.review}>
-          <ui.TextField label="Name" value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
+          <ui.TextField label={S.tplName} value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
           <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={reviewT.id} options={[...templates, ...(templates.some((x: any) => x.id === reviewT.id) ? [] : [reviewT])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) setJob(revised({ templateId: id, templateSnapshot: clone(next) })); }} disabled={busy} />
           {job.templateSnapshot && tplOf(reviewT.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(reviewT.id)) ? <ui.Stack>
-            <ui.Message tone="muted">This set keeps its saved template. The library template has changed.</ui.Message>
-            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>Apply template changes</ui.Button>
+            <ui.Message tone="muted">{S.savedTemplateNotice}</ui.Message>
+            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
           </ui.Stack> : null}
           <small>{S.reviewHint}</small>
           {job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
@@ -4326,28 +4512,26 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           <ui.TextField label={S.hashtags} value={job.plan.hashtags} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, hashtags: v } })} disabled={busy} />
         </ui.Section>
         {!job.draftId && job.plan.cards.some((c: any) => c.picture?.kind === "generate") && <small>{S.creditsNote}</small>}
-        <ui.Section title="Export">
-          <ui.Select label="Format" value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
-          <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>Change folder</ui.Button>
-          {job.saveTo ? <ui.Message tone="muted">{job.saveTo}</ui.Message> : null}
+        <ui.Section title={S.steps[4]}>
+          <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
+          <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
+          {job.saveTo ? <ui.Message tone="muted">{S.saveFolder}: {job.saveTo}</ui.Message> : null}
+          {job.export?.dir && <ui.Message tone="muted">{job.export.dir}</ui.Message>}
+          {job.export?.dir && <ui.Button variant="secondary" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
         </ui.Section>
         <ui.Actions>
           <ui.Button variant="ghost" onClick={() => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); }} disabled={busy}>
             {S.startOver}
           </ui.Button>
           {!job.draftId ? <ui.Button variant="secondary" busy={busy} busyLabel={S.building} onClick={build}>{S.build}</ui.Button> : null}
-          <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>Export card images</ui.Button>
+          <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
         </ui.Actions>
         {job.draftId && (
           <ui.Row gap={8}>
             <ui.Button variant="secondary" onClick={() => openDraft(job.draftId)} disabled={busy}>
               {S.open}
             </ui.Button>
-            {job.export?.dir && (
-              <ui.Button variant="secondary" onClick={() => openFolder(job.export.dir)} disabled={busy}>
-                {S.openFolder}
-              </ui.Button>
-            )}
+
           </ui.Row>
         )}
         {exported.length > 0 && (
@@ -4383,6 +4567,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
 
   return (
     <ui.Stack gap={12}>
+    {linkedNotice && <ui.Message>{S.packEditsKept}</ui.Message>}
     {linkedFailure && <ui.Stack gap={8}>
       <ui.Message tone="error">{linkedFailure.message}</ui.Message>
       <ui.Button disabled={busy || !!tplNew || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)} onClick={() => receiveLinkedTemplate(linkedFailure.request)}>Retry template import</ui.Button>
@@ -4396,9 +4581,9 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         {
           value: "templates",
           label: S.tabTemplates,
-          content: (
+          content: busy ? <ui.Message>{S.importTemplate}</ui.Message> : (
             <TemplateEditor sdk={sdk} ui={ui} S={S} lang={lang} templates={templates} store={store} onChanged={loadTemplates}
-              state={{ selId: tplSel, setSelId: setTplSel, edit: tplEdit, setEdit: setTplEdit, baseKey: tplBase, setBaseKey: setTplBase, sub: tplSub, setSub: setTplSub, role: tplRole, setRole: setTplRole, pending: tplNew, setPending: setTplNew }} />
+              state={{ selId: tplSel, setSelId: selectEditorTemplate, edit: tplEdit, setEdit: setTplEdit, baseKey: tplBase, setBaseKey: setTplBase, sub: tplSub, setSub: setTplSub, role: tplRole, setRole: setTplRole, pending: tplNew, setPending: setTplNew }} />
           ),
         },
       ]}
