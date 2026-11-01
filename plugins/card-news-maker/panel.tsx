@@ -301,7 +301,7 @@ const STRINGS: any = {
     template: "Template",
     cardLang: "Card language",
     langName: { en: "English", ko: "Korean" },
-    noTplForLang: "There is no template in this language. In Templates, duplicate one and change its card language.",
+    noTplForLang: "No saved template in this language. Open Templates to create or import a design.",
     count: "Number of cards",
     countAuto: "Recommended",
     countManual: "Set",
@@ -507,7 +507,7 @@ const STRINGS: any = {
     template: "\ud15c\ud50c\ub9bf",
     cardLang: "\uce74\ub4dc \uc5b8\uc5b4",
     langName: { en: "\uc601\uc5b4", ko: "\ud55c\uad6d\uc5b4" },
-    noTplForLang: "\uc774 \uc5b8\uc5b4\uc758 \ud15c\ud50c\ub9bf\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud558\ub098\ub97c \ubcf5\uc81c\ud558\uace0 \uce74\ub4dc \uc5b8\uc5b4\ub97c \ubc14\uafb8\uc138\uc694.",
+    noTplForLang: "\uc774 \uc5b8\uc5b4\ub85c \uc800\uc7a5\ub41c \ud15c\ud50c\ub9bf\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ub514\uc790\uc778\uc744 \ub9cc\ub4e4\uac70\ub098 \uac00\uc838\uc624\uc138\uc694.",
     count: "\uce74\ub4dc \uc218",
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
@@ -695,7 +695,7 @@ const STRINGS: any = {
     template: "Vorlage",
     cardLang: "Kartensprache",
     langName: { en: "Englisch", ko: "Koreanisch" },
-    noTplForLang: "Es gibt keine Vorlage in dieser Sprache. Duplizieren Sie unter Vorlagen eine Vorlage und ändern Sie deren Kartensprache.",
+    noTplForLang: "Keine gespeicherte Vorlage in dieser Sprache. Erstellen oder importieren Sie ein Design unter Vorlagen.",
     count: "Anzahl der Karten",
     countAuto: "Empfohlen",
     countManual: "Festlegen",
@@ -884,7 +884,7 @@ const STRINGS: any = {
     template: "Plantilla",
     cardLang: "Idioma de las tarjetas",
     langName: { en: "Inglés", ko: "Coreano" },
-    noTplForLang: "No hay ninguna plantilla en este idioma. En Plantillas, duplica una y cambia el idioma de sus tarjetas.",
+    noTplForLang: "No hay plantillas guardadas en este idioma. Crea o importa un dise\u00f1o en Plantillas.",
     count: "Número de tarjetas",
     countAuto: "Recomendado",
     countManual: "Manual",
@@ -1073,7 +1073,7 @@ const STRINGS: any = {
     template: "Modèle",
     cardLang: "Langue des cartes",
     langName: { en: "Anglais", ko: "Coréen" },
-    noTplForLang: "Il n'y a aucun modèle dans cette langue. Dans Modèles, dupliquez-en un et changez sa langue des cartes.",
+    noTplForLang: "Aucun mod\u00e8le enregistr\u00e9 dans cette langue. Cr\u00e9ez ou importez un design dans Mod\u00e8les.",
     count: "Nombre de cartes",
     countAuto: "Recommandé",
     countManual: "Choisir",
@@ -1262,7 +1262,7 @@ const STRINGS: any = {
     template: "Modello",
     cardLang: "Lingua delle card",
     langName: { en: "Inglese", ko: "Coreano" },
-    noTplForLang: "Non c'è nessun modello in questa lingua. In Modelli, duplicane uno e cambia la lingua delle card.",
+    noTplForLang: "Nessun modello salvato in questa lingua. Crea o importa un design in Modelli.",
     count: "Numero di card",
     countAuto: "Consigliato",
     countManual: "Personalizzato",
@@ -1451,7 +1451,7 @@ const STRINGS: any = {
     template: "テンプレート",
     cardLang: "カードの言語",
     langName: { en: "英語", ko: "韓国語" },
-    noTplForLang: "この言語のテンプレートがありません。テンプレートタブでいずれかを複製し、カードの言語を変更してください。",
+    noTplForLang: "\u3053\u306e\u8a00\u8a9e\u306e\u4fdd\u5b58\u6e08\u307f\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u306f\u3042\u308a\u307e\u305b\u3093\u3002\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u30bf\u30d6\u3067\u30c7\u30b6\u30a4\u30f3\u3092\u4f5c\u6210\u307e\u305f\u306f\u30a4\u30f3\u30dd\u30fc\u30c8\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     count: "カードの枚数",
     countAuto: "おすすめ",
     countManual: "指定",
@@ -1640,7 +1640,7 @@ const STRINGS: any = {
     template: "Modelo",
     cardLang: "Idioma dos cartões",
     langName: { en: "Inglês", ko: "Coreano" },
-    noTplForLang: "Não há nenhum modelo neste idioma. Em Modelos, duplique um e altere o idioma dos cartões.",
+    noTplForLang: "N\u00e3o h\u00e1 modelos salvos neste idioma. Crie ou importe um design em Modelos.",
     count: "Número de cartões",
     countAuto: "Recomendado",
     countManual: "Manual",
@@ -1829,7 +1829,7 @@ const STRINGS: any = {
     template: "Şablon",
     cardLang: "Kart dili",
     langName: { en: "İngilizce", ko: "Korece" },
-    noTplForLang: "Bu dilde şablon yok. Şablonlar sekmesinde birini çoğaltın ve kart dilini değiştirin.",
+    noTplForLang: "Bu dilde kay\u0131tl\u0131 \u015fablon yok. \u015eablonlar b\u00f6l\u00fcm\u00fcnde bir tasar\u0131m olu\u015fturun veya i\u00e7e aktar\u0131n.",
     count: "Kart sayısı",
     countAuto: "Önerilen",
     countManual: "Elle belirle",
@@ -2018,7 +2018,7 @@ const STRINGS: any = {
     template: "模板",
     cardLang: "卡片语言",
     langName: { en: "英语", ko: "韩语" },
-    noTplForLang: "没有该语言的模板。请在“模板”中复制一个模板，然后更改它的卡片语言。",
+    noTplForLang: "\u6b64\u8bed\u8a00\u6ca1\u6709\u5df2\u4fdd\u5b58\u7684\u6a21\u677f\u3002\u8bf7\u5728\u6a21\u677f\u9875\u521b\u5efa\u6216\u5bfc\u5165\u8bbe\u8ba1\u3002",
     count: "卡片数量",
     countAuto: "推荐",
     countManual: "自定义",
@@ -2503,7 +2503,7 @@ function fillVars(s: string, vars: any): string {
 }
 
 function templateSize(t: any) { return t?.look?.size || { width: CW, height: CH }; }
-function jobTemplate(j: any, templates: any[]) { return j?.templateSnapshot || templates.find((t) => t.id === j?.templateId) || null; }
+function jobTemplate(j: any, templates: any[]) { return j?.templateSnapshot || templates.find((t) => t.id === j?.templateId) || BUILTIN_TEMPLATES.find((t) => t.id === j?.templateId) || null; }
 function roleLook(t: any, role: string) {
   return role === "cover" ? t.look.cover : t.look.body;
 }
@@ -2683,6 +2683,25 @@ function CardPreview({ t, card, bodyIndex, vars, S, image, made, maxWidth = 240 
 }
 
 // ---- Template editor ----
+function blankTemplate(language: string): any {
+  const placement = { variant: "overlay", photoPercent: 60, gradientFrom: 50, gradientStrength: .8, textBottom: 1200, panelPad: 40 };
+  return {
+    version: 1, language, names: {}, descriptions: {}, counts: { min: 1, max: 5 }, cardSeconds: 3,
+    look: { font: "", margin: 70, panelColor: "#000000", smallColor: "#FFFFFF94", smallSize: 17, cover: { ...placement }, body: { ...placement } },
+    label: { text: "", style: "none", color: "#FFFFFF", textColor: "#000000", size: 32, radius: 0 },
+    wordmark: { text: "", size: 26, color: "#FFFFFF", logo: null },
+    headline: { size: 72, weight: 700, color: "#FFFFFF", highlight: "#FFFFFF", lineHeight: 1.3, shadow: false },
+    heading: { on: false, numbered: false, size: 46, weight: 700, color: "#FFFFFF" },
+    body: { size: 36, weight: 500, italic: false, color: "#FFFFFF", lineHeight: 1.6, gap: 24, paragraphGap: 24 },
+    credit: { pos: "bottomRight", article: "", ai: "" }, footer: { on: false, text: "" }, handles: { on: false, text: "" },
+    end: { kind: "none", background: "solid", dim: .5, solidBg: "#000000", monogram: "", tagline: "", handle: "", ctaSize: 50 },
+    images: { source: "article", style: "Editorial photograph, natural light, no text or logos." },
+    prompt: { role: "Turn the supplied source into factual card news.", voice: "Write clear, concise news sentences.",
+      cover: "Write a concise headline.", body: "Each card explains one point from the source.", end: "No separate last card.",
+      caption: "Summarize the source facts.", rules: "Use only source facts. Preserve figures, dates and attribution; never invent quotes." },
+  };
+}
+
 function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }: any) {
   useAppUpdateGuard(sdk, lang, () => !!(saving || dirty));
   const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub, role, setRole, pending, setPending } = state;
@@ -2699,11 +2718,10 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       setBaseKey(currentKey);
     }
   }, [selId, currentKey]);
-  if (!current) return null;
-  const fresh = !saved || saved.id !== current.id || baseKey !== currentKey;
-  const edit = fresh ? JSON.parse(currentKey) : saved;
+  const fresh = !saved || saved.id !== current?.id || baseKey !== currentKey;
+  const edit = !current ? null : fresh ? JSON.parse(currentKey) : saved;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
-  const dirty = !!pending || JSON.stringify(edit) !== currentKey;
+  const dirty = !!pending || (!!current && JSON.stringify(edit) !== currentKey);
   const get = (path: string) => path.split(".").reduce((o: any, k) => (o == null ? o : o[k]), edit);
   const set = (path: string, value: any) => {
     setMsg(null);
@@ -2790,7 +2808,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   function startTemplate() {
     const name = newName.trim();
     if (!name) return;
-    const source = dialog === "duplicate" ? edit : BUILTIN_TEMPLATES.find((t: any) => cardLangOf(t) === cardLangOf(edit)) || BUILTIN_TEMPLATES[0];
+    const source = dialog === "duplicate" ? edit : blankTemplate(current ? cardLangOf(edit) : defaultCardLang(lang));
     const next = { ...clean(clone(source)), id: "t" + crypto.randomUUID(), name, version: 1 };
     delete next.importedLayoutId;
     delete next.baseId;
@@ -2822,6 +2840,29 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       setDialog(null);
     }
   }
+
+  const toolbar = (<ui.TemplateToolbar
+      labels={{title:S.myTemplates,template:S.template,add:S.addTemplate,create:S.newTemplate,import:S.importTemplate,export:S.exportTemplate}}
+      value={current?.id || ""} options={(pending ? [pending] : templates).map((t: any) => ({value:t.id,label:tplLabel(t,lang,S)}))}
+      onChange={(id: string) => { if (dirty) setPendingSelection(id); else switchTemplate(id); }}
+      disabled={saving || !!pending} actionsDisabled={dirty || saving} exportDisabled={!current || saving || !!pending}
+      onCreate={() => create("new")} onImport={() => { setMsg(null); setDialog("import"); }} onExport={() => { setMsg(null); setDialog("export"); }}
+    />);
+  const transferDialog = (<ui.TemplateTransferDialog open={!!dialog} onOpenChange={(open: boolean) => { if (!open) setDialog(null); }} title={dialog === "import" ? S.importTemplate : dialog === "export" ? S.exportTemplate : dialog === "delete" ? S.deleteTitle : dialog === "duplicate" ? S.duplicate : S.newTemplate} busy={saving} method="file" onMethodChange={() => {}} methods={[]}>
+      {dialog === "import" ? <ui.FileDrop activation="surface" accept={["json"]} value={null} disabled={dirty || saving} onChange={importTemplate} />
+        : dialog === "delete" ? <ui.Message>{S.deleteBody(nameOf(current,lang))} {S.deleteKeepCards}</ui.Message>
+        : dialog === "export" ? <ui.Message>{S.shareFileHint}</ui.Message>
+        : <ui.TextField label={S.tplName} value={newName} onChange={setNewName} disabled={saving} />}
+      {dialog === "export" && dirty && <ui.Message>{S.unsaved}</ui.Message>}
+      {msg?.tone === "error" && <ui.Message tone="error">{msg.text}</ui.Message>}
+      <ui.Actions>
+        <ui.Button variant="secondary" onClick={() => setDialog(null)} disabled={saving}>{S.cancel}</ui.Button>
+        {dialog === "export" ? <ui.Button onClick={exportTemplate} disabled={dirty || saving}>{S.exportTemplate}</ui.Button>
+          : dialog === "delete" ? <ui.Button variant="danger" onClick={remove} busy={saving}>{S.del}</ui.Button>
+          : dialog !== "import" && <ui.Button onClick={startTemplate} disabled={!newName.trim() || saving}>{dialog === "duplicate" ? S.duplicate : S.newTemplate}</ui.Button>}
+      </ui.Actions>
+    </ui.TemplateTransferDialog>);
+  if (!current) return <ui.Stack gap={8}>{toolbar}<ui.Message>{S.noTplForLang}</ui.Message>{transferDialog}</ui.Stack>;
 
   // Sample copy is in the template's card language, whatever the app's language.
   const L = STRINGS[cardLangOf(edit)];
@@ -3040,18 +3081,12 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
     <ui.Segmented label={S.cardLang} value={cardLangOf(edit)} onChange={(v: string) => set("language", v)} options={[{value:"en",label:S.langName.en},{value:"ko",label:S.langName.ko}]} disabled={saving} />
     <ui.Actions>
       <ui.Button variant="secondary" onClick={() => create("duplicate")} disabled={dirty || saving}>{S.duplicate}</ui.Button>
-      <ui.Button variant="danger" onClick={() => { setMsg(null); setDialog("delete"); }} disabled={dirty || saving || !!pending || templates.length <= 1}>{S.del}</ui.Button>
+      <ui.Button variant="danger" onClick={() => { setMsg(null); setDialog("delete"); }} disabled={dirty || saving || !!pending}>{S.del}</ui.Button>
       {current.builtIn && current.modified && <ui.Button variant="ghost" onClick={reset} disabled={dirty || saving}>{S.reset}</ui.Button>}
     </ui.Actions>
   </ui.Stack>;
   return <ui.Stack gap={8}>
-    <ui.TemplateToolbar
-      labels={{title:S.myTemplates,template:S.template,add:S.addTemplate,create:S.newTemplate,import:S.importTemplate,export:S.exportTemplate}}
-      value={current.id} options={(pending ? [pending] : templates).map((t: any) => ({value:t.id,label:tplLabel(t,lang,S)}))}
-      onChange={(id: string) => { if (dirty) setPendingSelection(id); else switchTemplate(id); }}
-      disabled={saving || !!pending} actionsDisabled={dirty || saving} exportDisabled={saving || !!pending}
-      onCreate={() => create("new")} onImport={() => { setMsg(null); setDialog("import"); }} onExport={() => { setMsg(null); setDialog("export"); }}
-    />
+    {toolbar}
     {pendingSelection && <ui.Stack gap={8}>
       <ui.Message>{S.unsaved}</ui.Message>
       <ui.Actions>
@@ -3060,20 +3095,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
         <ui.Button variant="ghost" onClick={() => setPendingSelection(null)} disabled={saving}>{S.cancel}</ui.Button>
       </ui.Actions>
     </ui.Stack>}
-    <ui.TemplateTransferDialog open={!!dialog} onOpenChange={(open: boolean) => { if (!open) setDialog(null); }} title={dialog === "import" ? S.importTemplate : dialog === "export" ? S.exportTemplate : dialog === "delete" ? S.deleteTitle : dialog === "duplicate" ? S.duplicate : S.newTemplate} busy={saving} method="file" onMethodChange={() => {}} methods={[]}>
-      {dialog === "import" ? <ui.FileDrop activation="surface" accept={["json"]} value={null} disabled={dirty || saving} onChange={importTemplate} />
-        : dialog === "delete" ? <ui.Message>{S.deleteBody(nameOf(current,lang))} {S.deleteKeepCards}</ui.Message>
-        : dialog === "export" ? <ui.Message>{S.shareFileHint}</ui.Message>
-        : <ui.TextField label={S.tplName} value={newName} onChange={setNewName} disabled={saving} />}
-      {dialog === "export" && dirty && <ui.Message>{S.unsaved}</ui.Message>}
-      {msg?.tone === "error" && <ui.Message tone="error">{msg.text}</ui.Message>}
-      <ui.Actions>
-        <ui.Button variant="secondary" onClick={() => setDialog(null)} disabled={saving}>{S.cancel}</ui.Button>
-        {dialog === "export" ? <ui.Button onClick={exportTemplate} disabled={dirty || saving}>{S.exportTemplate}</ui.Button>
-          : dialog === "delete" ? <ui.Button variant="danger" onClick={remove} busy={saving}>{S.del}</ui.Button>
-          : dialog !== "import" && <ui.Button onClick={startTemplate} disabled={!newName.trim() || saving}>{dialog === "duplicate" ? S.duplicate : S.newTemplate}</ui.Button>}
-      </ui.Actions>
-    </ui.TemplateTransferDialog>
+    {transferDialog}
     <ui.TemplateSections value={sub} onChange={setSub} label={S.template} preview={preview} previewAspectRatio={templateSize(edit).width / templateSize(edit).height}
       actions={<ui.Row gap={4}><ui.Button onClick={save} disabled={!dirty || saving}>{S.save}</ui.Button><ui.Button variant="ghost" onClick={discard} disabled={!dirty || saving}>{S.cancel}</ui.Button></ui.Row>}
       feedback={msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
@@ -3593,14 +3615,14 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const projectId: string | null = context?.projectId ?? null;
   const store = React.useMemo(() => makeStore(), []);
   const [tab, setTab] = React.useState<string>("make");
-  const [templates, setTemplates] = React.useState<any[]>(BUILTIN_TEMPLATES.map((t: any) => ({ ...t, builtIn: true })));
+  const [templates, setTemplates] = React.useState<any[]>([]);
   const [mode, setMode] = React.useState<string>("link");
   const [url, setUrl] = React.useState<string>("");
   const [text, setText] = React.useState<string>("");
   const [resources, setResources] = React.useState<any[]>([]);
   const [pick, setPick] = React.useState<string | null>(null);
   const [cardLang, setCardLang] = React.useState<string>(defaultCardLang(lang));
-  const [tplId, setTplId] = React.useState<string>((BUILTIN_TEMPLATES.find((t: any) => cardLangOf(t) === defaultCardLang(lang)) || BUILTIN_TEMPLATES[0]).id);
+  const [tplId, setTplId] = React.useState<string>("");
   const [countMode, setCountMode] = React.useState<string>("auto");
   const [count, setCount] = React.useState<number>(4);
   const [note, setNote] = React.useState<string>("");
@@ -3615,7 +3637,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const linkedRequest = React.useRef<string | null>(null);
   const [linkedFailure, setLinkedFailure] = React.useState<any>(null);
   // Template editor state lives here so unsaved edits survive a tab switch.
-  const [tplSel, setTplSel] = React.useState<string>(BUILTIN_TEMPLATES[0].id);
+  const [tplSel, setTplSel] = React.useState<string>("");
   const [tplEdit, setTplEdit] = React.useState<any>(null);
   const [tplBase, setTplBase] = React.useState<string>("");
   const [tplSub, setTplSub] = React.useState<string>("look");
@@ -3639,30 +3661,59 @@ function ProjectPanel({ sdk, context, ui }: any) {
     return { ...r, stdout: String(r.stdout || ""), stderr: String(r.stderr || ""), output: String(r.output || "") };
   };
 
+  const selections = React.useRef<any>({ makeId: null, editorId: null });
+  function rememberSelection(field: string, id: string) {
+    selections.current = { ...selections.current, [field]: id };
+    return store.put("settings", "selection", { id: "selection", ...selections.current })
+      .catch((e: any) => setError(String(e?.message || e)));
+  }
+  function selectTemplate(t: any) {
+    setCardLang(cardLangOf(t)); setTplId(t.id);
+    return rememberSelection("makeId", t.id);
+  }
+  function selectEditorTemplate(id: string) {
+    setTplSel(id);
+    return rememberSelection("editorId", id);
+  }
   const loadTemplates = React.useCallback(async () => {
-    const saved: any[] = (await store.list("templates")).filter((t: any) => t && t.id);
-    const layouts = (await store.list("layout-templates")).filter((l: any) => !CardSupport.validateLayout(l).length).map(CardSupport.fromLayout);
+    const [stored, storedLayouts, settings] = await Promise.all([store.list("templates"), store.list("layout-templates"), store.list("settings")]);
+    const saved: any[] = stored.filter((t: any) => t && t.id);
+    const layouts = storedLayouts.filter((l: any) => !CardSupport.validateLayout(l).length).map(CardSupport.fromLayout);
     const bases = [...BUILTIN_TEMPLATES, ...layouts];
     const byId = new Map(saved.map((t) => [t.id, t]));
-    const list: any[] = bases.filter((b: any) => !byId.get(b.id)?.deleted).map((b: any) =>
-      byId.has(b.id) ? { ...merge(b, byId.get(b.id)), builtIn: !b.importedLayoutId, modified: true } : { ...b, builtIn: !b.importedLayoutId }
+    const list: any[] = bases.filter((b: any) => !byId.get(b.id)?.deleted && (b.importedLayoutId || byId.has(b.id))).map((b: any) =>
+      byId.has(b.id) ? { ...merge(b, byId.get(b.id)), builtIn: false, modified: true } : { ...b, builtIn: false }
     );
     for (const t of saved) {
       if (t.deleted || bases.some((b: any) => b.id === t.id)) continue;
       const base = bases.find((b: any) => b.id === t.baseId) || BUILTIN_TEMPLATES[0];
-      list.push({ ...merge(base, t), builtIn: false });
+      list.push({ ...merge(base, t), descriptions: t.descriptions ?? base.descriptions, builtIn: false });
+    }
+    const preference = settings.find((x: any) => x?.id === "selection");
+    if (selections.current.makeId === null || (!selections.current.makeId && list.length > 0)) {
+      const t = list.find((x: any) => x.id === preference?.makeId) || list.find((x: any) => cardLangOf(x) === defaultCardLang(lang)) || list[0];
+      selections.current.makeId = t?.id || "";
+      setTplId(t?.id || "");
+      if (t) setCardLang(cardLangOf(t));
+    }
+    if (selections.current.editorId === null || (!selections.current.editorId && list.length > 0)) {
+      const t = list.find((x: any) => x.id === preference?.editorId) || list.find((x: any) => x.id === selections.current.makeId) || list[0];
+      selections.current.editorId = t?.id || "";
+      setTplSel(t?.id || "");
     }
     setTemplates(list);
     return list;
-  }, [store]);
+  }, [store, lang]);
   const langTemplates = templates.filter((x: any) => cardLangOf(x) === cardLang);
   React.useEffect(() => {
     // The template list follows the card language; keep the choice when it still fits.
-    if (!langTemplates.some((x: any) => x.id === tplId)) setTplId(langTemplates[0]?.id || "");
-  }, [cardLang, templates]);
+    if (selections.current.makeId !== null && !langTemplates.some((x: any) => x.id === tplId)) {
+      const id = langTemplates[0]?.id || ""; setTplId(id); void rememberSelection("makeId", id);
+    }
+  }, [cardLang, templates, tplId]);
   React.useEffect(() => {
-    if (templates.length && !templates.some((x: any) => x.id === tplSel)) setTplSel(templates[0].id);
-  }, [templates]);
+    if (selections.current.editorId !== null && !templates.some((x: any) => x.id === tplSel)) void selectEditorTemplate(templates[0]?.id || "");
+  }, [templates, tplSel]);
   React.useEffect(() => {
     loadTemplates().catch((e) => setError(String(e?.message || e)));
   }, [loadTemplates]);
@@ -3674,7 +3725,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
       const template = await installLinkedTemplate(store, request.url, await loadTemplates());
       if (activeProject.current !== projectId) return;
       await loadTemplates();
-      setCardLang(cardLangOf(template)); setTplId(template.id); setTplSel(template.id);
+      await selectTemplate(template); await selectEditorTemplate(template.id);
       setTab("templates");
     } catch (e: any) {
       if (activeProject.current === projectId) setLinkedFailure({ request, message: String(e?.message || e) });
@@ -3775,7 +3826,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
     setMode(j.source?.mode || "link"); setUrl(j.source?.url || ""); setText(j.source?.text || "");
     setArticleText(j.source?.articleText || ""); setArticleFallback(!!j.source?.articleText);
     setOwnPhotos(!!j.source?.ownPhotos); setPhotos(j.source?.photos || []); setNote(j.note || "");
-    const t = jobTemplate(j, templates); if (t) { setTplId(t.id); setCardLang(cardLangOf(t)); }
+    const t = templates.find((x: any) => x.id === j.templateId); if (t) void selectTemplate(t);
   }
   async function plan() {
     setError(""); setExported([]);
@@ -4211,7 +4262,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           disabled={busy}
         />
         {langTemplates.length ? (
-          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={tplId} onChange={(id: string) => { const t = tplOf(id); if (t) { setTplId(id); setCardLang(cardLangOf(t)); } }} options={templates.map((x: any) => ({ value:x.id, label:tplLabel(x,lang,S), description:<span style={{display:"block",width:96,margin:"0 auto"}}><CardPreview t={x} card={{role:"cover",headline:STRINGS[cardLangOf(x)].sampleHeadline}} bodyIndex={1} vars={{}} S={S} /></span> }))} disabled={busy} />
+          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={tplId} onChange={(id: string) => { const t = tplOf(id); if (t) void selectTemplate(t); }} options={templates.map((x: any) => ({ value:x.id, label:tplLabel(x,lang,S), description:<span style={{display:"block",width:96,margin:"0 auto"}}><CardPreview t={x} card={{role:"cover",headline:STRINGS[cardLangOf(x)].sampleHeadline}} bodyIndex={1} vars={{}} S={S} /></span> }))} disabled={busy} />
         ) : (
           <ui.Message>{S.noTplForLang}</ui.Message>
         )}
@@ -4232,7 +4283,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} multiline disabled={busy} />
       </ui.Section>
       <ui.Actions>
-        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || (mode === "link" && ownPhotos && !photos.length)}>
+        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || !tplOf(tplId) || (mode === "link" && ownPhotos && !photos.length)}>
           {mode === "link" ? "Generate" : S.plan}
         </ui.Button>
       </ui.Actions>
@@ -4398,7 +4449,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           label: S.tabTemplates,
           content: (
             <TemplateEditor sdk={sdk} ui={ui} S={S} lang={lang} templates={templates} store={store} onChanged={loadTemplates}
-              state={{ selId: tplSel, setSelId: setTplSel, edit: tplEdit, setEdit: setTplEdit, baseKey: tplBase, setBaseKey: setTplBase, sub: tplSub, setSub: setTplSub, role: tplRole, setRole: setTplRole, pending: tplNew, setPending: setTplNew }} />
+              state={{ selId: tplSel, setSelId: selectEditorTemplate, edit: tplEdit, setEdit: setTplEdit, baseKey: tplBase, setBaseKey: setTplBase, sub: tplSub, setSub: setTplSub, role: tplRole, setRole: setTplRole, pending: tplNew, setPending: setTplNew }} />
           ),
         },
       ]}

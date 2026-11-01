@@ -9,8 +9,8 @@ const layout = { kind: 'layout', id: 'team', name: 'Team design', version: 1, la
 const work = { id: 'legacy', name: 'Saved photo work', articleUrl: 'https://example.test/news', createdAt: '2026-10-30', updatedAt: '2026-10-30', requirements: 'Saved instructions', format: 'jpeg', template: layout, cards: [{ lines: ['One', 'Two'], crop: { zoom: 1.6, x: -.25, y: .4 }, photo: { path: '/photos/a.png', name: 'a.png', width: 1920, height: 1080 } }] };
 const root = '/memory/.selects/plugin-data/card-news-maker';
 function nodes(tree) { const out = [], seen = new Set(); function visit(v) { if (!v || typeof v !== 'object' || seen.has(v)) return; seen.add(v); if ('type' in v && 'props' in v) out.push(v); if (v.type === 'TemplateTransferDialog' && !v.props.open) return; for (const x of Object.values(v)) visit(x); } visit(tree); return out; }
-function harness({ legacy = false, sdk: extra = {}, job, templatePack } = {}) {
-  const disk = new Map([[root + '/layout-templates/team.json', new TextEncoder().encode(JSON.stringify(layout))]]);
+function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: existingDisk, layouts = [layout], language = 'en' } = {}) {
+  const disk = existingDisk || new Map(layouts.map(l => [root + '/layout-templates/' + l.id + '.json', new TextEncoder().encode(JSON.stringify(l))]));
   if (legacy) disk.set(root + '/photo-works/legacy.json', new TextEncoder().encode(JSON.stringify(work)));
   if (job) disk.set(root + '/jobs/' + job.id + '.json', new TextEncoder().encode(JSON.stringify(job)));
   const mainHooks = [], editorHooks = [], effects = []; let hooks = mainHooks, at = 0, tree;
@@ -26,9 +26,9 @@ function harness({ legacy = false, sdk: extra = {}, job, templatePack } = {}) {
   const files = { join: path.posix.join, homedir: () => '/memory', exists: async () => true, mkdir: async () => {}, stat: async (p) => ({ isDirectory: p === '/photos', size: 10000 }), readdir: async (p) => p === '/photos' ? ['b.png', 'a.png'] : [...disk.keys()].filter((n) => path.posix.dirname(n) === p).map((n) => path.posix.basename(n)), readFile: async (p) => disk.get(p) || new Uint8Array([1, 2, 3]), writeFile: async (p, data) => { disk.set(p, data); }, rm: async (p) => { disk.delete(p); }, removeFile: async ({ filePath }) => { disk.delete(filePath); }, getOrCreateTmpDirPath: async () => '/tmp', downloadFile: async (_, p) => { disk.set(p, new TextEncoder().encode('<meta property="og:type" content="article"><meta property="og:title" content="Article"><article><p>' + 'Verified article facts. '.repeat(40) + '</p></article>')); } };
   const sdk = { runScript: async () => ({ result: [] }), aiProviders: async () => ({ chatgpt: 'connected', selects: 'connected' }), ...extra };
   const ui = new Proxy({}, { get: (_, k) => String(k) });
-  const context = { projectId: 'p', language: 'en', templatePack };
+  const context = { projectId: 'p', language, templatePack };
   const canvas = () => ({ getContext: () => ({ measureText: () => ({ width: 1 }), fillRect() {}, drawImage() {}, fillText() {}, getImageData: () => ({ data: [0, 0, 0, 255] }) }), toDataURL: () => 'data:image/jpeg;base64,YQ==', toBlob: (fn, mime) => fn(new Blob([new Uint8Array([1, 2, 3])], { type: mime })) });
-  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate'], React, overrides: { hostSdk: { files, dialogs: { pickDirectoryPath: async () => '/photos' } }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { Blob, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
+  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs: { pickDirectoryPath: async () => '/photos' } }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { Blob, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
   function render() { hooks = mainHooks; at = 0; tree = bindings.ProjectPanel({ sdk, ui, context }); return tree; }
   function renderEditor() { const node = nodes(render()).find(n => n.type === bindings.TemplateEditor); hooks = editorHooks; at = 0; return bindings.TemplateEditor(node.props); }
   return {
@@ -61,7 +61,7 @@ test('new article form has optional photos OFF and one shared template, instruct
 });
 
 test('legacy photo cards use the same CardEditor as article cards and saves never rewrite the source snapshot', async () => {
-  const h = harness({ legacy: true });
+  const h = harness({ legacy: true, layouts: [layout, {...layout,id:'other',name:'Other saved design'}] });
   try {
     const before = h.disk.get(root + '/photo-works/legacy.json'); await h.settle();
     h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
@@ -72,15 +72,15 @@ test('legacy photo cards use the same CardEditor as article cards and saves neve
     const saved = await h.bindings.makeStore().list('jobs');
     assert.equal(saved.find((j) => j.id === 'photo-p-legacy').plan.cards[0].headline, 'Edited\nText');
     assert.equal(h.disk.get(root + '/photo-works/legacy.json'), before);
-    h.find('TemplateChoice', 'Template').props.onChange('report-en');
+    h.find('TemplateChoice', 'Template').props.onChange('layout-other');
     assert.equal(h.component('CardEditor').type, editor.type);
-    assert.equal(h.component('CardEditor').props.t.id, 'report-en');
+    assert.equal(h.component('CardEditor').props.t.id, 'layout-other');
     assert.equal(h.component('CardEditor').props.card.headline, 'Edited\nText');
   } finally { h.close(); }
 });
 
 test('all designs use the same TemplateEditor and share Look/Brand/AI state', async () => {
-  const h = harness();
+  const h = harness({ layouts: [layout, {...layout,id:'other',name:'Other saved design'}] });
   try {
     await h.settle();
     const editor = h.component('TemplateEditor');
@@ -90,7 +90,7 @@ test('all designs use the same TemplateEditor and share Look/Brand/AI state', as
     assert.equal(team.type, editor.type); assert.equal(team.props.state.selId, 'layout-team');
     assert.equal(team.props.layoutLibrary, undefined);
     assert.ok(team.props.templates.find((t) => t.id === 'layout-team').look.textSlots);
-    team.props.state.setSelId('report-en'); assert.equal(h.component('TemplateEditor').type, team.type);
+    team.props.state.setSelId('layout-other'); assert.equal(h.component('TemplateEditor').type, team.type);
   } finally { h.close(); }
 });
 
@@ -260,14 +260,14 @@ test('template creation is an unsaved draft; cancel writes nothing and Save pers
 });
 
 test('template dirty switch waits for an explicit discard and imported files cannot overwrite the original', async () => {
-  const h = harness();
+  const h = harness({ layouts: [layout, {...layout,id:'other',name:'Other saved design'}] });
   try {
     await h.settleEditor();
     h.editorFind('TextField', 'Name').props.onChange('Uncommitted rename');
-    h.editorFind('TemplateToolbar').props.onChange('layout-team');
-    assert.equal(h.editorFind('TemplateToolbar').props.value, 'report-en');
-    h.editorFind('Button', 'Discard and switch').props.onClick(); await h.settleEditor();
+    h.editorFind('TemplateToolbar').props.onChange('layout-other');
     assert.equal(h.editorFind('TemplateToolbar').props.value, 'layout-team');
+    h.editorFind('Button', 'Discard and switch').props.onClick(); await h.settleEditor();
+    assert.equal(h.editorFind('TemplateToolbar').props.value, 'layout-other');
     const original = h.disk.get(root + '/layout-templates/team.json');
     h.editorFind('TemplateToolbar').props.onImport();
     await h.editorFind('FileDrop').props.onChange({path:root+'/layout-templates/team.json'}); await h.settleEditor();
@@ -346,5 +346,78 @@ test('catalog import waits for unsaved template edits before selecting the linke
     h.editorFind('Button', 'Cancel').props.onClick(); await h.settle();
     assert.equal(downloads, 1); assert.deepEqual(finished, ['dirty-1']);
     assert.equal(h.find('Tabs').props.value, 'templates');
+  } finally { h.close(); }
+});
+
+
+test('new work and template toolbar list only saved or imported designs, without a built-in preview flash', async () => {
+  const h = harness();
+  try {
+    assert.equal(!!h.find('TemplateChoice', 'Template'), false);
+    await h.settleEditor();
+    assert.deepEqual(plain(h.find('TemplateChoice', 'Template').props.options.map(o => o.value)), ['layout-team']);
+    assert.deepEqual(plain(h.editorFind('TemplateToolbar').props.options.map(o => o.value)), ['layout-team']);
+  } finally { h.close(); }
+});
+
+test('empty library can create and save a neutral design without exposing a built-in seed', async () => {
+  const h = harness({ layouts: [] });
+  try {
+    await h.settleEditor();
+    assert.equal(!!h.find('TemplateChoice', 'Template'), false);
+    assert.equal(h.find('Button', 'Generate').props.disabled, true);
+    assert.equal(h.editorFind('TemplateToolbar').props.options.length, 0);
+    assert.equal(h.editorFind('TemplateToolbar').props.actionsDisabled, false);
+    assert.equal(h.editorFind('TemplateToolbar').props.exportDisabled, true);
+    h.editorFind('TemplateToolbar').props.onCreate();
+    h.editorFind('TextField', 'Name').props.onChange('My first design');
+    h.editorFind('Button', 'New template').props.onClick(); await h.settleEditor();
+    const pending = h.component('TemplateEditor').props.state.pending;
+    assert.equal(pending.label.style, 'none'); assert.equal(pending.label.text, '');
+    assert.equal(pending.wordmark.text, ''); assert.equal(pending.wordmark.logo, null);
+    assert.doesNotMatch(JSON.stringify(pending), /TODAY|REPORT|report-|essay-|tips-/i);
+    await h.editorFind('Button', 'Save').props.onClick(); await h.settleEditor();
+    assert.equal(h.find('Button', 'Generate').props.disabled, false);
+    assert.equal(h.find('TemplateChoice', 'Template').props.options.length, 1);
+    const saved = h.component('TemplateEditor').props.templates[0];
+    assert.deepEqual(plain(saved.descriptions), {});
+    assert.equal(saved.label.text, '');
+  } finally { h.close(); }
+});
+
+test('pack selection is restored on a fresh mount and project switch without replacing saved designs', async () => {
+  const h = harness({ templatePack: { requestId: 'persist-pack', url: packUrl }, sdk: { finishTemplatePackInstall() {} } });
+  let reopened;
+  try {
+    h.files.downloadFile = async (_, to) => h.disk.set(to, new TextEncoder().encode(JSON.stringify({...layout, id:'chosun-basic', name:'Chosun Ilbo Basic (feed)'})));
+    await h.settle();
+    const templateBytes = h.disk.get(root + '/templates/pack-chosun-basic.json');
+    reopened = harness({ disk: h.disk });
+    reopened.context.projectId = 'next-project';
+    await reopened.settleEditor();
+    assert.equal(reopened.find('TemplateChoice', 'Template').props.value, 'pack-chosun-basic');
+    assert.equal(reopened.editorFind('TemplateToolbar').props.value, 'pack-chosun-basic');
+    assert.equal(reopened.disk.get(root + '/templates/pack-chosun-basic.json'), templateBytes);
+    assert.deepEqual(plain(reopened.find('TemplateChoice', 'Template').props.options.map(o => o.value)), ['layout-team','pack-chosun-basic']);
+  } finally { reopened?.close(); h.close(); }
+});
+
+
+test('empty library can import a design, and a saved legacy-ID edit remains owned and unchanged', async () => {
+  const h = harness({layouts:[]});
+  try {
+    await h.settleEditor();
+    h.disk.set('/incoming.json',new TextEncoder().encode(JSON.stringify(layout)));
+    h.editorFind('TemplateToolbar').props.onImport();
+    await h.editorFind('FileDrop').props.onChange({path:'/incoming.json'}); await h.settleEditor();
+    assert.equal(h.find('TemplateChoice','Template').props.options.length,1);
+    const file=root+'/templates/report-ko.json';
+    const data=new TextEncoder().encode(JSON.stringify({id:'report-ko',name:'My saved design',headline:{size:55}}));
+    h.disk.set(file,data);
+    await h.component('TemplateEditor').props.onChanged(); await h.settleEditor();
+    const saved=h.component('TemplateEditor').props.templates.find(t=>t.id==='report-ko');
+    assert.equal(saved.name,'My saved design');assert.equal(saved.headline.size,55);
+    assert.equal(saved.builtIn,false);assert.equal(h.disk.get(file),data);
+    assert.equal(h.find('TemplateChoice','Template').props.options.length,2);
   } finally { h.close(); }
 });

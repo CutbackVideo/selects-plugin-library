@@ -10,7 +10,7 @@ Open **Card News Maker** with a Project open.
 1. **Source:** paste an article link or text, or choose an analyzed project video. For an article link,
    **Use my own images** starts off. Turn it on to add JPEG, PNG or WebP photos, individually or as a
    folder in file-name order. Turning it off keeps the chosen files in the form.
-2. **Template:** choose a built-in or imported team design. Add optional instructions. With your own
+2. **Template:** choose a saved or imported team design. Add optional instructions. With your own
    photos, each photo supplies one non-end card; otherwise choose a card count or use the recommendation.
 3. **Generate:** a connected ChatGPT or Claude subscription writes a common card plan from source facts
    and your instructions. There is no model selector here and no fallback to Selects credits. If the
@@ -44,15 +44,13 @@ Older `kind: "layout"` JSON files are accepted and read into the common template
 job copy using its text, photos, crop, format and template snapshot; its original work and Draft remain
 untouched. The new engine builds a new Draft rather than reusing the old graphic parameter schema.
 
-## Built-in designs
+## Saved and installed designs
 
-| Template | Look | Pictures | Last card |
-| --- | --- | --- | --- |
-| News report | Orange label, cover headline and slanted news text on a black panel | Article photos first, then generated images | None |
-| Photo essay | Two-line cover, yellow headings and photo overlays | Article photos | Brand outro when configured |
-| Q&A tips | Outlined label and numbered answers | A shared visual concept | Call to action |
-
-Each ships in English and Korean. User photos can supply the pictures for any template.
+Only designs you save or import appear in the template lists. A new library starts empty;
+open **Templates → +** to create a neutral design or import a team template. The app remembers
+valid selections across reopening and Project changes. Built-in designs from older versions
+remain available internally for existing saved card sets, without returning to the new-work list.
+Existing saved design edits and card-set snapshots are preserved.
 
 ## App and template installation link
 
