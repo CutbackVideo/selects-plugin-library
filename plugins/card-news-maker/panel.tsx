@@ -3183,6 +3183,7 @@ type LayoutTemplate = {
   kind: "layout";
   id: string;
   name: string;
+  names?: Record<string, string>;
   version: number;
   /** The headlines' language: "ko" or "en". */
   language: string;
@@ -3206,6 +3207,7 @@ function validateLayout(t: any): string[] {
   if (t.kind !== "layout") errors.push('kind must be "layout".');
   if (typeof t.id !== "string" || !/^[\w-]{1,64}$/.test(t.id)) errors.push("id must be 1-64 letters, digits, - or _.");
   if (typeof t.name !== "string" || !t.name.trim()) errors.push("name is missing.");
+  if (t.names !== undefined && (!t.names || typeof t.names !== "object" || Array.isArray(t.names) || Object.values(t.names).some((name) => typeof name !== "string" || !name.trim()))) errors.push("names must map locales to non-empty strings.");
   if (!Number.isSafeInteger(t.version) || t.version < 1) errors.push("version must be a positive whole number.");
   if (!["ko", "en"].includes(t.language)) errors.push('language must be "ko" or "en".');
   const w = t.size?.width;
@@ -3423,7 +3425,7 @@ function fromLayout(l: LayoutTemplate): any {
   const t = JSON.parse(JSON.stringify(base));
   const body = l.body, bodyFont = body?.font || l.font;
   return {
-    ...t, id: `layout-${l.id}`, name: l.name, names: { en: l.name, ko: l.name }, builtIn: false,
+    ...t, id: `layout-${l.id}`, name: l.names ? "" : l.name, names: { en: l.name, ko: l.name, ...l.names }, builtIn: false,
     importedLayoutId: l.id, version: l.version, language: l.language,
     descriptions: { en: "Photo cards with a team's typography and placement.", ko: "Photo cards with a team's typography and placement." },
     counts: { min: 1, max: 20 },

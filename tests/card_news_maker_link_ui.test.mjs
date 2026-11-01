@@ -480,3 +480,42 @@ test('a v2 install link preserves a saved v1 design, while Import creates a new 
     assert.equal(state.state.selId,added.id);assert.equal(h.disk.get(p),bytes);
   }finally{h.close()}
 });
+
+
+test('Chosun pack and imported copies use UI locale names while custom names survive save and reinstall',async()=>{
+  const raw=JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json',import.meta.url)));
+  for(const [language,expected] of [['ko','\uc870\uc120\uc77c\ubcf4 \uae30\ubcf8 (\ud53c\ub4dc)'],['en','Chosun Ilbo Basic (feed)']]){
+    const h=harness({language,layouts:[],templatePack:{requestId:'localized-'+language,url:packUrl},sdk:{finishTemplatePackInstall(){}}});
+    try{
+      h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(raw)));
+      await h.settleEditor();
+      const choice=()=>nodes(h.render()).find(n=>n.type==='TemplateChoice');
+      assert.ok(choice().props.options.every(o=>o.label.startsWith(expected+' · ')));
+      h.disk.set('/localized.json',new TextEncoder().encode(JSON.stringify(raw)));
+      h.editorFind('TemplateToolbar').props.onImport();await h.editorFind('FileDrop').props.onChange({path:'/localized.json'});await h.settleEditor();
+      const state=h.component('TemplateEditor').props;
+      assert.equal(state.templates.length,2);assert.ok(choice().props.options.every(o=>o.label.startsWith(expected+' · ')));
+      state.state.setSub('general');await h.settleEditor();
+      const field=language==='ko'?'\uc774\ub984':'Name';assert.equal(h.editorFind('TextField',field).props.value,expected);
+      h.editorFind('TextField',field).props.onChange('My newsroom design');await h.settleEditor();
+      await h.editorFind('Button',language==='ko'?'\uc800\uc7a5':'Save').props.onClick();await h.settleEditor();
+      assert.equal(h.editorFind('TextField',field).props.value,'My newsroom design');
+      const saved=h.component('TemplateEditor').props.templates.find(t=>t.name==='My newsroom design');
+      assert.ok(saved);const before=h.disk.get(root+'/templates/'+saved.id+'.json');
+      const installed={...state.templates.find(t=>t.id==='pack-chosun-basic'),name:'My installed design'};
+      await h.bindings.makeStore().put('templates',installed.id,installed);
+      assert.equal(await h.bindings.installLinkedTemplate(h.bindings.makeStore(),packUrl,[installed,saved]),installed);
+      assert.equal(h.disk.get(root+'/templates/'+saved.id+'.json'),before);
+      h.context.language=language==='ko'?'en':'ko';await h.settleEditor();
+      const after=h.component('TemplateEditor').props.templates.find(t=>t.id===saved.id);
+      assert.equal(after.name,'My newsroom design');assert.ok(choice().props.options.some(o=>o.label.startsWith('My newsroom design · ')));
+    }finally{h.close()}
+  }
+});
+
+test('layout locale names reject malformed values and keep old single names unchanged',()=>{
+  const h=harness();try{
+    assert.equal(h.bindings.CardSupport.fromLayout(layout).name,'Team design');
+    for(const names of [null,[],{ko:12},{ko:''},{ko:' '}])assert.throws(()=>h.bindings.CardSupport.templateFromFile({...layout,names}),/names must map/);
+  }finally{h.close()}
+});

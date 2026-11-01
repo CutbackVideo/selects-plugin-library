@@ -2,6 +2,7 @@
   "kind": "layout",
   "id": "chosun-basic",
   "name": "Chosun Ilbo Basic (feed)",
+  "names": {"en": "Chosun Ilbo Basic (feed)", "ko": "\uc870\uc120\uc77c\ubcf4 \uae30\ubcf8 (\ud53c\ub4dc)"},
   "version": 2,
   "language": "ko",
   "size": {
