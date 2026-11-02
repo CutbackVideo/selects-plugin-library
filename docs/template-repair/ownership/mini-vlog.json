@@ -1400,12 +1400,12 @@
     },
     {
       "path": "plugins/mini-vlog/tests/quick-score.test.cjs",
-      "sha256": "29cd0a66ef4adf006b76cf52297bdf98cbbf3dda373967f6b47c86bfd5a226d2",
+      "sha256": "68dc9b64258bd2be820cbd64bc112ea560416b3462d2333ce066e705cb4869b5",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 140,
+          "endLine": 141,
           "feature": "test-harness"
         }
       ],
