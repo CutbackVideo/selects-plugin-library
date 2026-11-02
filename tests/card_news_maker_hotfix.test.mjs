@@ -16,7 +16,7 @@ function nodes(value) { const out = []; function visit(v) { if (!v || typeof v !
 const pack = JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json', import.meta.url)));
 
 test('body wrapping keeps manual breaks, uses each slot width and retains every non-space character', () => {
-  assert.deepEqual(wrap('한글문장가나다라마바사아자차카타파하거너더러머버서어저'), { lines: ['한글문장가나다라마바', '사아자차카타파하거너', '더러머버서어저'], overflow: false });
+  assert.deepEqual(wrap('\ud55c\uae00\ubb38\uc7a5\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14\uc0ac\uc544\uc790\ucc28\uce74\ud0c0\ud30c\ud558\uac70\ub108\ub354\ub7ec\uba38\ubc84\uc11c\uc5b4\uc800'), { lines: ['\ud55c\uae00\ubb38\uc7a5\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14', '\uc0ac\uc544\uc790\ucc28\uce74\ud0c0\ud30c\ud558\uac70\ub108', '\ub354\ub7ec\uba38\ubc84\uc11c\uc5b4\uc800'], overflow: false });
   const text = 'alpha bravo charlie delta';
   const result = wrap(text, [120, 120, 120]);
   assert.deepEqual(result, { lines: ['alpha bravo', 'charlie', 'delta'], overflow: false });
@@ -25,7 +25,7 @@ test('body wrapping keeps manual breaks, uses each slot width and retains every 
   assert.deepEqual(wrap('abc\tdef').lines, ['abc def']);
   assert.deepEqual(wrap('abcdefghijklmnop', [40, 60, 80]).lines, ['abcd', 'efghij', 'klmnop']);
   assert.deepEqual(wrap('abcdefghijkl', [100, 100, 100], -.2).lines, ['abcdefghijkl']);
-  for (const unit of ['e\u0301', '가']) {
+  for (const unit of ['e\u0301', '\u1100\u1161']) {
     assert.deepEqual(wrap(unit.repeat(6), [100,100,100], -.2).lines, [unit.repeat(5),unit]);
   }
 });
@@ -35,11 +35,11 @@ test('overflow and an unfit grapheme are explicit errors rather than silent dele
   const result = wrap(text);
   assert.equal(result.overflow, true);
   assert.equal(result.lines.join(''), text);
-  assert.deepEqual(wrap('👨‍👩‍👧‍👦', [20, 20, 20]), { lines: ['👨‍👩‍👧‍👦'], overflow: true });
+  assert.deepEqual(wrap('\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66', [20, 20, 20]), { lines: ['\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66'], overflow: true });
   const t = b.CardSupport.fromLayout(pack), card = { role: 'body', body: text.repeat(10) };
   const params = b.cardParams(t, card, 1, {}), tree = nodes(b.PreviewCard({ data: params }));
   assert.ok(tree.some(n => n.props.role === 'alert'));
-  assert.throws(() => b.validateGraphicBody(params), /text area|텍스트 영역/);
+  assert.throws(() => b.validateGraphicBody(params), /text area|\ud14d\uc2a4\ud2b8 \uc601\uc5ed/);
   assert.equal(card.body, text.repeat(10));
 });
 
