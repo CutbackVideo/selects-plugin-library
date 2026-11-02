@@ -6,10 +6,26 @@ import { loadPanelModule, disposePanelModule } from './panel_module_fixture.mjs'
 
 const source = fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx', import.meta.url), 'utf8');
 const React = { useRef: (value) => ({ current: value }), useState: (value) => [value, () => {}], useEffect() {}, createElement: (type, props, ...children) => ({ type, props: { ...props, children } }) };
-const b = loadPanelModule(source, { globals: { document: { createElement: () => ({ getContext: () => ({ measureText: () => ({ width: 1 }) }) }) } }, names: ['CardSupport', 'PreviewCard', 'CardPreview', 'BUILTIN_TEMPLATES', 'cardParams', 'editableDefs', 'normalizePlan', 'validatePlan', 'planPrompt', 'SCRIPT_BUILD', 'STRINGS', 'transformFor', 'makeStore', 'reorderPlan', 'resolveReusedPictures', 'validateCardText'], React });
+const b = loadPanelModule(source, { globals: { document: { createElement: () => ({ getContext: () => ({ measureText: () => ({ width: 1 }) }) }) } }, names: ['CardSupport', 'CardEditor', 'PreviewCard', 'CardPreview', 'BUILTIN_TEMPLATES', 'cardParams', 'editableDefs', 'normalizePlan', 'validatePlan', 'planPrompt', 'SCRIPT_BUILD', 'STRINGS', 'transformFor', 'makeStore', 'reorderPlan', 'resolveReusedPictures', 'validateCardText'], React });
 process.on('exit', () => disposePanelModule(b));
 const layout = () => ({ kind: 'layout', id: 'team-basic', name: 'Team Basic', version: 1, language: 'ko', size: { width: 1080, height: 1350 }, shade: { top: 830, bottom: 1350, color: '#000000', from: 0, to: .8 }, font: { family: 'Noto Sans KR', weight: 700, size: 72, tracking: -.04, color: '#FFFFFF', lineHeight: 88 }, lines: [{ left: 125, top: 942, width: 830, align: 'center' }, { left: 125, top: 1058, width: 830, align: 'center' }], logo: { top: 1219, width: 155, dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+' } });
 function nodes(tree) { const out = []; function visit(v) { if (!v || typeof v !== 'object') return; if ('type' in v && 'props' in v) out.push(v); for (const x of Object.values(v)) visit(x); } visit(tree); return out; }
+
+test('Chosun cover keeps line-break guidance without promising unsupported bracket highlights', () => {
+  const raw = JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json', import.meta.url), 'utf8'));
+  const fixed = b.CardSupport.fromLayout(raw), regular = b.BUILTIN_TEMPLATES[0];
+  const ui = new Proxy({}, { get: (_, key) => String(key) });
+  for (const [language, S] of Object.entries(b.STRINGS)) {
+    for (const t of [fixed, regular]) {
+      const card = { role: 'cover', headline: 'First\nSecond', picture: { kind: 'none' } };
+      const tree = nodes(b.CardEditor({ ui, S, t, card, index: 0, bodyIndex: 0, plan: { cards: [card] }, vars: {} }));
+      const hint = tree.find(n => n.type === 'small').props.children[0];
+      assert.equal(hint, t === fixed ? S.headlineLinesHint : S.headlineHint, language);
+      assert.ok(hint && (t === fixed ? !hint.includes('[') : hint.includes('[')), language);
+      assert.equal(tree.find(n => n.type === 'TextField' && n.props.label === S.headline).props.value, card.headline);
+    }
+  }
+});
 
 test('layout JSON becomes a real common template without changing its source', () => {
   const raw = layout(), before = JSON.stringify(raw), t = b.CardSupport.fromLayout(raw);

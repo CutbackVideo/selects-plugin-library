@@ -386,6 +386,7 @@ const STRINGS: any = {
     roleBody: "Card",
     roleEnd: "Last card",
     headline: "Headline",
+    headlineLinesHint: "One line per row.",
     headlineHint: "One line per row. [Brackets] mark the highlighted phrase.",
     heading: "Heading",
     body: "Body",
@@ -624,6 +625,7 @@ const STRINGS: any = {
     roleBody: "\uce74\ub4dc",
     roleEnd: "\ub9c8\uc9c0\ub9c9 \uce74\ub4dc",
     headline: "\ud5e4\ub4dc\ub77c\uc778",
+    headlineLinesHint: "\ud55c \uc904\uc5d0 \ud55c \ud589.",
     headlineHint: "\ud55c \uc904\uc5d0 \ud55c \ud589. [\ub300\uad04\ud638]\ub294 \uac15\uc870\uc0c9\uc785\ub2c8\ub2e4.",
     heading: "\uc18c\uc81c\ubaa9",
     body: "\ubcf8\ubb38",
@@ -813,6 +815,7 @@ const STRINGS: any = {
     roleBody: "Karte",
     roleEnd: "Letzte Karte",
     headline: "Schlagzeile",
+    headlineLinesHint: "Jede Zeile hier ist eine Zeile auf der Karte.",
     headlineHint: "Jede Zeile hier ist eine Zeile auf der Karte. [Klammern] markieren die hervorgehobene Stelle.",
     heading: "Zwischenüberschrift",
     body: "Fließtext",
@@ -1002,6 +1005,7 @@ const STRINGS: any = {
     roleBody: "Tarjeta",
     roleEnd: "Última tarjeta",
     headline: "Titular",
+    headlineLinesHint: "Cada línea es un renglón.",
     headlineHint: "Cada línea es un renglón. Los [corchetes] marcan la frase resaltada.",
     heading: "Encabezado",
     body: "Cuerpo",
@@ -1191,6 +1195,7 @@ const STRINGS: any = {
     roleBody: "Carte",
     roleEnd: "Dernière carte",
     headline: "Titre",
+    headlineLinesHint: "Chaque ligne ici devient une ligne sur la carte.",
     headlineHint: "Chaque ligne ici devient une ligne sur la carte. Les [crochets] marquent le passage mis en valeur.",
     heading: "Intertitre",
     body: "Corps du texte",
@@ -1380,6 +1385,7 @@ const STRINGS: any = {
     roleBody: "Card",
     roleEnd: "Ultima card",
     headline: "Titolo",
+    headlineLinesHint: "Ogni riga che scrivi diventa una riga della card.",
     headlineHint: "Ogni riga che scrivi diventa una riga della card. Il testo tra [parentesi quadre] viene evidenziato.",
     heading: "Titoletto",
     body: "Testo",
@@ -1569,6 +1575,7 @@ const STRINGS: any = {
     roleBody: "カード",
     roleEnd: "最後のカード",
     headline: "見出し",
+    headlineLinesHint: "1行ずつ入力します。",
     headlineHint: "1行ずつ入力します。[角かっこ]で囲んだ部分が強調表示されます。",
     heading: "小見出し",
     body: "本文",
@@ -1758,6 +1765,7 @@ const STRINGS: any = {
     roleBody: "Cartão",
     roleEnd: "Último cartão",
     headline: "Título",
+    headlineLinesHint: "Cada linha do texto é uma linha no cartão.",
     headlineHint: "Cada linha do texto é uma linha no cartão. Os [parênteses retos] marcam a frase em destaque.",
     heading: "Subtítulo",
     body: "Corpo",
@@ -1947,6 +1955,7 @@ const STRINGS: any = {
     roleBody: "Kart",
     roleEnd: "Son kart",
     headline: "Başlık",
+    headlineLinesHint: "Yazdığınız her satır kartta ayrı bir satır olur.",
     headlineHint: "Yazdığınız her satır kartta ayrı bir satır olur. [Köşeli parantez] içindeki ifade vurgulanır.",
     heading: "Ara başlık",
     body: "Metin",
@@ -2136,6 +2145,7 @@ const STRINGS: any = {
     roleBody: "卡片",
     roleEnd: "最后一张",
     headline: "标题",
+    headlineLinesHint: "每行对应卡片上的一行。",
     headlineHint: "每行对应卡片上的一行。[方括号] 内为高亮短语。",
     heading: "小标题",
     body: "正文",
@@ -3274,7 +3284,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
       {card.role === "cover" && (
         <ui.Stack gap={4}>
           <ui.TextField label={S.headline} value={card.headline || ""} onChange={(v: string) => onChange({ ...card, headline: v })} multiline disabled={busy} />
-          <small>{S.headlineHint}</small>
+          <small>{roleLook(t, "cover").textSlots?.length ? S.headlineLinesHint : S.headlineHint}</small>
         </ui.Stack>
       )}
       {card.role === "body" && t.heading.on && <ui.TextField label={S.heading} value={card.heading || ""} onChange={(v: string) => onChange({ ...card, heading: v })} disabled={busy} />}
