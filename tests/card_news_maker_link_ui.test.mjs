@@ -716,3 +716,23 @@ test('partial rendering, caption writes and project imports retain saved files w
     try{if(failure==='caption'){const write=h.files.writeFile;h.files.writeFile=async(p,v)=>{if(p.endsWith('/caption.txt'))throw Error('Caption write failed');return write(p,v)}}await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();await h.find('Button','Export card images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.done,false);assert.equal(saved.export.files.length,failure==='render'?1:2);assert.ok(saved.export.files.every(p=>h.disk.has(p)));assert.equal(imports,['render','caption'].includes(failure)?0:1);assert.ok(h.find('Button','Open folder'));const messages=nodes(h.render()).filter(n=>n.type==='Message');assert.ok(messages.some(n=>n.props.tone==='error'));assert.ok(!messages.some(n=>n.props.children.some(v=>typeof v==='string'&&v.startsWith('Saved '))))}finally{h.close()}
   }
 });
+
+test('live timeline overflow blocks export before replacing a completed receipt or writing files', async () => {
+  const previous = { dir: '/chosen/completed', files: ['/chosen/completed/card-01.png'] };
+  const job = { id: 'live-overflow', projectId: 'p', templateId: 'layout-team', draftId: 'existing', saveTo: '/chosen', export: previous, done: true, plan: { cards: [{role:'body',body:'Saved safe body'}], caption: 'Caption' } };
+  let renders = 0;
+  const h = harness({job,sdk:{runScript:async({summary})=>{
+    if(summary==='Read the card ranges')return{result:{fps:24,cards:[['Card 01',0,72,{role:'body',body:'One\nTwo\nThree\nFour',fontFamily:'Test',bodySize:54,bodyWeight:400,tracking:0,textSlots:JSON.stringify([{left:105,top:943,width:880,height:82},{left:105,top:1025,width:880,height:82},{left:105,top:1107,width:880,height:82}])},true]]}};
+    if(summary==='Export card composite')renders++;
+    return {result:[]};
+  }}});
+  try {
+    await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();
+    const beforePaths=[...h.disk.keys()].filter(p=>p.startsWith('/chosen/'));
+    await h.find('Button','Export card images').props.onClick();await h.settle();
+    const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);
+    assert.deepEqual(plain(saved.export),previous);assert.equal(renders,0);
+    assert.deepEqual([...h.disk.keys()].filter(p=>p.startsWith('/chosen/')),beforePaths);
+    assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.tone==='error'&&n.props.children.some(v=>String(v).includes('text area'))));
+  } finally { h.close(); }
+});
