@@ -652,3 +652,7 @@ Node-based SDK simulations are regression evidence, not measured Windows latency
 The initial list contains no image data or editable design fields. Every selected
 template is verified before it reaches editing, export or generation. Switching
 selection ignores late results from the previous request.
+
+### Font weights
+
+Title and caption settings use the installed font family’s weight menu from Panel UI kit 7. Update Selects before installing this app version. The saved weight stays selected when the family is missing on another machine. Weight changes are saved with the template and used in its preview and generated graphics, including landscape templates.
