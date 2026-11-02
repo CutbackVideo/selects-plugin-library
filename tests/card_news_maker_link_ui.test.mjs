@@ -695,7 +695,7 @@ test('generation and photo inputs use Korean UI labels while English labels stay
   for(const language of ['en','ko']){
     const ko=language==='ko',h=harness({language});try{
       await h.settle();assert.ok(h.find('TextField',ko?'\uae30\uc0ac \ub9c1\ud06c':'Article link'));
-      const own=ko?'내 사진 추가 (선택)':'Add my own photos (optional)';assert.equal(h.find('Toggle',own).props.value,false);
+      const own=ko?'\ub0b4 \uc0ac\uc9c4 \ucd94\uac00 (\uc120\ud0dd)':'Add my own photos (optional)';assert.equal(h.find('Toggle',own).props.value,false);
       assert.ok(h.find('Button',ko?'\uce74\ub4dc \uc0dd\uc131':'Generate'));
       h.find('Toggle',own).props.onChange(true);h.render();
       const drop=nodes(h.render()).find(n=>n.type==='FileDrop');assert.equal(drop.props.labels.choose,ko?'\uc0ac\uc9c4 \ucd94\uac00':'Add a photo');

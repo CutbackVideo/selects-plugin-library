@@ -64,7 +64,7 @@ test('contact sheets load native photos with canvas CORS and preserve crops, num
   const files = { pathToLocalURL: async path => 'local://' + encodeURI(path), readFile() { assert.fail('Contact sheets must not transfer photo bytes'); } };
   const size = { width: 1080, height: 1350 }, crop = { fit: 'contain', zoom: .75, x: .2, y: -.1 };
   try {
-    const result = await panel.CardSupport.contactSheet([{ photo: { path: '/photos/한글 #1?.jpg', width: 398, height: 600 }, crop }, {}], size, files);
+    const result = await panel.CardSupport.contactSheet([{ photo: { path: '/photos/\ud55c\uae00 #1?.jpg', width: 398, height: 600 }, crop }, {}], size, files);
     assert.equal(result, 'data:image/jpeg;base64,small');
     assert.deepEqual([canvas.width, canvas.height], [432, 270]);
     const p = panel.CardSupport.photoPlacement(398, 600, crop, size), k = 216 / 1080;
