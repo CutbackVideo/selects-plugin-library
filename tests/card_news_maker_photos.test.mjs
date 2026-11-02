@@ -364,3 +364,116 @@ test('new generic cards persist the same crop used by preview and export without
   assert.ok(b.transformFor(t,'body',400,600,cards[1].crop).draw);
   assert.equal(raw.cards[1].crop,undefined);
 });
+
+test('supplied photo planning uses a photo-only schema and keeps article facts and photo captions', () => {
+  for(const language of ['en','ko']){
+    const t=b.CardSupport.fromLayout({...layout(),language});
+    const photos=[{kind:'article',index:0,path:'/a.jpg',caption:'VISIBLE_PHOTO_CAPTION',credit:'VISIBLE_CREDIT'}];
+    for(const src of [{photoChoices:photos},{ownPhotos:true,photos},{photoChoices:[]}]){
+      const prompt=b.planPrompt(t,src,'manual',2,'KEEP_USER_NOTE','KEEP_ARTICLE_FACTS');
+      assert.match(prompt,/KEEP_USER_NOTE/);assert.match(prompt,/KEEP_ARTICLE_FACTS/);
+      assert.doesNotMatch(prompt,/English scene prompt|metaphor|articleIndex|article\.images|"article"\s*:|"url"\s*:|"prompt"\s*:/);
+      assert.match(prompt,/Do not browse, fetch URLs or use tools/);
+      const schema=JSON.parse(prompt.match(/matching this schema: ([^\n]+)/)[1]);
+      assert.deepEqual(Object.keys(schema),Array.isArray(src.photoChoices)?['cards','caption','hashtags']:['recommendedCount','countReason','cards','caption','hashtags']);
+      if(Array.isArray(src.photoChoices)){assert.equal(schema.cards[0].slotIndex,0);assert.equal(schema.cards[0].image,undefined);assert.doesNotMatch(prompt,/photoIndex/)}else assert.equal(schema.cards[0].image.source,'photo|none');assert.ok(schema.cards[0].headline.includes('\n'));
+      if(src.photoChoices?.length){assert.match(prompt,/VISIBLE_PHOTO_CAPTION/);assert.match(prompt,/VISIBLE_CREDIT/)}
+    }
+  }
+});
+
+test('generated-image planning retains its English scene and metaphor contract while supplied photos cannot generate', () => {
+  const t=b.BUILTIN_TEMPLATES.find(t=>t.id==='tips-en');
+  const prompt=b.planPrompt(t,{},'manual',2,'','VERIFIED_FACTS');
+  assert.match(prompt,/English scene prompt/);assert.match(prompt,/metaphor/);assert.match(prompt,/Write generate prompts in English/);
+  const raw={metaphor:'Keep this generated metaphor',cards:[{headline:'Cover',image:{source:'generate',prompt:'English scene'}},{body:'Body',image:{source:'generate',prompt:'Second scene'}}]};
+  const generated=b.normalizePlan(raw,t);assert.equal(generated.metaphor,raw.metaphor);assert.equal(generated.cards[0].picture.kind,'generate');assert.equal(generated.cards[0].picture.prompt,'English scene');
+  const photo=b.normalizePlan(raw,t,[{kind:'file',path:'/a.jpg',w:100,h:100}]);assert.equal(photo.metaphor,'');assert.ok(photo.cards.filter(c=>c.role!=='end').every(c=>c.picture.kind==='file'));
+  const blank=b.normalizePlan({cards:[{headline:'No matching photo',image:{source:'none'}}]},t,[{kind:'file',path:'/a.jpg'}]);assert.equal(blank.cards[0].picture.kind,'none');
+});
+
+test('generated-mode JSON examples retain escaped line breaks', () => {
+  const t=b.BUILTIN_TEMPLATES.find(t=>t.id==='tips-en');
+  const prompt=b.planPrompt(t,{},'manual',2,'','Facts');
+  assert.ok(prompt.includes('"headline": "line\\nline"'));
+  assert.ok(!prompt.includes('"headline": "line\nline"'));
+});
+
+test('photo mode removes app-owned body image-generation sentences across built-in templates and saved copies', () => {
+  for(const original of b.BUILTIN_TEMPLATES){
+    const t=structuredClone(original);t.id='saved-copy';t.prompt.body+=' KEEP_CUSTOM_BODY_RULE.';
+    const photos=[{kind:'file',path:'/a.jpg',caption:'PHOTO_CONTENT'}];
+    const prompt=b.planPrompt(t,{photoChoices:photos},'manual',2,'KEEP_NOTE','KEEP_FACTS');
+    assert.match(prompt,/KEEP_CUSTOM_BODY_RULE/);assert.match(prompt,/KEEP_NOTE/);assert.match(prompt,/KEEP_FACTS/);
+    assert.doesNotMatch(prompt,/Every card's picture is a generated image|visual metaphor|metaphor|English scene prompt/);
+    assert.ok(!prompt.includes('\ubaa8\ub4e0 \uce74\ub4dc\uc758 \uc774\ubbf8\uc9c0\ub294 \ud558\ub098\uc758 \uc2dc\uac01 \ube44\uc720'));
+    if(original.images.source==='generate')assert.ok(b.planPrompt(t,{},'manual',2,'','Facts').includes(original.prompt.body));
+  }
+});
+
+
+test('photo thumbnails change only the photo and header buttons swap only photos with an adjacent slot', () => {
+  const hooks={...React,useState:value=>[typeof value==='boolean'?true:value,()=>{}]};
+  const panel=loadPanelModule(source,{names:['CardEditor','PhotoChoice','CardSupport','STRINGS'],React:hooks,globals:{document:{createElement:()=>({getContext:()=>({measureText:()=>({width:1})})})}}});
+  try{
+    const t=panel.CardSupport.fromLayout(layout()),card={id:'a',role:'body',body:'Keep body',crop:{zoom:1.2,x:.1,y:0},picture:{kind:'file',path:'/local.jpg'}},other={id:'b',role:'cover',headline:'Other',picture:{kind:'file',path:'/older.jpg',name:'Older'}};
+    let changed,article,moved,picked;const ui=new Proxy({}, {get:(_,name)=>String(name)});
+    const tree=nodes(panel.CardEditor({ui,S:panel.STRINGS.en,t,card,index:1,bodyIndex:1,plan:{cards:[other,card,{id:'end',role:'end'}],photoChoices:[{kind:'file',path:'/pool.jpg',name:'Pool'}],article:{images:[{path:'/article-preview.jpg'}]}},vars:{},fs:{},onChange:value=>changed=value,onArticle:index=>article=index,onSwap:delta=>moved=delta,onPick:file=>picked=file,photoMode:true}));
+    const thumbnails=tree.filter(n=>n.type===panel.PhotoChoice);assert.equal(thumbnails.length,4);assert.equal(thumbnails[0].props.path,'/article-preview.jpg');thumbnails[0].props.onSelect();assert.equal(article,0);thumbnails[1].props.onSelect();assert.equal(changed.picture.path,'/pool.jpg');assert.equal(changed.body,card.body);assert.deepEqual(JSON.parse(JSON.stringify(changed.crop)),card.crop);
+    assert.ok(!tree.some(n=>n.type==='Select'&&n.props.label===panel.STRINGS.en.cardOrder));
+    assert.ok(!tree.some(n=>n.type==='summary'&&n.props.children[0]===panel.STRINGS.en.pictureOptions));
+    const header=tree.find(n=>n.type==='Section');const actions=nodes(header.props.actions);
+    const earlier=actions.find(n=>n.type==='Button'&&nodes(n).some(c=>c.props['aria-hidden']==='true'&&c.props.children[0]===panel.STRINGS.en.cardEarlier)),later=actions.find(n=>n.type==='Button'&&nodes(n).some(c=>c.props['aria-hidden']==='true'&&c.props.children[0]===panel.STRINGS.en.cardLater));
+    assert.ok(nodes(earlier).some(n=>n.props.style?.clipPath==='inset(50%)'&&n.props.children[0]===panel.STRINGS.en.moveEarlier));assert.ok(nodes(later).some(n=>n.props.style?.clipPath==='inset(50%)'&&n.props.children[0]===panel.STRINGS.en.moveLater));assert.ok(actions.some(n=>n.props.title===panel.STRINGS.en.moveEarlier));assert.equal(earlier.props.disabled,false);earlier.props.onClick();assert.equal(moved,-1);assert.equal(later.props.disabled,true);
+    const remove=tree.find(n=>n.type==='Button'&&n.props.children[0]===panel.STRINGS.en.removePhoto);remove.props.onClick();assert.equal(picked,null);
+    assert.ok(tree.some(n=>n.type==='FileDrop'));
+  }finally{disposePanelModule(panel)}
+});
+
+test('whole-card destination moves preserve IDs pictures crop credits and reuse with existing cover/body/end policy', () => {
+  const cards=[{id:'a',role:'cover',headline:'A',picture:{kind:'file',path:'a.jpg'},crop:{zoom:1.3},credit:'A'},{id:'b',role:'body',body:'B',picture:{kind:'file',path:'b.jpg'},crop:{zoom:.8},credit:'B'},{id:'c',role:'body',body:'C',picture:{kind:'reuse',reuse:1},crop:{zoom:2},credit:'C'},{id:'end',role:'end',cta:'End'}];const pictures=[{resourceId:'a'},{resourceId:'b'},{resourceId:'b'}];const before=JSON.stringify(cards);
+  for(const [from,to,ids] of [[0,2,['b','c','a','end']],[2,0,['c','a','b','end']],[0,1,['b','a','c','end']]]){
+    const moved=b.reorderPlan(cards,pictures,from,to-from);assert.deepEqual(JSON.parse(JSON.stringify(moved.cards.map(c=>c.id))),ids);assert.deepEqual(JSON.parse(JSON.stringify(moved.cards.map(c=>c.role))),['cover','body','body','end']);
+    for(const c of moved.cards){const old=cards.find(o=>o.id===c.id);assert.equal(c.headline||c.body||c.cta,old.headline||old.body||old.cta);assert.equal(JSON.stringify(c.crop),JSON.stringify(old.crop));assert.equal(c.credit,old.credit)}
+    assert.deepEqual(JSON.parse(JSON.stringify(b.resolveReusedPictures(moved.cards,moved.pictures).map(p=>p?.resourceId))),ids.map(id=>id==='end'?null:id==='a'?'a':'b'));
+  }
+  assert.equal(JSON.stringify(cards),before);assert.deepEqual(b.reorderPlan(cards,pictures,0,3).cards,cards);
+});
+
+test('article photos fix four numbered copy slots before AI and ignore model count or picture selection', () => {
+  const t=b.CardSupport.fromLayout(layout());t.counts={min:8,max:10};
+  const photos=Array.from({length:4},(_,index)=>({kind:'article',index,path:`/${index}.jpg`,caption:`Photo ${index} caption`}));
+  const prompt=b.planPrompt(t,{photoChoices:photos},'auto',9,'','Article facts');assert.match(prompt,/fixed 4 photo card slots/);assert.match(prompt,/Return exactly 4 cards/);assert.doesNotMatch(prompt,/photoIndex|recommendedCount|countReason/);
+  const raw={recommendedCount:6,countReason:'Ignore this',cards:[3,0,2,1].map(slotIndex=>({slotIndex,headline:`Headline ${slotIndex}`,body:`Body ${slotIndex}`,image:{source:'photo',photoIndex:0}}))};
+  const plan=b.validatePlan(b.normalizePlan(raw,t,photos,true),t,photos,true);
+  assert.equal(plan.cards.length,4);assert.equal(plan.recommendedCount,4);assert.equal(plan.countReason,'');
+  assert.deepEqual(JSON.parse(JSON.stringify(plan.cards.map(c=>[c.picture.index,c.role,c.role==='cover'?c.headline:c.body]))),[[0,'cover','Headline 0'],[1,'body','Body 1'],[2,'body','Body 2'],[3,'body','Body 3']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(plan.cards.map(c=>c.picture.path))),photos.map(p=>p.path));
+  assert.throws(()=>b.normalizePlan({cards:Array.from({length:6},(_,slotIndex)=>({slotIndex,headline:'Extra',body:'Extra'}))},t,photos,true),/Expected 4 fixed/);
+  for(const cards of [[0,1,1,3],[0,1,2,5],[0,1,2,undefined]].map(indices=>indices.map(slotIndex=>({slotIndex,headline:'Text',body:'Text'}))))assert.throws(()=>b.normalizePlan({cards},t,photos,true),/every fixed slotIndex/);
+});
+
+test('fixed mixed photos retain their slot order and explicit template endings without changing generated modes', () => {
+  const t=b.CardSupport.fromLayout(layout());t.end.kind='cta';t.end.background='cover';
+  const photos=[{kind:'file',path:'/own.jpg'},{kind:'article',index:2,path:'/article.jpg'}];
+  const raw={cards:[{slotIndex:2,cta:'Ending'},{slotIndex:1,body:'Article facts'},{slotIndex:0,headline:'Own photo facts'}]};
+  const p=b.validatePlan(b.normalizePlan(raw,t,photos,true),t,photos,true);assert.deepEqual(JSON.parse(JSON.stringify(p.cards.map(c=>c.role))),['cover','body','end']);assert.equal(p.cards[0].picture.path,'/own.jpg');assert.equal(p.cards[1].picture.index,2);assert.equal(p.cards[2].picture.reuse,0);assert.equal(p.cards[2].cta,'Ending');
+});
+
+
+test('header order controls respect first last ending and busy boundaries while explicit generation stays editable', () => {
+  const ui=new Proxy({}, {get:(_,name)=>String(name)}),t=b.CardSupport.fromLayout(layout());
+  const cards=[{id:'a',role:'cover',headline:'A',picture:{kind:'file',path:'a.jpg'}},{id:'b',role:'body',body:'B',picture:{kind:'file',path:'b.jpg'}},{id:'c',role:'body',body:'C',picture:{kind:'file',path:'c.jpg'}},{id:'end',role:'end',cta:'End'}];
+  for(const [index,busy,disabled] of [[0,false,[true,false]],[1,false,[false,false]],[2,false,[false,true]],[1,true,[true,true]]]){
+    const moved=[];const tree=nodes(b.CardEditor({ui,S:b.STRINGS.en,t,card:cards[index],index,bodyIndex:index,plan:{cards},vars:{},fs:{},busy,photoMode:true,onSwap:delta=>moved.push(delta)}));
+    const actions=nodes(tree.find(n=>n.type==='Section').props.actions).filter(n=>n.type==='Button');assert.deepEqual(actions.map(n=>n.props.disabled),disabled);
+    actions[0].props.onClick();actions[1].props.onClick();assert.deepEqual(moved,[-1,1]);
+  }
+  const base={ui,S:b.STRINGS.en,t,index:3,bodyIndex:3,plan:{cards},vars:{},fs:{},photoMode:true};
+  assert.equal(nodes(b.CardEditor({...base,card:cards[3]})).find(n=>n.type==='Section').props.actions,undefined);
+  for(const [photoMode,kind,visible] of [[true,'article',false],[true,'generate',true],[false,'generate',true],[false,'file',true]]){
+    const tree=nodes(b.CardEditor({...base,index:0,card:{...cards[0],picture:{kind,prompt:'Existing prompt'}},photoMode}));
+    assert.equal(tree.some(n=>n.type==='summary'&&n.props.children[0]===b.STRINGS.en.pictureOptions),visible);
+    if(kind==='generate')assert.ok(tree.some(n=>n.type==='TextField'&&n.props.value==='Existing prompt'));
+  }
+});

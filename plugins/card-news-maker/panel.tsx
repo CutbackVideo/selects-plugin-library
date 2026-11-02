@@ -322,17 +322,24 @@ const STRINGS: any = {
     savedTemplateNotice: "This set keeps its saved template. The library template has changed.",
     applyTemplateChanges: "Apply template changes",
     ownImages: "Add my own photos (optional)",
-    photoUnavailable: "Some article photos could not be loaded. Choose another article photo or add your own.", readingArticle: "Reading the article…", preparingPhotos: "Preparing article photos…", dragPhoto: "Drag the photo to reposition it", replacePhoto: "Add or replace photo", addCard: "Add card slot", cardLimit: "Use up to 20 card slots.", choosePhotoFirst: "Choose a photo before exporting. Image generation requires an explicit selection.",
+    photoUnavailable: "Some article photos could not be loaded. Choose another article photo or add your own.", readingArticle: "Loading the article and photos…", preparingPhotos: "Loading the article and photos…", dragPhoto: "Drag the photo to reposition it", replacePhoto: "Add or replace photo", addCard: "Add card slot", cardLimit: "Use up to 20 card slots.", choosePhotoFirst: "Choose a photo before exporting. Image generation requires an explicit selection.",
     dropPhotos: "Drop a photo or a folder of photos",
     addPhoto: "Add a photo",
     addPhotoFolder: "Add a folder of photos",
     photosHint: "Article photos are used by default. Add your own photos here, then choose or replace each card’s photo while editing.",
+    photoSlotsHint: "One card per article or added photo, including the cover, up to 20 photos. Other article photos stay available in Change photo.",
+    noArticlePhotos: "No article photos were found. Add your own photos to create cards.",
+    photoBudgetNotice: (all: number, used: number) => `Using ${used} of ${all} article photos for the initial cards. The rest remain in Change photo.`,
+    fixedPhotoCount: (n: number, all: number) => `${n} photos · ${all} cards`,
     generate: "Generate",
     savedPicker: "Saved",
     savedPlaceholder: "Choose a saved card set",
     exportFormat: "Format",
     changeFolder: "Change folder",
-    zoomPhoto: "Zoom (%)",
+    moreActions: "More actions", working: "Working\u2026", locationInfo: "Location details", saveOptions: "Save options",
+    zoomPhoto: "Photo size",
+    removePhoto: "Remove photo", cardEarlier: "Earlier", cardLater: "Later", changePhoto: "Change photo", cardOrder: "Change card order", pictureOptions: "Other photo options",
+    zoomOut: "Zoom out", zoomIn: "Zoom in",
     photoFit: "Photo fit",
     photoCover: "Fill the card",
     photoContain: "Show the whole photo",
@@ -368,7 +375,7 @@ const STRINGS: any = {
     note: "Extra instructions (optional)",
     notePh: "e.g. focus on the price figures",
     plan: "Plan cards",
-    planning: "Planning…",
+    planning: "Writing headlines and body text\u2026",
     retryGenerate: "Your input is saved. Press Generate when you want to try again.",
     steps: ["Plan", "Review", "Pictures", "Draft", "Export"],
     needUrl: "Paste an article link.",
@@ -381,7 +388,7 @@ const STRINGS: any = {
     templateGone: "The template this work used was deleted. Start over with another template.",
     folderName: (title: string, id: string) => `Card news · ${title || id} · ${id}`,
     review: "Review the cards",
-    reviewHint: "Edit each card's text and picture. Export builds the Draft and saves the images.",
+    reviewHint: "Edit the text and photos, then save your card images.",
     recommended: (n: number, why: string) => `Recommended: ${n} cards. ${why}`,
     roleCover: "Cover",
     roleBody: "Card",
@@ -403,23 +410,23 @@ const STRINGS: any = {
     caption: "Caption",
     hashtags: "Hashtags",
     build: "Add to timeline (optional)",
-    building: "Building…",
+    building: "Adding to timeline\u2026",
     startOver: "Start over",
     creditsNote: "AI images are made with Selects' image model and use your Selects credits. Each shows in the work queue.",
     downloading: (n: number) => `Downloading article photo for card ${n}…`,
     generating: (done: number, all: number) => `Generating AI images: ${done}/${all} ready…`,
     importing: (n: number) => `Adding the picture for card ${n}…`,
-    buildingDraft: "Building the Draft…",
+    buildingDraft: "Preparing cards\u2026",
     genFailed: (n: number, why: string) => `The AI image for card ${n} failed: ${why}`,
     downloadFailed: (n: number) => `Could not download the article photo for card ${n}. Choose another picture for it.`,
     noGeneration: "This Selects version cannot generate images from an app. Choose article photos or files.",
     noFileAccess: "This Selects version does not let apps save files. Update Selects and try again.",
-    built: "Draft built. Edit it in Selects if needed, then export the card images.",
-    open: "Open Draft",
-    exportPng: "Export card images",
-    exporting: "Exporting…",
-    rendering: (n: number, all: number) => `Rendering card image ${n}/${all}…`,
-    exportDone: (n: number) => `Saved ${n} card images and the caption. Added the card images to the project.`,
+    built: "Cards added to the timeline.",
+    open: "Open timeline",
+    exportPng: "Save images",
+    exporting: "Saving images\u2026",
+    rendering: (n: number, all: number) => `Saving image ${n}/${all}…`,
+    exportDone: (n: number) => `Saved ${n} images.`,
     noStill: "This Selects version cannot render card images from an app. Update Selects and try again.",
     openFolder: "Open folder",
     exportFailed: "Export failed: ",
@@ -458,6 +465,18 @@ const STRINGS: any = {
     builtInNote: "Built-in template. Changes are saved on this computer; Reset to default restores the original, and Delete removes it from this computer.",
     modifiedNote: "Built-in template, changed on this computer.",
     customNote: "Your template.",
+    packUpdateTitle: "Update shared template",
+    applyTemplateUpdate: "Apply latest version",
+    keepTemplate: "Keep current version",
+    checkTemplateUpdate: "View shared version",
+    packUpdateAvailable: "A newer shared template is available.",
+    packPinnedVersion: "This link points to a specific shared version. Open a new shared link to receive a later release.",
+    packUpdateDetails: "The shared template differs from your current design. Applying it replaces the complete design and settings.",
+    packChosunV2Changes: "This version adds a dedicated three-line body layout and calibrated cover size and body letter spacing.",
+    packUpdateWarning: "Your current changes will be replaced. A backup is saved first; restore it under Templates \u2192 Restore backup. Existing cards, Drafts and exported files stay unchanged. New cards use the updated template.",
+    restoreBackup: "Restore backup",
+    restoreTemplateWarning: "Replace this template with the selected backup. The current design is also backed up. Existing cards and exported files stay unchanged.",
+    backupChoice: "Backup",
     packEditsKept: "Your edited design was kept. It was not replaced with the new default template.",
     tabLook: "Look",
     tabBrand: "Brand",
@@ -558,17 +577,24 @@ const STRINGS: any = {
     savedTemplateNotice: "\uc774 \uce74\ub4dc\ub274\uc2a4\ub294 \uc800\uc7a5 \ub2f9\uc2dc\uc758 \ud15c\ud50c\ub9bf\uc744 \uc720\uc9c0\ud569\ub2c8\ub2e4. \ud604\uc7ac \ud15c\ud50c\ub9bf\uc774 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
     applyTemplateChanges: "\ud604\uc7ac \ud15c\ud50c\ub9bf \uc801\uc6a9",
     ownImages: "\ub0b4 \uc0ac\uc9c4 \ucd94\uac00 (\uc120\ud0dd)",
-    photoUnavailable: "\uc77c\ubd80 \uae30\uc0ac \uc0ac\uc9c4\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \uae30\uc0ac \uc0ac\uc9c4\uc774\ub098 \ub0b4 \uc0ac\uc9c4\uc73c\ub85c \uad50\uccb4\ud558\uc138\uc694.", readingArticle: "\uae30\uc0ac \uc77d\ub294 \uc911…", preparingPhotos: "\uae30\uc0ac \uc0ac\uc9c4 \uc900\ube44 \uc911…", dragPhoto: "\uc0ac\uc9c4\uc744 \ub4dc\ub798\uadf8\ud574 \uc704\uce58\ub97c \uc870\uc808\ud558\uc138\uc694", replacePhoto: "\uc0ac\uc9c4 \ucd94\uac00·\uad50\uccb4", addCard: "\uce74\ub4dc \uc2ac\ub86f \ucd94\uac00", cardLimit: "\uce74\ub4dc \uc2ac\ub86f\uc740 \ucd5c\ub300 20\uac1c\uae4c\uc9c0 \ucd94\uac00\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", choosePhotoFirst: "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \uc0ac\uc9c4\uc744 \uc120\ud0dd\ud558\uc138\uc694. \uc774\ubbf8\uc9c0 \uc0dd\uc131\uc740 \uc9c1\uc811 \uc120\ud0dd\ud574\uc57c \uc2e4\ud589\ub429\ub2c8\ub2e4.",
+    photoUnavailable: "\uc77c\ubd80 \uae30\uc0ac \uc0ac\uc9c4\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \uae30\uc0ac \uc0ac\uc9c4\uc774\ub098 \ub0b4 \uc0ac\uc9c4\uc73c\ub85c \uad50\uccb4\ud558\uc138\uc694.", readingArticle: "\uae30\uc0ac\uc640 \uc0ac\uc9c4 \ubd88\ub7ec\uc624\ub294 \uc911\u2026", preparingPhotos: "\uae30\uc0ac\uc640 \uc0ac\uc9c4 \ubd88\ub7ec\uc624\ub294 \uc911\u2026", dragPhoto: "\uc0ac\uc9c4\uc744 \ub4dc\ub798\uadf8\ud574 \uc704\uce58\ub97c \uc870\uc808\ud558\uc138\uc694", replacePhoto: "\uc0ac\uc9c4 \ucd94\uac00·\uad50\uccb4", addCard: "\uce74\ub4dc \uc2ac\ub86f \ucd94\uac00", cardLimit: "\uce74\ub4dc \uc2ac\ub86f\uc740 \ucd5c\ub300 20\uac1c\uae4c\uc9c0 \ucd94\uac00\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", choosePhotoFirst: "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \uc0ac\uc9c4\uc744 \uc120\ud0dd\ud558\uc138\uc694. \uc774\ubbf8\uc9c0 \uc0dd\uc131\uc740 \uc9c1\uc811 \uc120\ud0dd\ud574\uc57c \uc2e4\ud589\ub429\ub2c8\ub2e4.",
     dropPhotos: "\uc0ac\uc9c4 \ub610\ub294 \uc0ac\uc9c4 \ud3f4\ub354\ub97c \uc5ec\uae30\uc5d0 \ub193\uc73c\uc138\uc694",
     addPhoto: "\uc0ac\uc9c4 \ucd94\uac00",
     addPhotoFolder: "\uc0ac\uc9c4 \ud3f4\ub354 \ucd94\uac00",
     photosHint: "\uae30\uc0ac \uc0ac\uc9c4\uc744 \uae30\ubcf8\uc73c\ub85c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ub0b4 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uace0 \ud3b8\uc9d1 \ud654\uba74\uc5d0\uc11c \uce74\ub4dc\ubcc4\ub85c \uc120\ud0dd·\uad50\uccb4\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    photoSlotsHint: "\uae30\uc0ac\uc0ac\uc9c4\uacfc \ucd94\uac00\ud55c \ub0b4 \uc0ac\uc9c4\ub9c8\ub2e4 \ud45c\uc9c0\ub97c \ud3ec\ud568\ud574 \uce74\ub4dc \ud55c \uc7a5\uc744 \ub9cc\ub4ed\ub2c8\ub2e4(\ucd5c\ub300 20\uc7a5). \ub098\uba38\uc9c0 \uae30\uc0ac\uc0ac\uc9c4\uc740 \uc0ac\uc9c4 \ubcc0\uacbd\uc5d0\uc11c \uc120\ud0dd\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    noArticlePhotos: "\uae30\uc0ac\uc0ac\uc9c4\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub0b4 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud574 \uce74\ub4dc\ub97c \ub9cc\ub4e4\uc5b4 \uc8fc\uc138\uc694.",
+    photoBudgetNotice: (all: number, used: number) => `\uae30\uc0ac\uc0ac\uc9c4 ${all}\uc7a5 \uc911 ${used}\uc7a5\uc744 \ucd08\uae30 \uce74\ub4dc\uc5d0 \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ub098\uba38\uc9c0\ub294 \uc0ac\uc9c4 \ubcc0\uacbd\uc5d0\uc11c \uc120\ud0dd\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.`,
+    fixedPhotoCount: (n: number, all: number) => `\uc0ac\uc9c4 ${n}\uc7a5 \u00b7 \uce74\ub4dc ${all}\uc7a5`,
     generate: "\uce74\ub4dc \uc0dd\uc131",
     savedPicker: "\uc800\uc7a5\ub41c \uce74\ub4dc\ub274\uc2a4",
     savedPlaceholder: "\uc774\uc5b4\uc11c \ud560 \uce74\ub4dc\ub274\uc2a4\ub97c \uc120\ud0dd\ud558\uc138\uc694",
     exportFormat: "\ud30c\uc77c \ud615\uc2dd",
     changeFolder: "\uc800\uc7a5 \ud3f4\ub354 \ubcc0\uacbd",
-    zoomPhoto: "\uc0ac\uc9c4 \ud655\ub300\u00b7\ucd95\uc18c (%)",
+    moreActions: "\ub354 \ubcf4\uae30", working: "\uc791\uc5c5 \uc911\u2026", locationInfo: "\uc800\uc7a5 \uc704\uce58 \uc815\ubcf4", saveOptions: "\uc800\uc7a5 \uc635\uc158",
+    zoomPhoto: "\uc0ac\uc9c4 \ud06c\uae30",
+    removePhoto: "\uc0ac\uc9c4 \uc81c\uac70", cardEarlier: "\uc55e\uc73c\ub85c", cardLater: "\ub4a4\ub85c", changePhoto: "\uc0ac\uc9c4 \ubcc0\uacbd", cardOrder: "\uce74\ub4dc \uc21c\uc11c \ubcc0\uacbd", pictureOptions: "\uae30\ud0c0 \uc0ac\uc9c4 \uc635\uc158",
+    zoomOut: "\uc0ac\uc9c4 \ucd95\uc18c", zoomIn: "\uc0ac\uc9c4 \ud655\ub300",
     photoFit: "\uc0ac\uc9c4 \ub9de\ucda4",
     photoCover: "\uce74\ub4dc \ucc44\uc6b0\uae30",
     photoContain: "\uc0ac\uc9c4 \uc804\uccb4 \ubcf4\uae30",
@@ -609,7 +635,7 @@ const STRINGS: any = {
     note: "\ucd94\uac00 \uc694\uccad (\uc120\ud0dd)",
     notePh: "\uc608: \uac00\uaca9 \uc218\uce58 \uc704\uc8fc\ub85c",
     plan: "\uce74\ub4dc \uae30\ud68d",
-    planning: "\uae30\ud68d \uc911…",
+    planning: "\ud5e4\ub4dc\ub77c\uc778\uacfc \ubcf8\ubb38 \uc791\uc131 \uc911\u2026",
     steps: ["\uae30\ud68d", "\uac80\ud1a0", "\uc0ac\uc9c4", "\ucd08\uc548", "\ub0b4\ubcf4\ub0b4\uae30"],
     needUrl: "\uae30\uc0ac \ub9c1\ud06c\ub97c \ub123\uc5b4 \uc8fc\uc138\uc694.",
     needText: "\uae30\uc0ac \ubcf8\ubb38\uc744 \ubd99\uc5ec \ub123\uc5b4 \uc8fc\uc138\uc694.",
@@ -621,7 +647,7 @@ const STRINGS: any = {
     templateGone: "\uc774 \uc791\uc5c5\uc774 \uc4f0\ub358 \ud15c\ud50c\ub9bf\uc774 \uc0ad\uc81c\ub410\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud15c\ud50c\ub9bf\uc73c\ub85c \ucc98\uc74c\ubd80\ud130 \ub2e4\uc2dc \uc2dc\uc791\ud574 \uc8fc\uc138\uc694.",
     folderName: (title: string, id: string) => `\uce74\ub4dc\ub274\uc2a4 · ${title || id} · ${id}`,
     review: "\uce74\ub4dc \uac80\ud1a0",
-    reviewHint: "\uce74\ub4dc\ub9c8\ub2e4 \ubb38\uad6c\u00b7\uc0ac\uc9c4\u00b7\uc21c\uc11c\ub97c \ud655\uc778\ud558\uc138\uc694. [\uce74\ub4dc \uc774\ubbf8\uc9c0 \ub0b4\ubcf4\ub0b4\uae30]\ub97c \ub204\ub97c \ub54c \uc774\ubbf8\uc9c0 \ud30c\uc77c\uc774 \uc800\uc7a5\ub429\ub2c8\ub2e4.",
+    reviewHint: "\ubb38\uad6c\uc640 \uc0ac\uc9c4\uc744 \ud3b8\uc9d1\ud55c \ub4a4 \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \uc800\uc7a5\ud558\uc138\uc694.",
     recommended: (n: number, why: string) => `\ucd94\ucc9c ${n}\uc7a5. ${why}`,
     roleCover: "\ud45c\uc9c0",
     roleBody: "\uce74\ub4dc",
@@ -643,23 +669,23 @@ const STRINGS: any = {
     caption: "\uc124\uba85\uae00",
     hashtags: "\ud574\uc2dc\ud0dc\uadf8",
     build: "\ud0c0\uc784\ub77c\uc778\uc5d0 \ucd94\uac00 (\uc120\ud0dd)",
-    building: "\ub9cc\ub4dc\ub294 \uc911…",
+    building: "\ud0c0\uc784\ub77c\uc778\uc5d0 \ucd94\uac00 \uc911\u2026",
     startOver: "\ucc98\uc74c\ubd80\ud130",
     creditsNote: "AI \uc774\ubbf8\uc9c0\ub294 Selects \uc774\ubbf8\uc9c0 \ubaa8\ub378\ub85c \ub9cc\ub4e4\uba70 Selects \ud06c\ub808\ub527\uc744 \uc501\ub2c8\ub2e4. \uc0dd\uc131 \uc791\uc5c5\uc740 \uc791\uc5c5 \ud050\uc5d0 \ud45c\uc2dc\ub429\ub2c8\ub2e4.",
     downloading: (n: number) => `\uce74\ub4dc ${n}\uc758 \uae30\uc0ac \uc0ac\uc9c4 \ubc1b\ub294 \uc911…`,
     generating: (done: number, all: number) => `AI \uc774\ubbf8\uc9c0 \uc0dd\uc131 \uc911: ${done}/${all}\uc7a5 \uc644\ub8cc…`,
     importing: (n: number) => `\uce74\ub4dc ${n}\uc758 \uc0ac\uc9c4\uc744 \ud504\ub85c\uc81d\ud2b8\uc5d0 \ub123\ub294 \uc911…`,
-    buildingDraft: "\ucd08\uc548 \ub9cc\ub4dc\ub294 \uc911…",
+    buildingDraft: "\uce74\ub4dc \uc900\ube44 \uc911\u2026",
     genFailed: (n: number, why: string) => `\uce74\ub4dc ${n}\uc758 AI \uc774\ubbf8\uc9c0 \uc0dd\uc131\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4: ${why}`,
     downloadFailed: (n: number) => `\uce74\ub4dc ${n}\uc758 \uae30\uc0ac \uc0ac\uc9c4\uc744 \ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \uc0ac\uc9c4\uc744 \uace8\ub77c \uc8fc\uc138\uc694.`,
     noGeneration: "\uc774 \ubc84\uc804\uc758 Selects\ub294 \uc571\uc5d0\uc11c \uc774\ubbf8\uc9c0\ub97c \uc0dd\uc131\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uae30\uc0ac \uc0ac\uc9c4\uc774\ub098 \ud30c\uc77c\uc744 \uace8\ub77c \uc8fc\uc138\uc694.",
     noFileAccess: "\uc774 \ubc84\uc804\uc758 Selects\ub294 \uc571\uc774 \ud30c\uc77c\uc744 \uc800\uc7a5\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
-    built: "\ucd08\uc548\uc744 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud544\uc694\ud558\uba74 Selects\uc5d0\uc11c \uace0\uce5c \ub4a4 \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ub0b4\ubcf4\ub0b4\uc138\uc694.",
-    open: "\ucd08\uc548 \uc5f4\uae30",
-    exportPng: "\uce74\ub4dc \uc774\ubbf8\uc9c0 \ub0b4\ubcf4\ub0b4\uae30",
-    exporting: "\ub0b4\ubcf4\ub0b4\ub294 \uc911…",
-    rendering: (n: number, all: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}/${all}\uc7a5 \ub80c\ub354\ub9c1 \uc911…`,
-    exportDone: (n: number) => `\uce74\ub4dc \uc774\ubbf8\uc9c0 ${n}\uc7a5\uacfc \uc124\uba85\uae00\uc744 \uc800\uc7a5\ud558\uace0, \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.`,
+    built: "\uce74\ub4dc\ub97c \ud0c0\uc784\ub77c\uc778\uc5d0 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.",
+    open: "\ud0c0\uc784\ub77c\uc778 \uc5f4\uae30",
+    exportPng: "\uc774\ubbf8\uc9c0 \uc800\uc7a5",
+    exporting: "\uc774\ubbf8\uc9c0 \uc800\uc7a5 \uc911\u2026",
+    rendering: (n: number, all: number) => `\uc774\ubbf8\uc9c0 \uc800\uc7a5 \uc911 ${n}/${all}…`,
+    exportDone: (n: number) => `\uc774\ubbf8\uc9c0 ${n}\uc7a5\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4.`,
     noStill: "\uc774 \ubc84\uc804\uc758 Selects\ub294 \uc571\uc5d0\uc11c \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ub80c\ub354\ub9c1\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     openFolder: "\ud3f4\ub354 \uc5f4\uae30",
     exportFailed: "\ub0b4\ubcf4\ub0b4\uae30 \uc2e4\ud328: ",
@@ -681,6 +707,18 @@ const STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub294 \uc6d0\ub798\ub300\ub85c \ub418\ub3cc\ub9ac\uba70, \"\uc0ad\uc81c\"\ub294 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc9c0\uc6c1\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
+    packUpdateTitle: "\uacf5\uc720 \ud15c\ud50c\ub9bf \uc5c5\ub370\uc774\ud2b8",
+    applyTemplateUpdate: "\ucd5c\uc2e0 \ubc84\uc804 \uc801\uc6a9",
+    keepTemplate: "\ud604\uc7ac \ubc84\uc804 \uc720\uc9c0",
+    checkTemplateUpdate: "\uacf5\uc720 \ubc84\uc804 \ud655\uc778",
+    packUpdateAvailable: "\uc0c8 \uacf5\uc720 \ud15c\ud50c\ub9bf\uc774 \uc788\uc2b5\ub2c8\ub2e4.",
+    packPinnedVersion: "\uc774 \ub9c1\ud06c\uc5d0 \ud3ec\ud568\ub41c \uacf5\uc720 \ubc84\uc804\uc785\ub2c8\ub2e4. \ub354 \ucd5c\uadfc \ubc30\ud3ec\ub294 \uc0c8 \uacf5\uc720 \ub9c1\ud06c\ub85c \ud655\uc778\ud558\uc138\uc694.",
+    packUpdateDetails: "\uacf5\uc720 \ud15c\ud50c\ub9bf\uc774 \ud604\uc7ac \ub514\uc790\uc778\uacfc \ub2e4\ub985\ub2c8\ub2e4. \ucd5c\uc2e0 \ubc84\uc804\uc758 \ub514\uc790\uc778\uacfc \uc124\uc815\uc744 \uc804\uccb4 \uc801\uc6a9\ud569\ub2c8\ub2e4.",
+    packChosunV2Changes: "\ubcf8\ubb38 \uc804\uc6a9 3\uc904 \ubc30\uce58\uc640 \ud45c\uc9c0 \uae00\uc790 \ud06c\uae30\u00b7\ubcf8\ubb38 \uc790\uac04 \ubcf4\uc815\uc774 \ud3ec\ud568\ub429\ub2c8\ub2e4.",
+    packUpdateWarning: "\ud604\uc7ac \uc218\uc815\uc0ac\ud56d \uc804\uccb4\uac00 \ub300\uccb4\ub429\ub2c8\ub2e4. \uc801\uc6a9 \uc804\uc5d0 \uc790\ub3d9 \ubc31\uc5c5\ud558\uba70 \ud15c\ud50c\ub9bf \u2192 \ubc31\uc5c5 \ubcf5\uc6d0\uc5d0\uc11c \ub418\ub3cc\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc774\ubbf8 \ub9cc\ub4e0 \uce74\ub4dc\u00b7Draft\u00b7\ucd9c\ub825\ud30c\uc77c\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \uc0c8\ub85c \ub9cc\ub4dc\ub294 \uce74\ub4dc\ubd80\ud130 \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+    restoreBackup: "\ubc31\uc5c5 \ubcf5\uc6d0",
+    restoreTemplateWarning: "\uc120\ud0dd\ud55c \ubc31\uc5c5\uc73c\ub85c \ud604\uc7ac \ud15c\ud50c\ub9bf \uc804\uccb4\ub97c \ubc14\uafc9\ub2c8\ub2e4. \ud604\uc7ac \ub514\uc790\uc778\ub3c4 \uc0c8 \ubc31\uc5c5\uc73c\ub85c \uc800\uc7a5\ub429\ub2c8\ub2e4. \uc774\ubbf8 \ub9cc\ub4e0 \uce74\ub4dc\uc640 \ucd9c\ub825\ud30c\uc77c\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    backupChoice: "\ubc31\uc5c5",
     packEditsKept: "\uc218\uc815\ud55c \ub514\uc790\uc778\uc744 \ubcf4\uc874\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uae30\ubcf8 \ud15c\ud50c\ub9bf\uc73c\ub85c \ub36e\uc5b4\uc4f0\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
     tabLook: "\ud654\uba74",
     tabBrand: "\ube0c\ub79c\ub4dc",
@@ -2549,56 +2587,86 @@ async function imageSize(fs: any, path: string): Promise<{ w: number; h: number 
   }
 }
 
-async function installLinkedTemplate(store: any, url: string, templates: any[], onKeepEdits?: () => void) {
+function templateList(stored: any[], storedLayouts: any[]) {
+  const saved = stored.filter((t: any) => t && t.id);
+  const layouts = storedLayouts.filter((l: any) => !CardSupport.validateLayout(l).length).map(CardSupport.fromLayout);
+  const bases = [...BUILTIN_TEMPLATES, ...layouts], byId = new Map(saved.map((t: any) => [t.id, t]));
+  const list: any[] = bases.filter((b: any) => !byId.get(b.id)?.deleted && (b.importedLayoutId || byId.has(b.id))).map((b: any) =>
+    byId.has(b.id) ? { ...merge(b, byId.get(b.id)), builtIn: false, modified: true } : { ...b, builtIn: false }
+  );
+  for (const t of saved) {
+    if (t.deleted || bases.some((b: any) => b.id === t.id)) continue;
+    const base = bases.find((b: any) => b.id === t.baseId) || BUILTIN_TEMPLATES[0];
+    list.push({ ...merge(base, t), descriptions: t.descriptions ?? base.descriptions, builtIn: false });
+  }
+  return list;
+}
+function sameTemplate(a: any, b: any): boolean {
+  const design = (t: any) => {
+    const n = clone(t); delete n.id; delete n.builtIn; delete n.modified; delete n.importedLayoutId;
+    if (n.end) delete n.end.editable;
+    return n;
+  };
+  const same = (x: any, y: any): boolean => {
+    if (x === y) return true;
+    if (!x || !y || typeof x !== "object" || typeof y !== "object" || Array.isArray(x) !== Array.isArray(y)) return false;
+    const keys = Object.keys(x);
+    return keys.length === Object.keys(y).length && keys.every(key => Object.prototype.hasOwnProperty.call(y, key) && same(x[key], y[key]));
+  };
+  return same(design(a), design(b));
+}
+async function replaceInstalledTemplate(store: any, existing: any, replacement: any, confirm?: () => Promise<boolean>) {
+  const fs = store.fs;
+  if (typeof fs?.compareAndReplace !== "function") throw new Error("Update Selects to update installed templates safely.");
+  const [stored, layouts] = await Promise.all([store.list("templates"), store.list("layout-templates")]);
+  const current = templateList(stored, layouts).find((t: any) => t.id === existing.id);
+  const saved = stored.find((t: any) => t.id === existing.id);
+  const layout = layouts.find((t: any) => `layout-${t.id}` === existing.id);
+  if (!current || !sameTemplate(current, existing)) throw new Error("The template changed in another window. Reopen the update and try again.");
+  const target = store.join(store.root, "templates", existing.id + ".json");
+  const expected = saved ? dec(await fs.readFile(target)) : null;
+  if (saved && JSON.stringify(JSON.parse(expected!)) !== JSON.stringify(saved)) throw new Error("The template changed in another window. Reopen the update and try again.");
+  const sourcePath = layout ? store.join(store.root, "layout-templates", layout.id + ".json") : null;
+  const sourceBytes = sourcePath ? dec(await fs.readFile(sourcePath)) : null;
+  if (layout && JSON.stringify(JSON.parse(sourceBytes!)) !== JSON.stringify(layout)) throw new Error("The template changed in another window. Reopen the update and try again.");
+  if (confirm && !await confirm()) return existing;
+  const next = { ...replacement, id: existing.id }; delete next.builtIn; delete next.modified;
+  CardSupport.validateTemplate(next);
+  const backupId = `${existing.id}-${crypto.randomUUID()}`;
+  await store.put("template-backups", backupId, { id: backupId, templateId: existing.id, createdAt: new Date().toISOString(), template: current });
+  if (sourcePath && dec(await fs.readFile(sourcePath)) !== sourceBytes) throw new Error("The template changed in another window. Reopen the update and try again.");
+  await store.ensure(store.join(store.root, "templates"));
+  if (!await fs.compareAndReplace(target, expected, JSON.stringify(next))) throw new Error("The template changed in another window. Reopen the update and try again.");
+  return next;
+}
+async function installLinkedTemplate(store: any, url: string, templates: any[], confirmUpdate?: (update: any) => Promise<boolean>) {
   const match = /^https:\/\/github\.com\/CutbackVideo\/selects-plugin-library\/tree\/([a-f0-9]{40})\/plugins\/card-news-maker\/template-packs\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(url);
   if (!match) throw new Error("Use a template link from the official Card News Maker catalog.");
   if (!store.fs) throw new Error("Local file access is required to add this template.");
-  const fs = store.fs;
-  const path = fs.join(await fs.getOrCreateTmpDirPath(), `cardnews-template-${crypto.randomUUID()}.json`);
+  const fs = store.fs, path = fs.join(await fs.getOrCreateTmpDirPath(), `cardnews-template-${crypto.randomUUID()}.json`);
   try {
     await fs.downloadFile(`https://raw.githubusercontent.com/CutbackVideo/selects-plugin-library/${match[1]}/plugins/card-news-maker/template-packs/${match[2]}/template.json`, path);
     const bytes = await fs.readFile(path);
     if (bytes.length > 1024 * 1024) throw new Error("The template file is too large.");
-    const raw = JSON.parse(dec(bytes));
-    const template = CardSupport.templateFromFile(raw);
-    const id = `pack-${match[2]}`;
+    const raw = JSON.parse(dec(bytes)), template = CardSupport.templateFromFile(raw), id = `pack-${match[2]}`;
     const existing = templates.find((t: any) => t.id === id)
       || templates.find((t: any) => t.id === template.id)
       || templates.find((t: any) => template.importedLayoutId && t.importedLayoutId === template.importedLayoutId)
       || (match[2] === "chosun-basic" ? templates.find((t: any) => t.names?.en === "Chosun Ilbo Basic (feed)") : undefined);
     if (existing) {
-      if (raw.kind !== "layout" || raw.id !== "chosun-basic" || existing.version !== 1 || template.version !== 2) return existing;
-      // Published v1 predates the body layout, locale names and raster calibration.
-      const previous = { ...raw, version: 1, font: { ...raw.font, size: 72 }, lines: raw.lines.map((line: any, i: number) => ({ ...line, top: i === 1 ? 1058 : 942 })) }; delete previous.body; delete previous.names;
-      const baseline = CardSupport.fromLayout(previous);
-      const design = (t: any) => {
-        const n = clone(t); delete n.id; delete n.builtIn; delete n.modified; delete n.importedLayoutId;
-        if (n.end) delete n.end.editable;
-        return n;
-      };
-      const same = (a: any, b: any): boolean => {
-        if (a === b) return true;
-        if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b)) return false;
-        const keys = Object.keys(a);
-        return keys.length === Object.keys(b).length && keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && same(a[key], b[key]));
-      };
-      const unchanged = (t: any) => same(design(t), design(baseline));
-      if (!unchanged(existing)) { onKeepEdits?.(); return existing; }
-      if (typeof fs.compareAndReplace !== "function") throw new Error("Update Selects to update installed templates safely.");
-      const target = store.join(store.root, "templates", existing.id + ".json");
-      const saved = (await store.list("templates")).find((t: any) => t.id === existing.id);
-      const expected = saved ? dec(await fs.readFile(target)) : null;
-      const layout = (await store.list("layout-templates")).find((t: any) => `layout-${t.id}` === existing.id);
-      if ((expected !== null && !unchanged(JSON.parse(expected))) || (layout && (CardSupport.validateLayout(layout).length || !unchanged(CardSupport.fromLayout(layout))))) { onKeepEdits?.(); return existing; }
-      await store.put("template-backups", `${existing.id}-v1-${crypto.randomUUID()}`, existing);
-      const updated = { ...template, id: existing.id };
-      await store.ensure(store.join(store.root, "templates"));
-      // Compare exact bytes after the backup; the host publishes complete bytes atomically.
-      if (!await fs.compareAndReplace(target, expected, JSON.stringify(updated))) { onKeepEdits?.(); return existing; }
-      return updated;
+      const settingId = `template-update-${existing.id}`;
+      if (Number(existing.version) > Number(template.version)) return existing;
+      await store.put("settings", settingId, { id: settingId, templateId: existing.id, url, version: template.version });
+      const normalizedLatest = templateList([{ ...template, id: existing.id }], await store.list("layout-templates")).find((t: any) => t.id === existing.id);
+      if (sameTemplate(existing, template) || sameTemplate(existing, normalizedLatest)) return existing;
+      if (!confirmUpdate) return existing;
+      return await replaceInstalledTemplate(store, existing, template, () => confirmUpdate({ current: existing, latest: template, url, chosunV2: raw.id === "chosun-basic" && existing.version === 1 && template.version === 2 }));
     }
-    const copy = { ...template, id };
-    await store.put("templates", id, copy);
+    const copy = { ...template, id }, target = store.join(store.root, "templates", id + ".json");
+    if (typeof fs.compareAndReplace !== "function") throw new Error("Update Selects to install templates safely.");
+    await store.ensure(store.join(store.root, "templates"));
+    if (!await fs.compareAndReplace(target, null, JSON.stringify(copy))) throw new Error("The template changed in another window. Reopen the link and try again.");
+    await store.put("settings", `template-update-${id}`, { id: `template-update-${id}`, templateId: id, url, version: template.version });
     return copy;
   } finally { await fs.removeFile({ filePath: path }).catch(() => {}); }
 }
@@ -2881,7 +2949,7 @@ function blankTemplate(language: string): any {
   };
 }
 
-function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }: any) {
+function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state, updates = [], backups = [], onUpdate }: any) {
   useAppUpdateGuard(sdk, lang, () => !!(saving || dirty));
   const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub, role, setRole, pending, setPending } = state;
   const current = pending || templates.find((t: any) => t.id === selId) || templates[0];
@@ -2890,6 +2958,9 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   const [newName, setNewName] = React.useState("");
   const [pendingSelection, setPendingSelection] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [backupChoice, setBackupChoice] = React.useState("0");
+  const availableBackups = backups.filter((b: any) => (b.templateId || b.id) === current?.id && (b.template || b).look).slice().sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const update = updates.find((u: any) => u.templateId === current?.id);
   const currentKey = React.useMemo(() => JSON.stringify(current ?? null), [current]);
   React.useEffect(() => {
     if (current && (!saved || saved.id !== current.id || baseKey !== currentKey)) {
@@ -2992,6 +3063,16 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       setSaving(false);
     }
   }
+  async function restoreBackup() {
+    const backup = availableBackups[Number(backupChoice)];
+    if (!backup) return;
+    setSaving(true);
+    try {
+      await replaceInstalledTemplate(store, current, backup.template || backup);
+      await onChanged(); setDialog(null); setMsg({ tone: "success", text: S.savedOk });
+    } catch (e: any) { setMsg({ tone: "error", text: String(e?.message || e) }); }
+    finally { setSaving(false); }
+  }
   function create(mode: string) {
     setNewName(mode === "duplicate" ? S.copyName(nameOf(edit, lang)) : "");
     setDialog(mode);
@@ -3039,8 +3120,12 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       disabled={saving || !!pending} actionsDisabled={dirty || saving} exportDisabled={!current || saving || !!pending}
       onCreate={() => create("new")} onImport={() => { setMsg(null); setDialog("import"); }} onExport={() => { setMsg(null); setDialog("export"); }}
     />);
-  const transferDialog = (<ui.TemplateTransferDialog open={!!dialog} onOpenChange={(open: boolean) => { if (!open) setDialog(null); }} title={dialog === "import" ? S.importTemplate : dialog === "export" ? S.exportTemplate : dialog === "delete" ? S.deleteTitle : dialog === "duplicate" ? S.duplicate : S.newTemplate} busy={saving} method="file" onMethodChange={() => {}} methods={[]}>
+  const transferDialog = (<ui.TemplateTransferDialog open={!!dialog} onOpenChange={(open: boolean) => { if (!open) setDialog(null); }} title={dialog === "import" ? S.importTemplate : dialog === "export" ? S.exportTemplate : dialog === "delete" ? S.deleteTitle : dialog === "restore" ? S.restoreBackup : dialog === "duplicate" ? S.duplicate : S.newTemplate} busy={saving} method="file" onMethodChange={() => {}} methods={[]}>
       {dialog === "import" ? <ui.FileDrop activation="surface" accept={["json"]} value={null} disabled={dirty || saving} onChange={importTemplate} />
+        : dialog === "restore" ? <ui.Stack gap={8}>
+          <ui.Message>{S.restoreTemplateWarning}</ui.Message>
+          <ui.Select label={S.backupChoice} value={backupChoice} onChange={setBackupChoice} options={availableBackups.map((b: any, i: number) => ({ value: String(i), label: `v${(b.template || b).version} · ${b.createdAt ? new Date(b.createdAt).toLocaleString(lang) : nameOf(b.template || b, lang)}` }))} disabled={saving} />
+        </ui.Stack>
         : dialog === "delete" ? <ui.Message>{S.deleteBody(nameOf(current,lang))} {S.deleteKeepCards}</ui.Message>
         : dialog === "export" ? <ui.Message>{S.shareFileHint}</ui.Message>
         : <ui.TextField label={S.tplName} value={newName} onChange={setNewName} disabled={saving} />}
@@ -3049,6 +3134,7 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
       <ui.Actions>
         <ui.Button variant="secondary" onClick={() => setDialog(null)} disabled={saving}>{S.cancel}</ui.Button>
         {dialog === "export" ? <ui.Button onClick={exportTemplate} disabled={dirty || saving}>{S.exportTemplate}</ui.Button>
+          : dialog === "restore" ? <ui.Button onClick={restoreBackup} busy={saving}>{S.restoreBackup}</ui.Button>
           : dialog === "delete" ? <ui.Button variant="danger" onClick={remove} busy={saving}>{S.del}</ui.Button>
           : dialog !== "import" && <ui.Button onClick={startTemplate} disabled={!newName.trim() || saving}>{dialog === "duplicate" ? S.duplicate : S.newTemplate}</ui.Button>}
       </ui.Actions>
@@ -3278,6 +3364,13 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
   </ui.Stack>;
   return <ui.Stack gap={8}>
     {toolbar}
+    {(update || availableBackups.length > 0) && <ui.Stack gap={8}>
+      {update && Number(update.version) > Number(current.version) && <ui.Message>{S.packUpdateAvailable}</ui.Message>}
+      <ui.Actions>
+        {update && <ui.Button variant="secondary" onClick={() => onUpdate(update.url)} disabled={dirty || saving}>{S.checkTemplateUpdate}</ui.Button>}
+        {availableBackups.length > 0 && <ui.Button variant="ghost" onClick={() => { setBackupChoice("0"); setMsg(null); setDialog("restore"); }} disabled={dirty || saving}>{S.restoreBackup}</ui.Button>}
+      </ui.Actions>
+    </ui.Stack>}
     {pendingSelection && <ui.Stack gap={8}>
       <ui.Message>{S.unsaved}</ui.Message>
       <ui.Actions>
@@ -3296,15 +3389,27 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
 
 }
 
+function PhotoChoice({ label, path, selected, fs, busy, onSelect }: any) {
+  const image = useImageUrl(path, fs);
+  return <button type="button" data-variant="secondary" aria-label={label} aria-pressed={selected} disabled={busy} onClick={onSelect} title={label} style={{ minWidth: 0, height: "auto", display: "block", overflow: "hidden", textAlign: "left", padding: 4, border: selected ? "2px solid var(--panel-key, #FFFFFF)" : undefined }}>
+    {image ? <img src={image} alt="" loading="lazy" style={{ width: "100%", height: 72, objectFit: "cover", display: "block" }} /> : <div style={{ height: 72, display: "grid", placeItems: "center" }}>{label}</div>}
+    <small style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</small>
+  </button>;
+}
+
 // ---- One card in the review list ----
-function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, onChange, onPick, onArticle, onMove, onRemove, busy }: any) {
+function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, onChange, onPick, onArticle, onSwap, onRemove, busy, photoMode }: any) {
   const img = card.picture || {};
   const art = plan.article?.images || [];
   const path = made?.path || img.path || (img.kind === "article" && art[img.index]?.path) || (img.kind === "reuse" && plan.cards[img.reuse]?.picture?.path) || "";
   const preview = useImageUrl(path, fs);
+  const [showPhotos, setShowPhotos] = React.useState(false);
+  const ownPhotos = (plan.photoChoices || []).filter((photo: any) => photo.kind === "file");
+  for (const other of plan.cards) if (other.picture?.kind === "file" && other.picture.path && !ownPhotos.some((photo: any) => photo.path === other.picture.path)) ownPhotos.push(other.picture);
+  const photos = [...art.map((a: any, i: number) => ({ value: "article:" + i, label: S.picArticle(i + 1), path: a.path, selected: img.kind === "article" && img.index === i })), ...ownPhotos.map((photo: any, i: number) => ({ value: "photo:" + i, label: photo.name || S.picFile, path: photo.path, selected: img.kind === "file" && img.path === photo.path }))];
   const options: any[] = [
     ...art.map((a: any, i: number) => ({ value: "article:" + i, label: S.picArticle(i + 1) })),
-    ...(plan.photoChoices || []).flatMap((photo: any, i: number) => photo.kind === "file" ? [{ value: "photo:" + i, label: photo.name || S.picFile }] : []),
+    ...ownPhotos.map((photo: any, i: number) => ({ value: "photo:" + i, label: photo.name || S.picFile })),
     { value: "generate", label: S.picGenerate },
     { value: "file", label: S.picFile },
     ...plan.cards.flatMap((_: any, i: number) => i < index || (img.kind === "reuse" && i === img.reuse) ? [{ value: "reuse:" + i, label: S.picReuse(i + 1) }] : []),
@@ -3314,7 +3419,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   const choose = (v: string) => {
     const [k, n] = v.split(":");
     if (k === "article" && onArticle) return onArticle(Number(n));
-    if (k === "photo") return onChange({ ...card, picture: { ...plan.photoChoices[Number(n)] }, credit: "" });
+    if (k === "photo") return onChange({ ...card, picture: { ...ownPhotos[Number(n)] }, credit: "" });
     const next: any = { kind: k };
     if (k === "article") next.index = Number(n);
     if (k === "reuse") next.reuse = Number(n);
@@ -3323,10 +3428,37 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   };
   const title = card.role === "cover" ? S.roleCover : card.role === "end" ? S.roleEnd : `${S.roleBody} ${bodyIndex}`;
   const showPicture = card.role !== "end" || t.end.background === "cover";
+  const crop = CardSupport.clampCrop(card.crop), zoom = Math.round(crop.zoom * 100);
+  const setZoom = (percent: number) => onChange({ ...card, crop: CardSupport.clampCrop({ ...crop, zoom: percent / 100 }) });
   return (
-    <ui.Section title={`${index + 1}. ${title}`}>
+    <ui.Section title={`${index + 1}. ${title}`} actions={card.role !== "end" ? <>
+        <span title={S.moveEarlier}><ui.Button variant="ghost" onClick={() => onSwap(-1)} disabled={busy || index === 0}><span aria-hidden="true">{S.cardEarlier}</span><span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clipPath: "inset(50%)" }}>{S.moveEarlier}</span></ui.Button></span>
+        <span title={S.moveLater}><ui.Button variant="ghost" onClick={() => onSwap(1)} disabled={busy || !plan.cards[index + 1] || plan.cards[index + 1].role === "end"}><span aria-hidden="true">{S.cardLater}</span><span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clipPath: "inset(50%)" }}>{S.moveLater}</span></ui.Button></span>
+      </> : undefined}>
       <CardPreview t={t} card={card} bodyIndex={bodyIndex} vars={vars} S={S} image={preview} made={made || img} maxWidth={240} onCrop={!busy ? (crop: any) => onChange({ ...card, crop }) : undefined} />
-      {path && <small>{S.dragPhoto}</small>}
+      {showPicture && card.role !== "end" && <ui.Stack gap={4}>
+        <ui.Button variant="secondary" onClick={() => setShowPhotos(!showPhotos)} disabled={busy}>{S.changePhoto}</ui.Button>
+        {showPhotos && <ui.Stack gap={4}>
+          <div role="group" aria-label={S.changePhoto} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gridAutoRows: "max-content", gap: 8, maxHeight: 280, overflowY: "auto" }}>
+            {photos.map((photo: any) => <PhotoChoice key={photo.value} {...photo} fs={fs} busy={busy} onSelect={() => { choose(photo.value); setShowPhotos(false); }} />)}
+          </div>
+          <ui.FileDrop accept={["image"]} value={null} labels={{ choose: S.replacePhoto, drop: S.replacePhoto }} onChange={(f: any) => { onPick(f); setShowPhotos(false); }} disabled={busy} />
+          <ui.Actions>
+            <ui.Button variant="ghost" onClick={() => { onPick(null); setShowPhotos(false); }} disabled={busy || img.kind === "none"}>{S.removePhoto}</ui.Button>
+            <ui.Button variant="ghost" onClick={() => setShowPhotos(false)} disabled={busy}>{S.cancel}</ui.Button>
+          </ui.Actions>
+        </ui.Stack>}
+      </ui.Stack>}
+      {path && card.role !== "end" && <div style={{ width: "100%", maxWidth: "var(--panel-field-max, 480px)", minWidth: 0, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+          <label htmlFor={`photo-zoom-${index}`}>{S.zoomPhoto}</label><output htmlFor={`photo-zoom-${index}`}>{zoom}%</output>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "32px minmax(0, 1fr) 32px", alignItems: "center", gap: 8 }}>
+          <button type="button" data-variant="secondary" aria-label={S.zoomOut} onClick={() => setZoom(zoom - 10)} disabled={busy || zoom <= 25} style={{ width: 32, height: 32, padding: 0 }}>−</button>
+          <input id={`photo-zoom-${index}`} type="range" aria-label={S.zoomPhoto} aria-valuetext={`${zoom}%`} min={25} max={300} step={1} value={zoom} onChange={(event: any) => setZoom(Number(event.target.value))} disabled={busy} style={{ width: "100%", minWidth: 0, padding: 0, accentColor: "var(--panel-key, #FFFFFF)" }} />
+          <button type="button" data-variant="secondary" aria-label={S.zoomIn} onClick={() => setZoom(zoom + 10)} disabled={busy || zoom >= 300} style={{ width: 32, height: 32, padding: 0 }}>+</button>
+        </div>
+      </div>}
       {card.role === "cover" && (
         <ui.Stack gap={4}>
           <ui.TextField label={S.headline} value={card.headline || ""} onChange={(v: string) => onChange({ ...card, headline: v })} multiline disabled={busy} />
@@ -3338,24 +3470,22 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
       {card.role === "end" && t.end.kind === "cta" && <ui.TextField label={S.cta} value={card.cta || ""} onChange={(v: string) => onChange({ ...card, cta: v })} multiline disabled={busy} />}
       {path && card.role !== "end" ? <ui.Stack>
         <ui.Select label={S.photoFit} value={CardSupport.clampCrop(card.crop).fit || "cover"} options={[{ value: "cover", label: S.photoCover }, { value: "contain", label: S.photoContain }]} onChange={(fit: "cover" | "contain") => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), fit, zoom: 1 } })} disabled={busy} />
-        <ui.NumberField label={S.zoomPhoto} value={CardSupport.clampCrop(card.crop).zoom * 100} min={25} max={300} step={1} unit="%" onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), zoom: v / 100 } })} disabled={busy} />
         <ui.NumberField label={S.photoX} value={-CardSupport.clampCrop(card.crop).x * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), x: -v / 100 } })} disabled={busy} />
         <ui.NumberField label={S.photoY} value={-CardSupport.clampCrop(card.crop).y * 100} min={-100} max={100} step={1} onChange={(v: number) => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), y: -v / 100 } })} disabled={busy} />
         <ui.Button variant="ghost" onClick={() => onChange({ ...card, crop: { ...CardSupport.clampCrop(card.crop), zoom: 1, x: 0, y: 0 } })} disabled={busy}>{S.photoReset}</ui.Button>
-        <small>{S.photoFitHint}</small>
       </ui.Stack> : null}
       {card.role === "body" && bodyTextLayout(t, card.body)?.overflow ? <ui.Message tone="error">{S.textOverflow}</ui.Message> : null}
       {card.role === "cover" && roleLook(t, card.role).textSlots?.length && String(card.headline).split("\n").length > roleLook(t, card.role).textSlots.length ? <ui.Message tone="error">{`This template has ${roleLook(t, card.role).textSlots.length} text lines. Shorten the card text before exporting.`}</ui.Message> : null}
       <ui.Actions>
-        <ui.Button variant="ghost" onClick={() => onMove(-1)} disabled={busy || index === 0 || card.role === "end"}>{S.moveEarlier}</ui.Button>
-        <ui.Button variant="ghost" onClick={() => onMove(1)} disabled={busy || index === plan.cards.length - 1 || card.role === "end" || plan.cards[index + 1]?.role === "end"}>{S.moveLater}</ui.Button>
         <ui.IconButton icon="trash" label={S.deleteCard} onClick={onRemove} disabled={busy || plan.cards.length < 2 || (card.role !== "end" && plan.cards.filter((c: any) => c.role !== "end").length < 2)} />
       </ui.Actions>
       {showPicture && card.role !== "end" && (
         <ui.Stack gap={8}>
-          <ui.Select label={S.picture} value={value} onChange={choose} options={options} disabled={busy} />
-          {img.kind === "generate" && <ui.TextField label={S.prompt} value={img.prompt || ""} onChange={(v: string) => onChange({ ...card, picture: { ...img, prompt: v } })} multiline disabled={busy} />}
-          <ui.FileDrop accept={["image"]} value={null} labels={{ choose: S.replacePhoto, drop: S.replacePhoto }} onChange={(f: any) => onPick(f)} disabled={busy} />
+          {(!photoMode || img.kind === "generate") && <details open={img.kind === "generate" || img.kind === "reuse" ? true : undefined}>
+            <summary>{S.pictureOptions}</summary>
+            <ui.Select label={S.picture} value={value} onChange={choose} options={options} disabled={busy} />
+            {img.kind === "generate" && <ui.TextField label={S.prompt} value={img.prompt || ""} onChange={(v: string) => onChange({ ...card, picture: { ...img, prompt: v } })} multiline disabled={busy} />}
+          </details>}
           <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />
         </ui.Stack>
       )}
@@ -3754,47 +3884,65 @@ function Panel(props: any) {
     const p = t.prompt;
     const K = PLAN_TEXT[cardLangOf(t)];
     const kind = endKindOf(t);
+    const fixedPhotos = Array.isArray(src.photoChoices) ? src.photoChoices : null;
+    const photoMode = !!fixedPhotos || !!src.ownPhotos;
+    // Remove only the app-owned generation sentence from saved template copies.
+    const bodyPrompt = photoMode ? p.body.replace("Every card's picture is a generated image that continues one visual metaphor.", "").replace("\ubaa8\ub4e0 \uce74\ub4dc\uc758 \uc774\ubbf8\uc9c0\ub294 \ud558\ub098\uc758 \uc2dc\uac01 \ube44\uc720(metaphor)\ub97c \uc774\uc5b4 \uac00\ub294 \uc0dd\uc131 \uc774\ubbf8\uc9c0\ub2e4.", "").trim() : p.body;
+    const photoSchema = { ...(fixedPhotos ? {} : { recommendedCount: 1, countReason: "one sentence" }), cards: [{ ...(fixedPhotos ? { slotIndex: 0 } : { role: kind === "none" ? "cover|body" : "cover|body|end" }), headline: "line\nline", ...(t.heading.on ? { heading: "" } : {}), body: "line\nline", ...(kind === "cta" ? { cta: "" } : {}), ...(fixedPhotos ? {} : { image: { source: "photo|none", photoIndex: 0 } }) }], caption: "", hashtags: ["#..."] };
     const pic = t.images.source === "article" ? K.picArticle : t.images.source === "generate" ? K.picGenerate : K.picMixed;
     return [
       p.role,
       p.voice,
       K.cover(p.cover),
-      K.body(p.body),
+      K.body(bodyPrompt),
       kind === "none" ? K.noEnd : K.end(p.end),
       K.caption(p.caption),
       K.rules(p.rules),
-      cMode === "manual" ? K.exact(cNum) : K.range(t.counts.min, t.counts.max),
-      pic,
-      K.genPrompt,
-      src.photoChoices ? `Use the supplied photo choices, identified by zero-based photoIndex, for card slots. Choose image: {source:"photo",photoIndex:0} when a matching choice exists; otherwise source:"none". Never request generated images. Photos are not a source of facts. Photo choices: ${JSON.stringify(src.photoChoices.map((p: any, i: number) => ({ photoIndex: i, source: p.kind, caption: p.caption || "", credit: p.credit || "" })))}` : src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
+      fixedPhotos ? `The app fixed ${fixedPhotos.length} photo card slots before this request, one per supplied photo in order, including the cover.${kind === "none" ? "" : " One final template ending slot is also fixed."} Return exactly ${fixedPhotos.length + (kind === "none" ? 0 : 1)} cards. Write only the copy for each assigned slot. Do not choose photos, repeat slotIndex, change card count or reorder slots. These fixed slots override other card-count instructions.` : cMode === "manual" ? K.exact(cNum) : K.range(t.counts.min, t.counts.max),
+      !photoMode ? pic : "",
+      !photoMode ? K.genPrompt : "The app already supplied the article facts and photo choices. Do not browse, fetch URLs or use tools. Use the supplied article text as the only source of facts; photos and captions are only for matching.",
+      fixedPhotos ? `Fixed card slots: ${JSON.stringify([...fixedPhotos.map((p: any, i: number) => ({ slotIndex: i, role: i === 0 ? "cover" : "body", caption: p.caption || "", credit: p.credit || "" })), ...(kind === "none" ? [] : [{ slotIndex: fixedPhotos.length, role: "end" }])])}. Numbered contact-sheet photo 1 belongs to slotIndex 0, photo 2 to slotIndex 1, and so on. Match each slot's article-based text to its assigned photo; photos are never a source of facts. Never request generated images.` : src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
       ...["cover", "body"].map((role) => {
         const layout = roleLook(t, role), font = role === "cover" ? t.headline : t.body;
         return layout.textSlots?.length ? `Each ${role === "cover" ? "cover headline" : "body card body"} must have 1 to ${layout.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...layout.textSlots.map((b: any) => b.width)) / font.size)} full-width ${t.importedLayoutId === "chosun-basic" || t.names?.en === "Chosun Ilbo Basic (feed)" ? "glyph equivalents (one Hangul/CJK glyph is about 1, spaces and Latin characters about 0.5; this is NOT a limit on the total character count)" : "characters"}. Body cards need no heading. Do not add text outside these boxes.` : "";
       }),
       cNote ? K.note(cNote) : "",
       K.noTools,
-      K.json,
-      K.images,
+      photoMode ? "Return only JSON matching this schema: " + JSON.stringify(photoSchema) : K.json,
+      !photoMode ? K.images : "",
       material,
     ]
       .filter(Boolean)
       .join("\n\n");
   }
 
-  function normalizePlan(raw: any, t: any, photos: any[] = []) {
+  function normalizePlan(raw: any, t: any, photos: any[] = [], fixedPhotos = false) {
     const art = raw.article || {};
     art.images = (Array.isArray(art.images) ? art.images : []).filter((x: any) => x && /^https?:\/\//.test(String(x.url || "")));
     let cards = (Array.isArray(raw.cards) ? raw.cards : []).filter((c: any) => c && typeof c === "object");
-    cards = cards.map((c: any, i: number) => ({ ...c, role: i === 0 ? "cover" : c.role === "end" ? "end" : "body" }));
-    cards = cards.filter((c: any, i: number) => c.role !== "end" || i === cards.length - 1);
     const kind = endKindOf(t);
-    if (kind !== "none" && cards.length && cards[cards.length - 1].role !== "end") cards.push({ role: "end", cta: "" });
-    if (kind === "none") cards = cards.filter((c: any) => c.role !== "end");
+    if (fixedPhotos) {
+      const expected = photos.length + (kind === "none" ? 0 : 1);
+      if (!photos.length || cards.length !== expected) throw new Error(`Expected ${expected} fixed card slots, received ${cards.length}.`);
+      const slots = new Map<number, any>();
+      for (const card of cards) {
+        if (!Number.isInteger(card.slotIndex) || card.slotIndex < 0 || card.slotIndex >= expected || slots.has(card.slotIndex)) throw new Error("Return every fixed slotIndex exactly once.");
+        slots.set(card.slotIndex, card);
+      }
+      cards = Array.from({ length: expected }, (_, i) => ({ ...slots.get(i), role: i === 0 ? "cover" : i === photos.length ? "end" : "body" }));
+    } else {
+      cards = cards.map((c: any, i: number) => ({ ...c, role: i === 0 ? "cover" : c.role === "end" ? "end" : "body" }));
+      cards = cards.filter((c: any, i: number) => c.role !== "end" || i === cards.length - 1);
+      if (kind !== "none" && cards.length && cards[cards.length - 1].role !== "end") cards.push({ role: "end", cta: "" });
+      if (kind === "none") cards = cards.filter((c: any) => c.role !== "end");
+    }
     const coverIsArticle = (c: any) => c.image?.source === "article" && Number.isInteger(c.image?.articleIndex) && art.images[c.image.articleIndex];
     let photoIndex = 0;
     cards = cards.map((c: any) => {
       let picture: any = { kind: "none" };
       if (c.role === "end") picture = t.end.background === "cover" ? { kind: "reuse", reuse: 0 } : { kind: "none" };
+      else if (fixedPhotos) picture = { ...photos[c.slotIndex] };
+      else if (photos.some((photo) => photo.kind) && c.image?.source === "none") picture = { kind: "none" };
       else if (photos.some((photo) => photo.kind)) {
         const requested = c.image?.source === "article" ? photos.findIndex((photo) => photo.kind === "article" && photo.index === c.image.articleIndex) : c.image?.photoIndex;
         const photo = photos[Number.isInteger(requested) && photos[requested] ? requested : photoIndex % photos.length];
@@ -3812,7 +3960,7 @@ function Panel(props: any) {
       return { role: c.role, headline: c.headline || "", heading: c.heading || "", body: c.body || "", cta: c.cta || "", picture, credit, crop: CardSupport.clampCrop(c.crop) };
     });
     const tags = Array.isArray(raw.hashtags) ? raw.hashtags.map((h: any) => String(h)).join(" ") : "";
-    return { article: art, cards, caption: String(raw.caption || ""), hashtags: tags, metaphor: String(raw.metaphor || ""), recommendedCount: raw.recommendedCount ?? cards.length, countReason: String(raw.countReason || "") };
+    return { article: art, cards, caption: String(raw.caption || ""), hashtags: tags, metaphor: cards.some((card: any) => card.picture.kind === "generate") ? String(raw.metaphor || "") : "", recommendedCount: fixedPhotos ? photos.length : raw.recommendedCount ?? cards.length, countReason: fixedPhotos ? "" : String(raw.countReason || "") };
   }
 
 function bodyTextLayout(t: any, text: string) {
@@ -3908,10 +4056,10 @@ function reorderPlan(cards: any[], pictures: any[], index: number, delta: number
   });
   return { cards: nextCards, pictures: nextPictures };
 }
-function validatePlan(plan: any, t: any, photos: any[] = []) {
+function validatePlan(plan: any, t: any, photos: any[] = [], fixedPhotos = false) {
   if (!plan.cards.length) throw new Error("The model returned no cards.");
   const cards = plan.cards.filter((c: any) => c.role !== "end");
-  if (photos.length && !photos.some((photo) => photo.kind) && cards.length !== photos.length) throw new Error(`Expected ${photos.length} photo cards, received ${cards.length}.`);
+  if (photos.length && (fixedPhotos || !photos.some((photo) => photo.kind)) && cards.length !== photos.length) throw new Error(`Expected ${photos.length} photo cards, received ${cards.length}.`);
   for (const card of cards) {
     const text = card.role === "cover" ? card.headline : card.body || card.heading;
     if (!String(text || "").trim()) throw new Error("Every card needs text from the article.");
@@ -3951,7 +4099,11 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const [phase, setPhase] = React.useState<number | null>(null);
   const linkedRequest = React.useRef<string | null>(null);
   const [linkedFailure, setLinkedFailure] = React.useState<any>(null);
-  const [linkedNotice, setLinkedNotice] = React.useState(false);
+  const [linkedUpdate, setLinkedUpdate] = React.useState<any>(null);
+  const linkedDecision = React.useRef<any>(null);
+  const [templateUpdates, setTemplateUpdates] = React.useState<any[]>([]);
+  const [templateBackups, setTemplateBackups] = React.useState<any[]>([]);
+  React.useEffect(() => () => { linkedDecision.current?.(false); }, []);
   // Template editor state lives here so unsaved edits survive a tab switch.
   const [tplSel, setTplSel] = React.useState<string>("");
   const [tplEdit, setTplEdit] = React.useState<any>(null);
@@ -3993,18 +4145,9 @@ function ProjectPanel({ sdk, context, ui }: any) {
   }
   const loadTemplates = React.useCallback(async () => {
     const [stored, storedLayouts, settings] = await Promise.all([store.list("templates"), store.list("layout-templates"), store.list("settings")]);
-    const saved: any[] = stored.filter((t: any) => t && t.id);
-    const layouts = storedLayouts.filter((l: any) => !CardSupport.validateLayout(l).length).map(CardSupport.fromLayout);
-    const bases = [...BUILTIN_TEMPLATES, ...layouts];
-    const byId = new Map(saved.map((t) => [t.id, t]));
-    const list: any[] = bases.filter((b: any) => !byId.get(b.id)?.deleted && (b.importedLayoutId || byId.has(b.id))).map((b: any) =>
-      byId.has(b.id) ? { ...merge(b, byId.get(b.id)), builtIn: false, modified: true } : { ...b, builtIn: false }
-    );
-    for (const t of saved) {
-      if (t.deleted || bases.some((b: any) => b.id === t.id)) continue;
-      const base = bases.find((b: any) => b.id === t.baseId) || BUILTIN_TEMPLATES[0];
-      list.push({ ...merge(base, t), descriptions: t.descriptions ?? base.descriptions, builtIn: false });
-    }
+    const list = templateList(stored, storedLayouts);
+    setTemplateUpdates(settings.filter((x: any) => x?.id?.startsWith("template-update-")));
+    setTemplateBackups(await store.list("template-backups"));
     const preference = settings.find((x: any) => x?.id === "selection");
     if (selections.current.makeId === null || (!selections.current.makeId && list.length > 0)) {
       const t = list.find((x: any) => x.id === preference?.makeId) || list.find((x: any) => cardLangOf(x) === defaultCardLang(lang)) || list[0];
@@ -4036,9 +4179,11 @@ function ProjectPanel({ sdk, context, ui }: any) {
 
   async function receiveLinkedTemplate(request: any) {
     linkedRequest.current = request.requestId;
-    setBusy(true); setLinkedFailure(null); setLinkedNotice(false);
+    setBusy(true); setLinkedFailure(null);
     try {
-      const template = await installLinkedTemplate(store, request.url, await loadTemplates(), () => setLinkedNotice(true));
+      const template = await installLinkedTemplate(store, request.url, await loadTemplates(), update => activeProject.current !== projectId ? Promise.resolve(false) : new Promise(resolve => {
+        linkedDecision.current = resolve; setLinkedUpdate(update);
+      }));
       if (activeProject.current !== projectId) return;
       await loadTemplates();
       await selectTemplate(template); await selectEditorTemplate(template.id);
@@ -4046,9 +4191,13 @@ function ProjectPanel({ sdk, context, ui }: any) {
     } catch (e: any) {
       if (activeProject.current === projectId) setLinkedFailure({ request, message: String(e?.message || e) });
     } finally {
-      sdk.finishTemplatePackInstall(request.requestId);
+      if (!request.local) sdk.finishTemplatePackInstall(request.requestId);
       if (activeProject.current === projectId) setBusy(false);
     }
+  }
+  function answerLinkedUpdate(apply: boolean) {
+    const resolve = linkedDecision.current; linkedDecision.current = null;
+    setLinkedUpdate(null); resolve?.(apply);
   }
   React.useEffect(() => {
     const request = context?.templatePack;
@@ -4153,7 +4302,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
     if (mode === "video" && !pick) return setError(S.needPick);
     const selectedPhotos = mode === "link" && ownPhotos ? photos : [];
     const t = tplOf(tplId); if (!t) return;
-    setBusy(true); setPhase(0);
+    setBusy(true); setPhase(0); setStatus(mode === "link" ? S.readingArticle : S.working);
     const started = Date.now();
     let j: any = { id: Date.now().toString(36), projectId, created: new Date().toISOString(), templateId: t.id, templateSnapshot: clone(t), source: { mode, url: url.trim(), text: mode === "text" ? text : "", articleText: mode === "link" && articleFallback ? articleText : "", pick, pickName: resources.find((r) => r.id === pick)?.name || "", ownPhotos: !!selectedPhotos.length, photos: selectedPhotos }, countMode, count, note, timings: { aiCalls: 0, repairs: 0 } };
     try {
@@ -4185,7 +4334,11 @@ function ProjectPanel({ sdk, context, ui }: any) {
           }));
         }
         candidates.forEach((_: any, index: number) => choices.push({ ...article.images[index], kind: "article", index }));
-        material = `${K.link(j.source.url)}\nArticle title: ${article.title}\nArticle text (only source of facts):\n${article.body}\nArticle photos: ${JSON.stringify(article.images.map((image: any, index: number) => ({ index, url: image.url, credit: image.credit || "" })))}`;
+        material = `Source article URL (citation only): ${j.source.url}\nArticle title: ${article.title}\nArticle text (only source of facts):\n${article.body}`;
+      }
+      if (article) {
+        if (!choices.length) throw new Error(S.noArticlePhotos);
+        j = await saveJob({ ...j, countMode: "photos", count: choices.length });
       }
       const states = typeof sdk.aiProviders === "function" ? await sdk.aiProviders() : null;
       const provider = ["chatgpt", "claude"].find((p) => states?.[p] === "connected");
@@ -4204,8 +4357,8 @@ function ProjectPanel({ sdk, context, ui }: any) {
         const reply = await sdk.askAI({ prompt: prompt + repair, provider, timeoutMs: 600000, ...(sheet ? { images: [{ dataUrl: sheet, name: "photos.jpg" }] } : {}) });
         try {
           const raw = extractJson(reply.text, S);
-          if (article) raw.article = { ...(raw.article || {}), ...article, publisher: article.source || raw.article?.publisher || "", images: article.images || [] };
-          result = validatePlan(normalizePlan(raw, planningTemplate, choices), planningTemplate, choices); break;
+          if (article) raw.article = { ...article, publisher: article.source || "", images: article.images || [] };
+          result = validatePlan(normalizePlan(raw, planningTemplate, choices, mode === "link"), planningTemplate, choices, mode === "link"); break;
         } catch (e: any) { if (attempt) throw e; repair = `\nYour reply could not be used: ${e.message}. Reply again with the requested full JSON.`; }
       }
       j.timings.aiMs = Date.now() - aiStarted;
@@ -4454,7 +4607,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
 
   async function build() {
     if (!job?.plan) return;
-    setError("");
+    setError(""); setStatus(S.building);
     setBusy(true);
     try {
       validateCardText(job.plan, jobTemplate(job, templates));
@@ -4466,7 +4619,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       setStatus(S.built);
       loadJobs();
     } catch (e: any) {
-      setError(String(e?.message || e) + " " + S.resumeHint);
+      setStatus(""); setError(String(e?.message || e));
     } finally {
       setBusy(false);
       setPhase(null);
@@ -4614,15 +4767,22 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   const t = job ? jobTemplate(job, templates) : tplOf(tplId);
   const vars = { publisher: job?.plan?.article?.publisher || "", date: job?.plan?.article?.date || "" };
   const revised = (patch: any) => ({ ...job, ...patch, revision: (job.revision || 0) + (job.draftId || job.draftPending ? 1 : 0), draftId: null, draftPending: false, export: null, done: false });
-  const setCard = (i: number, c: any) => {
+  const setCard = (i: number, c: any, article = job.plan.article) => {
     const cards = job.plan.cards.slice(); cards[i] = c;
     const pics = (job.pictures || []).slice();
-    if (pics[i] && JSON.stringify(job.plan.cards[i].picture || {}) !== JSON.stringify(c.picture || {})) pics[i] = null;
-    setJob(revised({ plan: { ...job.plan, cards }, pictures: pics }));
+    const changed = JSON.stringify(job.plan.cards[i].picture || {}) !== JSON.stringify(c.picture || {});
+    if (pics[i] && changed) pics[i] = null;
+    const photoChoices = (job.plan.photoChoices || []).slice();
+    if (changed) for (const photo of [job.plan.cards[i].picture, c.picture]) if (photo?.kind === "file" && photo.path && !photoChoices.some((old: any) => old.kind === "file" && old.path === photo.path)) photoChoices.push({ ...photo });
+    setJob(revised({ plan: { ...job.plan, cards, article, ...(changed ? { photoChoices } : {}) }, pictures: pics }));
   };
-  function reorderCard(index: number, delta: number | null) {
-    if (delta !== null && (job.plan.cards[index]?.role === "end" || job.plan.cards[index + delta]?.role === "end")) return;
-    try { const next = delta === null ? reorderPlan(job.plan.cards, job.pictures || [], index, null) : swapCardPhotos(job.plan.cards, job.pictures || [], index, delta); setJob(revised({ plan: { ...job.plan, cards: next.cards }, pictures: next.pictures })); }
+  function swapPhotos(index: number, delta: number) {
+    try { const next = swapCardPhotos(job.plan.cards, job.pictures || [], index, delta); setJob(revised({ plan: { ...job.plan, cards: next.cards }, pictures: next.pictures })); }
+    catch (e: any) { setError(String(e?.message || e)); }
+  }
+  function reorderCard(index: number, target: number | null) {
+    if (target !== null && (!Number.isInteger(target) || !job.plan.cards[target] || job.plan.cards[index]?.role === "end" || job.plan.cards[target]?.role === "end")) return;
+    try { const next = reorderPlan(job.plan.cards, job.pictures || [], index, target === null ? null : target - index); setJob(revised({ plan: { ...job.plan, cards: next.cards }, pictures: next.pictures })); }
     catch (e: any) { setError(String(e?.message || e)); }
   }
   async function pickCardPhoto(i: number, c: any, file: any) {
@@ -4635,9 +4795,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setError(""); setBusy(true);
     try {
       const image = await prepareArticlePhoto(job.plan.article.images[index], index, job.id);
-      const cards = job.plan.cards.slice(); cards[i] = { ...c, picture: { kind: "article", index, path: image.path, w: image.w, h: image.h }, credit: image.credit || "" };
-      const pics = (job.pictures || []).slice(); pics[i] = null;
-      setJob(revised({ plan: { ...job.plan, cards, article: { ...job.plan.article, images: job.plan.article.images.map((old: any, at: number) => at === index ? image : old) } }, pictures: pics }));
+      setCard(i, { ...c, picture: { kind: "article", index, path: image.path, w: image.w, h: image.h }, credit: image.credit || "" }, { ...job.plan.article, images: job.plan.article.images.map((old: any, at: number) => at === index ? image : old) });
     } catch (e: any) { setError(String(e?.message || e)); }
     finally { setBusy(false); }
   }
@@ -4676,7 +4834,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   React.useEffect(() => {
     if (job?.draftId && !job.folder?.done && !busy) organize(job).catch(() => {});
   }, [job?.id, job?.draftId]);
-  const step = !job ? -1 : phase != null ? phase : job.export ? 4 : job.draftId ? 3 : job.plan ? 1 : 0;
+  const working = busy && phase != null;
 
   const videoOptions = resources.map((r) => ({ value: r.id, label: `${r.name}${r.analyzed ? "" : " · " + S.noTranscriptTag}` }));
   const templateForm = (
@@ -4699,7 +4857,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         )}
         {t && <small>{descOf(t, lang)}</small>}
         {t && <CardPreview t={t} card={{ role: "cover", headline: STRINGS[cardLangOf(t)].sampleHeadline }} bodyIndex={1} vars={{}} S={S} maxWidth={160} />}
-        {<ui.Segmented
+        {mode === "link" ? <ui.Message tone="muted">{S.photoSlotsHint}</ui.Message> : <ui.Segmented
           label={S.count}
           value={countMode}
           onChange={setCountMode}
@@ -4710,7 +4868,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           disabled={busy}
         />
         }
-        {countMode === "manual" && <ui.NumberField label={S.howMany} value={count} onChange={(v: number) => setCount(Math.max(1, Math.min(20, Math.round(v))))} min={1} max={20} step={1} disabled={busy} />}
+        {mode !== "link" && countMode === "manual" && <ui.NumberField label={S.howMany} value={count} onChange={(v: number) => setCount(Math.max(1, Math.min(20, Math.round(v))))} min={1} max={20} step={1} disabled={busy} />}
         <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} multiline disabled={busy} />
       </ui.Section>
       <ui.Actions>
@@ -4777,8 +4935,33 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           </ui.Stack> : null}
           <small>{S.reviewHint}</small>
           {job.plan.article?.images?.some((image: any) => image.unavailable) && <ui.Message tone="muted">{S.photoUnavailable}</ui.Message>}
-          {job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
+          {job.countMode === "photos" ? <small>{S.fixedPhotoCount(job.count, job.plan.cards.length)}</small> : job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
+          {job.countMode === "photos" && job.plan.article?.images?.length > (job.plan.photoChoices || []).filter((p: any) => p.kind === "article").length && <ui.Message tone="muted">{S.photoBudgetNotice(job.plan.article.images.length, (job.plan.photoChoices || []).filter((p: any) => p.kind === "article").length)}</ui.Message>}
         </ui.Section>
+        <ui.Stack gap={8}>
+          {job.done && job.export?.files?.length > 0 && <ui.Message tone="success">{S.exportDone(job.export.files.length)}</ui.Message>}
+          <ui.Actions>
+            <ui.Menu label={S.moreActions} disabled={busy} items={[
+              job.draftId ? { label: S.open, onSelect: () => { void openDraft(job.draftId); } } : { label: S.build, onSelect: () => { void build(); } },
+              { separator: true },
+              { label: S.startOver, onSelect: () => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); } },
+            ]} />
+            {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
+            <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
+          </ui.Actions>
+          <details>
+            <summary>{S.saveOptions}</summary>
+            <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
+            <ui.Row gap={8}>
+              {job.saveTo && <small style={{ minWidth: 0, overflowWrap: "anywhere" }}>{S.saveFolder}: {job.saveTo.split(/[\\/]/).filter(Boolean).pop()}</small>}
+              <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
+            </ui.Row>
+            {(job.saveTo || job.export?.dir) && <details>
+              <summary>{S.locationInfo}</summary>
+              <small style={{ display: "block", overflowWrap: "anywhere" }}>{job.export?.dir || job.saveTo}</small>
+            </details>}
+          </details>
+        </ui.Stack>
         <ui.Grid minItemWidth={240}>
           {job.plan.cards.map((c: any, i: number) => {
             if (c.role === "body") bodyN++;
@@ -4792,6 +4975,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
                 index={i}
                 bodyIndex={bodyN}
                 plan={job.plan}
+                photoMode={job.source?.mode === "link"}
                 vars={vars}
                 fs={store.fs}
                 made={job.pictures?.[i] || (c.picture?.kind === "reuse" ? job.pictures?.[c.picture.reuse] : null)}
@@ -4799,7 +4983,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
                 onChange={(n: any) => setCard(i, n)}
                 onPick={(f: any) => pickCardPhoto(i, c, f)}
                 onArticle={(n: number) => pickArticlePhoto(i, c, n)}
-                onMove={(delta: number) => reorderCard(i, delta)}
+                onSwap={(delta: number) => swapPhotos(i, delta)}
                 onRemove={() => reorderCard(i, null)}
               />
             );
@@ -4811,28 +4995,6 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           <ui.TextField label={S.hashtags} value={job.plan.hashtags} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, hashtags: v } })} disabled={busy} />
         </ui.Section>
         {!job.draftId && job.plan.cards.some((c: any) => c.picture?.kind === "generate") && <small>{S.creditsNote}</small>}
-        <ui.Section title={S.steps[4]}>
-          <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
-          <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
-          {job.saveTo ? <ui.Message tone="muted">{S.saveFolder}: {job.saveTo}</ui.Message> : null}
-          {job.export?.dir && <ui.Message tone="muted">{job.export.dir}</ui.Message>}
-          {job.export?.dir && <ui.Button variant="secondary" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
-        </ui.Section>
-        <ui.Actions>
-          <ui.Button variant="ghost" onClick={() => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); }} disabled={busy}>
-            {S.startOver}
-          </ui.Button>
-          {!job.draftId ? <ui.Button variant="secondary" busy={busy} busyLabel={S.building} onClick={build}>{S.build}</ui.Button> : null}
-          <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
-        </ui.Actions>
-        {job.draftId && (
-          <ui.Row gap={8}>
-            <ui.Button variant="secondary" onClick={() => openDraft(job.draftId)} disabled={busy}>
-              {S.open}
-            </ui.Button>
-
-          </ui.Row>
-        )}
         {exported.length > 0 && (
           <ui.Grid minItemWidth={120}>
             {exported.map((f) => (
@@ -4848,7 +5010,13 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     <ui.Message>{S.noProject}</ui.Message>
   ) : (
     <ui.Stack gap={16}>
-      {orphan ? (
+      {error && <ui.Message tone="error">{error}</ui.Message>}
+      {!working && !error && status && !(job?.done && job.export?.files?.length) && <ui.Message tone="success">{status}</ui.Message>}
+      {working ? (
+        <ui.Section title={phase === 0 ? S.generate : S.working}>
+          <ui.Progress label={status || S.working} busy />
+        </ui.Section>
+      ) : orphan ? (
         <ui.Stack gap={8}>
           <ui.Message tone="error">{S.templateGone}</ui.Message>
           <ui.Button variant="ghost" onClick={() => { setJob(null); setStatus(""); setError(""); }}>
@@ -4858,15 +5026,23 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       ) : (
         review || form
       )}
-      {step >= 0 && <ui.Progress steps={S.steps} current={step} busy={busy && phase != null} />}
-      {status && <ui.Message tone={step >= 3 && !busy ? "success" : "muted"}>{status}</ui.Message>}
-      {error && <ui.Message tone="error">{error}</ui.Message>}
     </ui.Stack>
   );
 
   return (
     <ui.Stack gap={12}>
-    {linkedNotice && <ui.Message>{S.packEditsKept}</ui.Message>}
+    <ui.TemplateTransferDialog open={!!linkedUpdate} onOpenChange={(open: boolean) => { if (!open) answerLinkedUpdate(false); }} title={S.packUpdateTitle} busy={false} method="file" onMethodChange={() => {}} methods={[]}>
+      {linkedUpdate && <>
+        <strong>{nameOf(linkedUpdate.current, lang)} · v{linkedUpdate.current.version} → v{linkedUpdate.latest.version}</strong>
+        <ui.Message>{linkedUpdate.chosunV2 ? S.packChosunV2Changes : S.packUpdateDetails}</ui.Message>
+        <ui.Message>{S.packUpdateWarning}</ui.Message>
+        <small>{S.packPinnedVersion}</small>
+        <ui.Actions>
+          <ui.Button variant="secondary" onClick={() => answerLinkedUpdate(false)}>{S.keepTemplate}</ui.Button>
+          <ui.Button onClick={() => answerLinkedUpdate(true)}>{S.applyTemplateUpdate}</ui.Button>
+        </ui.Actions>
+      </>}
+    </ui.TemplateTransferDialog>
     {linkedFailure && <ui.Stack gap={8}>
       <ui.Message tone="error">{linkedFailure.message}</ui.Message>
       <ui.Button disabled={busy || !!tplNew || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)} onClick={() => receiveLinkedTemplate(linkedFailure.request)}>Retry template import</ui.Button>
@@ -4882,6 +5058,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           label: S.tabTemplates,
           content: busy ? <ui.Message>{S.importTemplate}</ui.Message> : (
             <TemplateEditor sdk={sdk} ui={ui} S={S} lang={lang} templates={templates} store={store} onChanged={loadTemplates}
+              updates={templateUpdates} backups={templateBackups} onUpdate={(url: string) => receiveLinkedTemplate({ requestId: crypto.randomUUID(), url, local: true })}
               state={{ selId: tplSel, setSelId: selectEditorTemplate, edit: tplEdit, setEdit: setTplEdit, baseKey: tplBase, setBaseKey: setTplBase, sub: tplSub, setSub: setTplSub, role: tplRole, setRole: setTplRole, pending: tplNew, setPending: setTplNew }} />
           ),
         },

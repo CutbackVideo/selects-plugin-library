@@ -23,12 +23,12 @@ function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: exi
     useCallback(fn, deps) { return React.useMemo(() => fn, deps); },
     useEffect(fn, deps) { const slots = hooks, i = at++; if (!slots[i] || !same(slots[i].deps, deps)) { const old = slots[i]; slots[i] = { deps, cleanup: old?.cleanup }; effects.push(() => { old?.cleanup?.(); slots[i].cleanup = fn(); }); } },
   };
-  const files = { pathToLocalURL: async (path) => 'local://' + encodeURIComponent(path), join: path.posix.join, homedir: () => '/memory', exists: async () => true, mkdir: async () => {}, stat: async (p) => ({ isDirectory: p === '/photos', size: 10000 }), readdir: async (p) => p === '/photos' ? ['b.png', 'a.png'] : [...disk.keys()].filter((n) => path.posix.dirname(n) === p).map((n) => path.posix.basename(n)), readFile: async (p) => disk.get(p) || new Uint8Array([1, 2, 3]), writeFile: async (p, data) => { disk.set(p, data); }, compareAndReplace: async (p, expected, text) => { const current=disk.has(p)?new TextDecoder().decode(disk.get(p)):null; if(current!==expected)return false;disk.set(p,new TextEncoder().encode(text));return true; }, rm: async (p) => { disk.delete(p); }, removeFile: async ({ filePath }) => { disk.delete(filePath); }, getOrCreateTmpDirPath: async () => '/tmp', downloadFile: async (_, p) => { disk.set(p, new TextEncoder().encode('<meta property="og:type" content="article"><meta property="og:title" content="Article"><article><p>' + 'Verified article facts. '.repeat(40) + '</p></article>')); } };
+  const files = { pathToLocalURL: async (path) => 'local://' + encodeURIComponent(path), join: path.posix.join, homedir: () => '/memory', exists: async () => true, mkdir: async () => {}, stat: async (p) => ({ isDirectory: p === '/photos', size: 10000 }), readdir: async (p) => p === '/photos' ? ['b.png', 'a.png'] : [...disk.keys()].filter((n) => path.posix.dirname(n) === p).map((n) => path.posix.basename(n)), readFile: async (p) => disk.get(p) || new Uint8Array([1, 2, 3]), writeFile: async (p, data) => { disk.set(p, data); }, compareAndReplace: async (p, expected, text) => { const current=disk.has(p)?new TextDecoder().decode(disk.get(p)):null; if(current!==expected)return false;disk.set(p,new TextEncoder().encode(text));return true; }, rm: async (p) => { disk.delete(p); }, removeFile: async ({ filePath }) => { disk.delete(filePath); }, getOrCreateTmpDirPath: async () => '/tmp', downloadFile: async (_, p) => { disk.set(p, new TextEncoder().encode('<meta property="og:type" content="article"><meta property="og:title" content="Article"><article><p>' + 'Verified article facts. '.repeat(40) + '</p><img src="https://example.test/default.jpg"></article>')); } };
   const sdk = { runScript: async () => ({ result: [] }), aiProviders: async () => ({ chatgpt: 'connected', selects: 'connected' }), ...extra };
   const ui = new Proxy({}, { get: (_, k) => String(k) });
   const context = { projectId: 'p', language, templatePack };
   const canvas = () => ({ getContext: () => ({ measureText: () => ({ width: 1 }), fillRect() {}, drawImage() {}, fillText() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {}, getImageData: () => ({ data: [0, 0, 0, compositeAlpha] }) }), toDataURL: () => 'data:image/jpeg;base64,YQ==', toBlob: (fn, mime) => fn(new Blob([new Uint8Array([1, 2, 3])], { type: mime })) });
-  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { URL, crypto, Blob, Image: class { naturalWidth = 1920; naturalHeight = 1080; src = ''; async decode() {} }, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
+  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'replaceInstalledTemplate', 'templateList', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { URL, crypto, Blob, Image: class { naturalWidth = 1920; naturalHeight = 1080; src = ''; async decode() {} }, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
   function render() { hooks = mainHooks; at = 0; tree = bindings.ProjectPanel({ sdk, ui, context }); return tree; }
   function renderEditor() { const node = nodes(render()).find(n => n.type === bindings.TemplateEditor); if (!node) return null; hooks = editorHooks; at = 0; return bindings.TemplateEditor(node.props); }
   return {
@@ -37,7 +37,8 @@ function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: exi
     editorFind(type, label) { return nodes(renderEditor()).find(n => n.type === type && (label === undefined || n.props.label === label || n.props.children?.includes(label))); },
     async settleEditor() { for (let i = 0; i < 6; i++) { renderEditor(); effects.splice(0).forEach(fn => fn()); await new Promise(r => setImmediate(r)); } return renderEditor(); },
     async settle() { for (let i = 0; i < 6; i++) { render(); effects.splice(0).forEach((fn) => fn()); await new Promise((r) => setImmediate(r)); } return render(); },
-    find(type, label) { return nodes(render()).find((n) => n.type === type && (n.props.label === label || n.props.children?.includes(label))); },
+    find(type, label) { return nodes(render()).find((n) => n.type === type && (label === undefined || n.props.label === label || n.props.children?.includes(label))); },
+    menuItem(label) { return nodes(render()).find(n=>n.type==='Menu'&&n.props.items.some(item=>item.label===label))?.props.items.find(item=>item.label===label); },
     component(type) { return nodes(render()).find((n) => n.type === bindings[type]); },
     unmount() { [...mainHooks,...editorHooks].forEach((h) => h?.cleanup?.()); },
     close() { disposePanelModule(bindings); },
@@ -96,7 +97,7 @@ test('all designs use the same TemplateEditor and share Look/Brand/AI state', as
 
 test('own photos and requirements reach the one generation contract and return common file-picture cards', async () => {
   let request;
-  const h = harness({ sdk: { askAI: async (input) => { request = input; return { text: '{"cards":[{"headline":"Cover","image":{"source":"generate"}},{"body":"Body","image":{"source":"generate"}}]}' }; } } });
+  const h = harness({ sdk: { askAI: async (input) => { request = input; return { text: '{"cards":[{"slotIndex":0,"headline":"Cover"},{"slotIndex":1,"body":"Body"},{"slotIndex":2,"body":"Article facts"}]}' }; } } });
   try {
     await h.settle();
     h.find('TextField', 'Article link').props.onChange('https://example.test/news');
@@ -109,7 +110,7 @@ test('own photos and requirements reach the one generation contract and return c
     assert.equal(request.provider, 'chatgpt'); assert.match(request.prompt, /Focus on commuters/); assert.match(request.prompt, /Verified article facts/);
     assert.deepEqual(plain(request.images), [{ dataUrl: 'data:image/jpeg;base64,YQ==', name: 'photos.jpg' }]);
     const editors = nodes(h.render()).filter((n) => n.type === h.bindings.CardEditor);
-    assert.equal(editors.length, 2); assert.deepEqual(editors.map((n) => n.props.card.picture.path), ['/photos/a.png', '/photos/b.png']);
+    assert.equal(editors.length, 3); assert.deepEqual(editors.slice(0,2).map((n) => n.props.card.picture.path), ['/photos/a.png', '/photos/b.png']);assert.equal(editors[2].props.card.picture.kind,'article');
     assert.ok(editors.every((n) => n.props.t.id === 'layout-team'));
   } finally { h.close(); }
 });
@@ -142,9 +143,9 @@ test('failed still export retains the common Draft receipt, and retry does not b
   } } });
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange('j'); await h.settle();
-    await h.find('Button', 'Export card images').props.onClick(); await h.settle();
+    await h.find('Button', 'Save images').props.onClick(); await h.settle();
     const saved = await h.bindings.makeStore().list('jobs'); assert.equal(saved.find((j) => j.id === 'j').draftId, 'd1');
-    await h.find('Button', 'Export card images').props.onClick(); await h.settle();
+    await h.find('Button', 'Save images').props.onClick(); await h.settle();
     assert.equal(builds, 1); assert.equal(renders, 2);
     assert.ok([...h.disk.keys()].some((p) => p.endsWith('/card-01.png')));
   } finally { h.close(); }
@@ -166,7 +167,7 @@ test('export composite and transparent photo fallback use native URLs without re
   h.files.pathToLocalURL = async path => { urls.push(path); return 'local://' + encodeURIComponent(path); };
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
-    await h.find('Button', 'Export card images').props.onClick(); await h.settle();
+    await h.find('Button', 'Save images').props.onClick(); await h.settle();
     assert.ok(urls.some(path => path.endsWith('/source-01.png')));
     assert.ok(urls.includes('/photos/source.jpg'));
     assert.ok([...h.disk.keys()].some(path => path.endsWith('/card-01.png')));
@@ -177,15 +178,16 @@ test('export composite and transparent photo fallback use native URLs without re
 
 test('article fallback belongs to its URL and is cleared by Start over before a new article is generated', async () => {
   const prompts = [], downloads = [];
-  const h = harness({ sdk: { askAI: async ({ prompt }) => { prompts.push(prompt); return { text: '{"cards":[{"headline":"Cover","image":{"source":"none"}}]}' }; } } });
+  const h = harness({ sdk: { askAI: async ({ prompt }) => { prompts.push(prompt); return { text: '{"cards":[{"headline":"Cover","image":{"source":"none"},"slotIndex":0}]}' }; } } });
   try {
     h.files.downloadFile = async (url, p) => { downloads.push(url); if (url.endsWith('/a')) throw Error('HTTP 403'); h.disk.set(p, new TextEncoder().encode('<meta property="og:type" content="article"><article><p>' + 'FRESH_B_FACT '.repeat(40) + '</p></article>')); };
     await h.settle(); h.find('TextField', 'Article link').props.onChange('https://example.test/a');
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
     h.find('TextField', 'Article text').props.onChange('ONLY_OLD_ARTICLE_FACT '.repeat(40));
+    h.find('Toggle','Add my own photos (optional)').props.onChange(true);await h.find('FileDrop').props.onChange({path:'/photos/fallback.jpg'});
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
     assert.match(prompts[0], /ONLY_OLD_ARTICLE_FACT/);
-    h.find('Button', 'Start over').props.onClick();
+    h.menuItem('Start over').onSelect();
     assert.equal(h.find('TextField', 'Article text'), undefined);
     h.find('TextField', 'Article link').props.onChange('https://example.test/b');
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
@@ -200,7 +202,7 @@ test('fixed-box overflow blocks export before any Draft or render can be created
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     const e = h.component('CardEditor'); e.props.onChange({ ...e.props.card, headline: 'One\nTwo\nThree' });
-    await h.find('Button', 'Export card images').props.onClick(); await h.settle();
+    await h.find('Button', 'Save images').props.onClick(); await h.settle();
     assert.equal(writes, 0);
     assert.ok(nodes(h.render()).some((n) => n.type === 'Message' && n.props.children.some((v) => typeof v === 'string' && v.includes('only 2 text lines'))));
   } finally { h.close(); }
@@ -212,7 +214,7 @@ test('Start over and Saved reopen the newest edited work without requiring a rem
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     const e = h.component('CardEditor'); e.props.onChange({ ...e.props.card, headline: 'Newest edit' }); await h.settle();
-    h.find('Button', 'Start over').props.onClick(); await h.settle();
+    h.menuItem('Start over').onSelect(); await h.settle();
     h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     assert.equal(h.component('CardEditor').props.card.headline, 'Newest edit');
   } finally { h.close(); }
@@ -234,10 +236,10 @@ test('an older background Saved read cannot replace a newer edit in cache or on 
     const gate = new Promise((r) => { release = r; });
     const original = h.files.readdir; let gated = false;
     h.files.readdir = async (p) => { if (p.endsWith('/photo-works')) { gated = true; await gate; } return original(p); };
-    await h.find('Button', 'Export card images').props.onClick(); await h.settle(); assert.equal(gated, true);
+    await h.find('Button', 'Save images').props.onClick(); await h.settle(); assert.equal(gated, true);
     const editor = h.component('CardEditor'); editor.props.onChange({ ...editor.props.card, headline: 'Newest edit' }); await h.settle();
     release(); await h.settle();
-    h.find('Button', 'Start over').props.onClick(); await h.settle();
+    h.menuItem('Start over').onSelect(); await h.settle();
     h.find('Select', 'Saved').props.onChange('j'); await h.settle();
     assert.equal(h.component('CardEditor').props.card.headline, 'Newest edit');
     assert.equal(JSON.parse(new TextDecoder().decode(h.disk.get(root + '/jobs/j.json'))).plan.cards[0].headline, 'Newest edit');
@@ -253,14 +255,16 @@ test('progress spins only during a live request, including 503 and Saved restore
     assert.equal(h.find('Progress'), undefined);
     h.find('TextField', 'Article link').props.onChange('https://example.test/news');
     const request = h.find('Button', 'Generate').props.onClick(); await h.settle();
-    assert.equal(h.find('Progress').props.current, 0);
+    assert.equal(h.find('Progress').props.steps, undefined);
     assert.equal(h.find('Progress').props.busy, true);
+    assert.equal(h.find('TextField','Article link'),undefined);
     reject(Error('HTTP 503')); await request; await h.settle();
-    assert.equal(h.find('Progress').props.busy, false);
+    assert.equal(h.find('Progress'), undefined);
+    assert.ok(h.find('TextField','Article link'));
     const [job] = await h.bindings.makeStore().list('jobs');
     h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
-    assert.equal(h.find('Progress').props.current, 0);
-    assert.equal(h.find('Progress').props.busy, false);
+    assert.equal(h.find('Progress'), undefined);
+    assert.ok(h.find('TextField','Article link'));
   } finally { h.close(); }
 });
 
@@ -589,12 +593,12 @@ test('the same pack link upgrades an untouched legacy Chosun item in place and l
   try{
     const oldPath=root+'/layout-templates/chosun-basic.json',old=h.disk.get(oldPath),jobPath=root+'/jobs/old-set.json',snapshot=h.disk.get(jobPath);
     h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
-    await h.settleEditor();const editor=h.component('TemplateEditor').props;
+    await h.settle();assert.ok(h.find('Button','Apply latest version'));h.find('Button','Apply latest version').props.onClick();await h.settleEditor();const editor=h.component('TemplateEditor').props;
     assert.equal(editor.templates.length,1);assert.equal(editor.templates[0].id,'layout-chosun-basic');assert.equal(editor.templates[0].version,2);
     assert.equal(editor.templates[0].look.body.textSlots.length,3);assert.equal(editor.templates[0].headline.size,70.75);assert.equal(editor.templates[0].body.tracking,-.0425);assert.equal(editor.templates[0].body.weight,400);assert.equal(editor.templates[0].headline.weight,700);assert.equal(editor.state.selId,'layout-chosun-basic');
     assert.equal(h.find('TemplateChoice','Template').props.value,'layout-chosun-basic');
     assert.equal(h.disk.get(oldPath),old);assert.equal(h.disk.get(jobPath),snapshot);
-    const backups=await h.bindings.makeStore().list('template-backups');assert.equal(backups.length,1);assert.equal(backups[0].version,1);
+    const backups=await h.bindings.makeStore().list('template-backups');assert.equal(backups.length,1);assert.equal(backups[0].template.version,1);
     h.context.templatePack={requestId:'upgrade-repeat',url:packUrl};await h.settleEditor();
     assert.equal(h.component('TemplateEditor').props.templates.length,1);assert.equal((await h.bindings.makeStore().list('template-backups')).length,1);
   }finally{h.close()}
@@ -606,22 +610,22 @@ test('actual published v1 installed records and unmodified imported copies retai
       const old=structuredClone(chosunV1.installed);if(imported){old.id='timported-v1';delete old.importedLayoutId}
       const store=h.bindings.makeStore();await store.put('templates',old.id,old);
       h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
-      const updated=await h.bindings.installLinkedTemplate(store,packUrl,[old]);
+      const updated=await h.bindings.installLinkedTemplate(store,packUrl,h.bindings.templateList([old],[]),async()=>true);
       assert.equal(updated.id,old.id);assert.equal(updated.version,2);assert.equal(updated.look.body.textSlots.length,3);
-      assert.equal((await store.list('templates')).length,1);assert.equal((await store.list('template-backups'))[0].version,1);
+      assert.equal((await store.list('templates')).length,1);assert.equal((await store.list('template-backups'))[0].template.version,1);
     }finally{h.close()}
   }
 });
 
-test('edited Chosun designs are never overwritten or duplicated and display the keep-edits notice',async()=>{
+test('edited Chosun designs offer a choice and Keep preserves the same item for a later update',async()=>{
   const changes=[t=>t.name='My design',t=>t.headline.size=55,t=>t.body.weight=400,t=>t.look.textSlots[0].left=150,t=>t.wordmark.logo.top=1100,t=>t.prompt.body='My instructions',t=>t.end.kind='cta'];
   for(const change of changes){
     const h=harness({layouts:[],templatePack:{requestId:'edited',url:packUrl},sdk:{finishTemplatePackInstall(){}}});try{
       const old=structuredClone(chosunV1.installed);change(old);const path=root+'/templates/'+old.id+'.json';const bytes=new TextEncoder().encode(JSON.stringify(old));h.disk.set(path,bytes);
       h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
-      await h.settleEditor();assert.equal(h.disk.get(path),bytes);assert.equal(h.component('TemplateEditor').props.templates.length,1);
+      await h.settle();assert.ok(h.find('Button','Apply latest version'));h.find('Button','Keep current version').props.onClick();await h.settleEditor();assert.equal(h.disk.get(path),bytes);assert.equal(h.component('TemplateEditor').props.templates.length,1);
       assert.equal((await h.bindings.makeStore().list('template-backups')).length,0);
-      assert.ok(h.find('Message','Your edited design was kept. It was not replaced with the new default template.'));
+      assert.ok(h.editorFind('Button','View shared version'));
     }finally{h.close()}
   }
 });
@@ -632,8 +636,8 @@ test('an edit saved by another window during the download is preserved and backu
       const old=structuredClone(chosunV1.installed),store=h.bindings.makeStore();await store.put('templates',old.id,old);
       const path=root+'/templates/'+old.id+'.json',original=h.disk.get(path);let edited;
       h.files.downloadFile=async(_,to)=>{h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));if(!failBackup){edited=new TextEncoder().encode(JSON.stringify({...old,name:'Saved in another window'}));h.disk.set(path,edited)}};
-      if(failBackup){const put=store.put;store.put=async(kind,...args)=>{if(kind==='template-backups')throw Error('Backup unavailable');return put(kind,...args)};await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,[old]),/Backup unavailable/);assert.equal(h.disk.get(path),original)}
-      else{let kept=false;const result=await h.bindings.installLinkedTemplate(store,packUrl,[old],()=>kept=true);assert.equal(result.version,1);assert.equal(kept,true);assert.equal(h.disk.get(path),edited)}
+      if(failBackup){const put=store.put;store.put=async(kind,...args)=>{if(kind==='template-backups')throw Error('Backup unavailable');return put(kind,...args)};await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,h.bindings.templateList([old],[]),async()=>true),/Backup unavailable/);assert.equal(h.disk.get(path),original)}
+      else{await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,h.bindings.templateList([old],[]),async()=>true),/changed in another window/);assert.equal(h.disk.get(path),edited)}
     }finally{h.close()}
   }
 });
@@ -654,7 +658,7 @@ test('atomic update failure keeps the old file readable and never enters the par
     h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
     const write=h.files.writeFile;h.files.writeFile=async(p,data)=>{if(p===path){targetWrites++;h.disk.set(p,new TextEncoder().encode('{partial'));throw Error('Partial write')}return write(p,data)};
     h.files.compareAndReplace=async()=>{throw Error('Atomic update unavailable')};
-    await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,[old]),/Atomic update unavailable/);
+    await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,h.bindings.templateList([old],[]),async()=>true),/Atomic update unavailable/);
     assert.equal(targetWrites,0);assert.equal(h.disk.get(path),original);assert.equal((await store.list('templates'))[0].version,1);
     assert.equal((await store.list('template-backups')).length,1);
   }finally{h.close()}
@@ -666,8 +670,7 @@ test('a rename saved during backup is preserved by the final atomic comparison',
     const path=root+'/templates/'+old.id+'.json';let edited;
     h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
     const write=h.files.writeFile;h.files.writeFile=async(p,data)=>{if(p.includes('/template-backups/')){edited=new TextEncoder().encode(JSON.stringify({...old,name:'Concurrent rename'}));h.disk.set(path,edited)}return write(p,data)};
-    let kept=false;const result=await h.bindings.installLinkedTemplate(store,packUrl,[old],()=>kept=true);
-    assert.equal(result.version,1);assert.equal(kept,true);assert.equal(h.disk.get(path),edited);assert.equal((await store.list('templates'))[0].name,'Concurrent rename');
+    await assert.rejects(h.bindings.installLinkedTemplate(store,packUrl,h.bindings.templateList([old],[]),async()=>true),/changed in another window/);assert.equal(h.disk.get(path),edited);assert.equal((await store.list('templates'))[0].name,'Concurrent rename');
   }finally{h.close()}
 });
 
@@ -677,7 +680,7 @@ test('template editing is unavailable while a linked pack download is running',a
   try{
     h.files.downloadFile=async(_,to)=>{await gate;h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())))};
     await h.settle();assert.equal(h.component('TemplateEditor'),undefined);
-    release();await h.settleEditor();assert.equal(h.component('TemplateEditor').props.templates[0].version,2);
+    release();await h.settle();assert.ok(h.find('Button','Apply latest version'));h.find('Button','Apply latest version').props.onClick();await h.settleEditor();assert.equal(h.component('TemplateEditor').props.templates[0].version,2);
   }finally{release();h.close()}
 });
 
@@ -687,7 +690,7 @@ test('an existing managed pack is updated ahead of a separate customized legacy 
     const managed=structuredClone(chosunV1.installed),custom={...structuredClone(managed),id:'layout-chosun-basic',name:'My separate design'};
     const store=h.bindings.makeStore();await store.put('templates',managed.id,managed);await store.put('templates',custom.id,custom);
     const path=root+'/templates/'+custom.id+'.json',bytes=h.disk.get(path);h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
-    const updated=await h.bindings.installLinkedTemplate(store,packUrl,[custom,managed]);assert.equal(updated.id,managed.id);assert.equal(updated.version,2);assert.equal(h.disk.get(path),bytes);
+    const updated=await h.bindings.installLinkedTemplate(store,packUrl,h.bindings.templateList([custom,managed],[]),async()=>true);assert.equal(updated.id,managed.id);assert.equal(updated.version,2);assert.equal(h.disk.get(path),bytes);
   }finally{h.close()}
 });
 
@@ -712,7 +715,7 @@ test('generation and photo inputs use Korean UI labels while English labels stay
 test('first manual export cancellation leaves work untouched and never builds, renders or imports',async()=>{
   const job={id:'cancel-export',projectId:'p',templateId:'layout-team',plan:{cards:[{role:'cover',headline:'Cover'}]}};let picks=0,writes=0;
   const h=harness({job,dialogs:{pickDirectoryPath:async()=>{picks++;return null}},sdk:{runScript:async({summary})=>{if(summary!=='List project videos')writes++;return{result:[]}}}});
-  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const before=h.disk.get(root+'/jobs/'+job.id+'.json');await h.find('Button','Export card images').props.onClick();await h.settle();assert.equal(picks,1);assert.equal(writes,0);assert.equal(h.disk.get(root+'/jobs/'+job.id+'.json'),before);assert.ok(![...h.disk.keys()].some(p=>p.endsWith('/card-01.png')))}finally{h.close()}
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const before=h.disk.get(root+'/jobs/'+job.id+'.json');await h.find('Button','Save images').props.onClick();await h.settle();assert.equal(picks,1);assert.equal(writes,0);assert.equal(h.disk.get(root+'/jobs/'+job.id+'.json'),before);assert.ok(![...h.disk.keys()].some(p=>p.endsWith('/card-01.png')))}finally{h.close()}
 });
 
 test('manual export uses the chosen folder, verifies saved image resources and shows the actual output location',async()=>{
@@ -724,7 +727,7 @@ test('manual export uses the chosen folder, verifies saved image resources and s
       const result=await new (Object.getPrototypeOf(async()=>{}).constructor)('selects',script)({project:id=>{assert.equal(id,'p');return{importFiles:async({paths:files})=>{imports++;assert.equal(files.length,2);for(const p of files){assert.ok(h.disk.has(p));assert.match(p,/^\/chosen\/cards\/visible-export-.*\/card-0[12]\.png$/);paths.push(p)}rows.push(...files.map((_,i)=>({resourceId:'png-'+i})));return{addedResourceIds:rows.map(r=>r.resourceId)}},resources:async()=>rows}}});return{result};
     }return{result:[]};
   }}});
-  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();assert.equal(imports,0);await h.find('Button','Export card images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.saveTo,'/chosen/cards');assert.equal(saved.done,true);assert.equal(saved.export.files.length,2);assert.ok(h.disk.has(saved.export.dir+'/caption.txt'));assert.equal(imports,1);assert.equal(picks,1);assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.includes(saved.export.dir)));assert.ok(h.find('Button','Open folder'));assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.some(v=>typeof v==='string'&&v.includes('Added the card images to the project'))));await h.find('Button','Export card images').props.onClick();await h.settle();assert.equal(picks,1);assert.equal(imports,2)}finally{h.close()}
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();assert.equal(imports,0);await h.find('Button','Save images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.saveTo,'/chosen/cards');assert.equal(saved.done,true);assert.equal(saved.export.files.length,2);assert.ok(h.disk.has(saved.export.dir+'/caption.txt'));assert.equal(imports,1);assert.equal(picks,1);assert.ok(!nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.includes(saved.export.dir)));assert.ok(nodes(h.render()).some(n=>n.type==='details'&&n.props.open===undefined));assert.ok(h.find('Button','Open folder'));assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.some(v=>typeof v==='string'&&v==='Saved 2 images.')));await h.find('Button','Save images').props.onClick();await h.settle();assert.equal(picks,1);assert.equal(imports,2)}finally{h.close()}
 });
 
 test('partial rendering, caption writes and project imports retain saved files without a success message',async()=>{
@@ -738,7 +741,7 @@ test('partial rendering, caption writes and project imports retain saved files w
         const result=await new (Object.getPrototypeOf(async()=>{}).constructor)('selects',script)({project:()=>({importFiles:async()=>({addedResourceIds:failure==='partial-import'?['one']:['one','two']}),resources:async()=>failure==='missing-inventory'?[]:[{resourceId:'one'},{resourceId:'two'}]})});return{result};
       }return{result:[]};
     }}});
-    try{if(failure==='caption'){const write=h.files.writeFile;h.files.writeFile=async(p,v)=>{if(p.endsWith('/caption.txt'))throw Error('Caption write failed');return write(p,v)}}await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();await h.find('Button','Export card images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.done,false);assert.equal(saved.export.files.length,failure==='render'?1:2);assert.ok(saved.export.files.every(p=>h.disk.has(p)));assert.equal(imports,['render','caption'].includes(failure)?0:1);assert.ok(h.find('Button','Open folder'));const messages=nodes(h.render()).filter(n=>n.type==='Message');assert.ok(messages.some(n=>n.props.tone==='error'));assert.ok(!messages.some(n=>n.props.children.some(v=>typeof v==='string'&&v.startsWith('Saved '))))}finally{h.close()}
+    try{if(failure==='caption'){const write=h.files.writeFile;h.files.writeFile=async(p,v)=>{if(p.endsWith('/caption.txt'))throw Error('Caption write failed');return write(p,v)}}await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();await h.find('Button','Save images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.done,false);assert.equal(saved.export.files.length,failure==='render'?1:2);assert.ok(saved.export.files.every(p=>h.disk.has(p)));assert.equal(imports,['render','caption'].includes(failure)?0:1);assert.ok(h.find('Button','Open folder'));const messages=nodes(h.render()).filter(n=>n.type==='Message');assert.ok(messages.some(n=>n.props.tone==='error'));assert.ok(!messages.some(n=>n.props.children.some(v=>typeof v==='string'&&v.startsWith('Saved '))))}finally{h.close()}
   }
 });
 
@@ -755,7 +758,7 @@ test('live timeline overflow blocks export before replacing a completed receipt 
     await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();
     const beforePaths=[...h.disk.keys()].filter(p=>p.startsWith('/chosen/'));
     const beforeJob=h.disk.get(root+'/jobs/'+job.id+'.json');
-    await h.find('Button','Export card images').props.onClick();await h.settle();
+    await h.find('Button','Save images').props.onClick();await h.settle();
     const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);
     assert.deepEqual(plain(saved.export),previous);assert.equal(renders,0);
     assert.equal(saved.done,true);assert.equal(h.disk.get(root+'/jobs/'+job.id+'.json'),beforeJob);
@@ -766,7 +769,7 @@ test('live timeline overflow blocks export before replacing a completed receipt 
 
 test('article photos prepare before editing, mix with optional local photos and are reused after save/reopen', async () => {
   const downloads = [], requests = [];
-  const h = harness({ sdk: { askAI: async input => { requests.push(input); return { text: JSON.stringify({ cards: [{ headline: 'Cover facts', image: { source: 'photo', photoIndex: 1 } }, { body: 'Body facts', image: { source: 'photo', photoIndex: 0 } }] }) }; } } });
+  const h = harness({ sdk: { askAI: async input => { requests.push(input); return { text: JSON.stringify({ cards: [{ slotIndex:0, headline: 'Cover facts' }, { slotIndex:1, body: 'Body facts' }, { slotIndex:2, body:'Other facts' }] }) }; } } });
   h.files.downloadFile = async (url, p) => { downloads.push(url); h.disk.set(p, new TextEncoder().encode(url.endsWith('/article') ? '<meta property="og:type" content="article"><article><p>' + 'Verified article facts. '.repeat(40) + '</p><img src="/one.jpg"><img data-src="/two.png"></article>' : 'x'.repeat(2000))); };
   const read = h.files.readFile;
   h.files.readFile = p => { assert.doesNotMatch(p, /article-\d+\.(png|jpg)$/); return read(p); };
@@ -775,25 +778,24 @@ test('article photos prepare before editing, mix with optional local photos and 
     h.find('Toggle', 'Add my own photos (optional)').props.onChange(true);
     await nodes(h.render()).find(n => n.type === 'FileDrop').props.onChange({ path: '/photos/local.jpg' });
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
-    assert.equal(requests.length, 1); assert.match(requests[0].prompt, /photoIndex/);
+    assert.equal(requests.length, 1); assert.match(requests[0].prompt, /slotIndex/);
     const editors = nodes(h.render()).filter(n => n.type === h.bindings.CardEditor);
-    assert.equal(editors[0].props.card.picture.kind, 'article'); assert.ok(editors[0].props.card.picture.path.endsWith('article-1.jpg'));
-    assert.equal(editors[1].props.card.picture.path, '/photos/local.jpg');
+    assert.equal(editors[0].props.card.picture.path,'/photos/local.jpg');assert.ok(editors[1].props.card.picture.path.endsWith('article-1.jpg'));assert.ok(editors[2].props.card.picture.path.endsWith('article-2.png'));
     assert.equal(editors[0].props.plan.photoChoices.length, 3);
-    assert.equal(downloads.length, 2);
-    await editors[0].props.onArticle(1); await h.settle(); assert.equal(downloads.length, 3);
+    assert.equal(downloads.length,3);
+    await editors[0].props.onArticle(1);await h.settle();assert.equal(downloads.length,3);
     h.find('Button', 'Add card slot').props.onClick(); await h.settle();
     let cards = nodes(h.render()).filter(n => n.type === h.bindings.CardEditor).map(n => n.props.card);
     const snapshot = cards.map(({ id, role, headline, body }) => ({ id, role, headline, body }));
-    assert.equal(cards.length, 3); assert.equal(cards[2].role, 'body');
+    assert.equal(cards.length,4);assert.equal(cards[3].role,'body');
     const beforePaths = cards.map(c => c.picture.path);
-    nodes(h.render()).find(n => n.type === h.bindings.CardEditor).props.onMove(1); await h.settle();
+    nodes(h.render()).find(n => n.type === h.bindings.CardEditor).props.onSwap(1); await h.settle();
     cards = nodes(h.render()).filter(n => n.type === h.bindings.CardEditor).map(n => n.props.card);
-    assert.deepEqual(cards.map(({ id, role, headline, body }) => ({ id, role, headline, body })), snapshot);
+    assert.deepEqual(cards.map(({id,role,headline,body})=>({id,role,headline,body})),snapshot);
     assert.equal(cards[0].picture.path, beforePaths[1]); assert.equal(cards[1].picture.path, beforePaths[0]);
     const jobs = await h.bindings.makeStore().list('jobs'), job = jobs.find(j => j.plan);
     assert.equal(job.timings.aiCalls, 1); assert.equal(job.timings.repairs, 0); assert.ok(job.timings.editableMs >= 0);
-    h.find('Button', 'Start over').props.onClick(); await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    h.menuItem('Start over').onSelect(); await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
     assert.deepEqual(nodes(h.render()).filter(n => n.type === h.bindings.CardEditor).map(n => n.props.card), cards);
     assert.equal(downloads.length, 3);
   } finally { h.close(); }
@@ -801,7 +803,7 @@ test('article photos prepare before editing, mix with optional local photos and 
 
 test('an unavailable article original falls back to its published URL and a failed photo keeps editable text', async () => {
   const urls = [];
-  const h = harness({ sdk: { askAI: async () => ({ text: '{"cards":[{"headline":"Cover","image":{"source":"photo","photoIndex":0}},{"body":"Body","image":{"source":"photo","photoIndex":1}}]}' }) } });
+  const h = harness({ sdk: { askAI: async () => ({ text: '{"cards":[{"headline":"Cover","image":{"source":"photo","photoIndex":0},"slotIndex":0},{"body":"Body","image":{"source":"photo","photoIndex":1},"slotIndex":1}]}' }) } });
   h.files.stat = async p => ({ isDirectory: false, size: h.disk.get(p)?.length || 0 });
   h.files.downloadFile = async (url, p) => {
     urls.push(url);
@@ -824,7 +826,7 @@ test('an unavailable article original falls back to its published URL and a fail
 
 test('provided article previews feed planning; export downloads only selected originals and reuses them', async () => {
   const downloads=[],requests=[];
-  const h=harness({sdk:{askAI:async input=>{requests.push(input);return({text:'{"cards":[{"headline":"Cover","image":{"source":"photo","photoIndex":0}},{"body":"Body","image":{"source":"photo","photoIndex":0}}]}'})},runScript:async({summary})=>{
+  const h=harness({sdk:{askAI:async input=>{requests.push(input);return({text:'{"cards":[{"headline":"Cover","image":{"source":"photo","photoIndex":0},"slotIndex":0},{"body":"Body","image":{"source":"photo","photoIndex":0},"slotIndex":1}]}'})},runScript:async({summary})=>{
     if(summary==='List project videos')return{result:[]};
     if(summary==='Add a card picture')return{result:{id:'resource',name:'original.jpg'}};
     if(summary==='Check for an existing draft')return{result:null};
@@ -842,16 +844,153 @@ test('provided article previews feed planning; export downloads only selected or
     assert.equal(requests.length,1);assert.equal(requests[0].images?.length,1);assert.ok(requests[0].images[0].dataUrl.startsWith('data:image/jpeg'));
     assert.ok(h.component('CardEditor').props.plan.photoChoices.every(photo=>photo.path));
     assert.equal(h.component('CardEditor').props.plan.photoChoices[0].caption,'Caption one');
-    await h.find('Button','Export card images').props.onClick();await h.settle();
+    const edited=nodes(h.render()).filter(n=>n.type===h.bindings.CardEditor);assert.equal(edited[1].props.card.picture.index,1);edited[1].props.onChange({...edited[1].props.card,picture:{...edited[0].props.card.picture}});await h.settle();
+    await h.find('Button','Save images').props.onClick();await h.settle();
     assert.equal(downloads.filter(url=>url==='https://example.test/one-original.jpg').length,1);assert.ok(!downloads.includes('https://example.test/two-original.jpg'));
     const job=(await h.bindings.makeStore().list('jobs')).find(job=>job.plan);assert.equal(job.done,true);assert.match(job.pictures[0].path,/-original.jpg$/);assert.doesNotMatch(job.plan.cards[0].picture.path,/-original.jpg$/);
-    await h.find('Button','Export card images').props.onClick();await h.settle();assert.equal(downloads.filter(url=>url==='https://example.test/one-original.jpg').length,1);
+    await h.find('Button','Save images').props.onClick();await h.settle();assert.equal(downloads.filter(url=>url==='https://example.test/one-original.jpg').length,1);
   }finally{h.close()}
 });
 
 test('the existing 20-photo planning budget does not discard remaining selectable article candidates', async () => {
-  const h=harness({sdk:{askAI:async()=>({text:'{"cards":[{"headline":"Cover","image":{"source":"photo","photoIndex":0}}]}'})}});
+  const h=harness({sdk:{askAI:async()=>({text:JSON.stringify({cards:Array.from({length:20},(_,slotIndex)=>slotIndex?{slotIndex,body:'Body '+slotIndex}:{slotIndex,headline:'Cover'})})})}});
   const fusion={content_elements:[{type:'text',content:'Verified facts. '.repeat(40)},...Array.from({length:21},(_,i)=>({type:'image',url:'https://example.test/'+i+'.jpg'}))]};
   h.files.downloadFile=async(url,p)=>h.disk.set(p,new TextEncoder().encode(url.endsWith('/article')?'Fusion.globalContent='+JSON.stringify(fusion)+';Fusion.x=1;':'x'.repeat(2000)));
-  try{await h.settle();h.find('TextField','Article link').props.onChange('https://example.test/article');await h.find('Button','Generate').props.onClick();await h.settle();const editor=h.component('CardEditor');assert.equal(editor.props.plan.article.images.length,21);assert.equal(editor.props.plan.photoChoices.length,20);await editor.props.onArticle(20);await h.settle();assert.equal(h.component('CardEditor').props.card.picture.index,20);assert.ok(h.component('CardEditor').props.card.picture.path)}finally{h.close()}
+  try{await h.settle();h.find('TextField','Article link').props.onChange('https://example.test/article');await h.find('Button','Generate').props.onClick();await h.settle();const editor=h.component('CardEditor');assert.equal(editor.props.plan.article.images.length,21);assert.equal(editor.props.plan.photoChoices.length,20);assert.equal(editor.props.plan.cards.length,20);assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.children.some(v=>String(v).includes('Using 20 of 21 article photos'))));await editor.props.onArticle(20);await h.settle();assert.equal(h.component('CardEditor').props.card.picture.index,20);assert.ok(h.component('CardEditor').props.card.picture.path)}finally{h.close()}
+});
+
+test('article-photo generation ignores model article metadata and never requests URL research or image generation', async () => {
+  let request;const scripts=[];
+  const h=harness({sdk:{askAI:async input=>{request=input;return{text:JSON.stringify({article:{title:'UNTRUSTED_TITLE',publisher:'UNTRUSTED_PUBLISHER',images:[{url:'https://wrong.test/ignored.jpg'}]},metaphor:'UNUSED_GENERATION_METAPHOR',cards:[{slotIndex:0,headline:'Verified cover'}]})}},runScript:async input=>{scripts.push(input.script);return{result:[]}}}});
+  const fusion={headlines:{basic:'Verified source title'},content_elements:[{type:'text',content:'Verified source facts. '.repeat(40)},{type:'image',url:'https://example.test/original.jpg',caption:'A useful photo caption'}]};
+  h.files.downloadFile=async(url,p)=>h.disk.set(p,new TextEncoder().encode(url.endsWith('/article')?'Fusion.globalContent='+JSON.stringify(fusion)+';Fusion.x=1;':'x'.repeat(2000)));
+  try{
+    await h.settle();h.find('TextField','Article link').props.onChange('https://example.test/article');await h.find('Button','Generate').props.onClick();await h.settle();
+    assert.match(request.prompt,/Verified source facts/);assert.match(request.prompt,/A useful photo caption/);assert.match(request.prompt,/citation only/);assert.match(request.prompt,/slotIndex/);
+    assert.doesNotMatch(request.prompt,/Open this link|browser tools|original\.jpg|English scene prompt|metaphor|article\.images/);
+    const editor=h.component('CardEditor');assert.equal(editor.props.plan.article.title,'Verified source title');assert.equal(editor.props.plan.article.publisher,'');assert.equal(editor.props.plan.article.images[0].url,'https://example.test/original.jpg');assert.equal(editor.props.plan.metaphor,'');assert.equal(editor.props.card.picture.kind,'article');
+    assert.ok(!scripts.some(script=>script.includes('selects.generation.submit')));
+  }finally{h.close()}
+});
+
+
+test('photo replacement keeps a shared local pool, permits duplicates and never swaps other cards', async () => {
+  const templateJob = { id:'picker', projectId:'p', templateId:'layout-team', templateSnapshot:null, source:{mode:'link'}, plan:{article:{images:[]},photoChoices:[],cards:[{id:'a',role:'cover',headline:'Keep A',picture:{kind:'file',path:'/photos/a.jpg'},crop:{zoom:1.3,x:.2,y:0},credit:'A'},{id:'b',role:'body',body:'Keep B',picture:{kind:'file',path:'/photos/b.jpg'},crop:{zoom:1,x:0,y:0}}],caption:'',hashtags:''} };
+  const h=harness({job:templateJob});
+  try {
+    await h.settle();h.find('Select','Saved').props.onChange('picker');await h.settle();
+    let editors=nodes(h.render()).filter(n=>n.type===h.bindings.CardEditor);const other=plain(editors[1].props.card),original=plain(editors[0].props.card);
+    editors[0].props.onChange({...editors[0].props.card,picture:{kind:'file',path:'/photos/b.jpg'}});await h.settle();
+    editors=nodes(h.render()).filter(n=>n.type===h.bindings.CardEditor);
+    assert.deepEqual(plain(editors[1].props.card),other);assert.equal(editors[0].props.card.headline,original.headline);assert.deepEqual(plain(editors[0].props.card.crop),original.crop);
+    assert.deepEqual(plain(editors[0].props.plan.photoChoices.map(p=>p.path)),['/photos/a.jpg','/photos/b.jpg']);
+    await editors[0].props.onPick({path:'/photos/new.jpg',name:'new.jpg'});await h.settle();
+    editors=nodes(h.render()).filter(n=>n.type===h.bindings.CardEditor);assert.deepEqual(plain(editors[0].props.plan.photoChoices.map(p=>p.path)),['/photos/a.jpg','/photos/b.jpg','/photos/new.jpg']);assert.deepEqual(plain(editors[1].props.card),other);
+  }finally{h.close()}
+});
+
+
+test('existing add-card flow can leave a blank photo and choose it later without replacing another slot', async () => {
+  const job={id:'blank',projectId:'p',templateId:'layout-team',source:{mode:'link'},plan:{article:{images:[]},photoChoices:[],cards:[{id:'cover',role:'cover',headline:'Cover',picture:{kind:'file',path:'/photos/cover.jpg'}},{id:'body',role:'body',body:'Body',picture:{kind:'none'}}],caption:'',hashtags:''}};
+  const h=harness({job});
+  try{await h.settle();h.find('Select','Saved').props.onChange('blank');await h.settle();await h.find('Button','Add card slot').props.onClick();await h.settle();let editors=nodes(h.render()).filter(n=>n.type===h.bindings.CardEditor);const first=plain(editors[0].props.card);assert.equal(editors.length,3);assert.equal(editors[2].props.card.picture.kind,'none');const id=editors[2].props.card.id;editors[2].props.onChange({...editors[2].props.card,body:'Later text',picture:{kind:'file',path:'/photos/cover.jpg'}});await h.settle();editors=nodes(h.render()).filter(n=>n.type===h.bindings.CardEditor);assert.equal(editors[2].props.card.id,id);assert.equal(editors[2].props.card.picture.path,'/photos/cover.jpg');assert.deepEqual(plain(editors[0].props.card),first)}finally{h.close()}
+});
+
+test('generation uses one actual status screen then opens card editing without mandatory steps', async () => {
+  let releaseArticle,releaseAI,calls=0;const articleGate=new Promise(r=>releaseArticle=r),aiGate=new Promise(r=>releaseAI=r);
+  const h=harness({sdk:{askAI:()=>{calls++;return aiGate}}});
+  h.files.downloadFile=async(_,p)=>{await articleGate;h.disk.set(p,new TextEncoder().encode('<meta property="og:type" content="article"><article><p>'+'Verified facts. '.repeat(40)+'</p><img src="https://example.test/a.jpg"><img src="https://example.test/b.jpg"></article>'))};
+  try{
+    await h.settle();h.find('TextField','Article link').props.onChange('https://example.test/article');const request=h.find('Button','Generate').props.onClick();await h.settle();
+    assert.equal(h.find('Progress').props.label,'Loading the article and photos…');assert.equal(h.find('Progress').props.steps,undefined);assert.equal(h.find('TextField','Article link'),undefined);assert.equal(calls,0);
+    releaseArticle();await h.settle();assert.equal(h.find('Progress').props.label,'Writing headlines and body text…');assert.equal(calls,1);
+    releaseAI({text:'{"cards":[{"headline":"Cover facts","image":{"source":"none"},"slotIndex":0},{"body":"Body facts","image":{"source":"none"},"slotIndex":1}]}'});await request;await h.settle();
+    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)'),undefined);assert.ok(h.menuItem('Add to timeline (optional)'));assert.ok(h.find('Menu','More actions'));
+  }finally{releaseArticle?.();releaseAI?.({text:'{}'});h.close()}
+});
+
+test('completed saved work shows a concise receipt and folder action with full locations only in collapsed options', async () => {
+  const job={id:'receipt',projectId:'p',templateId:'layout-team',draftId:'existing-draft',folder:{done:true},done:true,saveTo:'C:\\Users\\Editor\\Pictures\\Cards',export:{dir:'C:\\Users\\Editor\\Pictures\\Cards\\receipt-output',files:['one.png','two.png']},plan:{cards:[{id:'a',role:'cover',headline:'Keep text',picture:{kind:'none'}}],caption:'Caption'}};
+  const queries=[];const h=harness({job,sdk:{runScript:async input=>{queries.push(input.summary);return {result:[]}}}});
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const tree=nodes(h.render());assert.equal(h.find('Progress'),undefined);assert.ok(tree.some(n=>n.type==='Message'&&n.props.children.includes('Saved 2 images.')));assert.ok(h.find('Button','Open folder'));assert.ok(h.menuItem('Open timeline'));assert.equal(h.find('Button','Open timeline'),undefined);assert.ok(!tree.some(n=>n.type==='Message'&&n.props.children.some(c=>typeof c==='string'&&c.includes('C:\\Users'))));const details=tree.filter(n=>n.type==='details');assert.ok(details.length>=2);assert.ok(tree.some(n=>n.type==='summary'&&n.props.children.includes('Save options')));assert.ok(details.every(n=>!n.props.open));assert.ok(tree.some(n=>n.type==='small'&&n.props.children.includes('Cards')));assert.equal(queries.filter(q=>q!=='List project videos').length,0)}finally{h.close()}
+});
+
+test('article generation refuses zero photos before AI and keeps the input and photo-add controls', async () => {
+  let calls=0;const h=harness({sdk:{askAI:async()=>{calls++;throw Error('must not call')}}});
+  h.files.downloadFile=async(_,p)=>h.disk.set(p,new TextEncoder().encode('<meta property="og:type" content="article"><article><p>'+'Verified facts. '.repeat(40)+'</p></article>'));
+  try{await h.settle();assert.equal(h.find('Segmented','Card count'),undefined);h.find('TextField','Article link').props.onChange('https://example.test/article');await h.find('Button','Generate').props.onClick();await h.settle();assert.equal(calls,0);assert.ok(h.find('Toggle','Add my own photos (optional)'));assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.tone==='error'&&n.props.children.some(v=>String(v).includes('No article photos'))))}finally{h.close()}
+});
+
+test('edited shared templates apply in place, preserve saved cards, and restore through the visible backup dialog', async () => {
+  const old=structuredClone(chosunV1.installed);old.headline.size=55;old.look.body={...old.look.body,variant:'panel'};
+  const job={id:'unchanged-snapshot',projectId:'p',templateId:old.id,templateSnapshot:old,draftId:'old-draft',export:{files:['old.png']}};
+  const h=harness({layouts:[],job,templatePack:{requestId:'choose-update',url:packUrl},sdk:{finishTemplatePackInstall(){}}});
+  try{
+    const store=h.bindings.makeStore();await store.put('templates',old.id,old);const jobPath=root+'/jobs/'+job.id+'.json',jobBytes=h.disk.get(jobPath);
+    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));
+    await h.settle();assert.ok(h.find('Message','This version adds a dedicated three-line body layout and calibrated cover size and body letter spacing.'));
+    assert.ok(h.find('Message','Your current changes will be replaced. A backup is saved first; restore it under Templates → Restore backup. Existing cards, Drafts and exported files stay unchanged. New cards use the updated template.'));
+    h.find('Button','Apply latest version').props.onClick();await h.settleEditor();
+    let saved=await store.list('templates'),backups=await store.list('template-backups');assert.equal(saved.length,1);assert.equal(saved[0].id,old.id);assert.equal(saved[0].version,2);assert.equal(saved[0].headline.size,70.75);assert.equal(backups.length,1);assert.equal(backups[0].template.headline.size,55);assert.equal(h.disk.get(jobPath),jobBytes);
+    h.editorFind('Button','Restore backup').props.onClick();await h.settleEditor();
+    const dialog=nodes(h.renderEditor()).find(n=>n.type==='TemplateTransferDialog'&&n.props.open);assert.ok(nodes(dialog).some(n=>n.type==='Select'&&n.props.label==='Backup'));
+    nodes(dialog).find(n=>n.type==='Button'&&n.props.children.includes('Restore backup')).props.onClick();await h.settleEditor();
+    saved=await store.list('templates');backups=await store.list('template-backups');assert.equal(saved.length,1);assert.equal(saved[0].id,old.id);assert.equal(saved[0].version,1);assert.equal(saved[0].headline.size,55);assert.equal(saved[0].look.body.variant,'panel');assert.equal(backups.length,2);assert.equal(h.disk.get(jobPath),jobBytes);assert.ok(h.editorFind('Button','View shared version'));
+  }finally{h.close()}
+});
+
+test('Keep and dialog cancellation survive reopen and allow a later update without duplicating the template', async () => {
+  for(const closeDialog of [false,true]){
+    const old=structuredClone(chosunV1.installed);old.name='My edited design';const finished=[];
+    const h=harness({layouts:[],templatePack:{requestId:'keep-or-close',url:packUrl},sdk:{finishTemplatePackInstall:id=>finished.push(id)}});
+    let reopened;
+    try{
+      const store=h.bindings.makeStore();await store.put('templates',old.id,old);const p=root+'/templates/'+old.id+'.json',before=h.disk.get(p);
+      h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));await h.settle();
+      if(closeDialog)nodes(h.render()).find(n=>n.type==='TemplateTransferDialog'&&n.props.open).props.onOpenChange(false);else h.find('Button','Keep current version').props.onClick();
+      await h.settleEditor();assert.equal(h.disk.get(p),before);assert.deepEqual(finished,['keep-or-close']);
+      reopened=harness({layouts:[],disk:h.disk});reopened.files.downloadFile=h.files.downloadFile;await reopened.settleEditor();reopened.editorFind('Button','View shared version').props.onClick();await reopened.settle();assert.ok(reopened.find('Button','Apply latest version'));reopened.find('Button','Apply latest version').props.onClick();await reopened.settleEditor();assert.equal((await reopened.bindings.makeStore().list('templates')).length,1);assert.equal((await reopened.bindings.makeStore().list('templates'))[0].version,2);
+    }finally{reopened?.close();h.close()}
+  }
+});
+
+test('a generic same-version customized pack and a later version both use explicit whole-template replacement', async () => {
+  for(const version of [1,3]){
+    const h=harness({layouts:[]});try{
+      const store=h.bindings.makeStore(),old={...h.bindings.CardSupport.fromLayout(layout),id:'pack-chosun-basic',name:'Edited local'};await store.put('templates',old.id,old);
+      const latest={...layout,version};h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(latest)));let offered;
+      const current=h.bindings.templateList([old],[])[0];const result=await h.bindings.installLinkedTemplate(store,packUrl,[current],async update=>{offered=update;return true});
+      assert.ok(offered);assert.equal(offered.chosunV2,false);assert.equal(result.id,old.id);assert.equal(result.version,version);assert.equal(result.names.en,latest.name);assert.equal((await store.list('template-backups')).length,1);
+    }finally{h.close()}
+  }
+});
+
+test('a concurrent legacy overlay saved during download or while the choice is open is never overwritten', async () => {
+  for(const duringChoice of [false,true]){
+    const h=harness({layouts:[chosunV1.raw],templatePack:{requestId:'race-update',url:packUrl},sdk:{finishTemplatePackInstall(){}}});try{
+      const p=root+'/templates/layout-chosun-basic.json',edited=new TextEncoder().encode(JSON.stringify({...chosunV1.installed,id:'layout-chosun-basic',name:'Other window edit'}));
+      h.files.downloadFile=async(_,to)=>{h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));if(!duringChoice)h.disk.set(p,edited)};
+      await h.settle();if(duringChoice){assert.ok(h.find('Button','Apply latest version'));h.disk.set(p,edited);h.find('Button','Apply latest version').props.onClick();await h.settle()}
+      assert.equal(h.disk.get(p),edited);assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.tone==='error'&&n.props.children.some(v=>String(v).includes('changed in another window'))));
+    }finally{h.close()}
+  }
+});
+
+test('unmount during an update download resolves without opening a lost confirmation or overwriting', async () => {
+  let release;const gate=new Promise(r=>release=r),finished=[];const old=structuredClone(chosunV1.installed);
+  const h=harness({layouts:[],templatePack:{requestId:'unmounted-download',url:packUrl},sdk:{finishTemplatePackInstall:id=>finished.push(id)}});
+  try{
+    await h.bindings.makeStore().put('templates',old.id,old);const p=root+'/templates/'+old.id+'.json',bytes=h.disk.get(p);
+    h.files.downloadFile=async(_,to)=>{await gate;h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())))};
+    await h.settle();h.unmount();release();for(let i=0;i<8;i++)await new Promise(r=>setImmediate(r));
+    assert.deepEqual(finished,['unmounted-download']);assert.equal(h.disk.get(p),bytes);assert.equal((await h.bindings.makeStore().list('template-backups')).length,0);assert.equal([...h.disk.keys()].filter(p=>p.startsWith('/tmp/cardnews-template-')).length,0);
+  }finally{release();h.close()}
+});
+
+test('a first catalog installation remembers its update link across app reopen', async () => {
+  const h=harness({layouts:[],templatePack:{requestId:'fresh',url:packUrl},sdk:{finishTemplatePackInstall(){}}});let reopened;
+  try{
+    h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));await h.settleEditor();
+    reopened=harness({layouts:[],disk:h.disk});await reopened.settleEditor();assert.ok(reopened.editorFind('Button','View shared version'));assert.equal(reopened.editorFind('Button','Restore backup'),undefined);
+  }finally{reopened?.close();h.close()}
 });

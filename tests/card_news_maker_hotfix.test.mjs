@@ -95,9 +95,30 @@ test('photo controls keep fit/crop per card and positive positions move the pict
   const tree = nodes(b.CardEditor({ ui, S: b.STRINGS.en, t, card: original, index: 1, bodyIndex: 1, plan: { cards: [original], article: { images: [] } }, vars: {}, fs: {}, onChange: value => { changed = value; } }));
   tree.find(n=>n.type==='Select'&&n.props.label==='Photo fit').props.onChange('contain');
   assert.deepEqual(plain(changed.crop),{fit:'contain',zoom:1,x:-.25,y:.4});
-  const zoom=tree.find(n=>n.type==='NumberField'&&n.props.label==='Zoom (%)');
-  assert.equal(zoom.props.min,25);zoom.props.onChange(75);assert.equal(changed.crop.zoom,.75);
+  const zoom=tree.find(n=>n.type==='input'&&n.props.type==='range'&&n.props['aria-label']===b.STRINGS.en.zoomPhoto);
+  assert.equal(zoom.props.min,25);assert.equal(zoom.props.max,300);
+  assert.equal(tree.filter(n=>n.type==='input'&&n.props.type==='range').length,1);
+  assert.ok(tree.indexOf(zoom)<tree.findIndex(n=>n.type==='TextField'&&n.props.value==='Text'));
+  assert.ok(!tree.some(n=>n.type==='small'&&n.props.children.includes(b.STRINGS.en.dragPhoto)));
+  for(const percent of [75,150]) { zoom.props.onChange({target:{value:String(percent)}});assert.equal(changed.crop.zoom,percent/100);assert.equal(changed.body,original.body);assert.deepEqual(plain(changed.picture),original.picture); }
+
   tree.find(n=>n.type==='NumberField'&&n.props.label==='Left / right').props.onChange(30);assert.equal(changed.crop.x,-.3);
   tree.find(n=>n.type==='NumberField'&&n.props.label==='Up / down').props.onChange(20);assert.equal(changed.crop.y,-.2);
+  tree.find(n=>n.type==='button'&&n.props['aria-label']===b.STRINGS.en.zoomOut).props.onClick();assert.equal(changed.crop.zoom,1.5);
+  tree.find(n=>n.type==='button'&&n.props['aria-label']===b.STRINGS.en.zoomIn).props.onClick();assert.equal(changed.crop.zoom,1.7);
+  assert.equal(zoom.props['aria-valuetext'],'160%');
   assert.deepEqual(original.crop,{zoom:1.6,x:-.25,y:.4});
+});
+
+test('photo size buttons clamp at the bounds and keep article and local crop contracts while busy', () => {
+  const t=b.CardSupport.fromLayout(pack),ui=new Proxy({}, {get:(_,name)=>String(name)});
+  for(const kind of ['article','file']) for(const percent of [25,295,300]) {
+    const card={role:'body',body:'Keep text',picture:{kind,path:'/photo.jpg'},crop:{zoom:percent/100,x:.2,y:-.1}};let changed;
+    const render=busy=>nodes(b.CardEditor({ui,S:b.STRINGS.en,t,card,index:1,bodyIndex:1,plan:{cards:[card],article:{images:[]}},vars:{},fs:{},busy,onChange:value=>{changed=value}}));
+    const tree=render(false),minus=tree.find(n=>n.type==='button'&&n.props['aria-label']===b.STRINGS.en.zoomOut),plus=tree.find(n=>n.type==='button'&&n.props['aria-label']===b.STRINGS.en.zoomIn);
+    assert.equal(minus.props.disabled,percent===25);assert.equal(plus.props.disabled,percent===300);
+    plus.props.onClick();assert.equal(changed.crop.zoom,Math.min(300,percent+10)/100);minus.props.onClick();assert.equal(changed.crop.zoom,Math.max(25,percent-10)/100);
+    assert.deepEqual(plain(changed.picture),card.picture);assert.equal(changed.body,card.body);assert.equal(changed.crop.x,.2);assert.equal(changed.crop.y,-.1);
+    assert.ok(render(true).filter(n=>n.type==='button'||n.props.type==='range').every(n=>n.props.disabled));
+  }
 });
