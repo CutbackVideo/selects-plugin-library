@@ -729,9 +729,11 @@ test('live timeline overflow blocks export before replacing a completed receipt 
   try {
     await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();
     const beforePaths=[...h.disk.keys()].filter(p=>p.startsWith('/chosen/'));
+    const beforeJob=h.disk.get(root+'/jobs/'+job.id+'.json');
     await h.find('Button','Export card images').props.onClick();await h.settle();
     const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);
     assert.deepEqual(plain(saved.export),previous);assert.equal(renders,0);
+    assert.equal(saved.done,true);assert.equal(h.disk.get(root+'/jobs/'+job.id+'.json'),beforeJob);
     assert.deepEqual([...h.disk.keys()].filter(p=>p.startsWith('/chosen/')),beforePaths);
     assert.ok(nodes(h.render()).some(n=>n.type==='Message'&&n.props.tone==='error'&&n.props.children.some(v=>String(v).includes('text area'))));
   } finally { h.close(); }

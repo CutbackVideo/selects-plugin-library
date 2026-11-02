@@ -22,6 +22,7 @@ test('body wrapping keeps manual breaks, uses each slot width and retains every 
   assert.deepEqual(result, { lines: ['alpha bravo', 'charlie', 'delta'], overflow: false });
   assert.equal(result.lines.join('').replaceAll(' ', ''), text.replaceAll(' ', ''));
   assert.deepEqual(wrap('first\n\nthird').lines, ['first', '', 'third']);
+  assert.deepEqual(wrap('abc\tdef').lines, ['abc def']);
   assert.deepEqual(wrap('abcdefghijklmnop', [40, 60, 80]).lines, ['abcd', 'efghij', 'klmnop']);
   assert.deepEqual(wrap('abcdefghijkl', [100, 100, 100], -.2).lines, ['abcdefghijkl']);
   for (const unit of ['e\u0301', '가']) {
@@ -40,6 +41,12 @@ test('overflow and an unfit grapheme are explicit errors rather than silent dele
   assert.ok(tree.some(n => n.props.role === 'alert'));
   assert.throws(() => b.validateGraphicBody(params), /text area|텍스트 영역/);
   assert.equal(card.body, text.repeat(10));
+});
+
+test('unused short slots do not reject a body that fits its occupied line', () => {
+  const boxes=slots([100,100,100]);boxes[1].height=5;
+  assert.equal(b.layoutCardBody('short',boxes,'Test',10,400,0).overflow,false);
+  assert.equal(b.layoutCardBody('short\nused',boxes,'Test',10,400,0).overflow,true);
 });
 
 test('preview and built Draft run the same wrapping code and keep Chosun geometry and typography', () => {
