@@ -264,7 +264,7 @@ jobs:
       - name: Test Medical Explainer
         run: node --test tests/medical_explainer.test.mjs
       - name: Test Card News Maker photo cards
-        run: node --test tests/card_news_maker_photos.test.mjs tests/card_news_maker_link_ui.test.mjs
+        run: node --test tests/card_news_maker_photos.test.mjs tests/card_news_maker_link_ui.test.mjs tests/card_news_maker_hotfix.test.mjs
       - name: Test A16z Style Captions
         run: |
           node plugins/a16z-style-captions/build.cjs "$RUNNER_TEMP/shortform-test/node_modules/esbuild"

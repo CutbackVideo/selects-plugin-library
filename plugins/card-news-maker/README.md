@@ -17,7 +17,7 @@ Open **Card News Maker** with a Project open.
    article cannot be read, paste its text in the fallback field. That text belongs to the current URL.
 4. **Review:** every design uses the same card previews and editable headline/body fields. Change the
    picture, crop, order or credit. End cards stay last. Editing a built set creates a revised Draft on
-   the next build or export; the previous Draft remains in the Project.
+   the next build or export; the previous Draft remains in the Project. Each card offers Fill/Show whole photo, 25–300% zoom and horizontal/vertical position controls; uncovered space stays black.
 5. **Export:** choose PNG or JPEG, then **Export card images**. On the first export, choose a save
    folder; canceling stops before any Draft or image is created. The app reuses that folder until
    **Change folder** is selected, writes `card-01`, `card-02`, ... plus `caption.txt` into a new subfolder,
@@ -28,8 +28,7 @@ Open **Card News Maker** with a Project open.
 
 Work is saved as you edit. **Start over** returns to the inputs; **Saved** reopens a card set. Each new
 set keeps a template snapshot. **Apply template changes** explicitly takes newer library settings.
-A fixed text-box design rejects extra or overflowing text before build/export, so copy is never silently
-cut off. Existing saved output-folder choices are retained. New exports require a folder choice
+Fixed-box body text wraps inside its existing line boxes, keeping explicit line breaks and the original text. If it needs more boxes, the preview shows an error and build/export stops. The same rule runs in newly built Draft graphics, including direct timeline text edits; export also checks the live Draft parameters. An older Draft that needs wrapping must be rebuilt explicitly, preserving its original. Cover typography stays unchanged. Existing saved output-folder choices are retained. New exports require a folder choice
 instead of silently using the app's internal storage. Caption text stays a file and is not imported
 as a Project asset. A failed export preserves completed files and any images already imported;
 retrying exports a new batch without deleting the earlier output.
