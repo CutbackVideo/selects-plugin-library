@@ -15,15 +15,21 @@ identity, size, modification-time and lifetime checks. Permissions, timeout,
 changed files and malformed results do not trigger fallback.
 
 Source receipts carry the scheme and digest through persistence and cache keys.
-Existing three-key `{path,size,sha256}` receipts still select full hashing and
-compare the original digest, allowing saved work to resume without invalidation.
-Unknown or mixed schemes fail. Sampling deliberately cannot detect a mutation
-outside its sampled regions; source identity must never be used as integrity.
+Existing three-key `{path,size,sha256}` source receipts cannot be compared to a
+sampled identity. They require input reconfirmation instead of scanning the full
+original or claiming the old observation was verified. Existing Drafts are not
+deleted. Derived cache indexes use version 2 and sampled source/output identities;
+old full-hash indexes are cache misses and are rebuilt.
 
-`files.fingerprint` and the default `fingerprintTemplateFile` stay full SHA-256.
-Durable state/guard files, generated outputs, content-addressed publication,
-bundled assets and old receipts keep their complete-byte checks. Derived-media
-preparation has separate source identification and full-output hashing paths.
+The host SDK and panel-local file API expose only `mediaFingerprint`. Original
+video/audio, private working copies and generated media all use samples, including
+Mini/Archive music analysis and Gallery hold/tempo caches. No full-file host
+fingerprint API, hashing Worker or FFmpeg whole-file hash pass remains.
+
+Small saved-state JSON still uses exact byte comparison and a full digest. Pinned
+bundled assets retain their shipped manifest checks while their bytes are already
+loaded for installation; this does not rescan user media. Neither is used as a
+media source fingerprint.
 
 ## Consumers regenerated
 
@@ -39,7 +45,7 @@ preparation has separate source identification and full-output hashing paths.
 
 The template delivery pipeline and the separate a16z build regenerate their
 respective artifacts from shared owners. CI checks both generated outputs. The noble implementation, license
-copy and build dependency are retained for the legacy-only path. Publication uses commit-based versions;
+copy and build dependency are retained for the legacy sampling and internal checksum paths. Publication uses commit-based versions;
 no manifest version or separate release is required. The catalog remains compatible with clients providing the legacy file APIs;
 new clients automatically use native operations; old clients use identical bounded sampling for new source observations.
 
@@ -48,18 +54,17 @@ new clients automatically use native operations; old clients use identical bound
 Archive/Mini source selection and video scoring, Gallery selected-file/face guards,
 and Recap face/manual guards use sampled source identities. Their shared adapters
 also appear in the other generated consumers above. Music preparation and Gallery
-hold/tempo derived caches retain existing full hashing where source and output
-integrity remain coupled; Gallery uses native FFmpeg hashing, not guest SHA loops.
+hold/tempo derived caches also use the same sampled identity.
 Host AI upload contracts are unchanged: sampled values are only local request
 identities and never sent as full upload SHA-256 values.
 
 Intentionally retained: browser WebCrypto for small request/recipe/cache keys
 (`template-run`, `draft-observation`, AI job clients, clip analysis and panels),
-bounded bundled-asset/base64 and PCM integrity checks, and browser audio matching
+bounded bundled-asset/base64 checks, and browser audio matching
 in Gongju Gallery. These use native WebCrypto outside the guest hash loop.
 Native Node crypto in selects-ai-runtime model/runtime verification and build
 scripts, plus Python hashlib in media preparation tools, already execute outside
 the script VM and retain their integrity checks. These are not fallback paths.
 
 Earlier SDK-free compatibility reports document the previous implementation;
-this migration adds host-first hashing while retaining their legacy stat/readRange path.
+this migration adds host-first sampling while retaining their legacy stat/readRange path.

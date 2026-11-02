@@ -101,7 +101,7 @@ const checker = (t, x, y, shift = 0) => (((Math.floor((x + shift) / 4) + Math.fl
   const client={files:{
     join:path.join,exists:async p=>fs.existsSync(p),stat:async p=>{if(!fs.existsSync(p))return null;const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};},
     mediaFingerprint:async p=>fs.existsSync(p)?mediaFingerprint(fs.readFileSync(p)):null,
-    fingerprint:async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:require('node:crypto').createHash('sha256').update(fs.readFileSync(p)).digest('hex')}:null,
+    sha256:async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:require('node:crypto').createHash('sha256').update(fs.readFileSync(p)).digest('hex')}:null,
     readRange:async(p,o,n)=>new Uint8Array(fs.readFileSync(p).subarray(o,o+n)),readFile:async p=>new Uint8Array(fs.readFileSync(p)),
     mkdir:async p=>fs.mkdirSync(p,{recursive:true}),writeFile:async(p,t,o)=>fs.writeFileSync(p,t,o),copyFile:async(a,b)=>fs.copyFileSync(a,b),rename:async(a,b)=>fs.renameSync(a,b),removeFile:async({filePath})=>fs.rmSync(filePath,{force:true}),
     compareAndReplace:async(p,wanted,next)=>{if(fs.readFileSync(p,'utf8')!==wanted)return false;fs.writeFileSync(p,next);return true;}

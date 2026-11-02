@@ -20,7 +20,7 @@ export function galleryFixture({minify=false,mix='mixed',music=true,...faults}={
  f.sdk.maxScriptTimeoutSeconds=120;
  const sourceBytes=new Map([...f.photos,...videos].map(item=>[item.path,Buffer.alloc(32,7)]));
  const stat=f.selects.files.stat;
- f.selects.files.fingerprint=async path=>{
+ f.selects.files.sha256=async path=>{
   const info=await (f.selects.files.stat??stat)(path);if(info===null)return null;
   const bytes=sourceBytes.get(path)??Buffer.alloc(info.size,11);
   return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};

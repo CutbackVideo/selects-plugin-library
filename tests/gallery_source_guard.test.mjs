@@ -57,7 +57,7 @@ async function realSources(t,options={}){
  f.selects.files.stat=async file=>{try{const s=fs.statSync(file);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};}catch(error){if(error.code==='ENOENT')return null;throw error;}};
  const contentReads=[];
  f.selects.files.readRange=async({path:file,offset,length})=>{if(offset===0&&length===32)contentReads.push({path:file,afterSave:f.commits.length>0});const bytes=fs.readFileSync(file).subarray(offset,offset+length);return {bytesRead:bytes.length,base64:bytes.toString('base64')};};
- f.selects.files.fingerprint=async file=>{contentReads.push({path:file,afterSave:f.commits.length>0});const bytes=fs.readFileSync(file);return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};};
+ f.selects.files.sha256=async file=>{contentReads.push({path:file,afterSave:f.commits.length>0});const bytes=fs.readFileSync(file);return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};};
  return {...f,root,contentReads};
 }
 for(const kind of ['image','video','audio'])test('Gallery rejects real same-size/same-time '+kind+' replacement during composition',async t=>{
@@ -80,18 +80,18 @@ test('Gallery stable real inputs are checked before, during and after one comple
  for(const file of paths){const reads=f.contentReads.filter(row=>row.path===file);assert.equal(reads.length,4);assert.equal(reads.filter(row=>row.afterSave).length,2);}
 });
 test('Gallery creates and verifies a Draft through legacy file APIs',async()=>{
- const f=galleryFixture();delete f.selects.files.fingerprint;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);
+ const f=galleryFixture();delete f.selects.files.sha256;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);
 });
 
 for(const minify of [false,true])test('Gallery refuses a music estimate after its real source changes before creation (minify='+minify+')',async t=>{
  const f=await realSources(t,{minify}),file=f.input.music.path;
- f.input.musicFingerprint={path:file,...await fingerprintTemplateFile(f.selects.files,file)};
+ f.input.musicFingerprint={path:file,...await fingerprintTemplateFile(f.selects.files,file,undefined,'cutback.media-content.v2')};
  fs.writeFileSync(file,Buffer.alloc(32,9));fs.utimesSync(file,946684800,946684800);
  await assert.rejects(f.create(),/music.*changed|changed.*music/i);
  assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);
 });
 test('Gallery accepts a music estimate bound to the same real source contents',async t=>{
  const f=await realSources(t),file=f.input.music.path;
- f.input.musicFingerprint={path:file,...await fingerprintTemplateFile(f.selects.files,file)};
+ f.input.musicFingerprint={path:file,...await fingerprintTemplateFile(f.selects.files,file,undefined,'cutback.media-content.v2')};
  const r=await f.create();assert.equal(r.verified,true);assert.equal(f.commits.length,1);
 });

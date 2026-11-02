@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,10 +34,10 @@ for(const minify of [false,true]){
  });
 
  test('Gallery derived lifetime: abort in final source-stat observation cannot publish a completion (minify='+minify+')',async t=>{
-  const f=await holdFixture(t,{minify}),controller=new AbortController(),stat=f.files.stat;
+  const f=await holdFixture(t,{minify}),controller=new AbortController(),stat=f.local.files.stat;
   let indexed=false,sourceReads=0;
   f.hooks.afterRename=(_from,to)=>{if(to.endsWith('.json'))indexed=true;};
-  f.files.stat=async file=>{
+  f.local.files.stat=async file=>{
    const result=await stat(file);
    if(indexed&&file===f.source&&++sourceReads===2)controller.abort();
    return result;
@@ -48,8 +49,8 @@ for(const minify of [false,true]){
 
 test('Gallery derived lifetime: cached readback cannot finish after its final source observation aborts',async t=>{
  const f=await holdFixture(t);await f.run();const before=f.calls.filter(c=>c.args.includes('-vf')).length;
- const controller=new AbortController(),stat=f.files.stat;let sourceReads=0;
- f.files.stat=async file=>{const result=await stat(file);if(file===f.source&&++sourceReads===4)controller.abort();return result;};
+ const controller=new AbortController(),stat=f.local.files.stat;let sourceReads=0;
+ f.local.files.stat=async file=>{const result=await stat(file);if(file===f.source&&++sourceReads===4)controller.abort();return result;};
  await assert.rejects(f.run({signal:controller.signal,isCurrent:()=>true}),error=>/ended|stopped/i.test(error.publicMessage??error.message));
  assert.equal(sourceReads,4);assert.equal(f.calls.filter(c=>c.args.includes('-vf')).length,before);
 });
@@ -62,7 +63,7 @@ test('Gallery derived lifetime: a stable live request remains reusable',async t=
 
 function derivedOptions(f,overrides={}){
  return {directory:path.join(f.data,'derived'),key:'a'.repeat(64),sourcePath:f.source,
-  source:{sha256:hash(f.source),bytes:fs.statSync(f.source).size},
+  source:{...mediaFingerprint(fs.readFileSync(f.source)),bytes:fs.statSync(f.source).size},
   hashFile:async file=>hash(file),produce:(from,to)=>f.local.files.copyFile(from,to),
   verify:async file=>assert.equal(hash(file),hash(f.source)),...overrides};
 }

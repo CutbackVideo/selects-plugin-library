@@ -28,7 +28,7 @@ export function recapAuthoringFixture({manual='all',storage=true,ai=true,mutateA
   const scripts=[],requests=[],submitted=[],transforms=[],commits=[],inserts=[],reads=[],overlays=[],store=new Map();
   let clips=[],overlay=[],graphics=[],created=0,shift=false,next=0,current=true;
   const projectRows=()=>Object.values(byId).map(v=>({resourceId:v.resourceId,name:v.name,type:'Video',path:v.path}));
-  const files={fingerprint:async p=>{reads.push(p);return bytes.has(p)?{size:bytes.get(p).length,sha256:createHash('sha256').update(bytes.get(p)).digest('hex')}:null;},stat:async p=>{reads.push(p);return bytes.has(p)?{size:bytes.get(p).length,mtimeMs:1,ino:1,isDirectory:false}:null},
+  const files={sha256:async p=>{reads.push(p);return bytes.has(p)?{size:bytes.get(p).length,sha256:createHash('sha256').update(bytes.get(p)).digest('hex')}:null;},stat:async p=>{reads.push(p);return bytes.has(p)?{size:bytes.get(p).length,mtimeMs:1,ino:1,isDirectory:false}:null},
     readRange:async({path:p,offset,length})=>({bytesRead:length,base64:bytes.get(p).subarray(offset,offset+length).toString('base64')})};
   const d={meta:async()=>({fps:draftFps}),clips:async({trackScope}={})=>trackScope==='all'?[...clips,...overlay]:clips,
     rangeAtFrames:async(start,end)=>({start,end}),insertResource:async value=>{inserts.push(value);const start=clips.at(-1)?.endFrame||0;

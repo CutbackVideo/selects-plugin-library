@@ -9,7 +9,7 @@ async function setup(t,entry='panel'){
  const planned=[];f.box.AbortController=AbortController;f.box.setCandidates=value=>{f.box.candidates=value;};f.box.findCandidates=async()=>({list:[],failed:[]});f.box.hostSdk=f.local;f.box.panelLocalClient=()=>f.local;f.box.mvHostDataDir=async()=>f.data;f.box.mvQuickCheckAvailable=()=>true;f.box.localAbortRef={current:null};f.box.setChecking=()=>{};f.box.MV_LOCAL_CONCURRENCY=2;f.box.MV_LOCAL_BUDGET_MS=30000;
  vm.runInContext(panel.slice(panel.indexOf('// quick-score:start'),panel.indexOf('// quick-score:end'))+'\n'+topLevel(plain.replace(/^  /gm,''),'checkLocalClips'),f.box);
  f.box.mvWithLocal=(_scene,results)=>results.map(c=>({rid:c.rid,t:1,score:.8,luma:c.scores.windows[0].luma}));f.box.mvPlanBuild=options=>{planned.push(options.candidates.map(c=>c.luma));f.hooks.beforePlan?.();return f.plan;};
- f.files.fingerprint=async path=>fs.existsSync(path)?{size:fs.statSync(path).size,sha256:hash(path)}:null;
+ f.files.sha256=async path=>fs.existsSync(path)?{size:fs.statSync(path).size,sha256:hash(path)}:null;
  return {...f,planned,decodes:()=>f.calls.filter(c=>c.args.includes('-vf')).length};
 }
 test('Mini local input: unchanged files reuse previously confirmed scores',async t=>{

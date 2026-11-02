@@ -49,7 +49,7 @@ test('Mini analysis source: content change after placement prevents the assembly
  await assert.rejects(f.run(),e=>e.code==='source-file-changed');assert.equal(f.calls.commits,0);assert.equal(file.entry.reads,2);
 });
 test('Mini analysis source: unavailable original stops before any source probe or working Draft',async()=>{
- const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];await assert.rejects(f.run(),e=>e.code==='source-file-missing');assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);
+ const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,scheme:'cutback.media-content.v2',digest:'a'.repeat(64)}];await assert.rejects(f.run(),e=>e.code==='source-file-missing');assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);
 });
 test('Mini source binding: a relink during assembly refuses commit even while the old file remains',async()=>{
  const f=fixture();f.cfg.sourceBindings=[{resourceId:'video',path:'/original.mp4'}];let reads=0;f.project.sourceFiles=async()=>({fileTree:[{type:'video',resourceId:'video',path:++reads===1?'/original.mp4':'/relinked.mp4'}]});

@@ -59,11 +59,12 @@ scoped synchronization now uses the existing canonical implementation as well
 as the new connection behavior. a16z imports the canonical source directly and
 uses its existing bundler. Other embedded copies are not silently migrated.
 
-The additive read-only `files.fingerprint(path)` forwards the existing native SDK
-response `{size,sha256}` or `null`. File contents stream in the native host rather
-than through browser read chunks. Analysis callers validate the returned identity
-and do not interpret thrown/incomplete replies as absence. No new public SDK or
-Electron capability is introduced; released-version compatibility remains unverified.
+The read-only `files.mediaFingerprint(path)` uses the native SDK sampled identity,
+with equivalent bounded sampling through legacy stat/readRange when unavailable.
+Source and derived-media observations both use this sampled identity. Legacy
+whole-file receipts require reconfirmation; there is no full-file checksum API.
+New source observations use sampling;
+operational failures never trigger the old-client fallback.
 
 ## Native media process ownership
 

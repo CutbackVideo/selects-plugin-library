@@ -6,38 +6,18 @@ import test from 'node:test';
 import {createRequire} from 'node:module';
 import {fingerprintTemplateFile} from '../shared/file-observation.js';
 const execute=(files,path='/original',check=()=>{},scheme=null)=>vm.runInNewContext('('+fingerprintTemplateFile.toString()+')(files,path,check,scheme)',{files,path,check,scheme},{codeGeneration:{strings:false,wasm:false}});
-test('serialized observer delegates a large original to one host call without reading bytes',async()=>{
- const expected={size:94853361,sha256:'a'.repeat(64)};let calls=0;
- const result=await execute({fingerprint:async path=>{assert.equal(path,'/original');calls++;return expected;},readRange:()=>{throw Error('Guest file read');},stat:()=>{throw Error('Guest stat');}});
- assert.deepEqual(JSON.parse(JSON.stringify(result)),expected);assert.equal(calls,1);
-
-});
-test('missing files stay null, while host failures propagate',async()=>{
- assert.equal(await execute({fingerprint:async()=>null}),null);
- await assert.rejects(execute({fingerprint:async()=>{throw Error('changed during hashing');}}),/changed during hashing/);
- assert.equal(await execute({stat:async()=>null,readRange:async()=>{throw Error('unexpected read');}}),null);
-});
-for(const observed of [{size:-1,sha256:'a'.repeat(64)},{size:1,sha256:'bad'},undefined])test('rejects invalid host result '+JSON.stringify(observed),async()=>{
- await assert.rejects(execute({fingerprint:async()=>observed}),/fingerprint/);
-});
-test('scope checks prevent dispatch and discard results after cancellation',async()=>{
- let calls=0,expired=true;const files={fingerprint:async()=>{calls++;expired=true;return {size:0,sha256:'a'.repeat(64)};}};
- const check=()=>{if(expired)throw Error('expired');};
- await assert.rejects(execute(files,'/original',check),/expired/);assert.equal(calls,0);
- expired=false;await assert.rejects(execute(files,'/original',check),/expired/);assert.equal(calls,1);
-});
 test('the pure JS copy passes the SDK TypeScript shape check without suppressing SDK diagnostics',{skip:!process.env.SELECTS_DEV_REPO},()=>{
  const ts=createRequire(process.env.SELECTS_DEV_REPO+'/package.json')('typescript');
- const prefix='declare const selects: { files: {stat(path:string):Promise<any>;readRange(input:{path:string;offset:number;length:number}):Promise<{bytesRead:number;base64:string}>;fingerprint(path:string):Promise<{size:number;sha256:string}|null>} };\n';
+ const prefix='declare const selects: { files: {stat(path:string):Promise<any>;readRange(input:{path:string;offset:number;length:number}):Promise<{bytesRead:number;base64:string}>;mediaFingerprint(path:string):Promise<{size:number;scheme:string;digest:string}|null>} };\n';
  const check=(extra,legacy=false)=>{
-  const source=(legacy?prefix.replace('fingerprint(path:string):Promise<{size:number;sha256:string}|null>',''):prefix)+'async function request(){return await ('+fingerprintTemplateFile.toString()+')(selects.files,"/original");}\n'+extra,file='/fingerprint.ts';
+  const source=(legacy?prefix.replace('mediaFingerprint(path:string):Promise<{size:number;scheme:string;digest:string}|null>',''):prefix)+'async function request(){return await ('+fingerprintTemplateFile.toString()+')(selects.files,"/original");}\n'+extra,file='/fingerprint.ts';
   const options={noEmit:true,strict:false,noImplicitAny:false,skipLibCheck:true,target:ts.ScriptTarget.ES2022,lib:['lib.es2022.d.ts'],types:[]};
   const host=ts.createCompilerHost(options),get=host.getSourceFile;host.getSourceFile=(name,...args)=>name===file?ts.createSourceFile(file,source,options.target,true):get(name,...args);
   return ts.getPreEmitDiagnostics(ts.createProgram([file],options,host));
  };
  const valid=check('');assert.equal(valid.length,0,valid.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('\n'));
  const old=check('',true);assert.equal(old.length,0,old.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('\n'));
- const invalid=check('selects.files.fingerprint(123);');assert(invalid.some(d=>d.code===2345),'SDK argument errors must remain visible');
+ const invalid=check('selects.files.mediaFingerprint(123);');assert(invalid.some(d=>d.code===2345),'SDK argument errors must remain visible');
 });
 
 function legacyFiles(bytes=Buffer.from('abc')) {
@@ -49,8 +29,8 @@ for(const unsupported of [null,'Unsupported file operation.'])test('legacy fallb
  assert.deepEqual(JSON.parse(JSON.stringify(actual)),{size:3,sha256:'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'});
 });
 for(const message of ['Permission denied','File changed during fingerprint','File fingerprint timed out','Unsupported file format'])test('host failure never falls back: '+message,async()=>{
- const files=legacyFiles();files.fingerprint=async()=>{throw Error(message);};
- await assert.rejects(execute(files),error=>error.message===message);
+ const files=legacyFiles();files.mediaFingerprint=async()=>{throw Error(message);};
+ await assert.rejects(sample(files),error=>error.message===message);
 });
 test('legacy fallback rejects incomplete reads and changed sources',async()=>{
  const short=legacyFiles();short.readRange=async()=>({bytesRead:1,base64:'YQ=='});

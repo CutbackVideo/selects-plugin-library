@@ -123,28 +123,26 @@ function clipAnalysisScope(opts){
 async function quickScore(resource,opts={}){
  const current=clipAnalysisScope(opts),input=clipAnalysisResource(resource);opts={...opts};current();
  const client=opts.client??(typeof hostSdk!=='undefined'?hostSdk:null),files=client?.files,media=client?.media,t0=Date.now(),fps=opts.fps??QS_FPS,dur=input.durationSeconds;
- if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||(typeof files?.fingerprint!=='function'||typeof files?.mediaFingerprint!=='function'))throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
+ if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||typeof files?.mediaFingerprint!=='function')throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
  if(opts.windows!=null&&!Array.isArray(opts.windows))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
  const ws=opts.windows==null?null:opts.windows.map(w=>({start:w?.start,end:w?.end}));
  if(ws&&(!Array.isArray(opts.windows)||!ws.length||ws.length>256||ws.some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.start<0||w.end<=w.start||w.end>dur)))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
  const a=ws?Math.min(...ws.map(w=>w.start)):Math.min(QS_HEAD,Math.max(0,dur-QS_BIN)),b=ws?Math.max(...ws.map(w=>w.end)):Math.min(dur,a+QS_SPAN);
  if(b-a>QS_SPAN)throw clipAnalysisIssue('INPUT','The local video analysis span exceeds its limit.');
  const windows=ws||qsBins(dur,a,b-a),deadline=Math.min(t0+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity);
- const hashFile=async path=>{current();const row=await files.fingerprint(path);current();if(!row||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('SOURCE','The original video content could not be confirmed.');return row.sha256;};
  clipAnalysisSources([],opts.expectedSources??null);
  const expected=opts.expectedSources?.find(row=>row.path===input.path);
  const captured=expected?{...expected}:null;
  if(opts.expectedSources!=null&&!captured)throw clipAnalysisIssue('SOURCE_CHANGED','The analysis source is absent from its expected observations.');
  const identifySource=async path=>{
   current();
-  // Pending runs with a whole-file receipt retain that exact verification scheme.
-  if(captured&&captured.scheme===undefined)return readAssetFileIdentity(files,path,hashFile,current);
+  if(captured&&captured.scheme===undefined)throw clipAnalysisIssue('SOURCE_CHANGED','Reload the Project inputs to confirm their sampled media identities.');
   const row=await files.mediaFingerprint(path);current();
   if(!row||!Number.isSafeInteger(row.size)||row.size<1||row.scheme!=='cutback.media-content.v2'||typeof row.digest!=='string'||!/^[a-f0-9]{64}$/.test(row.digest))throw clipAnalysisIssue('SOURCE','The original video identity could not be confirmed.');
   return {bytes:row.size,scheme:row.scheme,digest:row.digest};
  };
  const source=await identifySource(input.path);current();
- const observation={path:input.path,size:source.bytes,...source.scheme?{scheme:source.scheme,digest:source.digest}:{sha256:source.sha256}};
+ const observation={path:input.path,size:source.bytes,scheme:source.scheme,digest:source.digest};
  if(captured)clipAnalysisSources([{scores:{sourceObservation:observation}}],[captured]);
  const fallback=()=>({...qsFallback(input,Date.now()-t0,windows),sourceObservation:observation});
  if(typeof media?.runFFmpeg!=='function'||Date.now()>=deadline)return fallback();
@@ -158,7 +156,7 @@ async function quickScore(resource,opts={}){
  const read=async path=>{const bytes=await readBundledAssetBytes(files,path,262144,current);current();const result=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!valid(result))throw clipAnalysisIssue('CACHE','The local analysis result does not match its original input and policy.');return result;};
  let result;
  try{
-  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},hashFile,identifySource,
+  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},identifySource,
    produce:async(snapshot,target)=>{
     const maximum=(Math.ceil((b-a)*fps)+2)*QS_W*QS_H;
     const frames=await readTransientAsset(client,{directory,extension:'gray',maxBytes:maximum,deadline,timeoutMs:Math.max(1,deadline-Date.now()),signal:opts.signal,isCurrent:()=>{current();return true;},
@@ -171,7 +169,7 @@ async function quickScore(resource,opts={}){
  }catch(error){
   current();
   if(error?.terminal||!['BUNDLED_ASSET_MEDIA','BUNDLED_ASSET_PREPARE'].includes(error?.code))throw error;
-  const after=await identifySource(input.path);if(after.scheme!==source.scheme||after.digest!==source.digest||after.sha256!==source.sha256||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
+  const after=await identifySource(input.path);if(after.scheme!==source.scheme||after.digest!==source.digest||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
   return fallback();
  }
  current();return result;

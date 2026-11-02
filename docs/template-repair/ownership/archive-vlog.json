@@ -972,13 +972,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "908b1eebfb2e6eb3494cb7ad36b73342840d8935111ac6e607be81dba1031988",
+      "sha256": "ca2cf790abc0c1866e8035b51731ed63113bd0f3a43e2c465383007e8134604d",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8097,
+          "endLine": 8098,
           "feature": "panel-ui"
         },
         {
@@ -1012,18 +1012,18 @@
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 4390,
-          "endLine": 4470,
+          "startLine": 4396,
+          "endLine": 4476,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7646,
-          "endLine": 8050,
+          "startLine": 7648,
+          "endLine": 8051,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8052,
-          "endLine": 8097,
+          "startLine": 8053,
+          "endLine": 8098,
           "feature": "app-guard"
         },
         {
@@ -1047,128 +1047,128 @@
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4473,
-          "endLine": 4476,
+          "startLine": 4479,
+          "endLine": 4482,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4482,
-          "endLine": 4517,
+          "startLine": 4488,
+          "endLine": 4522,
           "feature": "music-policy"
         },
         {
-          "startLine": 4587,
-          "endLine": 4602,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 4604,
+          "startLine": 4592,
           "endLine": 4607,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 4609,
+          "endLine": 4612,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5304,
-          "endLine": 5317,
+          "startLine": 5309,
+          "endLine": 5322,
           "feature": "music-policy"
         },
         {
-          "startLine": 5319,
-          "endLine": 5344,
+          "startLine": 5324,
+          "endLine": 5349,
           "feature": "program-policy"
         },
         {
-          "startLine": 5360,
-          "endLine": 5382,
+          "startLine": 5365,
+          "endLine": 5387,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5387,
-          "endLine": 5395,
+          "startLine": 5392,
+          "endLine": 5400,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5397,
-          "endLine": 5410,
+          "startLine": 5402,
+          "endLine": 5415,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5415,
-          "endLine": 5439,
+          "startLine": 5420,
+          "endLine": 5444,
           "feature": "music-policy"
         },
         {
-          "startLine": 5441,
-          "endLine": 5448,
+          "startLine": 5446,
+          "endLine": 5453,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5469,
-          "endLine": 5479,
+          "startLine": 5474,
+          "endLine": 5484,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5775,
-          "endLine": 5798,
+          "startLine": 5780,
+          "endLine": 5803,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5799,
-          "endLine": 5817,
+          "startLine": 5804,
+          "endLine": 5822,
           "feature": "title-policy"
         },
         {
-          "startLine": 5892,
-          "endLine": 5942,
+          "startLine": 5897,
+          "endLine": 5947,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5981,
-          "endLine": 6022,
+          "startLine": 5986,
+          "endLine": 6027,
           "feature": "music-policy"
         },
         {
-          "startLine": 6031,
-          "endLine": 6122,
+          "startLine": 6036,
+          "endLine": 6127,
           "feature": "title-policy"
         },
         {
-          "startLine": 6125,
-          "endLine": 6155,
+          "startLine": 6130,
+          "endLine": 6160,
           "feature": "music-policy"
         },
         {
-          "startLine": 6198,
-          "endLine": 6210,
+          "startLine": 6203,
+          "endLine": 6215,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6227,
-          "endLine": 6425,
+          "startLine": 6232,
+          "endLine": 6430,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6456,
-          "endLine": 6484,
+          "startLine": 6461,
+          "endLine": 6489,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6763,
-          "endLine": 6776,
+          "startLine": 6768,
+          "endLine": 6781,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6785,
-          "endLine": 6787,
+          "startLine": 6790,
+          "endLine": 6792,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6796,
-          "endLine": 6823,
+          "startLine": 6801,
+          "endLine": 6828,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7323,
-          "endLine": 7483,
+          "startLine": 7325,
+          "endLine": 7485,
           "feature": "workflow-policy"
         },
         {
@@ -1177,48 +1177,48 @@
           "feature": "audio-preview"
         },
         {
-          "startLine": 5766,
-          "endLine": 5771,
+          "startLine": 5771,
+          "endLine": 5776,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6157,
-          "endLine": 6195,
+          "startLine": 6162,
+          "endLine": 6200,
           "feature": "audio-preview"
         },
         {
-          "startLine": 3849,
-          "endLine": 4388,
+          "startLine": 3847,
+          "endLine": 4394,
           "feature": "asset-owner"
         },
         {
-          "startLine": 7055,
-          "endLine": 7304,
+          "startLine": 7056,
+          "endLine": 7306,
           "feature": "source-input"
         },
         {
-          "startLine": 4609,
-          "endLine": 5300,
+          "startLine": 4614,
+          "endLine": 5305,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4518,
-          "endLine": 4586,
+          "startLine": 4523,
+          "endLine": 4591,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7530,
-          "endLine": 7644,
+          "startLine": 7532,
+          "endLine": 7646,
           "feature": "catalog-read"
         },
         {
           "startLine": 3561,
-          "endLine": 3825,
+          "endLine": 3823,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 4391,
-          "endLine": 4452,
+          "startLine": 4397,
+          "endLine": 4458,
           "feature": "host-file-facade"
         },
         {
@@ -1227,13 +1227,13 @@
           "feature": "text-runtime"
         },
         {
-          "startLine": 6827,
-          "endLine": 6959,
+          "startLine": 6832,
+          "endLine": 6960,
           "feature": "file-observation"
         },
         {
-          "startLine": 6960,
-          "endLine": 7054,
+          "startLine": 6961,
+          "endLine": 7055,
           "feature": "draft-observation"
         }
       ]
@@ -1310,28 +1310,28 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/assemble.js",
-      "sha256": "62d66a0282cd1da7b6c02a9ec80d10885aa847e223035cb47fce6bb70f393b8c",
+      "sha256": "2026b60015795f02db01646711ea3f0d1fb8044ff5cbd213666f7c97d9dd5b30",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 513,
+          "endLine": 510,
           "feature": "assembly-policy"
         },
         {
           "startLine": 1,
-          "endLine": 300,
+          "endLine": 297,
           "feature": "source-input"
         },
         {
-          "startLine": 301,
-          "endLine": 380,
+          "startLine": 298,
+          "endLine": 377,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 381,
-          "endLine": 414,
+          "startLine": 378,
+          "endLine": 411,
           "feature": "assembly-policy"
         }
       ]
@@ -1753,13 +1753,13 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "c52a323c24753eb9fbba47287d892d82cef2069f189fae484abdb736b0e1c42f",
+      "sha256": "069f7357c9b0d3cac0b36bc6163ffa6aa6d1bead8e572a94d2c9eb7486c672cb",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 405,
+          "endLine": 404,
           "feature": "local-sdk"
         }
       ]
@@ -1779,26 +1779,26 @@
     },
     {
       "path": "shared/bundled-assets.js",
-      "sha256": "602a1e80588442080d862101b4411828ca2d5f5d66ff56087c797a1644e4d03f",
+      "sha256": "1d139f681781c1eeea648b98432260727f32857948132bdfe60341589aa10713",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 538,
+          "endLine": 546,
           "feature": "asset-owner"
         }
       ]
     },
     {
       "path": "shared/native-image-input.mjs",
-      "sha256": "49d6e838524f93e9e8422b3b48d74df1f83de90009dd9bb97247df78f2758a66",
+      "sha256": "a365f8ffd335a42304804aae0be5b6d7a16d650b483da327c59cfd9978a789f0",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 249,
+          "endLine": 250,
           "feature": "source-input"
         }
       ]
@@ -1857,13 +1857,13 @@
     },
     {
       "path": "shared/clip-analysis.js",
-      "sha256": "b5e926d06dcd8e66118485b9e6915de64c78287d49229bc605610237f3df15d8",
+      "sha256": "e2c41678c9abea18ae75b6034c16378d5ba4dfc33f8f8c108c1d86302eabf16c",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 263,
+          "endLine": 261,
           "feature": "local-video-analysis"
         }
       ]
@@ -1922,7 +1922,7 @@
     },
     {
       "path": "tests/archive_music_fixture.mjs",
-      "sha256": "877e0b67b6123cd58dd92122e43c03ca1abd8f903890c92fe5d66863303d151c",
+      "sha256": "82c214363d65422966439b5823f257c7c6948fb7c4f21736f736981b30113dbf",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
@@ -1935,7 +1935,7 @@
     },
     {
       "path": "tests/archive_video_analysis.test.mjs",
-      "sha256": "be5fddc68904758266bb3efa794a55b2a0999bc2f03c9cb5cad0cc669bcb2d04",
+      "sha256": "ade03870def414a16a949dfa4414fc17a98d862b79fa8ae25a1429be48713a3c",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
@@ -1948,7 +1948,7 @@
     },
     {
       "path": "tests/archive_preview_fixture.mjs",
-      "sha256": "364379ec648dabad818f588a723c33b8ddecab6b148ae98dcb6d5e02319a0bb5",
+      "sha256": "3348ec5a75c9c98bff95ca4e349ddd0852acadf6f3f73bc80710cf441adae2af",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
@@ -1961,13 +1961,13 @@
     },
     {
       "path": "tests/archive_preview_lifetime.test.mjs",
-      "sha256": "16763acab830e0882446611fc2bc674ce20c88de7c01b2667eeabd39cfc28e8a",
+      "sha256": "67df38d839dc3965540fd85e2b1a7ca6a7f625b17a4f2b5b9ee8412f80bdae01",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 103,
+          "endLine": 102,
           "feature": "test-harness"
         }
       ]
@@ -2078,12 +2078,12 @@
     },
     {
       "path": "shared/file-observation.js",
-      "sha256": "e8ce2d156bc844f94ef1f2dbdc6a30c203edb0de5c9d375e2e8a14e5a459f767",
+      "sha256": "ee07a4569058fa318b1ec053037ea1d7d020c603d867a3621ef2e05c5776b208",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 131,
+          "endLine": 127,
           "feature": "file-observation"
         }
       ]

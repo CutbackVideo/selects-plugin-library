@@ -21,7 +21,7 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
     stat:async path=>files.has(path)?{size:files.get(path).length,mtimeMs:1,ino:2,isDirectory:false}:null,
     exists:async path=>files.has(path),
     mediaFingerprint:async path=>files.has(path)?mediaFingerprint(files.get(path)):null,
-    fingerprint:async path=>files.has(path)?{size:files.get(path).length,sha256:createHash('sha256').update(files.get(path)).digest('hex')}:null,
+    sha256:async path=>files.has(path)?{size:files.get(path).length,sha256:createHash('sha256').update(files.get(path)).digest('hex')}:null,
     readRange:async({path,offset,length})=>{
       fileCalls.push({method:'readRange',path,offset,length});
       assert(length<=49152);
@@ -408,16 +408,6 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
       assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
     }
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
-});
-test('local client observes full originals in one read-only SDK script through the host fingerprint API',async()=>{
- const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/large-original',bytes);
- const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
- const row=await client.files.fingerprint('/large-original');
- assert.deepEqual(JSON.parse(JSON.stringify(row)),{size:bytes.length,sha256:(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex')});
- assert.equal(h.calls.length-before,1,'all chunks share one script deadline');
- assert.equal(await client.files.fingerprint('/missing'),null);
- const calls=h.calls.slice(before);assert(calls.every(call=>call.allowCommit===false));assert(calls.every(call=>call.script.includes('files.fingerprint')));
- assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,0);
 });
 test('the private canonical read overload supports source observations without changing positional EOF reads',async()=>{
  const h=host();h.files.set('/a',Buffer.from('alpha'));const client=await load().createPanelLocalClient(h.sdk);

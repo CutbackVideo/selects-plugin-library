@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';import test from 'node:test';import fs from 'node:fs';
 import {lookPhaseFixture as fixture} from './mini_look_fixture.mjs';
 const legacy=source=>source.replace('// @template-assembly-intent 1\n','');
@@ -92,7 +93,7 @@ test('Mini old recovery: a transient plan read failure preserves the original lo
 import {hash,replaceSameFacts} from './gallery_hold_fixture.mjs';
 for(const entry of ['panel','template'])test('Mini physical recovery '+entry+': a changed original blocks look mutation and restoration recovers the same assembly',async t=>{
  const f=await fixture(t),original=fs.readFileSync(f.source);
- f.root.config.analysisSources=[{path:f.source,size:original.length,sha256:hash(f.source)}];
+ f.root.config.analysisSources=[{path:f.source,...mediaFingerprint(fs.readFileSync(f.source))}];
  const assembly=await run(f,{captureState:true});await(await f.open()).store(f.root);
  const ui=await miniMusicFixture(t,{entry,silent:true});ui.box.sdk=f.sdk;ui.box.panelLocalClient=()=>f.local;ui.box.openAssemblyContinuations=()=>f.open();ui.box.openTemplateAssemblyContinuations=()=>f.open();ui.box.prepareMiniDecoration=f.prepare;ui.box.templateRunIssue=f.mount().templateRunIssue;
  const invoke=()=>entry==='panel'?ui.box.api.build(3):ui.box.api.runMiniVlogTemplate(f.sdk,{projectId:'p',template:{runId:'original'}},()=>{},()=>{});
@@ -102,15 +103,15 @@ for(const entry of ['panel','template'])test('Mini physical recovery '+entry+': 
  fs.writeFileSync(f.source,original);await invoke();assert.equal(f.commits(),2);assert.equal(f.requests.filter(r=>r.summary==='Assemble template with owned receipt').length,1);assert.ok(f.saved.has(assembly.sequenceId));
 });
 test('Mini physical recovery: an unavailable source preserves the saved assembly and retryable look',async t=>{
- const f=await fixture(t);f.root.config.analysisSources=[{path:f.source,size:fs.statSync(f.source).size,sha256:hash(f.source)}];await run(f,{captureState:true});await(await f.open()).store(f.root);
+ const f=await fixture(t);f.root.config.analysisSources=[{path:f.source,...mediaFingerprint(fs.readFileSync(f.source))}];await run(f,{captureState:true});await(await f.open()).store(f.root);
  const ui=await miniMusicFixture(t,{silent:true});ui.box.panelLocalClient=()=>f.local;ui.box.openTemplateAssemblyContinuations=()=>f.open();ui.box.prepareMiniDecoration=f.prepare;ui.box.templateRunIssue=f.mount().templateRunIssue;
- const fingerprint=f.files.fingerprint;f.files.fingerprint=async file=>{if(file===f.source)throw Error('controlled inaccessible original');return fingerprint(file);};
+ const readRange=f.files.readRange;f.files.readRange=async input=>{if(input.path===f.source)throw Error('controlled inaccessible original');return readRange(input);};
  const invoke=()=>ui.box.api.runMiniVlogTemplate(f.sdk,{projectId:'p',template:{runId:'original'}},()=>{},()=>{});
- await assert.rejects(invoke(),e=>e.code==='source-file-unknown');assert.equal(f.commits(),1);assert.ok(await(await f.open()).read());f.files.fingerprint=fingerprint;await invoke();assert.equal(f.commits(),2);
+ await assert.rejects(invoke(),e=>e.code==='source-file-unknown');assert.equal(f.commits(),1);assert.ok(await(await f.open()).read());f.files.readRange=readRange;await invoke();assert.equal(f.commits(),2);
 });
 
 for(const entry of ['panel','template'])test('Mini source binding recovery '+entry+': relink blocks look and restoring the exact link resumes the same assembly',async t=>{
- const f=await fixture(t);f.root.config.sourceBindings=[{resourceId:'r0',path:f.source}];f.root.config.analysisSources=[{path:f.source,size:fs.statSync(f.source).size,sha256:hash(f.source)}];const assembly=await run(f,{captureState:true});await(await f.open()).store(f.root);
+ const f=await fixture(t);f.root.config.sourceBindings=[{resourceId:'r0',path:f.source}];f.root.config.analysisSources=[{path:f.source,...mediaFingerprint(fs.readFileSync(f.source))}];const assembly=await run(f,{captureState:true});await(await f.open()).store(f.root);
  const ui=await miniMusicFixture(t,{entry,silent:true});ui.box.sdk=f.sdk;ui.box.panelLocalClient=()=>f.local;ui.box.openAssemblyContinuations=()=>f.open();ui.box.openTemplateAssemblyContinuations=()=>f.open();ui.box.prepareMiniDecoration=f.prepare;ui.box.templateRunIssue=f.mount().templateRunIssue;
  const invoke=()=>entry==='panel'?ui.box.api.build(4):ui.box.api.runMiniVlogTemplate(f.sdk,{projectId:'p',template:{runId:'original'}},()=>{},()=>{});
  f.hooks.sourceFiles=()=>({fileTree:[{type:'video',resourceId:'r0',path:f.other}]});if(entry==='panel')await invoke();else await assert.rejects(invoke());assert.equal(f.commits(),1);assert.equal(f.requests.filter(r=>r.summary==='Decorate template with owned receipt').length,0);assert.ok(await(await f.open()).read());

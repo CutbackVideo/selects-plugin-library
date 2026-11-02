@@ -34,9 +34,13 @@ test('Gallery tempo refuses a source changed during decoding',async t=>{
  const f=await setup(t);f.hooks.afterTool=(bin,args)=>{if(args.includes('f32le'))clickWav(f.music,140);};
  await assert.rejects(f.tempo(f.music),/changed/i);assert.equal(jsonFiles(f.data).length,0);assert.equal(staging(f).length,0);
 });
-for(const stage of ['hash','decode'])test('Gallery tempo cancels a detached owner during '+stage,async t=>{
+test('Gallery tempo cancels a detached owner during sampled observation',async t=>{
+ const f=await setup(t);f.hooks.beforeRead=async file=>{if(file===f.music)f.stop();};
+ await assert.rejects(f.tempo(f.music),/ended|stopped|cancel/i);assert.equal(jsonFiles(f.data).length,0);assert.equal(staging(f).length,0);
+});
+test('Gallery tempo cancels a detached owner during decode',async t=>{
  const f=await setup(t);let signal;
- f.hooks.beforeTool=async(bin,args,s)=>{if(stage==='hash'?args.includes('-hash'):args.includes('f32le')){signal=s;f.stop();await new Promise(r=>setTimeout(r,80));}};
+ f.hooks.beforeTool=async(bin,args,s)=>{if(args.includes('f32le')){signal=s;f.stop();await new Promise(r=>setTimeout(r,80));}};
  await assert.rejects(f.tempo(f.music),/ended|stopped|cancel/i);assert.equal(signal.aborted,true);assert.equal(jsonFiles(f.data).length,0);assert.equal(staging(f).length,0);
 });
 test('Gallery tempo rejects a late successful decode after its deadline',async t=>{
@@ -70,11 +74,11 @@ test('Gallery tempo concurrent realms keep coherent complete PCM objects',async 
  assert.ok(values.every(r=>r.status==='estimated'&&Math.abs(r.bpm-110)<2));assert.equal(jsonFiles(f.data).length,1);assert.equal(staging(f).length,0);
  assert.equal((await f.tempo(f.music)).status,'estimated');assert.equal(decodes(f).length,2);
 });
-test('Gallery tempo binds the PCM bytes actually analyzed to the verified output digest',async t=>{
+test('Gallery tempo refuses changed sampled PCM contents during publication or analysis',async t=>{
  const f=await setup(t);let reads=0;
  f.hooks.afterRename=(from,to)=>{if(to.endsWith('.f32'))fs.utimesSync(to,946684800,946684800);};
  f.hooks.beforeRead=(file,offset)=>{if(file.endsWith('.f32')&&offset===0&&++reads===2){const bytes=fs.readFileSync(file);bytes.writeFloatLE(.125,0);fs.writeFileSync(file,bytes);fs.utimesSync(file,946684800,946684800);}};
- await assert.rejects(f.tempo(f.music),/PCM|changed|match|contents/i);
+ await assert.rejects(f.tempo(f.music),/PCM|changed|match|contents|index/i);
 });
 test('Gallery tempo rechecks source contents after reading and analyzing PCM',async t=>{
  const f=await setup(t);let reads=0;

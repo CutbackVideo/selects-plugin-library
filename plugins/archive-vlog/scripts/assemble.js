@@ -78,7 +78,7 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
  if(scheme!==null&&scheme!=='cutback.media-content.v2')throw Error('Unknown media fingerprint scheme.');
  const sampled=scheme!==null;
  check();
- const native=sampled?(files&&'mediaFingerprint' in files?files.mediaFingerprint:null):(files&&'fingerprint' in files?files.fingerprint:null);
+ const native=sampled&&files&&'mediaFingerprint' in files?files.mediaFingerprint:null;
  if(typeof native==='function'){
   let supported=true,observed;
   try{observed=await native.call(files,path);}
@@ -91,12 +91,8 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
   check();
   if(supported){
    if(observed===null)return null;
-   if(sampled){
-    if(!observed||observed.scheme!==scheme||!Number.isSafeInteger(observed.size)||observed.size<=0||typeof observed.digest!=='string'||!/^[a-f0-9]{64}$/.test(observed.digest))throw Error('The sampled media fingerprint could not be confirmed.');
-    return {size:observed.size,scheme:observed.scheme,digest:observed.digest};
-   }
-   if(!observed||!Number.isSafeInteger(observed.size)||observed.size<0||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('The complete file fingerprint could not be confirmed.');
-   return {size:observed.size,sha256:observed.sha256};
+   if(!observed||observed.scheme!==scheme||!Number.isSafeInteger(observed.size)||observed.size<=0||typeof observed.digest!=='string'||!/^[a-f0-9]{64}$/.test(observed.digest))throw Error('The sampled media fingerprint could not be confirmed.');
+   return {size:observed.size,scheme:observed.scheme,digest:observed.digest};
   }
  }
  if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
@@ -241,7 +237,7 @@ async function resolveTemplateMedia(selects,projectId,files,scratchName='Templat
  return {resolved,failed};
 }
 function requireSourceFileSupport(files) {
- if(typeof files?.mediaFingerprint!=='function'&&typeof files?.fingerprint!=='function'&&(typeof files?.stat!=='function'||typeof files?.readRange!=='function')){
+ if(typeof files?.mediaFingerprint!=='function'&&(typeof files?.stat!=='function'||typeof files?.readRange!=='function')){
   const message='Update Selects to verify complete source file contents before creating this template.';
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
@@ -257,8 +253,9 @@ async function observeSourceFiles(files,paths,expected=null) {
  const observed=[];
  for(const path of selected){
   const before=expected?.find(row=>row.path===path);
+  if(before&&before.scheme!=='cutback.media-content.v2')throw issue('source-file-changed','Reload the Project inputs to confirm their sampled media identities.');
   let fingerprint;
-  try{fingerprint=await fingerprintTemplateFile(files,path,undefined,before?before.scheme??null:'cutback.media-content.v2');}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{fingerprint=await fingerprintTemplateFile(files,path,undefined,'cutback.media-content.v2');}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={path,...fingerprint};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');

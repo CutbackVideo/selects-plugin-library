@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -94,9 +95,9 @@ test('Gallery staging: an acknowledged file replaced before observation is not o
 });
 
 test('Shared staging: existing producers still receive an empty reserved output',async t=>{
- const f=await holdFixture(t),source={sha256:hash(f.source),bytes:fs.statSync(f.source).size};let produced=0;
+ const f=await holdFixture(t),source={...mediaFingerprint(fs.readFileSync(f.source)),bytes:fs.statSync(f.source).size};let produced=0;
  const result=await f.derive({directory:path.join(f.data,'append-control'),key:'a'.repeat(64),sourcePath:f.source,source,
-  hashFile:async file=>hash(file),verify:async file=>assert.equal(hash(file),source.sha256),
+  hashFile:async file=>hash(file),verify:async file=>assert.equal(mediaFingerprint(fs.readFileSync(file)).digest,source.digest),
   produce:async(snapshot,target)=>{produced++;assert.equal(fs.statSync(target).size,0);fs.appendFileSync(target,fs.readFileSync(snapshot));}});
- assert.equal(produced,1);assert.equal(hash(result.path),source.sha256);assert.equal(stages(f).length,0);
+ assert.equal(produced,1);assert.equal(mediaFingerprint(fs.readFileSync(result.path)).digest,source.digest);assert.equal(stages(f).length,0);
 });

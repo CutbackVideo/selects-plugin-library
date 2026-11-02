@@ -146,7 +146,6 @@ async function createPanelLocalClient(sdk: any) {
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
     mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
-    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.

@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import test from 'node:test';
 import {clipAnalysisFixture as fixture} from './clip_analysis_fixture.mjs';import {replaceSameFacts} from './gallery_hold_fixture.mjs';
 const privateFiles=f=>fs.existsSync(f.data)?fs.readdirSync(f.data,{recursive:true}).filter(p=>/\.(?:source|output|media)-/.test(p)):[];
@@ -38,7 +39,7 @@ for(const opts of [{dataDir:'bad\0directory'},{onProgress:3}])test('clip analysi
  const f=await fixture(t);let reads=0;f.hooks.beforeFingerprint=()=>reads++;
  await assert.rejects(f.scoreAll(undefined,opts),e=>e.code==='CLIP_ANALYSIS_INPUT');assert.equal(reads,0);assert.equal(f.writes.length,0);
 });
-test('clip analysis: sampled originals stay separate from full output checksums',async t=>{
+test('clip analysis: source and output cache records both carry explicit sampled identities',async t=>{
  const f=await fixture(t),result=await f.score();
  assert.equal(result.sourceObservation.scheme,'cutback.media-content.v2');
  assert.equal(result.sourceObservation.sha256,undefined);
@@ -47,14 +48,16 @@ test('clip analysis: sampled originals stay separate from full output checksums'
  assert.equal(receipt.source.scheme,'cutback.media-content.v2');
  assert.equal(receipt.source.sha256,undefined);
  const object=fs.readdirSync(f.data,{recursive:true}).find(p=>p.includes('objects/')&&p.endsWith('.json'));
- const expected=(await import('node:crypto')).createHash('sha256').update(fs.readFileSync(path.join(f.data,object))).digest('hex');
- assert.equal(receipt.output.sha256,expected);
- assert.equal(receipt.output.digest,undefined);
+ const expected=mediaFingerprint(fs.readFileSync(path.join(f.data,object)));
+ assert.equal(receipt.output.sha256,undefined);
+ assert.equal(receipt.output.scheme,expected.scheme);
+ assert.equal(receipt.output.digest,expected.digest);
+ assert.equal(receipt.version,2);
 });
-test('clip analysis: pending whole-file observations keep their original verification scheme',async t=>{
+test('clip analysis: legacy whole-file observations require reconfirmation without reading the source',async t=>{
  const f=await fixture(t),original=fs.readFileSync(f.source),digest=(await import('node:crypto')).createHash('sha256').update(original).digest('hex');
  const expected={path:f.source,size:original.length,sha256:digest};
- const result=await f.score({expectedSources:[expected]});
- assert.deepEqual(JSON.parse(JSON.stringify(result.sourceObservation)),expected);
+ await assert.rejects(f.score({expectedSources:[expected]}),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED');
+ assert.equal(f.writes.length,0);
  await assert.rejects(f.score({expectedSources:[{...expected,sha256:'0'.repeat(64)}]}),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED');
 });
