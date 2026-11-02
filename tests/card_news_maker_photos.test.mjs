@@ -11,6 +11,45 @@ process.on('exit', () => disposePanelModule(b));
 const layout = () => ({ kind: 'layout', id: 'team-basic', name: 'Team Basic', version: 1, language: 'ko', size: { width: 1080, height: 1350 }, shade: { top: 830, bottom: 1350, color: '#000000', from: 0, to: .8 }, font: { family: 'Noto Sans KR', weight: 700, size: 72, tracking: -.04, color: '#FFFFFF', lineHeight: 88 }, lines: [{ left: 125, top: 942, width: 830, align: 'center' }, { left: 125, top: 1058, width: 830, align: 'center' }], logo: { top: 1219, width: 155, dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+' } });
 function nodes(tree) { const out = []; function visit(v) { if (!v || typeof v !== 'object') return; if ('type' in v && 'props' in v) out.push(v); for (const x of Object.values(v)) visit(x); } visit(tree); return out; }
 
+test('photo dimensions use one host URL instead of transferring file chunks and release the decoder', async () => {
+  const images = [], paths = [];
+  class Image {
+    naturalWidth = 1080; naturalHeight = 1920; src = '';
+    constructor() { images.push(this); }
+    async decode() { if (this.src.includes('broken')) throw Error('Invalid image'); }
+  }
+  const panel = loadPanelModule(source, { names: ['imageSize'], React, globals: { Image } });
+  const files = { pathToLocalURL: async path => { paths.push(path); return 'local://' + encodeURIComponent(path); }, readFile() { assert.fail('Photo metadata must not transfer file bytes'); } };
+  try {
+    for (const name of ['C:\\Photos\\photo.jpg', '/photos/photo.png', '/photos/photo.webp']) {
+      assert.deepEqual(JSON.parse(JSON.stringify(await panel.imageSize(files, name))), { w: 1080, h: 1920 });
+    }
+    await assert.rejects(panel.imageSize(files, '/photos/broken.jpg'), /Invalid image/);
+    assert.equal(paths.length, 4);
+    assert.ok(images.every(image => image.src === ''));
+  } finally { disposePanelModule(panel); }
+});
+
+test('photo preview uses the host URL and ignores a reply after unmount', async () => {
+  const values = []; let effect, resolveUrl;
+  const hooks = { ...React, useState: () => ['', value => values.push(value)], useEffect: fn => { effect = fn; } };
+  const panel = loadPanelModule(source, { names: ['useImageUrl'], React: hooks });
+  const files = { pathToLocalURL: () => new Promise(resolve => { resolveUrl = resolve; }), readFile() { assert.fail('Photo preview must not transfer file bytes'); } };
+  try {
+    panel.useImageUrl('/photos/first.jpg', files);
+    const cleanup = effect();
+    resolveUrl('local://first.jpg');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(values, ['', 'local://first.jpg']);
+    cleanup();
+    panel.useImageUrl('/photos/second.jpg', files);
+    const unmount = effect();
+    unmount(); resolveUrl('local://second.jpg');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(values, ['', 'local://first.jpg', '']);
+  } finally { disposePanelModule(panel); }
+});
+
 test('Chosun cover keeps line-break guidance without promising unsupported bracket highlights', () => {
   const raw = JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json', import.meta.url), 'utf8'));
   const fixed = b.CardSupport.fromLayout(raw), regular = b.BUILTIN_TEMPLATES[0];

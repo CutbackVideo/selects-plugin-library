@@ -2531,9 +2531,20 @@ function makeStore() {
   };
 }
 
+async function photoUrl(fs: any, path: string): Promise<string> {
+  // Older macOS hosts leave filename query/fragment characters unescaped.
+  return (await fs.pathToLocalURL(path)).replace(/[?#]/g, (part: string) => encodeURIComponent(part));
+}
+
 async function imageSize(fs: any, path: string): Promise<{ w: number; h: number }> {
-  const bmp = await createImageBitmap(new Blob([await fs.readFile(path)]));
-  return { w: bmp.width, h: bmp.height };
+  const image = new Image();
+  try {
+    image.src = await photoUrl(fs, path);
+    await image.decode();
+    return { w: image.naturalWidth, h: image.naturalHeight };
+  } finally {
+    image.src = "";
+  }
 }
 
 async function installLinkedTemplate(store: any, url: string, templates: any[], onKeepEdits?: () => void) {
@@ -2590,27 +2601,25 @@ async function installLinkedTemplate(store: any, url: string, templates: any[], 
   } finally { await fs.removeFile({ filePath: path }).catch(() => {}); }
 }
 
-function useBlobUrl(path: string, fs: any): string {
+function useImageUrl(path: string, fs: any): string {
   const [url, setUrl] = React.useState("");
   React.useEffect(() => {
     let alive = true;
-    let made = "";
+    setUrl("");
     if (!path || !fs) {
       setUrl("");
       return;
     }
-    fs.readFile(path)
-      .then((b: any) => {
+    photoUrl(fs, path)
+      .then((url: string) => {
         if (!alive) return;
-        made = URL.createObjectURL(new Blob([b]));
-        setUrl(made);
+        setUrl(url);
       })
       .catch(() => setUrl(""));
     return () => {
       alive = false;
-      if (made) URL.revokeObjectURL(made);
     };
-  }, [path]);
+  }, [path, fs]);
   return url;
 }
 
@@ -3259,7 +3268,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   const img = card.picture || {};
   const art = plan.article?.images || [];
   const path = made?.path || img.path || (img.kind === "reuse" && plan.cards[img.reuse]?.picture?.path) || "";
-  const preview = useBlobUrl(path, fs);
+  const preview = useImageUrl(path, fs);
   const options: any[] = [
     ...art.map((a: any, i: number) => ({ value: "article:" + i, label: S.picArticle(i + 1) })),
     { value: "generate", label: S.picGenerate },
@@ -4669,7 +4678,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
 }
 
 function ExportThumb({ path, fs }: any) {
-  const url = useBlobUrl(path, fs);
+  const url = useImageUrl(path, fs);
   return url ? <img src={url} style={{ width: "100%", borderRadius: 4 }} /> : null;
 }
 
