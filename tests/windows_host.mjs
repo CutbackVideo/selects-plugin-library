@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 // Windows checks shared by the panel tests: the host I/O block a panel copies
 // from Archive Vlog (`// av-host:start` … `// av-host:end`), a scan for POSIX
 // shell syntax in the code a panel runs, and a fake host (window.parent.__DI__)
@@ -189,6 +190,10 @@ export function asyncSdk(di = {}) {
     const method = typeof legacy[name] === 'function' ? name : aliases[name];
     if (method && typeof legacy[method] === 'function') files[name] = async (...args) => legacy[method](...args);
   }
+  if (files.stat && files.readFile) files.mediaFingerprint = async path => {
+    if (!(await files.stat(path))) return null;
+    return mediaFingerprint(await files.readFile(path));
+  };
   if (!files.removeFile) {
     const remove = ['remove', 'rm', 'unlink', 'unlinkSync', 'rmSync'].find(name => typeof legacy[name] === 'function');
     if (remove) files.removeFile = async ({ filePath }) => legacy[remove](filePath);
