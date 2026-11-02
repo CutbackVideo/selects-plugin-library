@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -43,7 +44,6 @@ test('generated module comments can disappear without losing any real local-clie
   const files = {
     environment: async () => ({platform:'darwin', homedir:'/test', tempDirectory:'/tmp'}),
     stat: async () => ({size:4, mtimeMs:1, ino:1, isDirectory:false}),
-    sha256: async () => ({size:4,sha256:'a'.repeat(64)}),
     readRange: async () => ({base64:Buffer.from([1,2,3,4]).toString('base64'), bytesRead:4}),
   };
   const sdk = {runScript: async input => {
@@ -52,8 +52,8 @@ test('generated module comments can disappear without losing any real local-clie
   }};
   const client = await createPanelLocalClient(sdk);
   try {
-    const actual = await client.files.sha256('/test/original');
-    assert.equal(actual.size, 4);
+    const actual = await client.files.mediaFingerprint('/test/original');
+    assert.deepEqual(JSON.parse(JSON.stringify(actual)),mediaFingerprint(Buffer.from([1,2,3,4])));
     assert.ok(calls.some(call => call.script.includes('fingerprintTemplateFile')),
       'the interleaved file-observation implementation actually runs');
     assert.ok(calls.every(call => !call.allowCommit));
