@@ -1,0 +1,79 @@
+[
+  {
+    "name": "Fusion promo and multiple content photos deduplicate while preserving facts",
+    "url": "https://www.chosun.com/national/2026/11/02/photo-report/",
+    "html": "<meta property=\"og:site_name\" content=\"Chosun\"><script>Fusion.globalContent = {\"headlines\":{\"basic\":\"New bus route opens\"},\"promo_items\":{\"basic\":{\"type\":\"image\",\"url\":\"https://images.example.test/bus.jpg\",\"credits\":{\"by\":[{\"name\":\"City photographer\"}]}}},\"content_elements\":[{\"type\":\"text\",\"content\":\"<p>The city opened a new bus route on Monday, connecting the station with three schools.</p>\"},{\"type\":\"image\",\"url\":\"https://images.example.test/bus.jpg\"},{\"type\":\"image\",\"url\":\"https://images.example.test/station.jpg\"},{\"type\":\"text\",\"content\":\"<p>Officials said 12 buses will operate daily, and fares will remain unchanged this year.</p>\"},{\"type\":\"image\",\"url\":\"https://images.example.test/map.jpg\"}]}; Fusion.contentCache = {};</script>",
+    "title": "New bus route opens",
+    "body": "The city opened a new bus route on Monday, connecting the station with three schools.\nOfficials said 12 buses will operate daily, and fares will remain unchanged this year.",
+    "images": ["https://images.example.test/bus.jpg", "https://images.example.test/station.jpg", "https://images.example.test/map.jpg"]
+  },
+  {
+    "name": "generic article uses og image when body has no photos",
+    "url": "https://news.example.test/reports/station/",
+    "html": "<meta property=\"og:type\" content=\"article\"><meta property=\"og:title\" content=\"Station renovation\"><meta property=\"og:image\" content=\"https://images.example.test/station-cover.jpg\"><article><p>The station reopened on Monday after six months of renovation, according to the city.</p></article>",
+    "title": "Station renovation",
+    "body": "The station reopened on Monday after six months of renovation, according to the city.",
+    "images": ["https://images.example.test/station-cover.jpg"]
+  },
+  {
+    "name": "generic article collects direct and lazy photos plus one srcset candidate",
+    "url": "https://news.example.test/reports/river/",
+    "html": "<meta property=\"og:type\" content=\"article\"><article><p>Inspectors visited four bridges on Tuesday and reported that all remain open to traffic.</p><img src=\"https://images.example.test/bridge.jpg\"><img data-src=\"https://images.example.test/river.jpg\"><img data-original=\"https://images.example.test/inspection.jpg\"><img data-lazy-src=\"https://images.example.test/crew.jpg\"><img srcset=\"https://images.example.test/wide-small.jpg 1x, https://images.example.test/wide-large.jpg 2x\"></article>",
+    "body": "Inspectors visited four bridges on Tuesday and reported that all remain open to traffic.",
+    "images": ["https://images.example.test/bridge.jpg", "https://images.example.test/river.jpg", "https://images.example.test/inspection.jpg", "https://images.example.test/crew.jpg", "https://images.example.test/wide-large.jpg"]
+  },
+  {
+    "name": "picture source selects a large photo without duplicating its fallback img",
+    "url": "https://news.example.test/reports/museum/",
+    "html": "<meta property=\"og:type\" content=\"article\"><article><p>The museum displayed 24 restored paintings at a public exhibition that opened on Friday.</p><picture><source srcset=\"/photos/gallery-small.jpg 400w, /photos/gallery-large.jpg 1600w\"><img src=\"/photos/gallery-small.jpg\" alt=\"Museum gallery\"></picture></article>",
+    "body": "The museum displayed 24 restored paintings at a public exhibition that opened on Friday.",
+    "images": ["https://news.example.test/photos/gallery-large.jpg"]
+  },
+  {
+    "name": "relative and protocol relative photo URLs normalize and deduplicate",
+    "url": "https://news.example.test/reports/2026/story.html",
+    "html": "<meta property=\"og:type\" content=\"article\"><article><p>The council approved the park renovation on Thursday and allocated 2 million dollars.</p><img src=\"/photos/park.jpg\"><img data-src=\"https://news.example.test/photos/park.jpg\"><img src=\"../photos/map.jpg\"><img src=\"//cdn.example.test/park.jpg?width=1200&amp;quality=85\"><img src=\"http://images.example.test/plan.jpg\"></article>",
+    "body": "The council approved the park renovation on Thursday and allocated 2 million dollars.",
+    "images": ["https://news.example.test/photos/park.jpg", "https://news.example.test/reports/photos/map.jpg", "https://cdn.example.test/park.jpg?width=1200&quality=85", "http://images.example.test/plan.jpg"]
+  },
+  {
+    "name": "clear logos icons tracking pixels and page chrome are excluded but small real photos survive",
+    "url": "https://news.example.test/reports/archive/",
+    "html": "<meta property=\"og:type\" content=\"article\"><header><img src=\"/photos/unrelated-header.jpg\"></header><article><p>The archive released a photograph of the original school building, which opened in 1924.</p><img src=\"/assets/logo.svg\" alt=\"Publisher logo\"><img src=\"/assets/share-icon.png\" class=\"icon\"><img src=\"https://metrics.example.test/pixel.gif\" width=\"1\" height=\"1\"><img src=\"/photos/archive-1924.jpg\" width=\"120\" height=\"80\" alt=\"Original school building\"></article><footer><img src=\"/photos/unrelated-footer.jpg\"></footer>",
+    "body": "The archive released a photograph of the original school building, which opened in 1924.",
+    "images": ["https://news.example.test/photos/archive-1924.jpg"]
+  },
+  {
+    "name": "photo URLs accept HTTP and HTTPS and reject non HTTP schemes",
+    "url": "https://news.example.test/reports/harbor/",
+    "html": "<meta property=\"og:type\" content=\"article\"><article><p>The harbor authority reopened two docks on Wednesday after a routine safety inspection.</p><img src=\"javascript:alert(1)\"><img data-src=\"data:image/png;base64,YQ==\"><img src=\"file:///tmp/private.jpg\"><img src=\"ftp://images.example.test/photo.jpg\"><img src=\"blob:https://news.example.test/local-id\"><img src=\"mailto:photo@example.test\"><img src=\"https://images.example.test/dock.jpg\"></article>",
+    "body": "The harbor authority reopened two docks on Wednesday after a routine safety inspection.",
+    "images": ["https://images.example.test/dock.jpg"]
+  },
+  {
+    "name": "JSON LD article facts retain their existing extraction path",
+    "url": "https://news.example.test/reports/library/",
+    "html": "<meta property=\"og:image\" content=\"https://images.example.test/library.jpg\"><script type=\"application/ld+json\">{\"@type\":\"NewsArticle\",\"headline\":\"Library opens on Sunday\",\"articleBody\":\"The library will open on Sunday for the first time this year, the district announced.\"}</script>",
+    "title": "Library opens on Sunday",
+    "body": "The library will open on Sunday for the first time this year, the district announced.",
+    "images": ["https://images.example.test/library.jpg"]
+  },
+  {
+    "name": "unscoped paragraphs and an image are not admitted as article facts",
+    "url": "https://news.example.test/subscribe/",
+    "html": "<meta property=\"og:type\" content=\"article\"><p>Subscribe to read our complete coverage of local events, business and transport every day.</p><img src=\"/photos/marketing.jpg\">",
+    "body": ""
+  },
+  {
+    "name": "a section front marked website is not admitted as article facts",
+    "url": "https://news.example.test/section/local/",
+    "html": "<meta property=\"og:type\" content=\"website\"><article><p>Browse the latest local updates and explore all of our reporting from across the region.</p><img src=\"/photos/section.jpg\"></article>",
+    "body": ""
+  },
+  {
+    "name": "malformed Fusion JSON does not turn arbitrary page text into article facts",
+    "url": "https://news.example.test/missing/",
+    "html": "<script>Fusion.globalContent = {broken}; Fusion.contentCache = {};</script><p>This article is unavailable. Please return to the home page to read the latest local reports.</p>",
+    "body": ""
+  }
+]

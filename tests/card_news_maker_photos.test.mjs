@@ -6,7 +6,7 @@ import { loadPanelModule, disposePanelModule } from './panel_module_fixture.mjs'
 
 const source = fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx', import.meta.url), 'utf8');
 const React = { useRef: (value) => ({ current: value }), useState: (value) => [value, () => {}], useEffect() {}, createElement: (type, props, ...children) => ({ type, props: { ...props, children } }) };
-const b = loadPanelModule(source, { globals: { document: { createElement: () => ({ getContext: () => ({ measureText: () => ({ width: 1 }) }) }) } }, names: ['CardSupport', 'CardEditor', 'PreviewCard', 'CardPreview', 'BUILTIN_TEMPLATES', 'cardParams', 'editableDefs', 'normalizePlan', 'validatePlan', 'planPrompt', 'SCRIPT_BUILD', 'STRINGS', 'transformFor', 'makeStore', 'reorderPlan', 'resolveReusedPictures', 'validateCardText'], React });
+const b = loadPanelModule(source, { globals: { URL, document: { createElement: () => ({ getContext: () => ({ measureText: () => ({ width: 1 }) }) }) } }, names: ['CardSupport', 'CardEditor', 'PreviewCard', 'CardPreview', 'BUILTIN_TEMPLATES', 'cardParams', 'editableDefs', 'normalizePlan', 'validatePlan', 'planPrompt', 'SCRIPT_BUILD', 'STRINGS', 'transformFor', 'makeStore', 'reorderPlan', 'resolveReusedPictures', 'swapCardPhotos', 'cropByDrag', 'validateCardText'], React });
 process.on('exit', () => disposePanelModule(b));
 const layout = () => ({ kind: 'layout', id: 'team-basic', name: 'Team Basic', version: 1, language: 'ko', size: { width: 1080, height: 1350 }, shade: { top: 830, bottom: 1350, color: '#000000', from: 0, to: .8 }, font: { family: 'Noto Sans KR', weight: 700, size: 72, tracking: -.04, color: '#FFFFFF', lineHeight: 88 }, lines: [{ left: 125, top: 942, width: 830, align: 'center' }, { left: 125, top: 1058, width: 830, align: 'center' }], logo: { top: 1219, width: 155, dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+' } });
 function nodes(tree) { const out = []; function visit(v) { if (!v || typeof v !== 'object') return; if ('type' in v && 'props' in v) out.push(v); for (const x of Object.values(v)) visit(x); } visit(tree); return out; }
@@ -47,6 +47,34 @@ test('photo preview uses the host URL and ignores a reply after unmount', async 
     unmount(); resolveUrl('local://second.jpg');
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(values, ['', 'local://first.jpg', '']);
+  } finally { disposePanelModule(panel); }
+});
+
+test('contact sheets load native photos with canvas CORS and preserve crops, numbering and JPEG fallback', async () => {
+  const images = [], draws = [], labels = [], qualities = [];
+  class Image {
+    src = ''; naturalWidth = 398; naturalHeight = 600;
+    constructor() { images.push(this); }
+    async decode() { assert.equal(this.crossOrigin, 'anonymous'); if (this.src.includes('broken')) throw Error('Invalid image'); }
+  }
+  const context = { fillRect() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {},
+    drawImage(image, ...bounds) { draws.push({ url: image.src, bounds }); }, fillText(value) { labels.push(value); } };
+  const canvas = { getContext: () => context, toDataURL(type, quality) { qualities.push([type, quality]); return quality === .8 ? 'x'.repeat(1400001) : 'data:image/jpeg;base64,small'; } };
+  const panel = loadPanelModule(source, { names: ['CardSupport'], React, globals: { Image, document: { createElement: () => canvas } } });
+  const files = { pathToLocalURL: async path => 'local://' + encodeURI(path), readFile() { assert.fail('Contact sheets must not transfer photo bytes'); } };
+  const size = { width: 1080, height: 1350 }, crop = { fit: 'contain', zoom: .75, x: .2, y: -.1 };
+  try {
+    const result = await panel.CardSupport.contactSheet([{ photo: { path: '/photos/한글 #1?.jpg', width: 398, height: 600 }, crop }, {}], size, files);
+    assert.equal(result, 'data:image/jpeg;base64,small');
+    assert.deepEqual([canvas.width, canvas.height], [432, 270]);
+    const p = panel.CardSupport.photoPlacement(398, 600, crop, size), k = 216 / 1080;
+    assert.deepEqual(draws[0].bounds, [p.left * k, p.top * k, p.width * k, p.height * k]);
+    assert.match(draws[0].url, /%23.*%3F/);
+    assert.deepEqual(labels, ['1', '2']);
+    assert.deepEqual(qualities, [['image/jpeg', .8], ['image/jpeg', .5]]);
+    await assert.rejects(panel.CardSupport.contactSheet([{ photo: { path: '/broken.jpg', width: 398, height: 600 } }], size, files), /Invalid image/);
+    await assert.rejects(panel.CardSupport.contactSheet([{ photo: { path: '/missing.jpg' } }], size, { pathToLocalURL() { throw Error('Missing file'); } }), /Missing file/);
+    assert.ok(images.every(image => image.src === ''));
   } finally { disposePanelModule(panel); }
 });
 
@@ -279,4 +307,60 @@ test('Chosun body planning uses news density without treating mixed text as sixt
   const ordinary=b.CardSupport.fromLayout(layout());assert.doesNotMatch(b.planPrompt(ordinary,{},'manual',2,'','Facts'),/glyph equivalents|85-100%/);
   const v1=JSON.parse(fs.readFileSync(new URL('./fixtures/card-news-chosun-v1.json',import.meta.url)));assert.deepEqual(JSON.parse(JSON.stringify(b.CardSupport.fromLayout(v1.raw).prompt)),v1.installed.prompt);
   assert.equal(t.body.size,54);assert.equal(t.look.body.textSlots[0].width,880);
+});
+
+test('adjacent photo swap keeps slot IDs, roles and all text fixed, moving only photo crop and credit', () => {
+  const cards = [
+    { id: 'cover', role: 'cover', headline: 'Keep cover', picture: { kind: 'file', path: 'a.jpg' }, crop: { zoom: 1.5, x: .2 }, credit: 'A' },
+    { id: 'body', role: 'body', heading: 'Keep heading', body: 'Keep body', picture: { kind: 'article', index: 0, path: 'b.jpg' }, crop: { zoom: 2, y: -.2 }, credit: 'B' },
+    { id: 'end', role: 'end', cta: 'Keep ending', picture: { kind: 'none' } },
+  ];
+  const before = JSON.stringify(cards), pictures = [{ path: 'a.jpg', resourceId: 'a' }, { path: 'b.jpg', resourceId: 'b' }];
+  const result = b.swapCardPhotos(cards, pictures, 0, 1);
+  assert.equal(JSON.stringify(cards), before);
+  for (let i = 0; i < cards.length; i++) {
+    const text = ({ id, role, headline, heading, body, cta }) => ({ id, role, headline, heading, body, cta });
+    assert.deepEqual(text(result.cards[i]), text(cards[i]));
+  }
+  assert.equal(result.cards[0].picture.path, 'b.jpg'); assert.equal(result.cards[1].picture.path, 'a.jpg');
+  assert.equal(result.cards[0].credit, 'B'); assert.equal(result.cards[0].crop.zoom, 2);
+  assert.equal(result.pictures[0].resourceId, 'b');
+  assert.deepEqual(b.swapCardPhotos(cards, pictures, 1, 1).cards, cards);
+  const reused = [{ ...cards[0], picture: { kind: 'reuse', reuse: 1 } }, cards[1]];
+  assert.equal(b.swapCardPhotos(reused, pictures, 0, 1).cards[1].picture.path, 'b.jpg');
+});
+
+test('drag translates photo in card pixels, clamps at frame edges and leaves a fitted axis fixed', () => {
+  const t = b.CardSupport.fromLayout(layout());
+  const photo = { w: 1920, h: 1080 };
+  const crop = { fit: 'cover', zoom: 1, x: 0, y: 0 };
+  const start = b.transformFor(t, 'cover', photo.w, photo.h, crop).draw;
+  const moved = b.cropByDrag(t, 'cover', photo, crop, 100, 50);
+  const after = b.transformFor(t, 'cover', photo.w, photo.h, moved).draw;
+  assert.ok(Math.abs(after.left - start.left - 100) < .01);
+  assert.equal(after.top, start.top);
+  assert.equal(moved.y, 0);
+  assert.equal(b.cropByDrag(t, 'cover', photo, crop, 100000, 0).x, -1);
+});
+
+test('ordinary templates permit photo drag before any crop settings are edited', () => {
+  const t=b.BUILTIN_TEMPLATES.find(t=>t.id==='report-en');
+  const tree=b.CardPreview({t,card:{role:'body',body:'Text',picture:{kind:'file',w:1920,h:1080}},bodyIndex:1,vars:{},S:b.STRINGS.en,image:'local://photo',onCrop(){}});
+  const drag=nodes(tree).find(n=>n.props['aria-label']===b.STRINGS.en.dragPhoto);
+  assert.ok(drag);assert.equal(drag.props.style.touchAction,'none');
+});
+
+test('duplicate Fusion photos retain a later caption and provided preview URL', () => {
+  const image={type:'image',url:'https://example.test/original.jpg',caption:'Useful caption',resizedUrls:{article_lg:'https://example.test/preview.jpg'}};
+  const html='Fusion.globalContent='+JSON.stringify({promo_items:{basic:{url:image.url}},content_elements:[{type:'text',content:'Verified facts. '.repeat(40)},image]})+';Fusion.x=1;';
+  const article=b.CardSupport.extractArticle('https://example.test/article',html);
+  assert.equal(article.images.length,1);assert.equal(article.images[0].caption,'Useful caption');assert.equal(article.images[0].previewUrl,'https://example.test/preview.jpg');
+});
+
+test('new generic cards persist the same crop used by preview and export without changing older records', () => {
+  const t=b.BUILTIN_TEMPLATES.find(t=>t.id==='report-en'), raw={cards:[{headline:'Cover'},{body:'Body'}]};
+  const cards=b.normalizePlan(raw,t).cards;
+  assert.deepEqual(cards[1].crop,b.CardSupport.clampCrop());
+  assert.ok(b.transformFor(t,'body',400,600,cards[1].crop).draw);
+  assert.equal(raw.cards[1].crop,undefined);
 });

@@ -321,11 +321,12 @@ const STRINGS: any = {
     exportImportFailed: "The files were saved, but not all card images could be added to the project. Open the export folder to check them.",
     savedTemplateNotice: "This set keeps its saved template. The library template has changed.",
     applyTemplateChanges: "Apply template changes",
-    ownImages: "Use my own images",
+    ownImages: "Add my own photos (optional)",
+    photoUnavailable: "Some article photos could not be loaded. Choose another article photo or add your own.", readingArticle: "Reading the article…", preparingPhotos: "Preparing article photos…", dragPhoto: "Drag the photo to reposition it", replacePhoto: "Add or replace photo", addCard: "Add card slot", cardLimit: "Use up to 20 card slots.", choosePhotoFirst: "Choose a photo before exporting. Image generation requires an explicit selection.",
     dropPhotos: "Drop a photo or a folder of photos",
     addPhoto: "Add a photo",
     addPhotoFolder: "Add a folder of photos",
-    photosHint: "Each photo supplies one card. Template, instructions, preview and export are shared with article photos.",
+    photosHint: "Article photos are used by default. Add your own photos here, then choose or replace each card’s photo while editing.",
     generate: "Generate",
     savedPicker: "Saved",
     savedPlaceholder: "Choose a saved card set",
@@ -340,8 +341,8 @@ const STRINGS: any = {
     textOverflow: "Text exceeds this card's text area. Shorten it before exporting.",
     photoX: "Left / right",
     photoY: "Up / down",
-    moveEarlier: "Move earlier",
-    moveLater: "Move later",
+    moveEarlier: "Swap photo with previous",
+    moveLater: "Swap photo with next",
     deleteCard: "Delete card",
     tabMake: "Make cards",
     tabTemplates: "Templates",
@@ -401,7 +402,7 @@ const STRINGS: any = {
     prompt: "Image prompt",
     caption: "Caption",
     hashtags: "Hashtags",
-    build: "Build Draft",
+    build: "Add to timeline (optional)",
     building: "Building…",
     startOver: "Start over",
     creditsNote: "AI images are made with Selects' image model and use your Selects credits. Each shows in the work queue.",
@@ -556,11 +557,12 @@ const STRINGS: any = {
     exportImportFailed: "\ud30c\uc77c\uc740 \uc800\uc7a5\ud588\uc9c0\ub9cc \uc77c\ubd80 \uce74\ub4dc \uc774\ubbf8\uc9c0\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud3f4\ub354\ub97c \uc5f4\uc5b4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
     savedTemplateNotice: "\uc774 \uce74\ub4dc\ub274\uc2a4\ub294 \uc800\uc7a5 \ub2f9\uc2dc\uc758 \ud15c\ud50c\ub9bf\uc744 \uc720\uc9c0\ud569\ub2c8\ub2e4. \ud604\uc7ac \ud15c\ud50c\ub9bf\uc774 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4.",
     applyTemplateChanges: "\ud604\uc7ac \ud15c\ud50c\ub9bf \uc801\uc6a9",
-    ownImages: "\ub0b4 \uc0ac\uc9c4 \uc0ac\uc6a9",
+    ownImages: "내 사진 추가 (선택)",
+    photoUnavailable: "일부 기사 사진을 불러오지 못했습니다. 다른 기사 사진이나 내 사진으로 교체하세요.", readingArticle: "기사 읽는 중…", preparingPhotos: "기사 사진 준비 중…", dragPhoto: "사진을 드래그해 위치를 조절하세요", replacePhoto: "사진 추가·교체", addCard: "카드 슬롯 추가", cardLimit: "카드 슬롯은 최대 20개까지 추가할 수 있습니다.", choosePhotoFirst: "내보내기 전에 사진을 선택하세요. 이미지 생성은 직접 선택해야 실행됩니다.",
     dropPhotos: "\uc0ac\uc9c4 \ub610\ub294 \uc0ac\uc9c4 \ud3f4\ub354\ub97c \uc5ec\uae30\uc5d0 \ub193\uc73c\uc138\uc694",
     addPhoto: "\uc0ac\uc9c4 \ucd94\uac00",
     addPhotoFolder: "\uc0ac\uc9c4 \ud3f4\ub354 \ucd94\uac00",
-    photosHint: "\uc0ac\uc9c4 \ud55c \uc7a5\ub9c8\ub2e4 \uce74\ub4dc \ud55c \uc7a5\uc744 \ub9cc\ub4ed\ub2c8\ub2e4. \uac19\uc740 \ud15c\ud50c\ub9bf\uacfc \uc9c0\uce68\uc744 \uc0ac\uc6a9\ud558\uba70 \uc0dd\uc131 \ud6c4 \ubb38\uad6c\uc640 \uc0ac\uc9c4\uc744 \ud655\uc778\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    photosHint: "기사 사진을 기본으로 사용합니다. 내 사진을 추가하고 편집 화면에서 카드별로 선택·교체할 수 있습니다.",
     generate: "\uce74\ub4dc \uc0dd\uc131",
     savedPicker: "\uc800\uc7a5\ub41c \uce74\ub4dc\ub274\uc2a4",
     savedPlaceholder: "\uc774\uc5b4\uc11c \ud560 \uce74\ub4dc\ub274\uc2a4\ub97c \uc120\ud0dd\ud558\uc138\uc694",
@@ -575,8 +577,8 @@ const STRINGS: any = {
     textOverflow: "\ubcf8\ubb38\uc774 \ud14d\uc2a4\ud2b8 \uc601\uc5ed\uc744 \ub118\uc2b5\ub2c8\ub2e4. \uae00\uc744 \uc904\uc778 \ub4a4 \ub0b4\ubcf4\ub0b4\uc138\uc694.",
     photoX: "\uc0ac\uc9c4 \uc88c\uc6b0 \uc704\uce58",
     photoY: "\uc0ac\uc9c4 \uc704\uc544\ub798 \uc704\uce58",
-    moveEarlier: "\uc55e\uc73c\ub85c \uc774\ub3d9",
-    moveLater: "\ub4a4\ub85c \uc774\ub3d9",
+    moveEarlier: "사진을 앞 카드로",
+    moveLater: "사진을 뒤 카드로",
     deleteCard: "\uce74\ub4dc \uc0ad\uc81c",
     myTemplates: "\ub0b4 \ud15c\ud50c\ub9bf",
     addTemplate: "\ud15c\ud50c\ub9bf \ucd94\uac00",
@@ -640,7 +642,7 @@ const STRINGS: any = {
     prompt: "\uc774\ubbf8\uc9c0 \ud504\ub86c\ud504\ud2b8",
     caption: "\uc124\uba85\uae00",
     hashtags: "\ud574\uc2dc\ud0dc\uadf8",
-    build: "\ucd08\uc548 \ub9cc\ub4e4\uae30",
+    build: "타임라인에 추가 (선택)",
     building: "\ub9cc\ub4dc\ub294 \uc911…",
     startOver: "\ucc98\uc74c\ubd80\ud130",
     creditsNote: "AI \uc774\ubbf8\uc9c0\ub294 Selects \uc774\ubbf8\uc9c0 \ubaa8\ub378\ub85c \ub9cc\ub4e4\uba70 Selects \ud06c\ub808\ub527\uc744 \uc501\ub2c8\ub2e4. \uc0dd\uc131 \uc791\uc5c5\uc740 \uc791\uc5c5 \ud050\uc5d0 \ud45c\uc2dc\ub429\ub2c8\ub2e4.",
@@ -2806,21 +2808,52 @@ function transformFor(t: any, role: string, w: number, h: number, crop?: any) {
 }
 
 // ---- Preview: the real card graphic over a stand-in or the chosen picture ----
-function CardPreview({ t, card, bodyIndex, vars, S, image, made, maxWidth = 240 }: any) {
+function cropByDrag(t: any, role: string, photo: any, crop: any, dx: number, dy: number) {
+  const current = CardSupport.clampCrop(crop), size = templateSize(t), R = roleLook(t, role);
+  const placed = transformFor(t, role, photo.w, photo.h, current).draw;
+  const areaH = R.variant === "panel" ? size.height * R.photoPercent / 100 + 40 : size.height;
+  const roomX = Math.abs(placed.width - size.width), roomY = Math.abs(placed.height - areaH);
+  return CardSupport.clampCrop({ ...current, x: roomX > .5 ? current.x - 2 * dx / roomX : current.x, y: roomY > .5 ? current.y - 2 * dy / roomY : current.y });
+}
+
+function CardPreview({ t, card, bodyIndex, vars, S, image, made, maxWidth = 240, onCrop }: any) {
   const ref = React.useRef<HTMLDivElement>(null);
+  const drag = React.useRef<any>(null);
+  const [dragCrop, setDragCrop] = React.useState<any>(null);
   const w = useWidth(ref, 160);
   const size = templateSize(t), scale = w / size.width;
   const data = cardParams(t, card, bodyIndex, vars);
   const R = card.role === "end" ? null : roleLook(t, card.role);
   const photoH = R && R.variant === "panel" ? size.height * R.photoPercent / 100 + 40 : size.height;
   const photo = made || card.picture;
-  const placed = photo?.w && photo?.h ? transformFor(t, card.role, photo.w, photo.h, card.crop).draw : null;
+  const placed = photo?.w && photo?.h ? transformFor(t, card.role, photo.w, photo.h, dragCrop || CardSupport.clampCrop(card.crop)).draw : null;
   const showPhoto = card.role !== "end" || t.end.background === "cover";
+  const editable = !!(onCrop && image && placed && card.role !== "end");
+  const cancelDrag = () => { drag.current = null; setDragCrop(null); };
   return (
     <div ref={ref} style={{ width: "100%", maxWidth, margin: "0 auto" }}>
-      <div style={{ position: "relative", width: w, height: Math.round(size.height * scale), overflow: "hidden", borderRadius: 6, border: "1px solid var(--panel-border)", background: "#000" }}>
+      <div aria-label={editable ? S.dragPhoto : undefined}
+        onPointerDown={(event: any) => {
+          if (!editable || event.button !== 0) return;
+          event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+          drag.current = { pointer: event.pointerId, x: event.clientX, y: event.clientY, crop: card.crop, next: card.crop };
+        }}
+        onPointerMove={(event: any) => {
+          const start = drag.current;
+          if (!start || start.pointer !== event.pointerId) return;
+          start.next = cropByDrag(t, card.role, photo, start.crop, (event.clientX - start.x) / scale, (event.clientY - start.y) / scale);
+          setDragCrop(start.next);
+        }}
+        onPointerUp={(event: any) => {
+          const start = drag.current;
+          if (!start || start.pointer !== event.pointerId) return;
+          cancelDrag(); event.currentTarget.releasePointerCapture(event.pointerId);
+          if (JSON.stringify(start.next) !== JSON.stringify(start.crop)) onCrop(start.next);
+        }}
+        onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
+        style={{ position: "relative", width: w, height: Math.round(size.height * scale), overflow: "hidden", borderRadius: 6, border: "1px solid var(--panel-border)", background: "#000", ...(editable ? { touchAction: "none", userSelect: "none", cursor: "grab" } : {}) }}>
         <div style={{ position: "absolute", left: 0, top: 0, width: size.width, height: size.height, transform: `scale(${scale})`, transformOrigin: "0 0" }}>
-          {showPhoto ? image ? <img src={image} style={placed ? { position: "absolute", left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: "none" } : { position: "absolute", left: 0, top: 0, width: size.width, height: photoH, objectFit: "cover" }} /> : <div style={{ position: "absolute", left: 0, top: 0, width: size.width, height: photoH, background: "linear-gradient(160deg,#6B7A8F 0%,#3E4A5C 45%,#1F2733 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: 90, fontWeight: 700, letterSpacing: 8 }}>{S.photo}</div> : null}
+          {showPhoto ? image ? <img src={image} draggable={false} style={placed ? { position: "absolute", left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: "none" } : { position: "absolute", left: 0, top: 0, width: size.width, height: photoH, objectFit: "cover" }} /> : <div style={{ position: "absolute", left: 0, top: 0, width: size.width, height: photoH, background: "linear-gradient(160deg,#6B7A8F 0%,#3E4A5C 45%,#1F2733 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: 90, fontWeight: 700, letterSpacing: 8 }}>{S.photo}</div> : null}
           <PreviewCard data={data} />
         </div>
       </div>
@@ -3264,13 +3297,14 @@ function TemplateEditor({ sdk, ui, S, lang, templates, store, onChanged, state }
 }
 
 // ---- One card in the review list ----
-function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, onChange, onPick, onMove, onRemove, busy }: any) {
+function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, onChange, onPick, onArticle, onMove, onRemove, busy }: any) {
   const img = card.picture || {};
   const art = plan.article?.images || [];
-  const path = made?.path || img.path || (img.kind === "reuse" && plan.cards[img.reuse]?.picture?.path) || "";
+  const path = made?.path || img.path || (img.kind === "article" && art[img.index]?.path) || (img.kind === "reuse" && plan.cards[img.reuse]?.picture?.path) || "";
   const preview = useImageUrl(path, fs);
   const options: any[] = [
     ...art.map((a: any, i: number) => ({ value: "article:" + i, label: S.picArticle(i + 1) })),
+    ...(plan.photoChoices || []).flatMap((photo: any, i: number) => photo.kind === "file" ? [{ value: "photo:" + i, label: photo.name || S.picFile }] : []),
     { value: "generate", label: S.picGenerate },
     { value: "file", label: S.picFile },
     ...plan.cards.flatMap((_: any, i: number) => i < index || (img.kind === "reuse" && i === img.reuse) ? [{ value: "reuse:" + i, label: S.picReuse(i + 1) }] : []),
@@ -3279,17 +3313,20 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   const value = img.kind === "article" ? "article:" + img.index : img.kind === "reuse" ? "reuse:" + img.reuse : img.kind || "none";
   const choose = (v: string) => {
     const [k, n] = v.split(":");
+    if (k === "article" && onArticle) return onArticle(Number(n));
+    if (k === "photo") return onChange({ ...card, picture: { ...plan.photoChoices[Number(n)] }, credit: "" });
     const next: any = { kind: k };
     if (k === "article") next.index = Number(n);
     if (k === "reuse") next.reuse = Number(n);
-    if (k === "generate") next.prompt = img.prompt || card.imagePrompt || "";
+    if (k === "generate") { next.prompt = img.prompt || card.imagePrompt || ""; next.confirmed = true; }
     onChange({ ...card, picture: next, credit: k === "generate" ? t.credit.ai : k === "article" ? fillVars(t.credit.article, { credit: art[Number(n)]?.credit || "" }) : card.credit });
   };
   const title = card.role === "cover" ? S.roleCover : card.role === "end" ? S.roleEnd : `${S.roleBody} ${bodyIndex}`;
   const showPicture = card.role !== "end" || t.end.background === "cover";
   return (
     <ui.Section title={`${index + 1}. ${title}`}>
-      <CardPreview t={t} card={card} bodyIndex={bodyIndex} vars={vars} S={S} image={preview} made={made || img} maxWidth={240} />
+      <CardPreview t={t} card={card} bodyIndex={bodyIndex} vars={vars} S={S} image={preview} made={made || img} maxWidth={240} onCrop={!busy ? (crop: any) => onChange({ ...card, crop }) : undefined} />
+      {path && <small>{S.dragPhoto}</small>}
       {card.role === "cover" && (
         <ui.Stack gap={4}>
           <ui.TextField label={S.headline} value={card.headline || ""} onChange={(v: string) => onChange({ ...card, headline: v })} multiline disabled={busy} />
@@ -3318,7 +3355,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
         <ui.Stack gap={8}>
           <ui.Select label={S.picture} value={value} onChange={choose} options={options} disabled={busy} />
           {img.kind === "generate" && <ui.TextField label={S.prompt} value={img.prompt || ""} onChange={(v: string) => onChange({ ...card, picture: { ...img, prompt: v } })} multiline disabled={busy} />}
-          {img.kind === "file" && <ui.FileDrop accept={["image"]} value={img.path ? { path: img.path, name: img.name || "" } : null} onChange={(f: any) => onPick(f)} disabled={busy} />}
+          <ui.FileDrop accept={["image"]} value={null} labels={{ choose: S.replacePhoto, drop: S.replacePhoto }} onChange={(f: any) => onPick(f)} disabled={busy} />
           <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />
         </ui.Stack>
       )}
@@ -3460,7 +3497,7 @@ function extractArticle(url: string, html: string): Article {
     let d: any = null;
     try { d = JSON.parse(m[1]); } catch (e) { d = null; }
     const els: any[] = d && Array.isArray(d.content_elements) ? d.content_elements : [];
-    art.images = [d?.promo_items?.basic, ...els.filter((e) => e?.type === "image")].filter((e) => /^https?:\/\//i.test(e?.url || "")).map((e) => ({ url: e.url, credit: e.credits?.by?.map((c: any) => c.name).filter(Boolean).join(", ") || art.source }));
+    art.images = [d?.promo_items?.basic, ...els.filter((e) => e?.type === "image")].filter((e) => /^https?:\/\//i.test(e?.url || "")).map((e) => ({ url: e.url, previewUrl: e.resizedUrls?.article_lg || e.resizedUrls?.article_md || e.resizedUrls?.article_sm, caption: stripTags(e.caption || e.alt_text || ""), credit: e.credits?.by?.map((c: any) => c.name).filter(Boolean).join(", ") || art.source }));
     const paras = els.filter((e) => e && e.type === "text").map((e) => stripTags(e.content || "")).filter(Boolean);
     if (paras.length) {
       art.body = paras.join("\n");
@@ -3487,6 +3524,53 @@ function extractArticle(url: string, html: string): Article {
   // may be written from them.
   const sc = !art.body && metaTag(s, "og:type") === "article" ? /<article[^>]*>(.*?)<\/article>/s.exec(s) : null;
   if (sc) art.body = [...sc[1].matchAll(/<p[^>]*>(.*?)<\/p>/gs)].map((x) => stripTags(x[1])).filter((p) => chars(p).length > 40).join("\n");
+  const candidates = [...(art.images || [])];
+  const attributes = (tag: string) => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g)].map((m) => [m[1].toLowerCase(), unescapeHtml(m[2] ?? m[3] ?? m[4])]));
+  const imageSource = (a: any) => {
+    const set = a["data-srcset"] || a.srcset;
+    if (set) return set.split(",").map((part: string) => part.trim().split(/\s+/)).sort((a: string[], b: string[]) => (parseFloat(b[1]) || 1) - (parseFloat(a[1]) || 1))[0]?.[0];
+    return a["data-src"] || a["data-original"] || a["data-lazy-src"] || a.src;
+  };
+  const addTag = (tag: string) => {
+    const a = attributes(tag), source = imageSource(a);
+    if (!source || (Number(a.width) === 1 && Number(a.height) === 1) || /(?:^|[\s/_-])(logo|icon|avatar|tracking|pixel)(?:[\s/_.-]|$)/i.test([a.alt, a.class, a.id, source].join(" "))) return;
+    const set = a["data-srcset"] || a.srcset;
+    const preview = set?.split(",").map((part: string) => part.trim().split(/\s+/)).sort((a: string[], b: string[]) => (parseFloat(a[1]) || 1) - (parseFloat(b[1]) || 1)).find((part: string[]) => /w$/.test(part[1] || "") && parseFloat(part[1]) >= 400)?.[0];
+    candidates.push({ url: source, previewUrl: preview, caption: a.alt || "", credit: a["data-credit"] || art.source });
+  };
+  const articleMarkup = /<article\b[^>]*>(.*?)<\/article>/is.exec(s)?.[1];
+  if (articleMarkup) {
+    const markup = articleMarkup.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/<!--[\s\S]*?-->/g, "").replace(/<picture\b[^>]*>(.*?)<\/picture>/gis, (_, picture) => {
+      const source = [...picture.matchAll(/<source\b[^>]*>/gi)].find((m) => imageSource(attributes(m[0])));
+      const image = /<img\b[^>]*>/i.exec(picture);
+      if (source) addTag(source[0]); else if (image) addTag(image[0]);
+      return "";
+    });
+    for (const image of markup.matchAll(/<img\b[^>]*>/gi)) addTag(image[0]);
+  }
+  if (!candidates.length && metaTag(s, "og:image")) candidates.push({ url: metaTag(s, "og:image"), credit: art.source });
+  const seen = new Map<string, any>();
+  art.images = candidates.flatMap((image) => {
+    try {
+      const target = new URL(String(image.url), url);
+      if (!/^https?:$/.test(target.protocol) || target.username || target.password || /(?:^|[\/_-])(logo|icon|avatar|tracking|pixel)(?:[\/_.-]|$)/i.test(target.pathname)) return [];
+      target.hash = "";
+      let previewUrl: string | undefined;
+      if (image.previewUrl) {
+        try { const preview = new URL(image.previewUrl, url); if (/^https?:$/.test(preview.protocol) && !preview.username && !preview.password) { preview.hash = ""; if (preview.href !== target.href) previewUrl = preview.href; } } catch {}
+      }
+      const previous = seen.get(target.href);
+      if (previous) {
+        if (!previous.previewUrl && previewUrl) previous.previewUrl = previewUrl;
+        if (!previous.caption && image.caption) previous.caption = image.caption;
+        if (!previous.credit && image.credit) previous.credit = image.credit;
+        return [];
+      }
+      const normalized = { ...image, url: target.href, previewUrl };
+      seen.set(target.href, normalized);
+      return [normalized];
+    } catch { return []; }
+  });
   art.body = chars(art.body).slice(0, ARTICLE_MAX_CHARS).join("");
   return art;
 }
@@ -3517,7 +3601,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 const AI_TIMEOUT_MS = 180000;
 
 /** Every card's photo as cropped, numbered in card order, in one JPEG the model can look at. */
-async function contactSheet(cards: any[], size: { width: number; height: number }, read: (path: string) => Promise<Uint8Array>): Promise<string | null> {
+async function contactSheet(cards: any[], size: { width: number; height: number }, fs: any): Promise<string | null> {
   const n = cards.length;
   const cols = Math.min(n, 5);
   const tw = 216;
@@ -3533,16 +3617,20 @@ async function contactSheet(cards: any[], size: { width: number; height: number 
     const x = (i % cols) * tw;
     const y = Math.floor(i / cols) * th;
     if (c.photo) {
-      const bitmap = await createImageBitmap(new Blob([await read(c.photo.path)]));
-      const p = photoPlacement(c.photo.width, c.photo.height, c.crop, size);
-      const k = tw / size.width;
-      g.save();
-      g.beginPath();
-      g.rect(x, y, tw, th);
-      g.clip();
-      g.drawImage(bitmap, x + p.left * k, y + p.top * k, p.width * k, p.height * k);
-      g.restore();
-      bitmap.close();
+      const image = new Image();
+      try {
+        image.crossOrigin = "anonymous";
+        image.src = await photoUrl(fs, c.photo.path);
+        await image.decode();
+        const p = photoPlacement(c.photo.width, c.photo.height, c.crop, size);
+        const k = tw / size.width;
+        g.save();
+        g.beginPath();
+        g.rect(x, y, tw, th);
+        g.clip();
+        g.drawImage(image, x + p.left * k, y + p.top * k, p.width * k, p.height * k);
+        g.restore();
+      } finally { image.src = ""; }
     }
     g.fillStyle = "#fff";
     g.fillRect(x + 6, y + 6, 44, 40);
@@ -3640,8 +3728,6 @@ async function readArticle(fs: any, url: string) {
     await fs.downloadFile(url, path);
     const html = decodeHtml(await fs.readFile(path));
     const article = extractArticle(url, html);
-    const image = metaTag(html, "og:image");
-    article.images = article.images?.length ? article.images : /^https?:\/\//i.test(image) ? [{ url: image, credit: article.source || "" }] : [];
     return article;
   } finally { await fs.removeFile({ filePath: path }).catch(() => {}); }
 }
@@ -3680,7 +3766,7 @@ function Panel(props: any) {
       cMode === "manual" ? K.exact(cNum) : K.range(t.counts.min, t.counts.max),
       pic,
       K.genPrompt,
-      src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
+      src.photoChoices ? `Use the supplied photo choices, identified by zero-based photoIndex, for card slots. Choose image: {source:"photo",photoIndex:0} when a matching choice exists; otherwise source:"none". Never request generated images. Photos are not a source of facts. Photo choices: ${JSON.stringify(src.photoChoices.map((p: any, i: number) => ({ photoIndex: i, source: p.kind, caption: p.caption || "", credit: p.credit || "" })))}` : src.ownPhotos ? `The editor supplied ${src.photos.length} photos in order. Make exactly ${src.photos.length} non-end cards, one per photo. Never request generated images or replace these photos. A numbered contact sheet may be attached; it is for matching article points only, never a source of facts.` : "",
       ...["cover", "body"].map((role) => {
         const layout = roleLook(t, role), font = role === "cover" ? t.headline : t.body;
         return layout.textSlots?.length ? `Each ${role === "cover" ? "cover headline" : "body card body"} must have 1 to ${layout.textSlots.length} explicit lines. Keep every line within ${Math.floor(Math.min(...layout.textSlots.map((b: any) => b.width)) / font.size)} full-width ${t.importedLayoutId === "chosun-basic" || t.names?.en === "Chosun Ilbo Basic (feed)" ? "glyph equivalents (one Hangul/CJK glyph is about 1, spaces and Latin characters about 0.5; this is NOT a limit on the total character count)" : "characters"}. Body cards need no heading. Do not add text outside these boxes.` : "";
@@ -3709,15 +3795,21 @@ function Panel(props: any) {
     cards = cards.map((c: any) => {
       let picture: any = { kind: "none" };
       if (c.role === "end") picture = t.end.background === "cover" ? { kind: "reuse", reuse: 0 } : { kind: "none" };
+      else if (photos.some((photo) => photo.kind)) {
+        const requested = c.image?.source === "article" ? photos.findIndex((photo) => photo.kind === "article" && photo.index === c.image.articleIndex) : c.image?.photoIndex;
+        const photo = photos[Number.isInteger(requested) && photos[requested] ? requested : photoIndex % photos.length];
+        photoIndex++;
+        picture = { ...photo };
+      }
       else if (photos.length) {
         const photo = photos[photoIndex++];
         picture = photo ? { kind: "file", path: photo.path, name: photo.name, w: photo.w ?? photo.width, h: photo.h ?? photo.height } : { kind: "none" };
       }
       else if (c.image?.source === "article" && !coverIsArticle(c)) throw new Error("The model referred to an unavailable article photo.");
       else if (coverIsArticle(c)) picture = { kind: "article", index: c.image.articleIndex };
-      else if (c.image?.source !== "none") picture = { kind: "generate", prompt: String(c.image?.prompt || "") };
+      else if (c.image?.source !== "none" && t.images.source === "generate") picture = { kind: "generate", prompt: String(c.image?.prompt || "") };
       const credit = picture.kind === "article" ? fillVars(t.credit.article, { credit: art.images[picture.index]?.credit || art.publisher || "" }) : picture.kind === "generate" ? t.credit.ai : "";
-      return { role: c.role, headline: c.headline || "", heading: c.heading || "", body: c.body || "", cta: c.cta || "", picture, credit };
+      return { role: c.role, headline: c.headline || "", heading: c.heading || "", body: c.body || "", cta: c.cta || "", picture, credit, crop: CardSupport.clampCrop(c.crop) };
     });
     const tags = Array.isArray(raw.hashtags) ? raw.hashtags.map((h: any) => String(h)).join(" ") : "";
     return { article: art, cards, caption: String(raw.caption || ""), hashtags: tags, metaphor: String(raw.metaphor || ""), recommendedCount: raw.recommendedCount ?? cards.length, countReason: String(raw.countReason || "") };
@@ -3770,6 +3862,27 @@ function resolveReusedPictures(cards: any[], pictures: any[]) {
   cards.forEach((_, i) => get(i));
   return resolved;
 }
+function swapCardPhotos(cards: any[], pictures: any[], index: number, delta: number) {
+  const target = index + delta;
+  if (!cards[index] || !cards[target] || cards[index].role === "end" || cards[target].role === "end") return { cards, pictures };
+  const source = (at: number) => {
+    const seen = new Set<number>();
+    while (cards[at]?.picture?.kind === "reuse") {
+      if (seen.has(at)) throw new Error("Reused pictures cannot refer to each other in a cycle.");
+      seen.add(at); at = cards[at].picture.reuse;
+    }
+    if (!cards[at]) throw new Error("A reused picture refers to a missing card.");
+    return cards[at].picture || { kind: "none" };
+  };
+  const resolved = resolveReusedPictures(cards, pictures), nextCards = cards.slice(), nextPictures = pictures.slice();
+  for (const [to, from] of [[index, target], [target, index]]) {
+    const picture = { ...source(from) };
+    nextCards[to] = { ...cards[to], picture, crop: cards[from].crop, credit: cards[from].credit };
+    nextPictures[to] = resolved[from] ? { ...resolved[from], kind: picture.kind } : null;
+  }
+  cards.forEach((card, i) => { if (nextCards[i].picture?.kind === "reuse") nextPictures[i] = null; });
+  return { cards: nextCards, pictures: nextPictures };
+}
 function reorderPlan(cards: any[], pictures: any[], index: number, delta: number | null) {
   if (delta === null && cards[index]?.role !== "end" && cards.filter((c) => c.role !== "end").length < 2) return { cards: cards.slice(), pictures: pictures.slice() };
   if (delta !== null && (cards[index]?.role === "end" || cards[index + delta]?.role === "end")) return { cards: cards.slice(), pictures: pictures.slice() };
@@ -3798,7 +3911,7 @@ function reorderPlan(cards: any[], pictures: any[], index: number, delta: number
 function validatePlan(plan: any, t: any, photos: any[] = []) {
   if (!plan.cards.length) throw new Error("The model returned no cards.");
   const cards = plan.cards.filter((c: any) => c.role !== "end");
-  if (photos.length && cards.length !== photos.length) throw new Error(`Expected ${photos.length} photo cards, received ${cards.length}.`);
+  if (photos.length && !photos.some((photo) => photo.kind) && cards.length !== photos.length) throw new Error(`Expected ${photos.length} photo cards, received ${cards.length}.`);
   for (const card of cards) {
     const text = card.role === "cover" ? card.headline : card.body || card.heading;
     if (!String(text || "").trim()) throw new Error("Every card needs text from the article.");
@@ -4025,6 +4138,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
     finally { setBusy(false); }
   }
   function openJob(j: any) {
+    if (j.plan) j = { ...j, plan: { ...j.plan, cards: j.plan.cards.map((card: any) => ({ ...card, id: card.id || crypto.randomUUID() })) } };
     setJob(j); setError(""); setStatus(""); setExported(j.export?.files || []);
     setMode(j.source?.mode || "link"); setUrl(j.source?.url || ""); setText(j.source?.text || "");
     setArticleText(j.source?.articleText || ""); setArticleFallback(!!j.source?.articleText);
@@ -4038,45 +4152,103 @@ function ProjectPanel({ sdk, context, ui }: any) {
     if (mode === "text" && text.trim().length < 40) return setError(S.needText);
     if (mode === "video" && !pick) return setError(S.needPick);
     const selectedPhotos = mode === "link" && ownPhotos ? photos : [];
-    if (mode === "link" && ownPhotos && !photos.length) return setError("Add photos or turn off Use my own images.");
     const t = tplOf(tplId); if (!t) return;
-    setBusy(true);
-    setPhase(0);
-    let j: any = { id: Date.now().toString(36), projectId, created: new Date().toISOString(), templateId: t.id, templateSnapshot: clone(t), source: { mode, url: url.trim(), text: mode === "text" ? text : "", articleText: mode === "link" && articleFallback ? articleText : "", pick, pickName: resources.find((r) => r.id === pick)?.name || "", ownPhotos: !!selectedPhotos.length, photos: selectedPhotos }, countMode, count, note };
+    setBusy(true); setPhase(0);
+    const started = Date.now();
+    let j: any = { id: Date.now().toString(36), projectId, created: new Date().toISOString(), templateId: t.id, templateSnapshot: clone(t), source: { mode, url: url.trim(), text: mode === "text" ? text : "", articleText: mode === "link" && articleFallback ? articleText : "", pick, pickName: resources.find((r) => r.id === pick)?.name || "", ownPhotos: !!selectedPhotos.length, photos: selectedPhotos }, countMode, count, note, timings: { aiCalls: 0, repairs: 0 } };
     try {
-      j = await saveJob(j); setStatus(S.planning);
+      j = await saveJob(j);
       const K = PLAN_TEXT[cardLangOf(t)];
       let material = "", article: any = null;
+      const articleStarted = Date.now();
       if (mode === "link") {
+        setStatus(S.readingArticle);
         try { article = articleFallback && articleText.trim() ? CardSupport.articleFromText(articleText) : await CardSupport.readArticle(store.fs, url.trim()); }
         catch (e) { setArticleFallback(true); throw new Error("The article could not be read. Paste its text below the link, then generate again."); }
         if (article.body.length < CardSupport.ARTICLE_MIN_CHARS) { setArticleFallback(true); throw new Error("Not enough article text. Paste the article text below the link, then generate again."); }
-        material = `${K.link(j.source.url)}\nArticle title: ${article.title}\nArticle text (only source of facts):\n${article.body}\nArticle photos: ${JSON.stringify(article.images || [])}`;
       } else if (mode === "text") material = K.text(text.slice(0, 40000));
       else {
         const r = resources.find((x) => x.id === pick); if (!r?.analyzed) throw new Error(S.notAnalyzed);
         material = K.video(r.name, (await readTranscriptText(r.id, r.name)).slice(0, 60000));
       }
+      j.timings.articleMs = Date.now() - articleStarted;
+      const preparationStarted = Date.now();
+      const choices: any[] = selectedPhotos.map((photo) => ({ ...photo, kind: "file" }));
+      if (article) {
+        setStatus(S.preparingPhotos);
+        article.images = article.images || [];
+        const candidates = article.images.slice(0, Math.max(0, 20 - choices.length));
+        const previews = candidates.map((image: any, index: number) => image.previewUrl ? index : -1).filter((index: number) => index >= 0);
+        for (let offset = 0; offset < previews.length; offset += 3) {
+          await Promise.all(previews.slice(offset, offset + 3).map(async (index: number) => {
+            try { article.images[index] = await prepareArticlePhoto(article.images[index], index, j.id); } catch {}
+          }));
+        }
+        candidates.forEach((_: any, index: number) => choices.push({ ...article.images[index], kind: "article", index }));
+        material = `${K.link(j.source.url)}\nArticle title: ${article.title}\nArticle text (only source of facts):\n${article.body}\nArticle photos: ${JSON.stringify(article.images.map((image: any, index: number) => ({ index, url: image.url, credit: image.credit || "" })))}`;
+      }
       const states = typeof sdk.aiProviders === "function" ? await sdk.aiProviders() : null;
       const provider = ["chatgpt", "claude"].find((p) => states?.[p] === "connected");
       if (!provider) throw new Error("Connect ChatGPT or Claude in Selects to generate cards. Existing cards can still be edited and exported.");
-      const sheet = selectedPhotos.length ? await CardSupport.contactSheet(selectedPhotos.map((p) => ({ photo: { ...p, width: p.w ?? p.width, height: p.h ?? p.height } })), templateSize(t), (path: string) => store.fs.readFile(path)).catch(() => null) : null;
-      const total = selectedPhotos.length + (endKindOf(t) === "none" ? 0 : 1);
-      const prompt = planPrompt(t, j.source, selectedPhotos.length ? "manual" : countMode, selectedPhotos.length ? total : count, note, material);
+      const sheetStarted = Date.now();
+      const sheet = choices.some((photo) => photo.path) ? await CardSupport.contactSheet(choices.map((photo) => photo.path ? { photo: { ...photo, width: photo.w, height: photo.h } } : {}), templateSize(t), store.fs).catch(() => null) : null;
+      j.timings.sheetMs = Date.now() - sheetStarted;
+      j.timings.photosMs = sheetStarted - preparationStarted;
+      const planningTemplate = mode === "link" ? { ...t, images: { ...t.images, source: "article" } } : t;
+      const prompt = planPrompt(planningTemplate, { ...j.source, photoChoices: mode === "link" ? choices : undefined }, countMode, count, note, material);
       let repair = "", result: any;
+      const aiStarted = Date.now();
+      setStatus(S.planning);
       for (let attempt = 0; attempt < 2; attempt++) {
+        j.timings.aiCalls++; j.timings.repairs = attempt;
         const reply = await sdk.askAI({ prompt: prompt + repair, provider, timeoutMs: 600000, ...(sheet ? { images: [{ dataUrl: sheet, name: "photos.jpg" }] } : {}) });
         try {
           const raw = extractJson(reply.text, S);
           if (article) raw.article = { ...(raw.article || {}), ...article, publisher: article.source || raw.article?.publisher || "", images: article.images || [] };
-          result = validatePlan(normalizePlan(raw, t, selectedPhotos), t, selectedPhotos); break;
-        }
-        catch (e: any) { if (attempt) throw e; repair = `\nYour reply could not be used: ${e.message}. Reply again with the requested full JSON.`; }
+          result = validatePlan(normalizePlan(raw, planningTemplate, choices), planningTemplate, choices); break;
+        } catch (e: any) { if (attempt) throw e; repair = `\nYour reply could not be used: ${e.message}. Reply again with the requested full JSON.`; }
       }
-      if (article) result.article = { ...result.article, ...article, publisher: article.source || result.article.publisher || "", images: article.images || [] };
+      j.timings.aiMs = Date.now() - aiStarted;
+      const selectedStarted = Date.now();
+      if (article) {
+        setStatus(S.preparingPhotos);
+        const needed: number[] = [...new Set(result.cards.filter((card: any) => card.picture?.kind === "article").map((card: any) => card.picture.index))] as number[];
+        for (let offset = 0; offset < needed.length; offset += 3) {
+          await Promise.all(needed.slice(offset, offset + 3).map(async (index) => {
+            try { article.images[index] = await prepareArticlePhoto(article.images[index], index, j.id); }
+            catch { article.images[index] = { ...article.images[index], unavailable: true }; }
+          }));
+        }
+        result.article = { ...result.article, ...article, publisher: article.source || result.article.publisher || "", images: article.images || [] };
+        result.cards = result.cards.map((card: any) => {
+          if (card.picture?.kind !== "article") return card;
+          const image = article.images[card.picture.index];
+          return { ...card, picture: image.path ? { ...card.picture, path: image.path, w: image.w, h: image.h } : { kind: "none" } };
+        });
+      }
+      j.timings.photosMs += Date.now() - selectedStarted;
+      result.cards = result.cards.map((card: any) => ({ ...card, id: crypto.randomUUID() }));
+      j.timings.editableMs = Date.now() - started;
+      result.photoChoices = choices.map((photo) => photo.kind === "article" ? { ...photo, ...article.images[photo.index] } : photo);
       j = await saveJob({ ...j, plan: result }); setStatus(""); loadJobs();
     } catch (e: any) { setStatus(""); setError(String(e?.message || e) + " " + S.retryGenerate); }
     finally { setBusy(false); setPhase(null); }
+  }
+
+  async function prepareArticlePhoto(image: any, index: number, jid: string, original = false) {
+    const key = original ? "originalPath" : "path";
+    if (image?.[key] && await store.fs.exists(image[key])) return image;
+    if (original && !image.previewUrl && image.path && await store.fs.exists(image.path)) return { ...image, originalPath: image.path, originalW: image.w, originalH: image.h };
+    if (!/^https?:\/\//i.test(String(image?.url || ""))) throw new Error(S.downloadFailed(index + 1));
+    const url = !original && image.previewUrl ? image.previewUrl : fullSizeUrl(image.url);
+    const ext = (String(url).match(/\.(jpe?g|png|webp)(\?|$)/i) || [, "jpg"])[1].toLowerCase();
+    const path = store.join(await media(jid), `article-${index + 1}${original ? "-original" : ""}.${ext}`);
+    let downloaded = false;
+    try { downloaded = await download(url, path); } catch (e) { if (url === image.url || (!original && image.previewUrl)) throw e; }
+    if (!downloaded && url !== image.url && (original || !image.previewUrl)) downloaded = await download(image.url, path);
+    if (!downloaded) throw new Error(S.downloadFailed(index + 1));
+    const size = await imageSize(store.fs, path);
+    return original ? { ...image, originalPath: path, originalW: size.w, originalH: size.h } : { ...image, path, ...size, unavailable: false };
   }
 
   // ---- Step 2: pictures (article photos, Selects image generation, files) ----
@@ -4182,22 +4354,21 @@ function ProjectPanel({ sdk, context, ui }: any) {
       if (c.kind === "article") {
         setStatus(S.downloading(i + 1));
         const a = j.plan.article.images[c.index];
-        const ext = (String(a?.url || "").match(/\.(jpe?g|png|webp)(\?|$)/i) || [, "jpg"])[1].toLowerCase();
-        const to = store.join(await media(j.id), `card${String(i + 1).padStart(2, "0")}-${j.id}-article.${ext}`);
-        const full = fullSizeUrl(String(a?.url || ""));
-        const got = a && ((full !== a.url && (await download(full, to))) || (await download(a.url, to)));
-        if (!got) throw new Error(S.downloadFailed(i + 1));
-        const size = await imageSize(store.fs, to).catch(() => null);
-        if (!size) throw new Error(S.downloadFailed(i + 1));
+        const started = Date.now();
+        const prepared = await prepareArticlePhoto(a, c.index, j.id, true);
+        j.timings = { ...j.timings, originalsMs: (j.timings?.originalsMs || 0) + Date.now() - started };
+        const to = prepared.originalPath;
+        j.plan = { ...j.plan, article: { ...j.plan.article, images: j.plan.article.images.map((image: any, index: number) => index === c.index ? prepared : image) } };
         setStatus(S.importing(i + 1));
-        pics[i] = { kind: "article", path: to, ...size, ...(await importFile(to)) };
+        pics[i] = { kind: "article", path: to, w: prepared.originalW, h: prepared.originalH, ...(await importFile(to)) };
       } else if (c.kind === "file") {
         if (!c.path) throw new Error(S.imageFailed);
-        const size = await imageSize(store.fs, c.path).catch(() => null);
+        const size = c.w && c.h ? { w: c.w, h: c.h } : await imageSize(store.fs, c.path).catch(() => null);
         if (!size) throw new Error(S.imageFailed);
         setStatus(S.importing(i + 1));
         pics[i] = { kind: "file", path: c.path, ...size, ...(await importFile(c.path)) };
       } else if (c.kind === "generate") {
+        if (!c.confirmed) throw new Error(S.choosePhotoFirst);
         need.push(i);
         continue;
       } else {
@@ -4315,32 +4486,36 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     return await createImageBitmap(new Blob([bytes], { type: m[1] }));
   }
 
-  async function finishCard(still: ImageBitmap, t: any, card: any, pic: any): Promise<Uint8Array> {
+  async function finishCard(still: HTMLImageElement, t: any, card: any, pic: any): Promise<Uint8Array> {
     const c = document.createElement("canvas");
     const { width: W, height: H } = templateSize(t);
     c.width = W;
     c.height = H;
     const g = c.getContext("2d")!;
     const probe = document.createElement("canvas");
-    probe.width = still.width;
-    probe.height = still.height;
+    probe.width = still.naturalWidth;
+    probe.height = still.naturalHeight;
     const pg = probe.getContext("2d")!;
     pg.drawImage(still, 0, 0);
     const corner = pg.getImageData(2, 2, 1, 1).data[3];
     if (corner < 250 && pic?.path && store.fs) {
-      const img = await createImageBitmap(new Blob([await store.fs.readFile(pic.path)]));
-      const tr = transformFor(t, card.role, img.width, img.height, card.crop);
-      const a = img.width / img.height;
-      const fitW = a >= W / H ? W : H * a;
-      const fitH = a >= W / H ? W / a : H;
-      const w = fitW * tr.scale;
-      const h = fitH * tr.scale;
-      const cy = H / 2 - (tr.posY / 100) * H;
-      const cx = W / 2 + ((tr.posX || 0) / 100) * H;
-      g.fillStyle = "#000";
-      g.fillRect(0, 0, W, H);
-      g.drawImage(img, cx - w / 2, cy - h / 2, w, h);
-      img.close();
+      const img = new Image();
+      try {
+        img.crossOrigin = "anonymous";
+        img.src = await photoUrl(store.fs, pic.path);
+        await img.decode();
+        const tr = transformFor(t, card.role, img.naturalWidth, img.naturalHeight, card.crop);
+        const a = img.naturalWidth / img.naturalHeight;
+        const fitW = a >= W / H ? W : H * a;
+        const fitH = a >= W / H ? W / a : H;
+        const w = fitW * tr.scale;
+        const h = fitH * tr.scale;
+        const cy = H / 2 - (tr.posY / 100) * H;
+        const cx = W / 2 + ((tr.posX || 0) / 100) * H;
+        g.fillStyle = "#000";
+        g.fillRect(0, 0, W, H);
+        g.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+      } finally { img.src = ""; }
     }
     g.drawImage(still, 0, 0, W, H);
     const blob: Blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("png"))), "image/png"));
@@ -4379,15 +4554,17 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         const frame = Math.floor((info.cards[i][1] + info.cards[i][2]) / 2);
         const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
         await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: j.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
-        const rawPng = await store.fs.readFile(rawPath);
-        const still = await createImageBitmap(new Blob([rawPng], { type: "image/png" }));
+        const still = new Image();
         const card = j.plan.cards[i] || { role: "body" };
         const pic = j.pictures?.[i];
         let png: Uint8Array;
         try {
+          still.crossOrigin = "anonymous";
+          still.src = await photoUrl(store.fs, rawPath);
+          await still.decode();
           png = await finishCard(still, t || BUILTIN_TEMPLATES[0], card, pic);
         } finally {
-          still.close();
+          still.src = "";
         }
         await store.fs.removeFile({ filePath: rawPath });
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.${j.format === "jpeg" ? "jpg" : "png"}`);
@@ -4445,12 +4622,46 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   };
   function reorderCard(index: number, delta: number | null) {
     if (delta !== null && (job.plan.cards[index]?.role === "end" || job.plan.cards[index + delta]?.role === "end")) return;
-    try { const next = reorderPlan(job.plan.cards, job.pictures || [], index, delta); setJob(revised({ plan: { ...job.plan, cards: next.cards }, pictures: next.pictures })); }
+    try { const next = delta === null ? reorderPlan(job.plan.cards, job.pictures || [], index, null) : swapCardPhotos(job.plan.cards, job.pictures || [], index, delta); setJob(revised({ plan: { ...job.plan, cards: next.cards }, pictures: next.pictures })); }
     catch (e: any) { setError(String(e?.message || e)); }
   }
   async function pickCardPhoto(i: number, c: any, file: any) {
+    setError(""); setBusy(true);
     try { const size = file ? await imageSize(store.fs, file.path) : {}; setCard(i, { ...c, picture: file ? { kind: "file", path: file.path, name: file.name, ...size } : { kind: "none" }, credit: "" }); }
     catch (e: any) { setError(String(e?.message || e)); }
+    finally { setBusy(false); }
+  }
+  async function pickArticlePhoto(i: number, c: any, index: number) {
+    setError(""); setBusy(true);
+    try {
+      const image = await prepareArticlePhoto(job.plan.article.images[index], index, job.id);
+      const cards = job.plan.cards.slice(); cards[i] = { ...c, picture: { kind: "article", index, path: image.path, w: image.w, h: image.h }, credit: image.credit || "" };
+      const pics = (job.pictures || []).slice(); pics[i] = null;
+      setJob(revised({ plan: { ...job.plan, cards, article: { ...job.plan.article, images: job.plan.article.images.map((old: any, at: number) => at === index ? image : old) } }, pictures: pics }));
+    } catch (e: any) { setError(String(e?.message || e)); }
+    finally { setBusy(false); }
+  }
+  async function addCard() {
+    if (job.plan.cards.length >= 20) return setError(S.cardLimit);
+    setError(""); setBusy(true);
+    try {
+      const cards = job.plan.cards.slice(), end = cards.findIndex((card: any) => card.role === "end");
+      const used = new Set(cards.map((card: any) => card.picture?.path).filter(Boolean));
+      const usedArticle = new Set(cards.filter((card: any) => card.picture?.kind === "article").map((card: any) => card.picture.index));
+      let photo = (job.plan.photoChoices || []).find((photo: any) => photo.kind === "article" ? !usedArticle.has(photo.index) : photo.path && !used.has(photo.path));
+      let article = job.plan.article;
+      if (photo?.kind === "article") {
+        try {
+          const image = await prepareArticlePhoto(article.images[photo.index], photo.index, job.id);
+          article = { ...article, images: article.images.map((old: any, i: number) => i === photo.index ? image : old) };
+          photo = { ...photo, ...image };
+        } catch (e: any) { setError(String(e?.message || e)); photo = null; }
+      }
+      const card = { id: crypto.randomUUID(), role: cards.some((card: any) => card.role !== "end") ? "body" : "cover", headline: "", body: "", crop: CardSupport.clampCrop(), credit: photo?.credit || "", picture: photo ? { ...photo } : { kind: "none" } };
+      cards.splice(end < 0 ? cards.length : end, 0, card);
+      const pics = (job.pictures || []).slice(); pics.splice(end < 0 ? pics.length : end, 0, null);
+      setJob(revised({ plan: { ...job.plan, cards, article }, pictures: pics }));
+    } finally { setBusy(false); }
   }
   const latestJob = React.useRef(job); latestJob.current = job;
   React.useEffect(() => () => { const j = latestJob.current; if (j?.plan) void store.put("jobs", j.id, { ...j, updated: new Date().toISOString() }).catch(() => {}); }, [store]);
@@ -4488,7 +4699,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         )}
         {t && <small>{descOf(t, lang)}</small>}
         {t && <CardPreview t={t} card={{ role: "cover", headline: STRINGS[cardLangOf(t)].sampleHeadline }} bodyIndex={1} vars={{}} S={S} maxWidth={160} />}
-        {!(mode === "link" && ownPhotos) && <ui.Segmented
+        {<ui.Segmented
           label={S.count}
           value={countMode}
           onChange={setCountMode}
@@ -4499,11 +4710,11 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           disabled={busy}
         />
         }
-        {!(mode === "link" && ownPhotos) && countMode === "manual" && <ui.NumberField label={S.howMany} value={count} onChange={(v: number) => setCount(Math.max(1, Math.min(20, Math.round(v))))} min={1} max={20} step={1} disabled={busy} />}
+        {countMode === "manual" && <ui.NumberField label={S.howMany} value={count} onChange={(v: number) => setCount(Math.max(1, Math.min(20, Math.round(v))))} min={1} max={20} step={1} disabled={busy} />}
         <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} multiline disabled={busy} />
       </ui.Section>
       <ui.Actions>
-        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || !tplOf(tplId) || (mode === "link" && ownPhotos && !photos.length)}>
+        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan} disabled={busy || !tplOf(tplId)}>
           {mode === "link" ? S.generate : S.plan}
         </ui.Button>
       </ui.Actions>
@@ -4565,6 +4776,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
           </ui.Stack> : null}
           <small>{S.reviewHint}</small>
+          {job.plan.article?.images?.some((image: any) => image.unavailable) && <ui.Message tone="muted">{S.photoUnavailable}</ui.Message>}
           {job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
         </ui.Section>
         <ui.Grid minItemWidth={240}>
@@ -4572,7 +4784,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             if (c.role === "body") bodyN++;
             return (
               <CardEditor
-                key={i}
+                key={c.id || i}
                 ui={ui}
                 S={S}
                 t={reviewT}
@@ -4586,12 +4798,14 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
                 busy={busy}
                 onChange={(n: any) => setCard(i, n)}
                 onPick={(f: any) => pickCardPhoto(i, c, f)}
+                onArticle={(n: number) => pickArticlePhoto(i, c, n)}
                 onMove={(delta: number) => reorderCard(i, delta)}
                 onRemove={() => reorderCard(i, null)}
               />
             );
           })}
         </ui.Grid>
+        <ui.Button variant="secondary" onClick={addCard} disabled={busy || job.plan.cards.length >= 20}>{S.addCard}</ui.Button>
         <ui.Section title={S.caption}>
           <ui.TextField label={S.caption} value={job.plan.caption} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, caption: v } })} multiline disabled={busy} />
           <ui.TextField label={S.hashtags} value={job.plan.hashtags} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, hashtags: v } })} disabled={busy} />
