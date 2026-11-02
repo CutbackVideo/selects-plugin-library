@@ -828,7 +828,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "de08d9ca3e2856dd97c1d8a9983189b7ab3c8d877b27b97f0020be55c7717d0b",
+      "sha256": "1775864fe16f6435a03745d15e5b7df28d151860f1ff734da11764775ad43295",
       "role": "runtime",
       "ranges": [
         {
@@ -1687,7 +1687,7 @@
     {
       "path": "shared/template-run.js",
       "role": "build-source",
-      "sha256": "aea614f468c5136adac63e38f196bb71053b65cc7e60c01600472396459d0b0f",
+      "sha256": "93106ff5c1ed4ce0de4e057f7680cd5bffc25b91a0febfbef60ea5a16a6bc1fb",
       "ranges": [
         {
           "startLine": 1,

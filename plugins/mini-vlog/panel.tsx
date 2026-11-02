@@ -4592,7 +4592,7 @@ async function templateStateFile(selects,path,text,encode,expected=null,fingerpr
   for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}
   const observed=await fingerprint(files,path);
   if(!observed||observed.size!==text.length||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('Template state file could not be fingerprinted.');
-  expected={path,...observed};
+  expected={path,size:observed.size,sha256:observed.sha256};
  }
  if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');
  const before=await fingerprint(files,path);
