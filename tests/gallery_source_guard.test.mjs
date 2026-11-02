@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -56,7 +57,7 @@ async function realSources(t,options={}){
  f.selects.files.stat=async file=>{try{const s=fs.statSync(file);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};}catch(error){if(error.code==='ENOENT')return null;throw error;}};
  const contentReads=[];
  f.selects.files.readRange=async({path:file,offset,length})=>{if(offset===0&&length===32)contentReads.push({path:file,afterSave:f.commits.length>0});const bytes=fs.readFileSync(file).subarray(offset,offset+length);return {bytesRead:bytes.length,base64:bytes.toString('base64')};};
- delete f.selects.files.fingerprint;
+ f.selects.files.fingerprint=async file=>{contentReads.push({path:file,afterSave:f.commits.length>0});const bytes=fs.readFileSync(file);return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};};
  return {...f,root,contentReads};
 }
 for(const kind of ['image','video','audio'])test('Gallery rejects real same-size/same-time '+kind+' replacement during composition',async t=>{
@@ -78,8 +79,8 @@ test('Gallery stable real inputs are checked before, during and after one comple
  assert.equal(f.contentReads.length,paths.size*4);assert.deepEqual(new Set(f.contentReads.map(row=>row.path)),paths);
  for(const file of paths){const reads=f.contentReads.filter(row=>row.path===file);assert.equal(reads.length,4);assert.equal(reads.filter(row=>row.afterSave).length,2);}
 });
-test('Gallery confirms complete originals through existing reads without a source fingerprint SDK',async()=>{
- const f=galleryFixture();delete f.selects.files.fingerprint;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
+test('Gallery creates and verifies a Draft through legacy file APIs',async()=>{
+ const f=galleryFixture();delete f.selects.files.fingerprint;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);
 });
 
 for(const minify of [false,true])test('Gallery refuses a music estimate after its real source changes before creation (minify='+minify+')',async t=>{

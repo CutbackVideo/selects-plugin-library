@@ -1,3 +1,5 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -18,6 +20,8 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
     environment:async()=>({platform,version:'test',homedir:platform==='win32'?'C:\\Users\\\ud64d\uae38\ub3d9':'/user',tempDirectory:platform==='win32'?'C:\\temp':'/tmp'}),
     stat:async path=>files.has(path)?{size:files.get(path).length,mtimeMs:1,ino:2,isDirectory:false}:null,
     exists:async path=>files.has(path),
+    mediaFingerprint:async path=>files.has(path)?mediaFingerprint(files.get(path)):null,
+    fingerprint:async path=>files.has(path)?{size:files.get(path).length,sha256:createHash('sha256').update(files.get(path)).digest('hex')}:null,
     readRange:async({path,offset,length})=>{
       fileCalls.push({method:'readRange',path,offset,length});
       assert(length<=49152);
@@ -405,31 +409,31 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
     }
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
 });
-test('local client observes full originals in one read-only SDK script without a fingerprint API',async()=>{
+test('local client observes full originals in one read-only SDK script through the host fingerprint API',async()=>{
  const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/large-original',bytes);
  const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
  const row=await client.files.fingerprint('/large-original');
  assert.deepEqual(JSON.parse(JSON.stringify(row)),{size:bytes.length,sha256:(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex')});
  assert.equal(h.calls.length-before,1,'all chunks share one script deadline');
  assert.equal(await client.files.fingerprint('/missing'),null);
- const calls=h.calls.slice(before);assert(calls.every(call=>call.allowCommit===false));assert(calls.every(call=>!call.script.includes('files.fingerprint')));
- assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,4);
+ const calls=h.calls.slice(before);assert(calls.every(call=>call.allowCommit===false));assert(calls.every(call=>call.script.includes('files.fingerprint')));
+ assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,0);
 });
 test('the private canonical read overload supports source observations without changing positional EOF reads',async()=>{
  const h=host();h.files.set('/a',Buffer.from('alpha'));const client=await load().createPanelLocalClient(h.sdk);
  const sdkRead=await client.files.readRange({path:'/a',offset:1,length:2});assert.deepEqual(sdkRead,{bytesRead:2,base64:'bHA='});
  assert.equal(Buffer.from(await client.files.readRange('/a',3,10)).toString(),'ha');
- const {observeSourceFiles}=await import('../shared/native-image-input.mjs');const rows=await observeSourceFiles(client.files,['/a']);assert.equal(rows[0].sha256,(await import('node:crypto')).createHash('sha256').update('alpha').digest('hex'));
+ const {observeSourceFiles}=await import('../shared/native-image-input.mjs');const rows=await observeSourceFiles(client.files,['/a']);assert.equal(rows[0].digest,mediaFingerprint(Buffer.from('alpha')).digest);
 });
 
-test('panel source observations hash every byte in one script per file',async()=>{
+test('panel source observations use one host fingerprint call per file',async()=>{
  const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/observed-original',bytes);
  const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
  const {observeSourceFiles}=await import('../shared/native-image-input.mjs');
  const rows=await observeSourceFiles(client.files,['/observed-original']);
- assert.equal(rows[0].sha256,(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex'));
+ assert.equal(rows[0].digest,mediaFingerprint(bytes).digest);
  assert.equal(h.calls.length-before,1);
- assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,4);
+ assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,0);
  h.files.set('/observed-original',Buffer.alloc(bytes.length,24));
  await assert.rejects(observeSourceFiles(client.files,['/observed-original'],rows),error=>error.code==='source-file-changed');
 });

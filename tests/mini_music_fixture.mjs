@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -72,7 +73,7 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
   preset:'preset',titleFields:{},musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,ownGrid:own?{durationSeconds:60,sourceObservation:{path:file,size:bytes.length,sha256:digest(bytes)}}:null,cueId:'cue',cue,musicStart:0,pace:'quick',length:'standard',requested:2,fitted:2,planShort:()=>false,assemblyPendingRef:{current:{}},clipSound:'ambient',soft:true,beatPunch:true,hook:false,gridded:true,grid:{bpm:110,accepted:true},usePhotos:true,only:null,onlyPhotos:null,snapCuts:{},
   // Scene search is outside this fixture; its caller has separate regressions.
   findCandidates:async()=>({list:[],failed:[]}),checkLocalClips:async()=>({results:[],unavailable:false}),
-  candidates:{key:'p|null|motion',failed:[],scene:[],sceneSources:inventory.resources.map(r=>({path:r.path,size:fs.statSync(r.path).size,sha256:digest(fs.readFileSync(r.path))})),list:[],local:{results:[],unavailable:false}},
+  candidates:{key:'p|null|motion',failed:[],scene:[],sceneSources:inventory.resources.map(r=>({path:r.path,...mediaFingerprint(fs.readFileSync(r.path))})),list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,
  };
  const box=vm.createContext(globals);vm.runInContext(observationFeatures+'\n'+inputFeature+'\n'+feature+'\n'+analysisFeature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build,finishTitle,decorate,prepareMiniDecoration:typeof prepareMiniDecoration==="function"?prepareMiniDecoration:undefined,snapshotMiniFinishAssets:typeof snapshotMiniFinishAssets==="function"?snapshotMiniFinishAssets:undefined};',box);

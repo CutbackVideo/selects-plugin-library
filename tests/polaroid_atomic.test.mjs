@@ -65,7 +65,7 @@ for(const capability of ['graphicsReadSupported','transformReadSupported','audio
  const f=fixture(id,{[capability]:false});await assert.rejects(f.create(),/update|verify|confirm/i);assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);
 });
 test('Polaroid verifies music using existing saved-Draft reads without clipSourceWindow',async()=>{
- const f=fixture(id,{sourceReadSupported:false});delete f.sdk.maxScriptTimeoutSeconds;delete f.selects.files.fingerprint;
+ const f=fixture(id,{sourceReadSupported:false});delete f.sdk.maxScriptTimeoutSeconds;
  const result=await f.create();assert.equal(result.status,'saved');assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
  assert.equal(f.saved.get(result.draftId).clips.filter(clip=>clip.trackKind==='audio').length,1);
 });

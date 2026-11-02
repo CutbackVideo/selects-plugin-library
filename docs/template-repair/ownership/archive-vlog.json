@@ -972,13 +972,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "a2d66baef4cbffbf087c5ccb9ccfa7177ec46d1fdb1dbbdfcd1bbb3014d994c4",
+      "sha256": "552d00acb274d81e32b095d7ce21926dcdbd749e47759ec957b0dee03a0f4f3d",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8047,
+          "endLine": 8097,
           "feature": "panel-ui"
         },
         {
@@ -1012,18 +1012,18 @@
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 4369,
-          "endLine": 4449,
+          "startLine": 4390,
+          "endLine": 4470,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7596,
-          "endLine": 7999,
+          "startLine": 7646,
+          "endLine": 8050,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8001,
-          "endLine": 8046,
+          "startLine": 8052,
+          "endLine": 8097,
           "feature": "app-guard"
         },
         {
@@ -1047,128 +1047,128 @@
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4452,
-          "endLine": 4455,
+          "startLine": 4473,
+          "endLine": 4476,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4461,
-          "endLine": 4496,
+          "startLine": 4482,
+          "endLine": 4517,
           "feature": "music-policy"
         },
         {
-          "startLine": 4566,
-          "endLine": 4581,
+          "startLine": 4587,
+          "endLine": 4602,
           "feature": "music-policy"
         },
         {
-          "startLine": 4583,
-          "endLine": 4586,
+          "startLine": 4604,
+          "endLine": 4607,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5283,
-          "endLine": 5296,
+          "startLine": 5304,
+          "endLine": 5317,
           "feature": "music-policy"
         },
         {
-          "startLine": 5298,
-          "endLine": 5323,
+          "startLine": 5319,
+          "endLine": 5344,
           "feature": "program-policy"
         },
         {
-          "startLine": 5339,
-          "endLine": 5361,
+          "startLine": 5360,
+          "endLine": 5382,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5366,
-          "endLine": 5374,
+          "startLine": 5387,
+          "endLine": 5395,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5376,
-          "endLine": 5389,
+          "startLine": 5397,
+          "endLine": 5410,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5394,
-          "endLine": 5418,
+          "startLine": 5415,
+          "endLine": 5439,
           "feature": "music-policy"
         },
         {
-          "startLine": 5420,
-          "endLine": 5427,
+          "startLine": 5441,
+          "endLine": 5448,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5448,
-          "endLine": 5458,
+          "startLine": 5469,
+          "endLine": 5479,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5754,
-          "endLine": 5777,
+          "startLine": 5775,
+          "endLine": 5798,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5778,
-          "endLine": 5796,
+          "startLine": 5799,
+          "endLine": 5817,
           "feature": "title-policy"
         },
         {
-          "startLine": 5871,
-          "endLine": 5921,
+          "startLine": 5892,
+          "endLine": 5942,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5960,
-          "endLine": 6001,
+          "startLine": 5981,
+          "endLine": 6022,
           "feature": "music-policy"
         },
         {
-          "startLine": 6010,
-          "endLine": 6101,
+          "startLine": 6031,
+          "endLine": 6122,
           "feature": "title-policy"
         },
         {
-          "startLine": 6104,
-          "endLine": 6134,
+          "startLine": 6125,
+          "endLine": 6155,
           "feature": "music-policy"
         },
         {
-          "startLine": 6177,
-          "endLine": 6189,
+          "startLine": 6198,
+          "endLine": 6210,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6206,
-          "endLine": 6404,
+          "startLine": 6227,
+          "endLine": 6425,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6435,
-          "endLine": 6463,
+          "startLine": 6456,
+          "endLine": 6484,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6742,
-          "endLine": 6755,
+          "startLine": 6763,
+          "endLine": 6776,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6764,
-          "endLine": 6766,
+          "startLine": 6785,
+          "endLine": 6787,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6775,
-          "endLine": 6802,
+          "startLine": 6796,
+          "endLine": 6823,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7273,
-          "endLine": 7433,
+          "startLine": 7323,
+          "endLine": 7483,
           "feature": "workflow-policy"
         },
         {
@@ -1177,48 +1177,48 @@
           "feature": "audio-preview"
         },
         {
-          "startLine": 5745,
-          "endLine": 5750,
+          "startLine": 5766,
+          "endLine": 5771,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6136,
-          "endLine": 6174,
+          "startLine": 6157,
+          "endLine": 6195,
           "feature": "audio-preview"
         },
         {
-          "startLine": 3831,
-          "endLine": 4367,
+          "startLine": 3849,
+          "endLine": 4388,
           "feature": "asset-owner"
         },
         {
-          "startLine": 7005,
-          "endLine": 7254,
+          "startLine": 7055,
+          "endLine": 7304,
           "feature": "source-input"
         },
         {
-          "startLine": 4588,
-          "endLine": 5279,
+          "startLine": 4609,
+          "endLine": 5300,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4497,
-          "endLine": 4565,
+          "startLine": 4518,
+          "endLine": 4586,
           "feature": "worker-owner"
         },
         {
-          "startLine": 7480,
-          "endLine": 7594,
+          "startLine": 7530,
+          "endLine": 7644,
           "feature": "catalog-read"
         },
         {
           "startLine": 3561,
-          "endLine": 3808,
+          "endLine": 3825,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 4370,
-          "endLine": 4431,
+          "startLine": 4391,
+          "endLine": 4452,
           "feature": "host-file-facade"
         },
         {
@@ -1227,13 +1227,13 @@
           "feature": "text-runtime"
         },
         {
-          "startLine": 6806,
-          "endLine": 6909,
+          "startLine": 6827,
+          "endLine": 6959,
           "feature": "file-observation"
         },
         {
-          "startLine": 6910,
-          "endLine": 7004,
+          "startLine": 6960,
+          "endLine": 7054,
           "feature": "draft-observation"
         }
       ]
@@ -1310,28 +1310,28 @@
     },
     {
       "path": "plugins/archive-vlog/scripts/assemble.js",
-      "sha256": "43887cd15ff366332ec2a1097566d593b5b3860e3abfe73c4e2ab3b5ee31849b",
+      "sha256": "62d66a0282cd1da7b6c02a9ec80d10885aa847e223035cb47fce6bb70f393b8c",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 485,
+          "endLine": 513,
           "feature": "assembly-policy"
         },
         {
           "startLine": 1,
-          "endLine": 271,
+          "endLine": 300,
           "feature": "source-input"
         },
         {
-          "startLine": 272,
-          "endLine": 351,
+          "startLine": 301,
+          "endLine": 380,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 352,
-          "endLine": 385,
+          "startLine": 381,
+          "endLine": 414,
           "feature": "assembly-policy"
         }
       ]
@@ -1753,7 +1753,7 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "043b3fc887f1df8489cb7112081565b2de0067a9443e0f7535e1dfd07eb09176",
+      "sha256": "c52a323c24753eb9fbba47287d892d82cef2069f189fae484abdb736b0e1c42f",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
@@ -1779,26 +1779,26 @@
     },
     {
       "path": "shared/bundled-assets.js",
-      "sha256": "96c3859e85676419fba660e13c8e7e2efafde328bf208d2eb4cabbfb0a188f07",
+      "sha256": "602a1e80588442080d862101b4411828ca2d5f5d66ff56087c797a1644e4d03f",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 536,
+          "endLine": 538,
           "feature": "asset-owner"
         }
       ]
     },
     {
       "path": "shared/native-image-input.mjs",
-      "sha256": "7c588765732e5686558f95eb3d57daae7cadb36896819c925e34c1228769da90",
+      "sha256": "49d6e838524f93e9e8422b3b48d74df1f83de90009dd9bb97247df78f2758a66",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 250,
+          "endLine": 249,
           "feature": "source-input"
         }
       ]
@@ -1831,13 +1831,13 @@
     },
     {
       "path": "shared/template-run.js",
-      "sha256": "8601846e8a8757939558f7ace16e7a27242f7407cacbfe6a505d108a5d427c84",
+      "sha256": "aea614f468c5136adac63e38f196bb71053b65cc7e60c01600472396459d0b0f",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 691,
+          "endLine": 690,
           "feature": "workflow-owner"
         }
       ]
@@ -1857,13 +1857,13 @@
     },
     {
       "path": "shared/clip-analysis.js",
-      "sha256": "572d132c96ca7aa303e21f30ef924a95f5d66ca8561d8a0c8bbb191d7311522c",
+      "sha256": "b5e926d06dcd8e66118485b9e6915de64c78287d49229bc605610237f3df15d8",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 247,
+          "endLine": 263,
           "feature": "local-video-analysis"
         }
       ]
@@ -1883,12 +1883,12 @@
     },
     {
       "path": "tests/archive_mixed_inventory.test.mjs",
-      "sha256": "bb94a6ad4fbf6634250e7e80637c0036df24f64906c6c4521359b7183a0e9e74",
+      "sha256": "8861e02bb65f9892e9bfb0c7ec51846dbfd3692733fa641351b3ec3843636fc3",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
-          "startLine": 1,
+          "startLine": 2,
           "endLine": 79,
           "feature": "test-harness"
         }
@@ -1948,13 +1948,13 @@
     },
     {
       "path": "tests/archive_preview_fixture.mjs",
-      "sha256": "616a123fbdf8ee598aea95d6173caa9e69521c3992a1eb567f8b23fba4147f0b",
+      "sha256": "364379ec648dabad818f588a723c33b8ddecab6b148ae98dcb6d5e02319a0bb5",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 54,
+          "endLine": 53,
           "feature": "test-harness"
         }
       ]
@@ -2078,12 +2078,12 @@
     },
     {
       "path": "shared/file-observation.js",
-      "sha256": "067957ba42d403b739ea8e80e74eed8cc173052ce31a766d5f6a3f953ed1e527",
+      "sha256": "e8ce2d156bc844f94ef1f2dbdc6a30c203edb0de5c9d375e2e8a14e5a459f767",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 103,
+          "endLine": 131,
           "feature": "file-observation"
         }
       ]

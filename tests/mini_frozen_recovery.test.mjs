@@ -104,9 +104,9 @@ for(const entry of ['panel','template'])test('Mini physical recovery '+entry+': 
 test('Mini physical recovery: an unavailable source preserves the saved assembly and retryable look',async t=>{
  const f=await fixture(t);f.root.config.analysisSources=[{path:f.source,size:fs.statSync(f.source).size,sha256:hash(f.source)}];await run(f,{captureState:true});await(await f.open()).store(f.root);
  const ui=await miniMusicFixture(t,{silent:true});ui.box.panelLocalClient=()=>f.local;ui.box.openTemplateAssemblyContinuations=()=>f.open();ui.box.prepareMiniDecoration=f.prepare;ui.box.templateRunIssue=f.mount().templateRunIssue;
- const readRange=f.files.readRange;f.files.readRange=async input=>{if(input.path===f.source)throw Error('controlled inaccessible original');return readRange(input);};
+ const fingerprint=f.files.fingerprint;f.files.fingerprint=async file=>{if(file===f.source)throw Error('controlled inaccessible original');return fingerprint(file);};
  const invoke=()=>ui.box.api.runMiniVlogTemplate(f.sdk,{projectId:'p',template:{runId:'original'}},()=>{},()=>{});
- await assert.rejects(invoke(),e=>e.code==='source-file-unknown');assert.equal(f.commits(),1);assert.ok(await(await f.open()).read());f.files.readRange=readRange;await invoke();assert.equal(f.commits(),2);
+ await assert.rejects(invoke(),e=>e.code==='source-file-unknown');assert.equal(f.commits(),1);assert.ok(await(await f.open()).read());f.files.fingerprint=fingerprint;await invoke();assert.equal(f.commits(),2);
 });
 
 for(const entry of ['panel','template'])test('Mini source binding recovery '+entry+': relink blocks look and restoring the exact link resumes the same assembly',async t=>{

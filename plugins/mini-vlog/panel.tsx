@@ -2980,7 +2980,7 @@ function clipAnalysisScope(opts){
 async function quickScore(resource,opts={}){
  const current=clipAnalysisScope(opts),input=clipAnalysisResource(resource);opts={...opts};current();
  const client=opts.client??(typeof hostSdk!=='undefined'?hostSdk:null),files=client?.files,media=client?.media,t0=Date.now(),fps=opts.fps??QS_FPS,dur=input.durationSeconds;
- if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||typeof files?.fingerprint!=='function')throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
+ if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||(typeof files?.fingerprint!=='function'||typeof files?.mediaFingerprint!=='function'))throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
  if(opts.windows!=null&&!Array.isArray(opts.windows))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
  const ws=opts.windows==null?null:opts.windows.map(w=>({start:w?.start,end:w?.end}));
  if(ws&&(!Array.isArray(opts.windows)||!ws.length||ws.length>256||ws.some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.start<0||w.end<=w.start||w.end>dur)))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
@@ -2988,8 +2988,21 @@ async function quickScore(resource,opts={}){
  if(b-a>QS_SPAN)throw clipAnalysisIssue('INPUT','The local video analysis span exceeds its limit.');
  const windows=ws||qsBins(dur,a,b-a),deadline=Math.min(t0+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity);
  const hashFile=async path=>{current();const row=await files.fingerprint(path);current();if(!row||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('SOURCE','The original video content could not be confirmed.');return row.sha256;};
- const source=await readAssetFileIdentity(files,input.path,hashFile,current);current();
- const observation={path:input.path,size:source.bytes,sha256:source.sha256};
+ clipAnalysisSources([],opts.expectedSources??null);
+ const expected=opts.expectedSources?.find(row=>row.path===input.path);
+ const captured=expected?{...expected}:null;
+ if(opts.expectedSources!=null&&!captured)throw clipAnalysisIssue('SOURCE_CHANGED','The analysis source is absent from its expected observations.');
+ const identifySource=async path=>{
+  current();
+  // Pending runs with a whole-file receipt retain that exact verification scheme.
+  if(captured&&captured.scheme===undefined)return readAssetFileIdentity(files,path,hashFile,current);
+  const row=await files.mediaFingerprint(path);current();
+  if(!row||!Number.isSafeInteger(row.size)||row.size<1||row.scheme!=='cutback.media-content.v2'||typeof row.digest!=='string'||!/^[a-f0-9]{64}$/.test(row.digest))throw clipAnalysisIssue('SOURCE','The original video identity could not be confirmed.');
+  return {bytes:row.size,scheme:row.scheme,digest:row.digest};
+ };
+ const source=await identifySource(input.path);current();
+ const observation={path:input.path,size:source.bytes,...source.scheme?{scheme:source.scheme,digest:source.digest}:{sha256:source.sha256}};
+ if(captured)clipAnalysisSources([{scores:{sourceObservation:observation}}],[captured]);
  const fallback=()=>({...qsFallback(input,Date.now()-t0,windows),sourceObservation:observation});
  if(typeof media?.runFFmpeg!=='function'||Date.now()>=deadline)return fallback();
  const policy=[QS_VERSION,fps,QS_W,QS_H,QS_HEAD,QS_BIN,QS_SPAN,QS_BLACK,QS_DARK,QS_CLIP_LO,QS_CLIP_HI,QS_BRIGHT_SHARE,QS_FLASH_JUMP,QS_CUT_DIFF,QS_CUT_RATIO];
@@ -3002,7 +3015,7 @@ async function quickScore(resource,opts={}){
  const read=async path=>{const bytes=await readBundledAssetBytes(files,path,262144,current);current();const result=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!valid(result))throw clipAnalysisIssue('CACHE','The local analysis result does not match its original input and policy.');return result;};
  let result;
  try{
-  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},hashFile,
+  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},hashFile,identifySource,
    produce:async(snapshot,target)=>{
     const maximum=(Math.ceil((b-a)*fps)+2)*QS_W*QS_H;
     const frames=await readTransientAsset(client,{directory,extension:'gray',maxBytes:maximum,deadline,timeoutMs:Math.max(1,deadline-Date.now()),signal:opts.signal,isCurrent:()=>{current();return true;},
@@ -3015,7 +3028,7 @@ async function quickScore(resource,opts={}){
  }catch(error){
   current();
   if(error?.terminal||!['BUNDLED_ASSET_MEDIA','BUNDLED_ASSET_PREPARE'].includes(error?.code))throw error;
-  const after=await readAssetFileIdentity(files,input.path,hashFile,current);if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
+  const after=await identifySource(input.path);if(after.scheme!==source.scheme||after.digest!==source.digest||after.sha256!==source.sha256||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
   return fallback();
  }
  current();return result;
@@ -3024,6 +3037,8 @@ async function quickScoreAll(resources,opts={}){
  const current=clipAnalysisScope(opts);opts={...opts};current();
  if(!Array.isArray(resources)||resources.length>256||new Set(resources.map(r=>r?.rid)).size!==resources.length)throw clipAnalysisIssue('INPUT','The local analysis selection is invalid.');
  if(opts.concurrency!==undefined&&(!Number.isSafeInteger(opts.concurrency)||opts.concurrency<1||opts.concurrency>3))throw clipAnalysisIssue('INPUT','The local analysis concurrency is invalid.');
+ clipAnalysisSources([],opts.expectedSources??null);
+ if(opts.expectedSources!=null)opts.expectedSources=opts.expectedSources.map(row=>({...row}));
  const inputs=resources.map(clipAnalysisResource),results=new Map(),total=inputs.length,deadline=Math.min(Date.now()+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity),controller=new AbortController();
  const onAbort=()=>controller.abort();opts.signal?.addEventListener('abort',onAbort,{once:true});
  let next=0,done=0,failure;
@@ -3088,16 +3103,18 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 }
 
 function clipAnalysisSources(results,expected=null){
+ const valid=row=>row&&typeof row.path==='string'&&row.path&&Number.isSafeInteger(row.size)&&row.size>0&&(row.scheme===undefined&&row.digest===undefined&&typeof row.sha256==='string'&&/^[a-f0-9]{64}$/.test(row.sha256)||row.scheme==='cutback.media-content.v2'&&row.sha256===undefined&&typeof row.digest==='string'&&/^[a-f0-9]{64}$/.test(row.digest));
+ const same=(a,b)=>a.size===b.size&&a.scheme===b.scheme&&(a.scheme?a.digest===b.digest:a.sha256===b.sha256);
  if(!Array.isArray(results)||results.length>256)throw clipAnalysisIssue('RESULT','The local analysis source observations are incomplete.');
- if(expected!==null&&(!Array.isArray(expected)||expected.some(row=>!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))||new Set(expected.map(row=>row.path)).size!==expected.length))throw clipAnalysisIssue('INPUT','The expected local analysis sources are invalid.');
+ if(expected!==null&&(!Array.isArray(expected)||expected.some(row=>!valid(row))||new Set(expected.map(row=>row.path)).size!==expected.length))throw clipAnalysisIssue('INPUT','The expected local analysis sources are invalid.');
  const originals=expected===null?null:new Map(expected.map(row=>[row.path,row]));
  const seen=new Map();
  for(const result of results){
   const row=result?.scores?.sourceObservation;
-  if(!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('RESULT','The local analysis source observation could not be confirmed.');
-  if(originals){const before=originals.get(row.path);if(!before||before.size!==row.size||before.sha256!==row.sha256)throw clipAnalysisIssue('SOURCE_CHANGED','The analysis result belongs to different original video contents.');}
-  const before=seen.get(row.path);if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed between analysis observations.');
-  seen.set(row.path,{path:row.path,size:row.size,sha256:row.sha256});
+  if(!valid(row))throw clipAnalysisIssue('RESULT','The local analysis source observation could not be confirmed.');
+  if(originals){const before=originals.get(row.path);if(!before||!same(before,row))throw clipAnalysisIssue('SOURCE_CHANGED','The analysis result belongs to different original video contents.');}
+  const before=seen.get(row.path);if(before&&!same(before,row))throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed between analysis observations.');
+  seen.set(row.path,{path:row.path,size:row.size,...row.scheme?{scheme:row.scheme,digest:row.digest}:{sha256:row.sha256}});
  }
  return [...seen.values()];
 }
@@ -4196,15 +4213,18 @@ function retainUnconfirmedAssetFiles(error,reservations){
 }
 
 async function prepareDerivedAsset(files,options){
- const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
+ const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,identifySource,produce,verify}=options??{};
  if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
  if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The derived media cancellation signal is invalid.');
  const current=()=>{if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before media preparation completed.');};
  const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
  const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
- const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
+ const validSource=value=>valid(value)&&value.scheme===undefined||value&&value.scheme==='cutback.media-content.v2'&&value.sha256===undefined&&typeof value.digest==='string'&&/^[0-9a-f]{64}$/.test(value.digest)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
+ const sameSource=(a,b)=>validSource(a)&&validSource(b)&&a.bytes===b.bytes&&a.scheme===b.scheme&&(a.scheme?a.digest===b.digest:a.sha256===b.sha256);
+ const readSource=async path=>{current();const value=identifySource?await identifySource(path):await readAssetFileIdentity(files,path,hashFile,current);current();if(!validSource(value))throw bundledAssetIssue('INPUT','The source media fingerprint is invalid.');return value;};
+ const freshSource=async()=>{if(!sameSource(await readSource(sourcePath),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
  current();
- if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!validSource(source)||(identifySource!==undefined&&typeof identifySource!=='function')||(source?.scheme!==undefined&&typeof identifySource!=='function')||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
  if(['join','stat','readFile','readRange','exists','mkdir','writeFile','compareAndReplace','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
  const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
  const cached=async()=>{
@@ -4224,7 +4244,7 @@ async function prepareDerivedAsset(files,options){
     }
    }
    const row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
-   if(row?.version!==1||row.key!==key||!same(row.source,source)||!valid(row.output))return null;
+   if(row?.version!==1||row.key!==key||!sameSource(row.source,source)||!valid(row.output))return null;
    const path=files.join(objectDirectory,row.output.sha256+'.'+extension);
    if(!same(await readAssetFileIdentity(files,path,hashFile,current),row.output))return null;
    await verify(path);current();candidate={path,output:row.output,reused:true};
@@ -4243,7 +4263,7 @@ async function prepareDerivedAsset(files,options){
   // Reserve each private path exclusively before copying/encoding over it.
   await reservations.reserve(snapshot,'source');await reservations.reserve(temporary,'output');
   await files.copyFile(sourcePath,snapshot);current();
-  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
+  if(!sameSource(await readSource(snapshot),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
   await produce(snapshot,temporary);current();await freshSource();
   await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
   current();await files.mkdir(objectDirectory,{recursive:true});current();
@@ -4607,7 +4627,7 @@ function validateTemplateRun(row,scope,digest,recordPath=null) {
     if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!Array.isArray(g.media)||!g.media.length||g.media.length>21||!Array.isArray(g.files)||!g.files.length||g.files.length>22||!text(g.signature,32768))throw invalid();
     for(const item of g.media)if(!identity(item)||!['image','video'].includes(item.kind)||!Number.isSafeInteger(item.width)||item.width<1||!Number.isSafeInteger(item.height)||item.height<1||item.kind==='video'&&(!Number.isFinite(item.durationSeconds)||item.durationSeconds<=0)||['focusX','focusY'].some(key=>item[key]!==undefined&&(!Number.isFinite(item[key])||item[key]<0||item[key]>1)))throw invalid();
     if(g.music!==null&&(!identity(g.music)||!Number.isFinite(g.music.durationSeconds)||g.music.durationSeconds<=0||g.music.startFrame!==undefined&&(!Number.isSafeInteger(g.music.startFrame)||g.music.startFrame<0)))throw invalid();
-    if(new Set(g.files.map(file=>file?.path)).size!==g.files.length||g.files.some(file=>!file||Object.keys(file).length!==3||!text(file.path,4096)||!Number.isSafeInteger(file.size)||file.size<1||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256))||[...g.media,...g.music?[g.music]:[]].some(item=>!g.files.some(file=>file.path===item.path)))throw invalid();
+    if(new Set(g.files.map(file=>file?.path)).size!==g.files.length||g.files.some(file=>!file||!text(file.path,4096)||!Number.isSafeInteger(file.size)||file.size<1||(file.scheme==='cutback.media-content.v2'?Object.keys(file).length!==4||typeof file.digest!=='string'||!/^[a-f0-9]{64}$/.test(file.digest):file.scheme!==undefined||Object.keys(file).length!==3||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256)))||[...g.media,...g.music?[g.music]:[]].some(item=>!g.files.some(file=>file.path===item.path)))throw invalid();
     const signature=JSON.stringify({media:g.media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,item.kind==='video'?item.durationSeconds:null]),music:g.music?[g.music.resourceId,g.music.path,g.music.durationSeconds]:null});
     if(signature!==g.signature)throw invalid();
    }
@@ -5228,7 +5248,7 @@ async function prepareMiniCue(sdk: any, projectId: string, plugin: string, cue: 
 // the existing Worker owner owns execution, and the CJS engine owns the maths.
 async function prepareMiniOwnMusic(client: any, path: string, data: string, worker: string, signal: AbortSignal, isCurrent: () => boolean) {
   return prepareAudioBeatAnalysis(client, { path, directory: data, worker, rate: OWN_RATE, maxSeconds: OWN_MAX_SECONDS, namespace: "mini-own-music-v1", signal, isCurrent,
-    hashFile: async (file: string) => (await observeSourceFiles(client.files, [file]))[0].sha256,
+    hashFile: async (file: string) => (await client.files.fingerprint(file)).sha256,
     decode: (snapshot: string, current: () => void) => decodeAssetPcm(client, { path: snapshot, directory: data, rate: OWN_RATE, maxSeconds: OWN_MAX_SECONDS, signal, timeoutMs: 120000, isCurrent: () => { current(); return true; } }),
     analyze: (source: string, samples: Float32Array, current: () => void) => analyseBeat(source, samples, signal, BEAT_TIMEOUT_MS, () => { current(); return true; }),
     probe: (snapshot: string) => hostProbeSeconds(snapshot, client, signal),
@@ -5242,7 +5262,7 @@ async function admitMiniMusic(client: any, music: any, expected: any, sources: a
   if (typeof music?.resourceId !== "string" || !music.resourceId || typeof music?.path !== "string" || !music.path || !expected) throw bundledAssetIssue("METADATA", "The music source could not be confirmed.");
   const [row] = await observeSourceFiles(client.files, [music.path], [{ ...expected, path: music.path }]); check();
   const before = sources.find(value => value.path === row.path);
-  if (before && (before.size !== row.size || before.sha256 !== row.sha256)) throw bundledAssetIssue("CHANGED", "The selected music contents changed. Select the music again.");
+  if (before) await observeSourceFiles(client.files, [row.path], [before]);
   if (!before) sources.push(row);
   bindings.push({ resourceId: music.resourceId, path: music.path });
 }
@@ -6500,7 +6520,7 @@ async function runTemplateStep(sdk: any, summary: string, script: string | ((att
 // Private alias placement remains single-dispatch and is never inventory verification.
 // file-observation:start
 // Generated by tools/build_file_observation.mjs; edit file-observation.source.js.
-async function fingerprintTemplateFile(files,path,check=()=>{}) {
+async function fingerprintTemplateFile(files,path,check=()=>{},scheme=null) {
 /* @noble/hashes 2.2.0; license retained inside serialized SDK copies.
 The MIT License (MIT)
 
@@ -6573,15 +6593,44 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
     constructor() { super(32); __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b)[0] | 0); __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b)[1] | 0); __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b)[2] | 0); __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b)[3] | 0); __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b)[4] | 0); __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b)[5] | 0); __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b)[6] | 0); __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b)[7] | 0); }
 }; var _ = __templateHashAny(F)(() => new (__templateHashAny(U)), __templateHashAny(T)(1)); return __templateHashAny(M)(N); }))();
 
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function')throw Error('The original file observation input is invalid.');
+ if(scheme!==null&&scheme!=='cutback.media-content.v2')throw Error('Unknown media fingerprint scheme.');
+ const sampled=scheme!==null;
+ check();
+ const native=sampled?(files&&'mediaFingerprint' in files?files.mediaFingerprint:null):(files&&'fingerprint' in files?files.fingerprint:null);
+ if(typeof native==='function'){
+  let supported=true,observed;
+  try{observed=await native.call(files,path);}
+  catch(error){
+   // This is the exact old localFiles bridge response for an unknown action.
+   // Permission, timeout, integrity and other operational failures must propagate.
+   if(!/^(?:Error: )?Unsupported file operation\.?$/.test(String(error?.message??error)))throw error;
+   supported=false;
+  }
+  check();
+  if(supported){
+   if(observed===null)return null;
+   if(sampled){
+    if(!observed||observed.scheme!==scheme||!Number.isSafeInteger(observed.size)||observed.size<=0||typeof observed.digest!=='string'||!/^[a-f0-9]{64}$/.test(observed.digest))throw Error('The sampled media fingerprint could not be confirmed.');
+    return {size:observed.size,scheme:observed.scheme,digest:observed.digest};
+   }
+   if(!observed||!Number.isSafeInteger(observed.size)||observed.size<0||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('The complete file fingerprint could not be confirmed.');
+   return {size:observed.size,sha256:observed.sha256};
+  }
+ }
  if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
  const observe=async operation=>{check();const result=await operation();check();return result;};
  const identity=stat=>typeof stat?.sourceIdentity==='string'&&stat.sourceIdentity?stat.sourceIdentity:Number.isFinite(stat?.ino)?stat.ino:null;
  const before=await observe(()=>files.stat(path));
  if(before===null)return null;
  if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||identity(before)===null)throw Error("The file's size or identity could not be confirmed.");
+ if(sampled&&before.size===0)throw Error('Cannot fingerprint empty media.');
  const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
- for(let offset=0;offset<before.size;){
-  const length=Math.min(49152,before.size-offset);
+ if(sampled){const prefix=scheme+':'+before.size+':';hash.update(Uint8Array.from(prefix,character=>character.charCodeAt(0)));}
+ const sampleBytes=262144;
+ const ranges=!sampled||before.size<=sampleBytes*3?[[0,before.size]]:[[0,sampleBytes],[Math.floor((before.size-sampleBytes)/2),sampleBytes],[before.size-sampleBytes,sampleBytes]];
+ for(const [start,count] of ranges)for(let offset=start;offset<start+count;){
+  const length=Math.min(49152,start+count-offset);
   const chunk=await observe(()=>files.readRange({path,offset,length}));
   if(!chunk||chunk.bytesRead!==length||typeof chunk.base64!=='string'||chunk.base64.length!==4*Math.ceil(length/3)||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64))throw Error('The file read returned an incomplete or invalid binary chunk.');
   const bytes=new Uint8Array(length);
@@ -6599,7 +6648,7 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
  if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||identity(before)!==identity(after))throw Error('The file changed while its contents were read.');
  const digest=hash.digest();check();
  let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
- return {size:before.size,sha256:hex};
+ return sampled?{size:before.size,scheme,digest:hex}:{size:before.size,sha256:hex};
 }
 // file-observation:end
 // draft-observation:start
@@ -6816,7 +6865,7 @@ export async function prepareNativeImagesById(sdk,projectId,photos,options={}) {
 // File contents are observations, not a filesystem lock. Keep the existing
 // Image availability contract unchanged; templates opt into complete identity.
 export function requireSourceFileSupport(files) {
- if(typeof files?.stat!=='function'||typeof files?.readRange!=='function'){
+ if(typeof files?.mediaFingerprint!=='function'&&typeof files?.fingerprint!=='function'&&(typeof files?.stat!=='function'||typeof files?.readRange!=='function')){
   const message='Update Selects to verify complete source file contents before creating this template.';
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
@@ -6825,20 +6874,20 @@ export async function observeSourceFiles(files,paths,expected=null) {
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
  if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
  const selected=[...new Set(paths)];
- const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
+ const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&(row.scheme==='cutback.media-content.v2'?Object.keys(row).length===4&&typeof row.digest==='string'&&/^[0-9a-f]{64}$/.test(row.digest):row.scheme===undefined&&Object.keys(row).length===3&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256));
  if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');
  if(!selected.length)return [];
  requireSourceFileSupport(files);
  const observed=[];
  for(const path of selected){
-  let fingerprint;
-  try{fingerprint=await (typeof files.fingerprint==='function'?files.fingerprint(path):fingerprintTemplateFile(files,path));}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
-  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
-  const row={...fingerprint,path};
-  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
   const before=expected?.find(row=>row.path===path);
-  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
-  observed.push({path,size:row.size,sha256:row.sha256});
+  let fingerprint;
+  try{fingerprint=await fingerprintTemplateFile(files,path,undefined,before?before.scheme??null:'cutback.media-content.v2');}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
+  const row={path,...fingerprint};
+  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
+  if(before&&(before.size!==row.size||before.scheme!==row.scheme||(before.digest??before.sha256)!==(row.digest??row.sha256)))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
+  observed.push(row);
  }
  return observed;
 }
@@ -7441,6 +7490,7 @@ async function createPanelLocalClient(sdk: any) {
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
+    mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
     fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and

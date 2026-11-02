@@ -219,15 +219,18 @@ function retainUnconfirmedAssetFiles(error,reservations){
 }
 
 async function prepareDerivedAsset(files,options){
- const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
+ const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,identifySource,produce,verify}=options??{};
  if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
  if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The derived media cancellation signal is invalid.');
  const current=()=>{if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before media preparation completed.');};
  const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
  const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
- const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
+ const validSource=value=>valid(value)&&value.scheme===undefined||value&&value.scheme==='cutback.media-content.v2'&&value.sha256===undefined&&typeof value.digest==='string'&&/^[0-9a-f]{64}$/.test(value.digest)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
+ const sameSource=(a,b)=>validSource(a)&&validSource(b)&&a.bytes===b.bytes&&a.scheme===b.scheme&&(a.scheme?a.digest===b.digest:a.sha256===b.sha256);
+ const readSource=async path=>{current();const value=identifySource?await identifySource(path):await readAssetFileIdentity(files,path,hashFile,current);current();if(!validSource(value))throw bundledAssetIssue('INPUT','The source media fingerprint is invalid.');return value;};
+ const freshSource=async()=>{if(!sameSource(await readSource(sourcePath),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
  current();
- if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!validSource(source)||(identifySource!==undefined&&typeof identifySource!=='function')||(source?.scheme!==undefined&&typeof identifySource!=='function')||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
  if(['join','stat','readFile','readRange','exists','mkdir','writeFile','compareAndReplace','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
  const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
  const cached=async()=>{
@@ -247,7 +250,7 @@ async function prepareDerivedAsset(files,options){
     }
    }
    const row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
-   if(row?.version!==1||row.key!==key||!same(row.source,source)||!valid(row.output))return null;
+   if(row?.version!==1||row.key!==key||!sameSource(row.source,source)||!valid(row.output))return null;
    const path=files.join(objectDirectory,row.output.sha256+'.'+extension);
    if(!same(await readAssetFileIdentity(files,path,hashFile,current),row.output))return null;
    await verify(path);current();candidate={path,output:row.output,reused:true};
@@ -266,7 +269,7 @@ async function prepareDerivedAsset(files,options){
   // Reserve each private path exclusively before copying/encoding over it.
   await reservations.reserve(snapshot,'source');await reservations.reserve(temporary,'output');
   await files.copyFile(sourcePath,snapshot);current();
-  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
+  if(!sameSource(await readSource(snapshot),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
   await produce(snapshot,temporary);current();await freshSource();
   await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
   current();await files.mkdir(objectDirectory,{recursive:true});current();

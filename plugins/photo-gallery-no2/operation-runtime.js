@@ -343,13 +343,13 @@ async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
   const files=await observeSourceFiles(selects.files,[...chosen.map(item=>item.path),...music?[music.path]:[]]);
   for(const expected of input.faceFingerprints||[]){
     const actual=files.find(file=>gallerySamePath(file.path,expected.path));
-    if(!actual||actual.size!==expected.size||actual.sha256!==expected.sha256)galleryFail('An original photo changed after face analysis; no Draft was saved');
+    try{if(!actual)throw Error('missing');await observeSourceFiles(selects.files,[actual.path],[{...expected,path:actual.path}]);}catch{galleryFail('An original photo changed after face analysis; no Draft was saved');}
   }
   const sourceGuard={media:chosen,music,files,signature:gallerySourceSignature(chosen,music)};
   await galleryCheckSourceMetadata(selects,input.projectId,sourceGuard);
   if(input.musicFingerprint){
     const expected=input.musicFingerprint,actual=music&&files.find(file=>gallerySamePath(file.path,music.path));
-    if(!actual||!gallerySamePath(expected.path,music.path)||expected.size!==actual.size||expected.sha256!==actual.sha256)galleryFail('Selected music changed after the BPM estimate. Run a new estimate before creating the Gallery.');
+    try{if(!actual||!gallerySamePath(expected.path,music.path))throw Error('missing');await observeSourceFiles(selects.files,[actual.path],[{...expected,path:actual.path}]);}catch{galleryFail('Selected music changed after the BPM estimate. Run a new estimate before creating the Gallery.');}
   }
   let sourceReceipt=null;
   if(input.runReceipt){

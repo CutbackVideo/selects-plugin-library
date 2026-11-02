@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadPhotoPanel} from './photo_face_fixture.mjs';
@@ -5,7 +6,7 @@ const rawId='00000000-0000-4000-8000-000000000001',projectId='photo-project';
 const face={contractVersion:1,task:'faces.detect',sourceKind:'image',coordinateSpace:'display-pixels',boxFormat:'xyxy',frameSize:{width:1920,height:1080},samples:[{sourceTimeSeconds:0,faces:[{box:{xmin:0,ymin:200,xmax:140,ymax:700}}]}]};
 function kit(options={}){
  const submitted=[],requests=[],storage=new Map();let bytes=Buffer.from('original photo'),current=true;
- const files={stat:async()=>({size:bytes.length,mtimeMs:1,ino:42,isDirectory:false}),readRange:async({offset,length})=>({bytesRead:length,base64:bytes.subarray(offset,offset+length).toString('base64')})};
+ const files={fingerprint:async()=>({size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')}),stat:async()=>({size:bytes.length,mtimeMs:1,ino:42,isDirectory:false}),readRange:async({offset,length})=>({bytesRead:length,base64:bytes.subarray(offset,offset+length).toString('base64')})};
  const observed=structuredClone(options.observation??face);
  const selects={files,project:()=>({resources:async()=>[{resourceId:'r0',name:'photo.jpg',type:'Image'}]}),ai:{imageSourceSupported:!options.unsupported,
   submit:async input=>{submitted.push(structuredClone(input));if(options.loseSubmit&&!options.recovered){options.recovered=true;throw Error('Reply lost');}return {workflowId:'ai:photo-face'}},

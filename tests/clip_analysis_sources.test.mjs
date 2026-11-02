@@ -6,3 +6,10 @@ test('Clip source admission: expected pre-analysis snapshot must match returned 
  assert.throws(()=>box.read([result],[{...row,sha256:'b'.repeat(64)}]),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED');
 });
 test('Clip source admission: an absent pre-analysis source cannot be accepted',()=>assert.throws(()=>box.read([result],[]),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED'));
+const sampled={path:'/original',size:100,scheme:'cutback.media-content.v2',digest:'a'.repeat(64)};
+test('Clip source admission: sampled scheme survives projection and exact comparison',()=>{
+ assert.deepEqual(JSON.parse(JSON.stringify(box.read([{scores:{sourceObservation:sampled}}],[sampled]))),[sampled]);
+});
+test('Clip source admission: a sample digest cannot match a whole-file checksum',()=>{
+ assert.throws(()=>box.read([{scores:{sourceObservation:sampled}}],[row]),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED');
+});

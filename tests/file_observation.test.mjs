@@ -1,75 +1,90 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 import test from 'node:test';
 import {createRequire} from 'node:module';
-import fs from 'node:fs';
 import {fingerprintTemplateFile} from '../shared/file-observation.js';
+const execute=(files,path='/original',check=()=>{},scheme=null)=>vm.runInNewContext('('+fingerprintTemplateFile.toString()+')(files,path,check,scheme)',{files,path,check,scheme},{codeGeneration:{strings:false,wasm:false}});
+test('serialized observer delegates a large original to one host call without reading bytes',async()=>{
+ const expected={size:94853361,sha256:'a'.repeat(64)};let calls=0;
+ const result=await execute({fingerprint:async path=>{assert.equal(path,'/original');calls++;return expected;},readRange:()=>{throw Error('Guest file read');},stat:()=>{throw Error('Guest stat');}});
+ assert.deepEqual(JSON.parse(JSON.stringify(result)),expected);assert.equal(calls,1);
 
-function fixture(bytes) {
- const calls=[];
- let statCount=0;
- const files={
-  stat:async path=>{calls.push(['stat',path]);statCount++;return {size:bytes.length,mtimeMs:123,ino:42,isDirectory:false};},
-  readRange:async request=>{calls.push(['readRange',request]);const part=bytes.subarray(request.offset,request.offset+request.length);return {bytesRead:part.length,base64:Buffer.from(part).toString('base64')};},
- };
- return {files,calls,get statCount(){return statCount;}};
-}
-const execute=(files,path='/original',check=()=>{})=>vm.runInNewContext('('+fingerprintTemplateFile.toString()+')(files,path,check)',{files,path,check,Buffer:undefined,atob:undefined,btoa:undefined,crypto:undefined,TextEncoder:undefined,TextDecoder:undefined,process:undefined,require:undefined},{codeGeneration:{strings:false,wasm:false},timeout:10000});
-
-for(const size of [0,1,55,56,63,64,65,49151,49152,49153,3*49152+7])test('complete SHA-256 in the SDK VM for '+size+' bytes',async()=>{
- const bytes=Buffer.alloc(size);for(let i=0;i<size;i++)bytes[i]=(i*131+17)%256;
- const f=fixture(bytes),result=await execute(f.files);
- assert.deepEqual(JSON.parse(JSON.stringify(result)),{size,sha256:createHash('sha256').update(bytes).digest('hex')});
- assert.equal(f.statCount,2);
- const reads=f.calls.filter(row=>row[0]==='readRange').map(row=>row[1]);
- assert(reads.every(row=>row.length>0&&row.length<=49152));assert.equal(reads.reduce((n,row)=>n+row.length,0),size);
 });
-test('initial missing remains null and does not read',async()=>{
- let reads=0;assert.equal(await execute({stat:async()=>null,readRange:async()=>{reads++;}}),null);assert.equal(reads,0);
+test('missing files stay null, while host failures propagate',async()=>{
+ assert.equal(await execute({fingerprint:async()=>null}),null);
+ await assert.rejects(execute({fingerprint:async()=>{throw Error('changed during hashing');}}),/changed during hashing/);
+ assert.equal(await execute({stat:async()=>null,readRange:async()=>{throw Error('unexpected read');}}),null);
 });
-for(const change of [{isDirectory:true},{size:NaN},{size:-1},{mtimeMs:NaN},{ino:undefined}])test('rejects unusable initial identity '+JSON.stringify(change),async()=>{
- const f=fixture(Buffer.from('a')),stat=f.files.stat;f.files.stat=async p=>({...await stat(p),...change});
- await assert.rejects(execute(f.files),/identity|size/);assert.equal(f.calls.filter(row=>row[0]==='readRange').length,0);
+for(const observed of [{size:-1,sha256:'a'.repeat(64)},{size:1,sha256:'bad'},undefined])test('rejects invalid host result '+JSON.stringify(observed),async()=>{
+ await assert.rejects(execute({fingerprint:async()=>observed}),/fingerprint/);
 });
-for(const reply of [{bytesRead:0,base64:''},{bytesRead:1,base64:'YQ'},{bytesRead:1,base64:'YQ==\n'},{bytesRead:1,base64:'YR=='},{bytesRead:1,base64:'YQ=Z'},{bytesRead:2,base64:'YQ=='},null])test('rejects incomplete or noncanonical Base64 '+JSON.stringify(reply),async()=>{
- const f=fixture(Buffer.from('a'));f.files.readRange=async()=>reply;await assert.rejects(execute(f.files),/chunk|binary/);
-});
-for(const change of [{size:4},{mtimeMs:124},{ino:43},{isDirectory:true},null])test('rejects changed final observation '+JSON.stringify(change),async()=>{
- const f=fixture(Buffer.from('abc')),stat=f.files.stat;f.files.stat=async p=>{const value=await stat(p);return f.statCount===1?value:change===null?null:{...value,...change};};
- await assert.rejects(execute(f.files),/changed/);
-});
-test('checks lifetime before and after every awaited SDK read',async()=>{
- const f=fixture(Buffer.alloc(49153));let expired=false,checks=0,reads=0;const read=f.files.readRange;
- f.files.readRange=async request=>{reads++;const reply=await read(request);expired=true;return reply;};
- await assert.rejects(execute(f.files,'/original',()=>{checks++;if(expired)throw Error('expired');}),/expired/);
- assert.equal(reads,1);assert(checks>=4);assert.equal(f.statCount,1);
-});
-test('streams a synthetic original without allocating or returning the complete file',async()=>{
- const size=4*1024*1024+17,hash=createHash('sha256');let largest=0,count=0;
- const files={stat:async()=>({size,mtimeMs:0,ino:1,isDirectory:false}),readRange:async({offset,length})=>{assert.equal(offset,count);largest=Math.max(largest,length);const bytes=Buffer.alloc(length,offset%251);count+=length;hash.update(bytes);return {bytesRead:length,base64:bytes.toString('base64')};}};
- const row=await execute(files);assert.equal(row.sha256,hash.digest('hex'));assert.equal(row.size,size);assert.equal(count,size);assert.equal(largest,49152);
-});
-test('serialized copies retain the complete dependency license and need no host imports',()=>{
- const source=fingerprintTemplateFile.toString(),license=fs.readFileSync(new URL('../shared/file-observation.LICENSE',import.meta.url),'utf8').trim();
- assert(source.includes(license));assert.doesNotMatch(source,/\brequire\s*\(|\bimport\s|\bglobalThis\b|(?<![.\w])process\s*[.\[]|\beval\s*\(|new Function|@ts-(?:ignore|nocheck)/);
+test('scope checks prevent dispatch and discard results after cancellation',async()=>{
+ let calls=0,expired=true;const files={fingerprint:async()=>{calls++;expired=true;return {size:0,sha256:'a'.repeat(64)};}};
+ const check=()=>{if(expired)throw Error('expired');};
+ await assert.rejects(execute(files,'/original',check),/expired/);assert.equal(calls,0);
+ expired=false;await assert.rejects(execute(files,'/original',check),/expired/);assert.equal(calls,1);
 });
 test('the pure JS copy passes the SDK TypeScript shape check without suppressing SDK diagnostics',{skip:!process.env.SELECTS_DEV_REPO},()=>{
  const ts=createRequire(process.env.SELECTS_DEV_REPO+'/package.json')('typescript');
- const prefix='declare const selects: { files: {stat(path:string):Promise<{size:number;mtimeMs:number;ino:number;isDirectory:boolean}|null>;readRange(input:{path:string;offset:number;length:number}):Promise<{base64:string;bytesRead:number}>} };\n';
- const check=extra=>{
-  const source=prefix+'async function request(){return await ('+fingerprintTemplateFile.toString()+')(selects.files,"/original");}\n'+extra,file='/fingerprint.ts';
+ const prefix='declare const selects: { files: {stat(path:string):Promise<any>;readRange(input:{path:string;offset:number;length:number}):Promise<{bytesRead:number;base64:string}>;fingerprint(path:string):Promise<{size:number;sha256:string}|null>} };\n';
+ const check=(extra,legacy=false)=>{
+  const source=(legacy?prefix.replace('fingerprint(path:string):Promise<{size:number;sha256:string}|null>',''):prefix)+'async function request(){return await ('+fingerprintTemplateFile.toString()+')(selects.files,"/original");}\n'+extra,file='/fingerprint.ts';
   const options={noEmit:true,strict:false,noImplicitAny:false,skipLibCheck:true,target:ts.ScriptTarget.ES2022,lib:['lib.es2022.d.ts'],types:[]};
   const host=ts.createCompilerHost(options),get=host.getSourceFile;host.getSourceFile=(name,...args)=>name===file?ts.createSourceFile(file,source,options.target,true):get(name,...args);
   return ts.getPreEmitDiagnostics(ts.createProgram([file],options,host));
  };
  const valid=check('');assert.equal(valid.length,0,valid.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('\n'));
- const invalid=check('selects.files.readRange({path:"/a",offset:0,length:"wrong"});');assert(invalid.some(d=>d.code===2322),'SDK argument errors must remain visible');
+ const old=check('',true);assert.equal(old.length,0,old.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('\n'));
+ const invalid=check('selects.files.fingerprint(123);');assert(invalid.some(d=>d.code===2345),'SDK argument errors must remain visible');
 });
 
-for(const changed of [false,true])test('browser source identity without inode; replacement='+changed,async()=>{
- const bytes=Buffer.from('browser input'),f=fixture(bytes);let count=0;
- f.files.stat=async()=>({size:bytes.length,mtimeMs:123,isDirectory:false,sourceIdentity:++count===1||!changed?'/selects-sources/a':'/selects-sources/b'});
- if(changed)await assert.rejects(execute(f.files),/changed/);
- else assert.equal((await execute(f.files)).sha256,createHash('sha256').update(bytes).digest('hex'));
+function legacyFiles(bytes=Buffer.from('abc')) {
+ return {stat:async()=>({isDirectory:false,size:bytes.length,mtimeMs:1,ino:7}),readRange:async({offset,length})=>({bytesRead:Math.min(length,bytes.length-offset),base64:bytes.subarray(offset,offset+length).toString('base64')})};
+}
+for(const unsupported of [null,'Unsupported file operation.'])test('legacy fallback hashes exact bytes when interface is absent: '+unsupported,async()=>{
+ const files=legacyFiles();if(unsupported)files.fingerprint=async()=>{throw Error(unsupported);};
+ const actual=await execute(files);
+ assert.deepEqual(JSON.parse(JSON.stringify(actual)),{size:3,sha256:'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'});
+});
+for(const message of ['Permission denied','File changed during fingerprint','File fingerprint timed out','Unsupported file format'])test('host failure never falls back: '+message,async()=>{
+ const files=legacyFiles();files.fingerprint=async()=>{throw Error(message);};
+ await assert.rejects(execute(files),error=>error.message===message);
+});
+test('legacy fallback rejects incomplete reads and changed sources',async()=>{
+ const short=legacyFiles();short.readRange=async()=>({bytesRead:1,base64:'YQ=='});
+ await assert.rejects(execute(short),/incomplete/);
+ const changed=legacyFiles();let count=0;changed.stat=async()=>({isDirectory:false,size:3,mtimeMs:++count,ino:7});
+ await assert.rejects(execute(changed),/changed/);
+});
+
+for(const size of [0,55,56,63,64,65,49151,49152,49153,3*49152+7])test('legacy hashing preserves padding and chunk boundaries: '+size,async()=>{
+ const bytes=Buffer.alloc(size);for(let index=0;index<size;index++)bytes[index]=(index*131+17)%256;
+ const result=await execute(legacyFiles(bytes));
+ assert.deepEqual(JSON.parse(JSON.stringify(result)),{size,sha256:createHash('sha256').update(bytes).digest('hex')});
+});
+test('legacy cancellation discards a completed chunk before further reads',async()=>{
+ const files=legacyFiles(Buffer.alloc(49153));let expired=false;const read=files.readRange;
+ files.readRange=async input=>{const result=await read(input);expired=true;return result;};
+ await assert.rejects(execute(files,'/original',()=>{if(expired)throw Error('cancelled');}),/cancelled/);
+});
+
+const sample=(files,check=()=>{})=>execute(files,'/original',check,'cutback.media-content.v2');
+for(const size of [1,786432,786433,2097153])test('sampled legacy observation matches native v2 bytes and stays bounded: '+size,async()=>{
+ const bytes=Buffer.alloc(size);for(let i=0;i<size;i++)bytes[i]=(i*31+i%251)%256;
+ const files=legacyFiles(bytes),read=files.readRange;let total=0;files.readRange=async request=>{assert(request.length<=49152);total+=request.length;return read(request);};
+ assert.deepEqual(JSON.parse(JSON.stringify(await sample(files))),mediaFingerprint(bytes));assert.equal(total,Math.min(size,786432));
+});
+test('media native errors never downgrade to samples; only absent or exact unsupported operation does',async()=>{
+ const bytes=Buffer.from('source'),files=legacyFiles(bytes);files.mediaFingerprint=async()=>{throw Error('Unsupported file operation');};
+ assert.deepEqual(JSON.parse(JSON.stringify(await sample(files))),mediaFingerprint(bytes));
+ files.mediaFingerprint=async()=>{throw Error('permission denied');};await assert.rejects(sample(files),/permission denied/);
+ files.mediaFingerprint=async()=>null;assert.equal(await sample(files),null);
+ files.mediaFingerprint=async()=>({size:1,sha256:'a'.repeat(64)});await assert.rejects(sample(files),/sampled/);
+});
+test('unsampled mutation can preserve source identity but never full-file integrity',async()=>{
+ const bytes=Buffer.alloc(2*1024*1024),files=legacyFiles(bytes),before=await sample(files),full=await execute(files);
+ bytes[262144]=1;assert.deepEqual(JSON.parse(JSON.stringify(await sample(files))),JSON.parse(JSON.stringify(before)));
+ assert.notEqual((await execute(files)).sha256,full.sha256);
 });

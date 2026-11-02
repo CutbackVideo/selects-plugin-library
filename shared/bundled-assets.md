@@ -144,3 +144,14 @@ harness can remove its own disposable fixtures only after independent same-job
 terminal reads; the plugin does not infer safe deletion from age, a missing reply,
 an abort acknowledgement or an unknown/expired job. Automatic persisted-workspace
 reconciliation and whole installed-plugin acceptance are still separate work.
+
+### Sampled original identities
+
+`prepareDerivedAsset` optionally accepts `identifySource(path)`, returning
+`{bytes,scheme:"cutback.media-content.v2",digest}` for original/snapshot
+observations. Source comparison includes the scheme. Without this callback,
+the existing whole-file `{bytes,sha256}` source contract is unchanged. The
+`hashFile` callback always remains the complete SHA-256 for output verification
+and content-addressed publication; a sampled original never weakens those checks.
+Recipe keys must include the source scheme/digest. Sampling can miss changes
+outside the sampled ranges and is an identity heuristic, not full integrity.

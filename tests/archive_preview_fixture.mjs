@@ -28,7 +28,7 @@ export function archivePreviewFixture(t){
   load(){calls.push(['load',this.src]);}
  }
  const file='/music space \ud55c\uae00.wav',sha256='a'.repeat(64),files={
-  join:(...parts)=>parts.join('/'),readRange:async()=>{calls.push(['binary-read']);throw Error('Full-byte source observation is outside this playback fixture.');},stat:async()=>({size:2**31+17,isDirectory:false,mtimeMs:1,ino:1}),
+  fingerprint:async path=>hooks.fingerprint?hooks.fingerprint(path):({size:2**31+17,sha256}),join:(...parts)=>parts.join('/'),readRange:async()=>{calls.push(['binary-read']);throw Error('Full-byte source observation is outside this playback fixture.');},stat:async()=>({size:2**31+17,isDirectory:false,mtimeMs:1,ino:1}),
   pathToLocalURL:async path=>{calls.push(['localURL',path]);return hooks.url?.(path)??'local://'+encodeURI(path);},
   localURLToPath:async url=>{calls.push(['fromURL',url]);return decodeURIComponent(url.replace('local://.','').replace('local://',''));},
  };

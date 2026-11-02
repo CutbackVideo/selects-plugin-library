@@ -43,6 +43,7 @@ test('generated module comments can disappear without losing any real local-clie
   const files = {
     environment: async () => ({platform:'darwin', homedir:'/test', tempDirectory:'/tmp'}),
     stat: async () => ({size:4, mtimeMs:1, ino:1, isDirectory:false}),
+    fingerprint: async () => ({size:4,sha256:'a'.repeat(64)}),
     readRange: async () => ({base64:Buffer.from([1,2,3,4]).toString('base64'), bytesRead:4}),
   };
   const sdk = {runScript: async input => {

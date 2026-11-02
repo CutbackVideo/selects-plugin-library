@@ -807,7 +807,7 @@ async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
     if(item.kind!=='image'||item.manualFocus||item.focusX!==0.5||item.focusY!==0.5)continue;
     current();const rawId=aliases.get(item.resourceId);
     if(Date.now()>=deadline){diagnostics.push({slot:index+1,resourceId:rawId,status:'unavailable',reason:'observation-budget'});continue;}
-    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+',undefined,"cutback.media-content.v2");','Verify original-photo analysis bytes');current();
     if(!fingerprint)throw Object.assign(Error('The original photo is missing.'),{safeNotSaved:true});
     faceFingerprints.push({path:item.path,...fingerprint});
     const identity=JSON.stringify({resourceId:rawId,path:item.path,...fingerprint,width:item.width,height:item.height});
@@ -824,7 +824,7 @@ async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
         current();const failure={status:'unavailable',reason:error.code||'face-analysis',message:String(error.message||error).slice(0,160)};
         failures.set(identity,failure);diagnostics.push({slot:index+1,resourceId:rawId,...failure});continue;
       }
-      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+',undefined,"cutback.media-content.v2");','Verify original-photo analysis bytes');current();
       if(JSON.stringify(after)!==JSON.stringify(fingerprint))throw Object.assign(Error('Original photo changed during face analysis.'),{safeNotSaved:true});
       observations.set(identity,observed);
     }
@@ -1597,6 +1597,7 @@ async function createPanelLocalClient(sdk: any) {
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
+    mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
     fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
