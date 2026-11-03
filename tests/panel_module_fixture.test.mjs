@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -51,8 +52,8 @@ test('generated module comments can disappear without losing any real local-clie
   }};
   const client = await createPanelLocalClient(sdk);
   try {
-    const actual = await client.files.fingerprint('/test/original');
-    assert.equal(actual.size, 4);
+    const actual = await client.files.mediaFingerprint('/test/original');
+    assert.deepEqual(JSON.parse(JSON.stringify(actual)),mediaFingerprint(Buffer.from([1,2,3,4])));
     assert.ok(calls.some(call => call.script.includes('fingerprintTemplateFile')),
       'the interleaved file-observation implementation actually runs');
     assert.ok(calls.every(call => !call.allowCommit));

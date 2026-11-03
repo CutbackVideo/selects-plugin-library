@@ -62,9 +62,9 @@ for(const savedDraftId of ['',4,'x'.repeat(1025)])test('unknown-run saved identi
  assert.throws(()=>api.validateTemplateRun(row,scope,'digest'),/verified/i);
 });
 
-test('Gallery source guard survives its durable receipt and validates metadata/file evidence independently of Vlog guards',async()=>{
+for(const sampled of [false,true])test('Gallery source guard survives its durable receipt with sampled='+sampled,async()=>{
  const api=sourceAPI(),galleryScope={...scope,pluginId:'photo-gallery-no2'},media=Array.from({length:21},()=>({resourceId:'photo',path:'/photo.png',kind:'image',width:100,height:200,focusX:.5,focusY:.5}));
- const guard={media,music:null,files:[{path:'/photo.png',size:12,sha256:'a'.repeat(64)}],signature:JSON.stringify({media:media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,null]),music:null})};
+ const guard={media,music:null,files:[sampled?{path:'/photo.png',size:12,scheme:'cutback.media-content.v2',digest:'a'.repeat(64)}:{path:'/photo.png',size:12,sha256:'a'.repeat(64)}],signature:JSON.stringify({media:media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,null]),music:null})};
  const row={version:1,scope:galleryScope,requestDigest:'digest',owner:randomUUID(),status:'claimed'},claim={path:'/run',expectedText:api.templateRunJSON(row)};let written;
  const selects={files:{compareAndReplace:async input=>{written=JSON.parse(Buffer.from(input.base64,'base64'));return {replaced:true};}}};
  assert.equal((await api.writeTemplateRunResult(selects,claim,{...saved,sourceGuard:guard},api.templateRunJSON,api.templateRunBase64)).runReceiptSaved,true);

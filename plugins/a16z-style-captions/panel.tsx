@@ -411,7 +411,7 @@ import React from "react";
 
 // shared/file-observation.js
 async function fingerprintTemplateFile(files, path, check = () => {
-}) {
+}, scheme = null) {
   const __templateHashAny = (value) => value;
   var __templateFileHash = __templateHashAny(() => {
     var w = __templateHashAny(Object).defineProperty;
@@ -584,6 +584,26 @@ async function fingerprintTemplateFile(files, path, check = () => {
     var _ = __templateHashAny(F2)(() => new (__templateHashAny(U))(), __templateHashAny(T)(1));
     return __templateHashAny(M)(N);
   })();
+  if (typeof path !== "string" || !path || path.includes("\0") || typeof check !== "function") throw Error("The original file observation input is invalid.");
+  if (scheme !== null && scheme !== "cutback.media-content.v2") throw Error("Unknown media fingerprint scheme.");
+  const sampled = scheme !== null;
+  check();
+  const native = sampled && files && "mediaFingerprint" in files ? files.mediaFingerprint : null;
+  if (typeof native === "function") {
+    let supported = true, observed;
+    try {
+      observed = await native.call(files, path);
+    } catch (error) {
+      if (!/^(?:Error: )?Unsupported file operation\.?$/.test(String(error?.message ?? error))) throw error;
+      supported = false;
+    }
+    check();
+    if (supported) {
+      if (observed === null) return null;
+      if (!observed || observed.scheme !== scheme || !Number.isSafeInteger(observed.size) || observed.size <= 0 || typeof observed.digest !== "string" || !/^[a-f0-9]{64}$/.test(observed.digest)) throw Error("The sampled media fingerprint could not be confirmed.");
+      return { size: observed.size, scheme: observed.scheme, digest: observed.digest };
+    }
+  }
   if (typeof path !== "string" || !path || path.includes("\0") || typeof check !== "function" || typeof files?.stat !== "function" || typeof files?.readRange !== "function") throw Error("The original file observation input is invalid.");
   const observe = async (operation) => {
     check();
@@ -595,9 +615,16 @@ async function fingerprintTemplateFile(files, path, check = () => {
   const before = await observe(() => files.stat(path));
   if (before === null) return null;
   if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || identity(before) === null) throw Error("The file's size or identity could not be confirmed.");
+  if (sampled && before.size === 0) throw Error("Cannot fingerprint empty media.");
   const hash3 = __templateFileHash.sha256.create(), alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  for (let offset = 0; offset < before.size; ) {
-    const length = Math.min(49152, before.size - offset);
+  if (sampled) {
+    const prefix = scheme + ":" + before.size + ":";
+    hash3.update(Uint8Array.from(prefix, (character) => character.charCodeAt(0)));
+  }
+  const sampleBytes = 262144;
+  const ranges = !sampled || before.size <= sampleBytes * 3 ? [[0, before.size]] : [[0, sampleBytes], [Math.floor((before.size - sampleBytes) / 2), sampleBytes], [before.size - sampleBytes, sampleBytes]];
+  for (const [start, count] of ranges) for (let offset = start; offset < start + count; ) {
+    const length = Math.min(49152, start + count - offset);
     const chunk = await observe(() => files.readRange({ path, offset, length }));
     if (!chunk || chunk.bytesRead !== length || typeof chunk.base64 !== "string" || chunk.base64.length !== 4 * Math.ceil(length / 3) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64)) throw Error("The file read returned an incomplete or invalid binary chunk.");
     const bytes = new Uint8Array(length);
@@ -619,7 +646,7 @@ async function fingerprintTemplateFile(files, path, check = () => {
   check();
   let hex = "";
   for (let index = 0; index < digest.length; index++) hex += digest[index].toString(16).padStart(2, "0");
-  return { size: before.size, sha256: hex };
+  return sampled ? { size: before.size, scheme, digest: hex } : { size: before.size, sha256: hex };
 }
 
 // shared/local-client.ts
@@ -753,7 +780,7 @@ async function createPanelLocalClient(sdk) {
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
-    fingerprint: (path) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
+    mediaFingerprint: (path) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ',undefined,"cutback.media-content.v2");'),
     readdir: (path) => run2("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.

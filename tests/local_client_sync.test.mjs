@@ -44,7 +44,7 @@ test('scoped sync accepts Windows line endings without copying module imports',(
  const shared=path.join(root,'shared/local-client.ts');fs.writeFileSync(shared,fs.readFileSync(shared,'utf8').replaceAll('\n','\r\n'));
  fs.writeFileSync(file('no14-still-video'),fs.readFileSync(file('no14-still-video'),'utf8').replaceAll('\n','\r\n'));
  assert.equal(call('--only=no14-still-video').status,0);
- const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/\bimport\s/);assert.match(result,/async function fingerprintTemplateFile/);assert.match(result,/Copyright \(c\) 2022 Paul Miller/);
+ const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/\bimport\s/);assert.match(result,/async function fingerprintTemplateFile/);assert.match(result,/files\.mediaFingerprint/);
  assert.equal(call('--only=no14-still-video','--check').status,0);
 }));
 test('a separately registered observation block is preserved and not duplicated inside local-sdk',()=>fixture(({file,call})=>{

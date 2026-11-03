@@ -22,7 +22,7 @@ function fixture(t) {
   }
   for (const [, suite] of suites) copy('tests/' + suite);
   for (const id of [...suites.map(([id]) => id), 'city-weekend-vlog']) copy('plugins/' + id + '/panel.tsx');
-  for (const file of ['tests/windows_host.mjs', 'tests/fixed_draft_reference.mjs', 'tests/fixtures/draft-references']) copy(file);
+  for (const file of ['tests/windows_host.mjs', 'tests/media_fingerprint_fixture.mjs', 'tests/fixed_draft_reference.mjs', 'tests/fixtures/draft-references']) copy(file);
   const env = {...process.env};
   // Run the real test CLI, not the parent's internal test-worker protocol.
   delete env.NODE_TEST_CONTEXT;

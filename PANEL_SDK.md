@@ -24,11 +24,21 @@ app target from the operating system returned by `selects.files.environment()`.
 The existing OS labels in `compatibility.platforms` remain unchanged; `web` is
 an additional declaration, not a new installation requirement for desktop.
 
-The library's `files.fingerprint` helper is implemented with the existing
-`selects.files.stat` and `readRange` calls; it does not require a host fingerprint
-API. File observations accept the existing native `ino` when `sourceIdentity`
-is absent. Effect receipts accept both existing TSX programs and shader programs
-returned by the host. Preserve these paths when adding web-specific behavior.
+Source observations prefer `selects.files.mediaFingerprint(path)`, returning
+`{size, scheme:"cutback.media-content.v2", digest}`. The digest includes the ASCII
+prefix `cutback.media-content.v2:<size>:` and 256 KiB head/middle/tail samples;
+files at most 768 KiB are read whole. This is a cache/source identity, not proof
+that every byte is unchanged. Unobserved regions can change without changing it.
+
+`selects.files.fingerprint(path)` remains full SHA-256 `{size,sha256}` for state
+files, pinned assets, generated output and existing scheme-less source receipts.
+Both operations return null for missing files and reject read/identity changes.
+The serializable observer falls back only for an absent operation or the exact
+old bridge error `Unsupported file operation.`. Its sample fallback follows the
+same v2 bytes with reads at most 49152 bytes (768 KiB total); its full fallback
+retains full-file hashing. Operational errors and invalid host results never
+fall back. Full legacy integrity checks retain their old large-file time limits.
+Effect receipts accept existing TSX programs and shader programs.
 
 ## Local files and media
 

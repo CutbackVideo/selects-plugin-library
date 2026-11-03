@@ -117,7 +117,7 @@ export async function prepareNativeImagesById(sdk,projectId,photos,options={}) {
 // File contents are observations, not a filesystem lock. Keep the existing
 // Image availability contract unchanged; templates opt into complete identity.
 export function requireSourceFileSupport(files) {
- if(typeof files?.stat!=='function'||typeof files?.readRange!=='function'){
+ if(typeof files?.mediaFingerprint!=='function'&&(typeof files?.stat!=='function'||typeof files?.readRange!=='function')){
   const message='Update Selects to verify complete source file contents before creating this template.';
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
@@ -126,20 +126,21 @@ export async function observeSourceFiles(files,paths,expected=null) {
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
  if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
  const selected=[...new Set(paths)];
- const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
+ const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&(row.scheme==='cutback.media-content.v2'?Object.keys(row).length===4&&typeof row.digest==='string'&&/^[0-9a-f]{64}$/.test(row.digest):row.scheme===undefined&&Object.keys(row).length===3&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256));
  if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');
  if(!selected.length)return [];
  requireSourceFileSupport(files);
  const observed=[];
  for(const path of selected){
-  let fingerprint;
-  try{fingerprint=await (typeof files.fingerprint==='function'?files.fingerprint(path):fingerprintTemplateFile(files,path));}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
-  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
-  const row={...fingerprint,path};
-  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
   const before=expected?.find(row=>row.path===path);
-  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
-  observed.push({path,size:row.size,sha256:row.sha256});
+  if(before&&before.scheme!=='cutback.media-content.v2')throw issue('source-file-changed','Reload the Project inputs to confirm their sampled media identities.');
+  let fingerprint;
+  try{fingerprint=await fingerprintTemplateFile(files,path,undefined,'cutback.media-content.v2');}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
+  const row={path,...fingerprint};
+  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
+  if(before&&(before.size!==row.size||before.scheme!==row.scheme||(before.digest??before.sha256)!==(row.digest??row.sha256)))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
+  observed.push(row);
  }
  return observed;
 }

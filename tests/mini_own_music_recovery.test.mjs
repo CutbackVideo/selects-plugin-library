@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +23,7 @@ for(const entry of ['panel','template'])for(const change of ['content','missing'
  const sources=()=>({fileTree:[{type:'video',resourceId:'r0',path:f.source},{type:'audio',resourceId:'music',path:file}]});
  f.hooks.sourceFiles=sources;f.hooks.resources=[{resourceId:'r0',type:'Video'},{resourceId:'music',type:'Audio',durationSeconds:30}];
  f.root.config.music={resourceId:'music',sectionStart:.5,tailSeconds:0,referenceCuts:false};
- f.root.config.analysisSources=[{path:file,size:original.wav.length,sha256:hash(file)}];f.root.config.sourceBindings=[{resourceId:'music',path:file}];
+ f.root.config.analysisSources=[{path:file,...mediaFingerprint(fs.readFileSync(file))}];f.root.config.sourceBindings=[{resourceId:'music',path:file}];
  const saved=await f.mount().executeTemplateAssembly(f.sdk,f.local.files,f.root.scope,f.root.config,f.root.source,()=>true,{captureState:true,requestLimit:98304});
  await(await f.open()).store(f.root);assert.equal(f.commits(),1);assert.ok(f.saved.get(saved.sequenceId).clips.some(row=>row.resourceId==='music'&&row.trackKind==='audio'));
  if(change==='content')fs.writeFileSync(file,replacement.wav);

@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,7 +9,7 @@ async function fixture(t,entry='panel'){
  const f=await miniMusicFixture(t,{entry,silent:true});
  fs.writeFileSync(f.source,'original A');fs.writeFileSync(f.other,'original B');
  f.inventory.resources=[{rid:'r0',path:f.source,duration:4,analysed:true},{rid:'r1',path:f.other,duration:4,analysed:true}];
- f.files.fingerprint=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:hash(p)}:null;
+ f.files.sha256=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:hash(p)}:null;
  f.box.setCandidates=v=>{f.box.candidates=v;};f.box.candidates=null;f.box.checkLocalClips=async()=>({results:[],unavailable:false});
  let searches=0,searchHook=()=>{};
  f.box.findCandidates=async()=>{searches++;await searchHook();return {list:[{rid:'r0',role:'main',t:1,score:.8},{rid:'r1',role:'main',t:1,score:.8}],failed:[]};};
@@ -23,7 +24,7 @@ for(const entry of ['panel','template']){
  });
  test('Mini video sources: '+entry+' freezes every selected video identity into recovery config',async t=>{
   const f=await fixture(t,entry);await f.run();assert.equal(f.saved.length,1);const rows=f.saved[0].analysisSources;
-  assert.deepEqual(Array.from(rows||[],r=>r.path).filter(p=>p===f.source||p===f.other).sort(),[f.source,f.other].sort());for(const r of rows)assert.equal(r.sha256,hash(r.path));
+  assert.deepEqual(Array.from(rows||[],r=>r.path).filter(p=>p===f.source||p===f.other).sort(),[f.source,f.other].sort());for(const r of rows){if(r.path===f.source||r.path===f.other)assert.deepEqual(JSON.parse(JSON.stringify(r)),{path:r.path,...mediaFingerprint(fs.readFileSync(r.path))});else assert.equal(r.digest,mediaFingerprint(fs.readFileSync(r.path)).digest);}
  });
  test('Mini video sources: '+entry+' detects replacement while scene search is in flight',async t=>{
   const f=await fixture(t,entry);f.onSearch(()=>replaceSameFacts(f.source,f.other));try{await f.run();}catch{}

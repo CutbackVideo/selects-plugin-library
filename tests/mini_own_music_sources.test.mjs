@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,14 +9,14 @@ const original=clickAudio(120),replacement=clickAudio(100);
 async function selected(t){
  const f=await miniMusicFixture(t,{entry:'panel',own:true}),file=path.join(f.root,'selected music.wav');
  fs.writeFileSync(file,original.wav);fs.utimesSync(file,946684800,946684800);
- Object.assign(f.box,{ownMusic:{path:file,name:'selected music.wav'},ownGrid:{...original.grid,sourceObservation:{path:file,size:original.wav.length,sha256:f.digest(original.wav)}},grid:{...original.grid,usableEnd:29.5}});
+ Object.assign(f.box,{ownMusic:{path:file,name:'selected music.wav'},ownGrid:{...original.grid,sourceObservation:{path:file,...mediaFingerprint(original.wav)}},grid:{...original.grid,usableEnd:29.5}});
  f.hooks.duration=30;
  return {...f,music:file,replace(){fs.writeFileSync(file,replacement.wav);fs.utimesSync(file,946684800,946684800);}};
 }
 test('Mini own music: valid analyzed contents reach Audio and durable source gates together',async t=>{
  const f=await selected(t),result=await f.run();assert.ok(result?.music?.resourceId);
- assert.equal(f.digest(fs.readFileSync(f.imports[0])),f.box.ownGrid.sourceObservation.sha256);
- assert.ok(result.analysisSources.some(row=>row.path===f.music&&row.sha256===f.box.ownGrid.sourceObservation.sha256));
+ assert.equal(mediaFingerprint(fs.readFileSync(f.imports[0])).digest,f.box.ownGrid.sourceObservation.digest);
+ assert.ok(result.analysisSources.some(row=>row.path===f.music&&row.digest===f.box.ownGrid.sourceObservation.digest));
  assert.ok(result.sourceBindings.some(row=>row.resourceId===result.music.resourceId&&row.path===f.music));
 });
 for(const change of ['same-size same-mtime','missing','unknown','no provenance'])test('Mini own music: '+change+' cannot reuse a previous grid or import',async t=>{
@@ -41,6 +42,6 @@ test('Mini own music: Audio metadata shorter than the planned section cannot rea
 });
 for(const entry of ['panel','template'])test('Mini cue: '+entry+' carries the verified published Audio into durable source gates',async t=>{
  const f=await miniMusicFixture(t,{entry}),result=await f.run();assert.ok(result?.music?.resourceId);
- assert.ok(result.analysisSources.some(row=>row.path===f.imports[0]&&row.sha256===f.cue.sha256));
+ assert.ok(result.analysisSources.some(row=>row.path===f.imports[0]&&row.digest===mediaFingerprint(f.bytes).digest));
  assert.ok(result.sourceBindings.some(row=>row.path===f.imports[0]&&row.resourceId===result.music.resourceId));
 });

@@ -5,7 +5,7 @@ for(const mode of ['gallery','recap'])test(mode+' keeps one global face-observat
  const names=mode==='gallery'?['focusGalleryPhotos']:['prepareRecapFaceFocus'];
  const api=loadPhotoPanel(mode==='gallery'?'photo-gallery-no2':'recap-2026',names,{Date:Clock});
  const resources=Array.from({length:3},(_,i)=>({resourceId:'r'+i,name:'source'+i,type:mode==='gallery'?'Image':'Video'})),raw=resources.map((row,i)=>({...row,resourceId:'00000000-0000-4000-8000-'+String(i+1).padStart(12,'0')}));
- const files={stat:async()=>({size:1,mtimeMs:1,ino:3,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})};
+ const files={sha256:async()=>({size:1,sha256:'a'.repeat(64)}),stat:async()=>({size:1,mtimeMs:1,ino:3,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})};
  const selects={files,project:()=>({resources:async()=>resources}),ai:{imageSourceSupported:true,
   submit:async input=>{const workflowId='ai:budget-'+(submitted.length+1);submitted.push(input);jobs.set(workflowId,input);return{workflowId}},
   job:workflowId=>({status:async()=>{if(!recovery)clock=workflowId==='ai:budget-1'?110000:125000;return{workflowId,projectId:'p',runtimeId:'selects-ai-runtime',task:'faces.detect',status:'succeeded'}},result:async()=>{resultReads++;return{workflowId,task:'faces.detect',files:{detections:{id:workflowId,mediaType:'application/json'}}}}}),

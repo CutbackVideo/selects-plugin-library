@@ -90,17 +90,16 @@ short-video cache. Existing bundled Image/Audio function bodies and call paths
 are unchanged; the three direct panel copies are regenerated with the new unused
 helper definitions. No sixth registry feature or new public SDK is added.
 
-The caller supplies a recipe key, observed whole-file source identity, a streaming
-hash callback, a producer and a domain verifier. The owner reads stat/hash/stat,
-reserves source/output paths with exclusive file creation, copies and verifies a
-private source snapshot, and gives that snapshot to the producer. This prevents
-an A-B-A source replacement during encoding from changing the frozen picture.
-Large source/output bytes stay outside the browser; Gallery uses the existing
-cancellable FFmpeg data demuxer/hash muxer through argv arrays, never a shell.
+The caller supplies a recipe key, a sampled source identity, a producer and a
+domain verifier. The owner reads stat/mediaFingerprint/stat, reserves source/output
+paths with exclusive file creation, copies and verifies a private source snapshot,
+and gives that snapshot to the producer. Source and output observations both use
+`{bytes,scheme:"cutback.media-content.v2",digest}`. Sampling reads at most 768 KiB
+and may miss changes outside those ranges; it is not full-byte integrity.
 
-Objects live under `objects/<recipe-key>/<output-sha256>.<extension>`; a 48 KiB
-bounded `index/<recipe-key>.json` carries only version/key and source/output
-digests/byte counts. Valid published objects are reused without replacement.
+Objects live under `objects/<recipe-key>/<output-digest>.<extension>`; a 48 KiB
+bounded version-2 index carries the recipe key and source/output identities.
+Version-1 full-hash indexes are cache misses. Valid published objects are reused.
 Corrupt objects may be repaired by atomically renaming a fully validated private
 output; delete-before-rename is forbidden. Media is complete before an atomic
 index write can point at it. Concurrent complete writers can win the same index
@@ -144,3 +143,11 @@ harness can remove its own disposable fixtures only after independent same-job
 terminal reads; the plugin does not infer safe deletion from age, a missing reply,
 an abort acknowledgement or an unknown/expired job. Automatic persisted-workspace
 reconciliation and whole installed-plugin acceptance are still separate work.
+
+### Sampled media identities
+
+`prepareDerivedAsset` optionally accepts `identifySource(path)` for caller-specific
+source admission. Both it and the default media reader return
+`{bytes,scheme:"cutback.media-content.v2",digest}`. Source and output comparisons
+include the scheme and byte count. Recipe keys include the source scheme/digest.
+There is no full-file hash callback or FFmpeg hash pass.

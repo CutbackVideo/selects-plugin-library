@@ -65,7 +65,7 @@ async function hostRoots(sdk, id, marker) {
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
-const HOLD_ALGORITHM = 'photo-gallery-hold-v3-sha256-frozen-max1920-h264-crf18';
+const HOLD_ALGORITHM = 'photo-gallery-hold-v4-sampled-frozen-max1920-h264-crf18';
 function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed',publicMessage:message }); }
 // Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
 function holdPathKey(path) {
@@ -145,16 +145,10 @@ async function holdEncode(source, target, frames, options = {}) {
       '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)), options);
   } catch (error) { if (error.terminal) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
-async function holdFileHash(path,options) {
-  const result=await holdTool('runFFmpeg',['-nostdin','-v','error','-f','data','-i',path,'-map','0:0','-c','copy','-f','hash','-hash','sha256','-'],900,options);
-  const match=String(result?.stdout??'').trim().match(/^SHA256=([0-9a-f]{64})$/i);
-  if(!match)throw holdError('The complete media file hash could not be confirmed');
-  return match[1].toLowerCase();
-}
 async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
-  const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
+  const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.scheme,identity.digest,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,hashFile:path=>holdFileHash(path,options),
+  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,
     produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
@@ -177,7 +171,7 @@ async function holdVideos(request, dataDir, options = {}) {
   const cacheRoot = files.join(dataDir, 'held-v3'),selected=new Map();
   // Observe every requested source before generating any derived file.
   for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
-    const identity=await readAssetFileIdentity(files,raw,path=>holdFileHash(path,options),current);
+    const identity=await readAssetFileIdentity(files,raw,current);
     const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
   }
   const completed = new Map(), output = [];
@@ -185,7 +179,7 @@ async function holdVideos(request, dataDir, options = {}) {
     const raw = paths[index];
     try {
       current();const {identity,sourceDimensions}=selected.get(holdPathKey(raw));
-      const id = holdPathKey(raw) + '\0' + identity.sha256;
+      const id = holdPathKey(raw) + '\0' + identity.scheme + '\0' + identity.digest;
       if (!completed.has(id)) {
         const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot, options);
         current();
@@ -259,34 +253,32 @@ async function analyzeMusicFile(path, dataDir, options = {}) {
   if(!dataDir)throw issue('The music analysis folder is unavailable. Check storage and file access.','tempo-storage');
   if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function')||typeof client?.media?.runFFmpeg!=='function'||!globalThis.crypto?.subtle||typeof globalThis.crypto?.randomUUID!=='function')throw hostError('host-missing','Update Selects to verify and analyze the selected music.');
   const work={client,isCurrent:live,signal:options.signal,deadline};
-  const hashFile=path=>holdFileHash(path,work);
   let decodeFailed=false;
   try{
-    const source=await readAssetFileIdentity(files,path,hashFile,current);current();
-    const key=await holdKey(['gallery-tempo-v1-f32le',holdPathKey(path),source.sha256,source.bytes,TEMPO_RATE,TEMPO_SECONDS].join('\0'));current();
+    const source=await readAssetFileIdentity(files,path,current);current();
+    const key=await holdKey(['gallery-tempo-v1-f32le',holdPathKey(path),source.scheme,source.digest,source.bytes,TEMPO_RATE,TEMPO_SECONDS].join('\0'));current();
     const maxBytes=TEMPO_RATE*TEMPO_SECONDS*4;
     const read=async(file,expected)=>{
       const bytes=await readBundledAssetBytes(files,file,maxBytes,current);current();
       if(expected){
-        const digest=await crypto.subtle.digest('SHA-256',bytes);current();
-        const sha256=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
-        if(bytes.length!==expected.bytes||sha256!==expected.sha256)throw issue('The decoded music PCM contents changed before analysis.','tempo-pcm');
+        const observed=await mediaFingerprintBytes(bytes);current();
+        if(observed.size!==expected.bytes||observed.scheme!==expected.scheme||observed.digest!==expected.digest)throw issue('The decoded music PCM contents changed before analysis.','tempo-pcm');
       }
       if(bytes.length%4!==0)throw issue('The decoded music PCM length is invalid.','tempo-pcm');
       const values=new Float32Array(bytes.length/4),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
       for(let i=0;i<values.length;i++){values[i]=view.getFloat32(i*4,true);if(!Number.isFinite(values[i]))throw issue('The decoded music PCM contains an invalid sample.','tempo-pcm');}
       return values;
     };
-    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},signal:options.signal,hashFile,
+    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},signal:options.signal,
       produce:async(snapshot,target)=>{
         try{await holdTool('runFFmpeg',['-nostdin','-v','error','-y','-t',String(TEMPO_SECONDS),'-i',snapshot,'-vn','-ac','1','-ar',String(TEMPO_RATE),'-f','f32le',target],45,work);}
         catch(error){if(!error?.terminal&&error?.code==='hold-failed')decodeFailed=true;throw error;}
       },verify:read});
     current();const samples=await read(prepared.path,prepared.output);current();
     const result=tempoEstimate(samples);current();
-    const after=await readAssetFileIdentity(files,path,hashFile,current);current();
-    if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw issue('The selected music source changed during analysis.','tempo-changed');
-    return {estimate:result,source:{size:source.bytes,sha256:source.sha256}};
+    const after=await readAssetFileIdentity(files,path,current);current();
+    if(after.scheme!==source.scheme||after.digest!==source.digest||after.bytes!==source.bytes)throw issue('The selected music source changed during analysis.','tempo-changed');
+    return {estimate:result,source:{size:source.bytes,scheme:source.scheme,digest:source.digest}};
   }catch(error){
     current();if(decodeFailed&&!error?.terminal)return {estimate:{status:'uncertain',reason:'Audio could not be decoded'},source:null};
     if(error?.code==='host-missing'||typeof error?.publicMessage==='string'){error.safeNotSaved=true;throw error;}
@@ -807,7 +799,7 @@ async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
     if(item.kind!=='image'||item.manualFocus||item.focusX!==0.5||item.focusY!==0.5)continue;
     current();const rawId=aliases.get(item.resourceId);
     if(Date.now()>=deadline){diagnostics.push({slot:index+1,resourceId:rawId,status:'unavailable',reason:'observation-budget'});continue;}
-    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+    const fingerprint=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+',undefined,"cutback.media-content.v2");','Verify original-photo analysis bytes');current();
     if(!fingerprint)throw Object.assign(Error('The original photo is missing.'),{safeNotSaved:true});
     faceFingerprints.push({path:item.path,...fingerprint});
     const identity=JSON.stringify({resourceId:rawId,path:item.path,...fingerprint,width:item.width,height:item.height});
@@ -824,7 +816,7 @@ async function focusGalleryPhotos(sdk,input,isCurrent=()=>true) {
         current();const failure={status:'unavailable',reason:error.code||'face-analysis',message:String(error.message||error).slice(0,160)};
         failures.set(identity,failure);diagnostics.push({slot:index+1,resourceId:rawId,...failure});continue;
       }
-      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+');','Verify original-photo analysis bytes');current();
+      const after=await galleryFaceScript(sdk,'return await ('+fingerprintTemplateFile.toString()+')(selects.files,'+JSON.stringify(item.path)+',undefined,"cutback.media-content.v2");','Verify original-photo analysis bytes');current();
       if(JSON.stringify(after)!==JSON.stringify(fingerprint))throw Object.assign(Error('Original photo changed during face analysis.'),{safeNotSaved:true});
       observations.set(identity,observed);
     }
@@ -1597,7 +1589,7 @@ async function createPanelLocalClient(sdk: any) {
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
     // One script owns every read and its deadline; only the compact digest returns.
-    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
+    mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.

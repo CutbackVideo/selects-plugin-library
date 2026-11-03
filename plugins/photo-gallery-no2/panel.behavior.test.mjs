@@ -1,9 +1,9 @@
+import {mediaFingerprint} from '../../tests/media_fingerprint_fixture.mjs';
 import { asyncSdk } from '../../tests/windows_host.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import path from 'node:path';
-import {createHash} from 'node:crypto';
 import { test } from 'node:test';
 import { planGallery } from './format.mjs';
 
@@ -92,6 +92,7 @@ function harness(media = photos, options = {}) {
   const sep = options.platform === 'win32' ? '\\' : '/';
   const home = options.platform === 'win32' ? 'C:\\Users\\tester' : '/installed';
   const disk=new Map();
+  for(const item of media) if(/short\.mp4$/.test(item.path)) disk.set(item.path,Buffer.alloc(1000));
   for(const audio of options.audio??[])disk.set(audio.path,Buffer.from('fixture audio '+audio.resourceId));
   if(!options.musicMissing)disk.set([home,'.selects','skills','photo-gallery-no2','assets','music.mp3'].join(sep),fs.readFileSync(new URL('./assets/music.mp3',import.meta.url)));
   const assetResources=[],assetNodes=[];
@@ -128,7 +129,6 @@ function harness(media = photos, options = {}) {
       runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },
       runFFmpeg: async (args,quiet,signal) => {
         tools.push(['ffmpeg', ...args]);await options.onMediaProcess?.(args,signal);
-        if(args.includes('-hash'))return {stdout:'SHA256='+createHash('sha256').update(disk.get(args[args.indexOf('-i')+1])??Buffer.alloc(1000)).digest('hex'),stderr:''};
         if(args.includes('-vf'))disk.set(args.at(-1),Buffer.alloc(1000));
         if(args.includes('f32le'))disk.set(args.at(-1),Buffer.from((options.pcm??new Float32Array(0)).buffer));
         return { stdout: '', stderr: '' };
@@ -300,7 +300,7 @@ for (const platform of ['darwin', 'win32']) {
     await waitFor(() => assert.match(h.view.container.textContent, /Estimated BPM: 10[89]|Estimated BPM: 11[01]/));
     const decode = tools.find(call => call[0] === 'ffmpeg'&&call.includes('f32le'));
     assert.match(decode[decode.indexOf('-i') + 1],/\.source-/);
-    assert.ok(tools.some(call=>call.includes('-hash')&&call[call.indexOf('-i')+1]===audio[0].path));
+    assert.equal(tools.some(call=>call.includes('-hash')),false,'Media identities must not trigger a full-file FFmpeg hash');
     assert.deepEqual(decode.slice(decode.indexOf('-ar'), decode.indexOf('-ar') + 2), ['-ar', '11025']);
     assert.ok(!h.calls.some(c => c.allowCommit));
   });
@@ -624,7 +624,7 @@ test('BPM UI binds creation to the exact music contents actually estimated',asyn
  fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
  await waitFor(()=>assert.ok(h.calls.some(call=>call.input.operation==='create')));
  const made=h.calls.find(call=>call.input.operation==='create').input;
- assert.equal(made.musicFingerprint?.path,audio.path);assert.equal(made.musicFingerprint.sha256,createHash('sha256').update(Buffer.from('fixture audio custom')).digest('hex'));
+ assert.equal(made.musicFingerprint?.path,audio.path);assert.equal(made.musicFingerprint.digest,mediaFingerprint(Buffer.from('fixture audio custom')).digest);
 });
 
 test('a host without existing runScript stops before music import or video preparation',async()=>{

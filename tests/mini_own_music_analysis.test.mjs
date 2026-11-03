@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,14 +26,14 @@ async function fixture(t){
 }
 test('Mini own analysis: real PCM and engine bind a validated grid to original contents, reuse verified JSON and leave no staging',async t=>{
  const f=await fixture(t),a=await f.analyze(),b=await f.analyze();
- assert.ok(Math.abs(a.bpm-120)<.2);assert.equal(a.sourceObservation.path,f.file);assert.equal(a.sourceObservation.sha256,createHash('sha256').update(music.wav).digest('hex'));
+ assert.ok(Math.abs(a.bpm-120)<.2);assert.equal(a.sourceObservation.path,f.file);assert.equal(a.sourceObservation.digest,mediaFingerprint(music.wav).digest);
  assert.deepEqual(JSON.parse(JSON.stringify(a)),JSON.parse(JSON.stringify(b)));assert.equal(f.workerRuns(),1);assert.equal(f.calls.filter(c=>c.bin==='ffmpeg').length,1);
  assert.equal(fs.readdirSync(f.data).some(name=>name.startsWith('sbs-')),false);
  assert.equal(fs.readdirSync(path.join(f.data,'own-music')).some(name=>name.startsWith('.')),false);
 });
 test('Mini own analysis: changed contents and Worker source each invalidate the derived result',async t=>{
  const f=await fixture(t),a=await f.analyze();f.replace();const b=await f.analyze(),c=await f.analyze('source-v2');
- assert.ok(Math.abs(a.bpm-120)<.2);assert.ok(Math.abs(b.bpm-100)<.2);assert.equal(b.bpm,c.bpm);assert.notEqual(a.sourceObservation.sha256,b.sourceObservation.sha256);assert.equal(f.workerRuns(),3);
+ assert.ok(Math.abs(a.bpm-120)<.2);assert.ok(Math.abs(b.bpm-100)<.2);assert.equal(b.bpm,c.bpm);assert.notEqual(a.sourceObservation.digest,b.sourceObservation.digest);assert.equal(f.workerRuns(),3);
 });
 test('Mini own analysis: original replacement during Worker execution never returns the old grid',async t=>{
  const f=await fixture(t);f.analysisHooks.worker=()=>f.replace();await assert.rejects(f.analyze(),/changed/i);

@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,9 +27,9 @@ test('Gallery hold: a changed source during encoding cannot publish or return th
 });
 test('Gallery hold: concurrent panel realms publish coherent content and one complete cache index',async t=>{
  const f=await holdFixture(t),other=await f.mount(),results=await Promise.all([f.run(),other.run()]);
- for(const r of results){const p=r.videos[0].outputPath;assert.equal(path.basename(p,'.mp4'),hash(p));}
- const rows=jsonFiles(f.data).map(p=>JSON.parse(fs.readFileSync(p,'utf8')));assert.equal(rows.length,1);assert.equal(rows[0].source.sha256,hash(f.source));
- const next=(await f.run()).videos[0];assert.equal(next.cacheHit,true);assert.equal(path.basename(next.outputPath,'.mp4'),hash(next.outputPath));
+ for(const r of results){const p=r.videos[0].outputPath;assert.equal(path.basename(p,'.mp4'),mediaFingerprint(fs.readFileSync(p)).digest);}
+ const rows=jsonFiles(f.data).map(p=>JSON.parse(fs.readFileSync(p,'utf8')));assert.equal(rows.length,1);assert.equal(rows[0].source.digest,mediaFingerprint(fs.readFileSync(f.source)).digest);
+ const next=(await f.run()).videos[0];assert.equal(next.cacheHit,true);assert.equal(path.basename(next.outputPath,'.mp4'),mediaFingerprint(fs.readFileSync(next.outputPath)).digest);
 });
 test('Gallery hold: a stale run aborts active conversion and cannot publish',async t=>{
  const f=await holdFixture(t);let enter,release,aborted=false;const entered=new Promise(r=>{enter=r;}),gate=new Promise(r=>{release=r;});
@@ -81,7 +82,7 @@ test('Gallery hold: copying cannot fail into encoding or a leaked private workin
 test('Gallery hold: index failure keeps verified objects but never claims a completed cache',async t=>{
  const f=await holdFixture(t);f.hooks.beforeRename=(from,to)=>{if(to.endsWith('.json'))throw Error('EACCES');};await assert.rejects(f.run(),/index could not be confirmed/);
  assert.equal(f.calls.filter(c=>c.args.includes('-vf')).length,1);assert.equal(jsonFiles(f.data).length,0);f.hooks.beforeRename=null;
- const r=await f.run();assert.equal(path.basename(r.videos[0].outputPath,'.mp4'),hash(r.videos[0].outputPath));
+ const r=await f.run();assert.equal(path.basename(r.videos[0].outputPath,'.mp4'),mediaFingerprint(fs.readFileSync(r.videos[0].outputPath)).digest);
 });
 test('Gallery hold: identical bytes in different selected files preserve independent source mapping',async t=>{
  const f=await holdFixture(t),copy=path.join(f.root,'copy.mp4');fs.copyFileSync(f.source,copy);
@@ -94,20 +95,15 @@ test('Gallery hold: legacy cache files are preserved while new generations use h
  const r=await f.run();assert.ok(r.videos[0].outputPath.includes(path.sep+'held-v3'+path.sep));assert.equal(fs.readFileSync(old,'utf8'),'old owned bytes');
 });
 test('Gallery hold: non-ASCII and shell-looking file names remain argv data',async t=>{
- const f=await holdFixture(t,{sourceName:"source $() 'quote' \uc601\uc0c1.mp4"}),before=hash(f.source),r=await f.run();assert.equal(r.videos[0].sourcePath,f.source);assert.equal(hash(f.source),before);assert.equal(path.basename(r.videos[0].outputPath,'.mp4'),hash(r.videos[0].outputPath));
+ const f=await holdFixture(t,{sourceName:"source $() 'quote' \uc601\uc0c1.mp4"}),before=hash(f.source),r=await f.run();assert.equal(r.videos[0].sourcePath,f.source);assert.equal(hash(f.source),before);assert.equal(path.basename(r.videos[0].outputPath,'.mp4'),mediaFingerprint(fs.readFileSync(r.videos[0].outputPath)).digest);
 });
-test('Gallery hold: large sources are streamed without reading them into browser byte buffers',async t=>{
+test('Gallery hold: large sources use bounded head/middle/tail reads and never a full hash command',async t=>{
  const f=await holdFixture(t);fs.appendFileSync(f.source,Buffer.alloc(33*1024*1024));
- f.hooks.beforeRead=(file,offset,length)=>{
-  assert.notEqual(file,f.source,'source media stays in the streaming hash/encoder path');
-  if(file.endsWith('.json')){assert.ok(length<=49152);return;}
-  assert.equal(path.dirname(file),path.join(f.data,'held-v3'));
-  assert.match(path.basename(file),/^\.(source-|output-)/);
-  assert.equal(offset,0);assert.ok(length<=1024);assert.ok(fs.statSync(file).size<=1024);
-  assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).kind,'derived-reservation','only bounded ownership metadata may be read');
- };
- const r=await f.run();assert.ok(fs.statSync(f.source).size>32*1024*1024);assert.equal(r.status,'converted');
- assert.ok(f.reads.every(x=>x.path.endsWith('.json')?x.length<=49152:x.length<=1024));
+ const size=fs.statSync(f.source).size,sample=262144,ranges=[[0,sample],[Math.floor((size-sample)/2),sample],[size-sample,sample]];
+ const r=await f.run();assert.equal(r.status,'converted');
+ const reads=f.reads.filter(row=>row.path===f.source);assert.ok(reads.length>0);
+ for(const row of reads){assert.ok(row.length<=49152);assert.ok(ranges.some(([start,length])=>row.offset>=start&&row.offset+row.length<=start+length));}
+ assert.equal(f.calls.some(call=>call.args.includes('-hash')),false);
 });
 test('Gallery shared owner: invalid liveness is a structured input failure before file I/O',async t=>{
  const f=await holdFixture(t);await assert.rejects(f.derive({isCurrent:false}),e=>e.code==='BUNDLED_ASSET_INPUT'&&typeof e.publicMessage==='string');assert.equal(f.writes.length,0);assert.equal(f.calls.length,0);

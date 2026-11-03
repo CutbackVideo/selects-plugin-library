@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import test from 'node:test';
 import {clipAnalysisFixture as fixture} from './clip_analysis_fixture.mjs';import {replaceSameFacts} from './gallery_hold_fixture.mjs';
 const privateFiles=f=>fs.existsSync(f.data)?fs.readdirSync(f.data,{recursive:true}).filter(p=>/\.(?:source|output|media)-/.test(p)):[];
@@ -29,7 +30,7 @@ for(const opts of [{concurrency:0},{concurrency:4},{concurrency:1.5},{budgetMs:N
  const f=await fixture(t);await assert.rejects(f.scoreAll(undefined,opts),e=>e.code==='CLIP_ANALYSIS_INPUT');assert.equal(f.writes.length,0);
 });
 test('clip analysis batch: failed source aborts its sibling and waits for decoder and cleanup settlement',async t=>{
- const f=await fixture(t);let reached;const started=new Promise(r=>reached=r);f.local.files.fingerprint=async p=>{if(p===f.other){await started;return null;}const b=fs.readFileSync(p);return {size:b.length,sha256:(await import('node:crypto')).createHash('sha256').update(b).digest('hex')};};
+ const f=await fixture(t);let reached;const started=new Promise(r=>reached=r);const fingerprint=f.local.files.mediaFingerprint;f.local.files.mediaFingerprint=async p=>{if(p===f.other){await started;return null;}return fingerprint(p);};
  let settled=false;f.hooks.beforeTool=async(_bin,_args,signal)=>{reached();await new Promise(resolve=>signal.aborted?resolve():signal.addEventListener('abort',resolve,{once:true}));settled=true;};
  await assert.rejects(f.scoreAll([f.input,{rid:'r1',path:f.other,durationSeconds:4}],{concurrency:2}),e=>/SOURCE/.test(e.code));assert.equal(settled,true);assert.deepEqual(privateFiles(f),[]);
 });
@@ -37,4 +38,26 @@ test('clip analysis batch: failed source aborts its sibling and waits for decode
 for(const opts of [{dataDir:'bad\0directory'},{onProgress:3}])test('clip analysis: invalid path or callback is rejected before any source request '+JSON.stringify(opts),async t=>{
  const f=await fixture(t);let reads=0;f.hooks.beforeFingerprint=()=>reads++;
  await assert.rejects(f.scoreAll(undefined,opts),e=>e.code==='CLIP_ANALYSIS_INPUT');assert.equal(reads,0);assert.equal(f.writes.length,0);
+});
+test('clip analysis: source and output cache records both carry explicit sampled identities',async t=>{
+ const f=await fixture(t),result=await f.score();
+ assert.equal(result.sourceObservation.scheme,'cutback.media-content.v2');
+ assert.equal(result.sourceObservation.sha256,undefined);
+ const index=fs.readdirSync(f.data,{recursive:true}).find(p=>p.includes('index/')&&p.endsWith('.json'));
+ const receipt=JSON.parse(fs.readFileSync(path.join(f.data,index),'utf8'));
+ assert.equal(receipt.source.scheme,'cutback.media-content.v2');
+ assert.equal(receipt.source.sha256,undefined);
+ const object=fs.readdirSync(f.data,{recursive:true}).find(p=>p.includes('objects/')&&p.endsWith('.json'));
+ const expected=mediaFingerprint(fs.readFileSync(path.join(f.data,object)));
+ assert.equal(receipt.output.sha256,undefined);
+ assert.equal(receipt.output.scheme,expected.scheme);
+ assert.equal(receipt.output.digest,expected.digest);
+ assert.equal(receipt.version,2);
+});
+test('clip analysis: legacy whole-file observations require reconfirmation without reading the source',async t=>{
+ const f=await fixture(t),original=fs.readFileSync(f.source),digest=(await import('node:crypto')).createHash('sha256').update(original).digest('hex');
+ const expected={path:f.source,size:original.length,sha256:digest};
+ await assert.rejects(f.score({expectedSources:[expected]}),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED');
+ assert.equal(f.writes.length,0);
+ await assert.rejects(f.score({expectedSources:[{...expected,sha256:'0'.repeat(64)}]}),e=>e.code==='CLIP_ANALYSIS_SOURCE_CHANGED');
 });

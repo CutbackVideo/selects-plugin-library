@@ -1,3 +1,4 @@
+import {mediaFingerprint} from '../../tests/media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -9,10 +10,11 @@ const effectSha = 'bf1d24dab2ac13a45fcd5a1ce5ff0587de86be31f900ab03976cbbc1fc5eb
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const image = (i) => ({ resourceId: `r${i}`, name: `photo-${i}.png`, type: 'Image' });
 const file = (i) => ({ type: 'image', resourceId: `r${i}`, name: `photo-${i}.png`, path: `/test/photo-${i}.png`, frameSize: { width: 1080, height: 1920 } });
-// Binary originals span more than one SDK chunk; their identity comes from the
-// existing stat/readRange API rather than a fabricated fingerprint capability.
+// The host fingerprints complete original bytes without transferring SDK chunks.
 const sourceBytes = (path) => Buffer.concat([Buffer.from(path), Buffer.alloc(49152, 0x89)]);
 const readableFiles = (nodes) => ({
+  fingerprint: async path => nodes.some(node => node.path === path) ?
+    {size: sourceBytes(path).length, sha256: createHash("sha256").update(sourceBytes(path)).digest("hex")} : null,
   stat: async (path) => nodes.some(node => node.path === path) ?
     { size: sourceBytes(path).length, isDirectory: false, mtimeMs: 1, ino: 1 } : null,
   readRange: async ({ path, offset, length }) => {
@@ -518,8 +520,7 @@ test('21 original photos become 21 independent Image clips over a black gap', as
   const created = await f.run({ ...input, operation: 'create' });
   assert.equal(created.status, 'saved', created.message);
   assert.deepEqual(created.sourceGuard.files, media.map(({ path }) => ({
-    path, size: sourceBytes(path).length,
-    sha256: createHash('sha256').update(sourceBytes(path)).digest('hex'),
+    path, ...mediaFingerprint(sourceBytes(path)),
   })));
   assert.equal(f.gapCalls, 1);
   assert.equal(f.inserted.length, 21);

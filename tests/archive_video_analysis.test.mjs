@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -36,7 +37,7 @@ test('Archive scorer: ordinary decoder failure stays uncached and retries with c
 });
 test('Archive adapter: 257 declared standalone videos use bounded batches without dropping a source',async t=>{
  const f=await scoring(t),calls=[];assert.equal(typeof f.box.archive.analyse,'function');
- const observation={path:f.source,size:fs.statSync(f.source).size,sha256:hash(f.source)};
+ const observation={path:f.source,...mediaFingerprint(fs.readFileSync(f.source))};
  f.box.quickScoreAll=async(resources,opts)=>{calls.push({resources,opts});return new Map(resources.map(r=>[r.rid,{rid:r.rid,sourceObservation:observation}]));};
  const inputs=Array.from({length:257},(_,i)=>({rid:'r'+i,path:f.source,duration:4}));
  const scores=await f.analyse(inputs,{budgetMs:1000,isCurrent:()=>true});assert.equal(scores.length,257);assert.deepEqual([...scores].map(r=>r.rid),inputs.map(r=>r.rid));assert.deepEqual(calls.map(c=>c.resources.length),[256,1]);assert.equal(calls[0].opts.deadline,calls[1].opts.deadline);assert.equal(calls[0].opts.client,f.local);
@@ -45,9 +46,9 @@ test('Archive adapter: invalid records stop before any cache reservation',async 
  const f=await scoring(t);await assert.rejects(f.analyse([null],{}),e=>e.code==='CLIP_ANALYSIS_INPUT');assert.equal(f.writes.length,0);
 });
 test('Archive adapter: expected source facts are captured before the caller can mutate them',async t=>{
- const f=await scoring(t),expected=[{path:f.source,size:fs.statSync(f.source).size,sha256:hash(f.source)}],before=expected[0].sha256;
- f.hooks.beforeTool=()=>{expected[0].sha256='f'.repeat(64);};
- const result=await f.analyse([{rid:'r0',path:f.source,duration:4}],{expectedSources:expected});assert.equal(result[0].sourceObservation.sha256,before);
+ const f=await scoring(t),expected=[{path:f.source,...mediaFingerprint(fs.readFileSync(f.source))}],before=expected[0].digest;
+ f.hooks.beforeTool=()=>{expected[0].digest='f'.repeat(64);};
+ const result=await f.analyse([{rid:'r0',path:f.source,duration:4}],{expectedSources:expected});assert.equal(result[0].sourceObservation.digest,before);
 });
 async function caller(t,{analysed=false}={}){
  const f=await archiveMusicFixture(t,{entry:'panel',silent:true});

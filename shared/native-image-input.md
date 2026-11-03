@@ -114,11 +114,19 @@ installed-app end-to-end or Windows playback claim.
 
 ## Opt-in full content observations
 
-`requireSourceFileSupport(files)` requires the co-shipped read-only fingerprint
-method and otherwise exposes a safe update message. `observeSourceFiles(files,
+`requireSourceFileSupport(files)` accepts the host-owned read-only fingerprint
+method or the legacy `stat` and `readRange` pair. The shared observer prefers
+the host and falls back only if that method is absent or its bridge reports
+`Unsupported file operation.`; other errors propagate. Without either interface
+it exposes a safe update message. `observeSourceFiles(files,
 paths, expected = null)` deduplicates paths in selection order and returns
-`{path,size,sha256}` for complete nonempty media. Providing expected observations
-requires the exact selected path set and compares every size and SHA-256.
+`{path,size,scheme:"cutback.media-content.v2",digest}` for nonempty media.
+Providing expected observations requires the exact selected path set and compares
+size, scheme and digest. Existing `{path,size,sha256}` receipts select the full
+SHA-256 operation and retain their original shape; unknown schemes and mixed
+records fail admission. Sampling reads no more than 768 KiB, using the public
+v2 prefix/range contract. It cannot detect changes outside the sampled regions.
+State files and output integrity must continue using full fingerprints.
 Missing, unsupported, invalid, changed and unknown results have separate
 `source-file-*` codes. Private reader diagnostics remain an Error cause, outside
 the public message. An empty selection requires no file capability.

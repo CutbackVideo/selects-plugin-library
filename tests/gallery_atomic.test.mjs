@@ -46,7 +46,7 @@ for(const capability of ['graphicsReadSupported','transformReadSupported','audio
  const f=galleryFixture({[capability]:false});await assert.rejects(f.create(),/update|verify|confirm/i);assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);
 });
 test('Gallery music source verification uses existing saved-Draft reads without clipSourceWindow',async()=>{
- const f=galleryFixture({sourceReadSupported:false});delete f.sdk.maxScriptTimeoutSeconds;delete f.selects.files.fingerprint;
+ const f=galleryFixture({sourceReadSupported:false});delete f.sdk.maxScriptTimeoutSeconds;
  f.input.music.startFrame=60;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
  const sound=f.saved.get(result.draftId).clips.find(clip=>clip.trackKind==='audio');assert.equal(sound._source.startSeconds,1);
 });

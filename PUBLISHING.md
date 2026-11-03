@@ -18,7 +18,8 @@ After changing a registered common module or one of its generator inputs, run:
 npm run templates:prepare
 ```
 
-This rebuilds the file fingerprint helper, synchronizes the registered module
+This rebuilds the host-first file fingerprint adapter and its legacy fallback,
+synchronizes the registered module
 blocks and standalone files, updates the Gongju/Recap duration helpers and the
 seven explicitly scoped private Panel adapters, and rebuilds the Mini, Archive,
 Gallery and Chris artifacts. It then checks the completed result. Review and

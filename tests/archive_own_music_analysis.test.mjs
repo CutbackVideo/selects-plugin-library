@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,13 +31,13 @@ test('Archive own analysis control: real PCM and engine retain the 120 BPM grid'
  const f=await fixture(t),a=await f.analyze();assert.ok(Math.abs(a.bpm-120)<.2);assert.equal(a.accepted,true);
 });
 test('Archive own analysis: actual caller binds the grid to original contents and reuses verified JSON',async t=>{
- const f=await fixture(t),a=await f.analyze(),b=await f.analyze();assert.equal(a.sourceObservation?.path,f.file);assert.equal(a.sourceObservation?.sha256,digest(music.wav));assert.deepEqual(JSON.parse(JSON.stringify(a)),JSON.parse(JSON.stringify(b)));assert.equal(f.workerRuns(),1);assert.equal(f.calls.filter(call=>call.bin==='ffmpeg').length,1);
+ const f=await fixture(t),a=await f.analyze(),b=await f.analyze();assert.equal(a.sourceObservation?.path,f.file);assert.equal(a.sourceObservation?.digest,mediaFingerprint(music.wav).digest);assert.deepEqual(JSON.parse(JSON.stringify(a)),JSON.parse(JSON.stringify(b)));assert.equal(f.workerRuns(),1);assert.equal(f.calls.filter(call=>call.bin==='ffmpeg').length,1);
 });
 test('Archive own analysis: source replacement during Worker execution cannot publish the old grid',async t=>{
  const f=await fixture(t);f.analysisHooks.worker=()=>f.replace();await assert.rejects(f.analyze(),/changed/i);assert.equal(f.selected(),null);assert.equal(jsonFiles(f.data).length,0);
 });
 test('Archive own analysis: changed source and Worker revision invalidate the result',async t=>{
- const f=await fixture(t),a=await f.analyze();f.replace();const b=await f.analyze();f.box.assets.beatWorker='source-v2';const c=await f.analyze();assert.ok(Math.abs(a.bpm-120)<.2);assert.ok(Math.abs(b.bpm-100)<.2);assert.equal(c.bpm,b.bpm);assert.notEqual(a.sourceObservation?.sha256,b.sourceObservation?.sha256);assert.equal(f.workerRuns(),3);
+ const f=await fixture(t),a=await f.analyze();f.replace();const b=await f.analyze();f.box.assets.beatWorker='source-v2';const c=await f.analyze();assert.ok(Math.abs(a.bpm-120)<.2);assert.ok(Math.abs(b.bpm-100)<.2);assert.equal(c.bpm,b.bpm);assert.notEqual(a.sourceObservation?.digest,b.sourceObservation?.digest);assert.equal(f.workerRuns(),3);
 });
 test('Archive own analysis: ordinary Worker failure uses confirmed duration without caching failure',async t=>{
  const f=await fixture(t);f.analysisHooks.worker=()=>{throw Error('Worker failed');};const a=await f.analyze();assert.equal(a.failed,true);assert.equal(a.durationSeconds,30);assert.equal(a.sourceObservation?.path,f.file);assert.equal(jsonFiles(f.data).length,0);delete f.analysisHooks.worker;assert.equal((await f.analyze()).accepted,true);assert.equal(f.workerRuns(),2);
@@ -56,5 +57,5 @@ test('Archive own analysis: corrupt published JSON is recomputed using the same 
 test('Archive own analysis: ordinary native decode failure preserves WebAudio fallback on the verified snapshot',async t=>{
  const f=await fixture(t);f.local.media.runFFmpeg=async()=>{throw Error('native decoder unavailable');};const decoded=[];
  f.box.window.OfflineAudioContext=class{async decodeAudioData(buffer){decoded.push(new Uint8Array(buffer));const view=new DataView(buffer),samples=new Float32Array((buffer.byteLength-44)/2);for(let i=0;i<samples.length;i++)samples[i]=view.getInt16(44+i*2,true)/32768;return {sampleRate:22050,length:samples.length,numberOfChannels:1,getChannelData:()=>samples};}};
- const a=await f.analyze();assert.equal(a.accepted,true);assert.equal(a.sourceObservation?.sha256,digest(music.wav));assert.equal(decoded.length,1);assert.equal(digest(decoded[0]),digest(music.wav));
+ const a=await f.analyze();assert.equal(a.accepted,true);assert.equal(a.sourceObservation?.digest,mediaFingerprint(music.wav).digest);assert.equal(decoded.length,1);assert.equal(digest(decoded[0]),digest(music.wav));
 });

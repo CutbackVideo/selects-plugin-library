@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import test from 'node:test';import assert from 'node:assert/strict';import {loadPhotoPanel} from './photo_face_fixture.mjs';
 const api=loadPhotoPanel('recap-2026',['recapFocusTransform','recapFaceWindows','recapMergeFaceWindows','createScript','batchScript','prepareRecapFaceFocus']);
 const transform=api.recapFocusTransform,windows=api.recapFaceWindows,merge=api.recapMergeFaceWindows;
@@ -26,7 +27,7 @@ async function batch(fps=24,{short=false,focus=false}={}){
  let clips=[{clipId:1,resourceId:'r0',startFrame:0,endFrame:Math.round(8.1*fps)}],next=2;const inserted=[],transforms=[];
  const d={meta:async()=>({fps}),clips:async()=>clips,rangeAtFrames:async(start,end)=>({start,end}),insertResource:async input=>{inserted.push(input);const start=clips.at(-1).endFrame;clips.push({clipId:next++,resourceId:input.resourceId,startFrame:start,endFrame:start+Math.round((input.sourceRange.endSeconds-input.sourceRange.startSeconds)*fps)})},remove:async range=>{clips=clips.filter(c=>c.startFrame<range.start).map(c=>({...c,endFrame:Math.min(c.endFrame,range.start)}))},setClipTransform:async value=>transforms.push(value),commitAll:async()=>({commitId:'committed'})};
  const cfg={projectId:'p',draftId:'d',start:1,end:3,placements:[{slot:1,startSeconds:0,endSeconds:8.1},{slot:2,startSeconds:8.1,endSeconds:9.2},{slot:3,startSeconds:9.2,endSeconds:9.5}],slots:[{resourceId:'r0',startSeconds:2},{resourceId:'r1',startSeconds:short?1.8:6.3},{resourceId:'r0',startSeconds:6.3}],media:{r0:{durationSeconds:18,frameSize:{width:640,height:338}},r1:{durationSeconds:short?2:18,frameSize:{width:640,height:338}}},faceFocus:focus?{2:transform({width:640,height:338},{focusX:.3,focusY:.5})}:{},sourceGuard:focus?{r1:{path:'/r1',size:1,sha256:'4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a'}}:{}};
- const text=script('batchScript',cfg);await new Function('selects','return (async()=>{'+text+'})()')({project:()=>({}),draft:()=>d,files:{stat:async()=>({size:1,mtimeMs:1,ino:1,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})}});
+ const text=script('batchScript',cfg);await new Function('selects','return (async()=>{'+text+'})()')({project:()=>({}),draft:()=>d,files:{sha256:async()=>({size:1,sha256:createHash('sha256').update(Buffer.from([1])).digest('hex')}),stat:async()=>({size:1,mtimeMs:1,ino:1,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})}});
  return{cfg,inserted,transforms,clips};
 }
 for(const fps of [24,24000/1001,30])test('Recap source-window planner covers the real production assembler requests at '+fps+' fps',async()=>{
@@ -40,12 +41,12 @@ test('Recap production batch applies focus only to the corresponding slot and pr
 });
 test('Recap production intro refuses a focus planned on a different Project grid',async()=>{
  const cfg={projectId:'p',intro:{resourceId:'r0',startSeconds:2,frameSize:{width:640,height:338}},introEnd:8.1,name:'Recap',sourceGuard:{r0:{path:'/r0',size:1,sha256:'4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a'}},expectedFps:24,faceTransform:transform({width:640,height:338},{focusX:.3,focusY:.5})};
- for(const fps of [24,30]){let writes=0;const calls=[],d={insertResource:async()=>{},setFrameSize:async()=>{},meta:async()=>({fps}),clips:async()=>[{clipId:1,resourceId:'r0',startFrame:0,endFrame:Math.round(8.1*fps)}],setClipTransform:async value=>{if(writes++)throw Error('stale_clip_target');calls.push(value)},commitAll:async()=>({createdDraftId:'saved'})};await new Function('selects','return (async()=>{'+script('createScript',cfg)+'})()')({project:()=>({createDraft:async()=>d}),files:{stat:async()=>({size:1,mtimeMs:1,ino:1,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})}});assert.equal(calls.filter(x=>x.position).length,fps===24?1:0);}
+ for(const fps of [24,30]){let writes=0;const calls=[],d={insertResource:async()=>{},setFrameSize:async()=>{},meta:async()=>({fps}),clips:async()=>[{clipId:1,resourceId:'r0',startFrame:0,endFrame:Math.round(8.1*fps)}],setClipTransform:async value=>{if(writes++)throw Error('stale_clip_target');calls.push(value)},commitAll:async()=>({createdDraftId:'saved'})};await new Function('selects','return (async()=>{'+script('createScript',cfg)+'})()')({project:()=>({createDraft:async()=>d}),files:{sha256:async()=>({size:1,sha256:createHash('sha256').update(Buffer.from([1])).digest('hex')}),stat:async()=>({size:1,mtimeMs:1,ino:1,isDirectory:false}),readRange:async()=>({bytesRead:1,base64:'AQ=='})}});assert.equal(calls.filter(x=>x.position).length,fps===24?1:0);}
 });
 
 function faceClient(options={}){
  const submitted=[],store=new Map();let bytes=Buffer.from('video source'),current=true;
- const files={stat:async()=>({size:bytes.length,mtimeMs:1,ino:3,isDirectory:false}),readRange:async({offset,length})=>({bytesRead:length,base64:bytes.subarray(offset,offset+length).toString('base64')})};
+ const files={sha256:async()=>({size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')}),stat:async()=>({size:bytes.length,mtimeMs:1,ino:3,isDirectory:false}),readRange:async({offset,length})=>({bytesRead:length,base64:bytes.subarray(offset,offset+length).toString('base64')})};
  const rawId='00000000-0000-4000-8000-000000000001',projectId='recap-project';
  const selects={files,project:()=>({resources:async()=>[{resourceId:'r0',name:'source.mp4',type:'Video'}]}),ai:{submit:async input=>{submitted.push(input);return {workflowId:'ai:recap-face'}},job:()=>({status:async()=>({workflowId:'ai:recap-face',projectId,runtimeId:'selects-ai-runtime',task:'faces.detect',status:'succeeded'}),result:async()=>({workflowId:'ai:recap-face',task:'faces.detect',files:{detections:{id:'artifact',mediaType:'application/json'}}})}),readJSON:async()=>{
   if(options.mutate)bytes=Buffer.from('different source');if(options.detach)current=false;
@@ -55,7 +56,7 @@ function faceClient(options={}){
  return {args,submitted,run:()=>api.prepareRecapFaceFocus(sdk,args)};
 }
 test('Recap whole consumer uses raw source identity and exact merged insertion windows, then reuses the completed job',async()=>{
- const c=faceClient(),result=await c.run();assert.equal(c.submitted.length,1);assert.equal(c.submitted[0].resourceId,'00000000-0000-4000-8000-000000000001');assert.deepEqual(plain(c.submitted[0].sourceRange),{startSeconds:2,endSeconds:10.4});assert.ok(result.focusBySlot[1].position.x>0);assert.ok(result.focusBySlot[2].position.x>0);assert.ok(result.sourceGuard.r0.sha256);await c.run();assert.equal(c.submitted.length,1);
+ const c=faceClient(),result=await c.run();assert.equal(c.submitted.length,1);assert.equal(c.submitted[0].resourceId,'00000000-0000-4000-8000-000000000001');assert.deepEqual(plain(c.submitted[0].sourceRange),{startSeconds:2,endSeconds:10.4});assert.ok(result.focusBySlot[1].position.x>0);assert.ok(result.focusBySlot[2].position.x>0);assert.equal(result.sourceGuard.r0.scheme,'cutback.media-content.v2');assert.ok(result.sourceGuard.r0.digest);await c.run();assert.equal(c.submitted.length,1);
 });
 test('Recap whole consumer preserves explicit manual framing and skips unsupported source clocks',async()=>{
  const manual=faceClient();for(const row of manual.args.slots){row.focusX=.5;row.focusY=.5;}const result=await manual.run();assert.equal(manual.submitted.length,0);assert.equal(result.focusBySlot[1].position.x,0);

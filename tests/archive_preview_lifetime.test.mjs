@@ -54,7 +54,7 @@ for(const file of ['c:\\music space\\\ud55c\uae00 #part?50%.wav','\\\\Server\\Sh
 
 for(const change of ['missing','changed'])test('Archive actual preview: '+change+' original is refused before playback',async t=>{
  const f=archivePreviewFixture(t);let count=0;
- f.hooks.fingerprint=()=>change==='missing'?null:{size:2**31+17,sha256:(++count===1?'a':'b').repeat(64)};
+ f.hooks.fingerprint=()=>change==='missing'?null:{size:2**31+17,scheme:'cutback.media-content.v2',digest:(++count===1?'a':'b').repeat(64)};
  await f.run();assert.equal(f.calls.some(row=>row[0]==='play'),false);assert.equal(f.errors.length,1);assert.equal(f.timers.size,0);
  if(f.audio[0])assert.equal(f.audio[0].src,'');
 });

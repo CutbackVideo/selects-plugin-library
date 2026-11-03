@@ -27,22 +27,22 @@ export function archivePreviewFixture(t){
   removeAttribute(name){calls.push(['remove',name]);if(name==='src')this._src='';}
   load(){calls.push(['load',this.src]);}
  }
- const file='/music space \ud55c\uae00.wav',sha256='a'.repeat(64),files={
-  join:(...parts)=>parts.join('/'),readRange:async()=>{calls.push(['binary-read']);throw Error('Full-byte source observation is outside this playback fixture.');},stat:async()=>({size:2**31+17,isDirectory:false,mtimeMs:1,ino:1}),
+ const file='/music space \ud55c\uae00.wav',digest='a'.repeat(64),scheme='cutback.media-content.v2',files={
+  mediaFingerprint:async path=>hooks.fingerprint?hooks.fingerprint(path):({size:2**31+17,scheme,digest}),join:(...parts)=>parts.join('/'),readRange:async()=>{calls.push(['binary-read']);throw Error('Full-byte source observation is outside this playback fixture.');},stat:async()=>({size:2**31+17,isDirectory:false,mtimeMs:1,ino:1}),
   pathToLocalURL:async path=>{calls.push(['localURL',path]);return hooks.url?.(path)??'local://'+encodeURI(path);},
   localURLToPath:async url=>{calls.push(['fromURL',url]);return decodeURIComponent(url.replace('local://.','').replace('local://',''));},
  };
  // This is a playback lifetime/streaming fixture. Its >2 GiB size is synthetic;
- // the full source fingerprint is an explicit observation boundary, not a native
+ // the sampled source fingerprint is an explicit observation boundary, not a native
  // SDK method or a claim that these tests hashed a multi-gigabyte file. The real
  // observeSourceFiles comparison remains in the caller; other suites hash bytes.
- const fingerprintTemplateFile=async(_files,path,check=()=>{})=>{check();calls.push(['fingerprint',path]);const value=await(hooks.fingerprint?hooks.fingerprint(path):{size:2**31+17,sha256});check();return value;};
+ const fingerprintTemplateFile=async(_files,path,check=()=>{})=>{check();calls.push(['fingerprint',path]);const value=await(hooks.fingerprint?hooks.fingerprint(path):{size:2**31+17,scheme,digest});check();return value;};
  const globals={fingerprintTemplateFile,TextEncoder,TextDecoder,Uint8Array,AbortController,Blob,Audio:Media,console,queueMicrotask,
   Date:class extends Date{static now(){return clock;}},setTimeout:(f,ms)=>schedule(f,ms),clearTimeout:clear,setInterval:(f,ms)=>schedule(f,ms,true),clearInterval:clear,
   URL:{createObjectURL:()=>{calls.push(['blob']);return 'blob:whole-track';},revokeObjectURL:url=>calls.push(['revoke',url])},
   sdk:{files,environment:{platform:'darwin'}},panelLocalClient:value=>value,PREVIEW_TIMEOUT_MS:1000,PREVIEW_FADE:.4,
   previewTokenRef:{current:0},previewAbortRef:{current:null},previewCleanupRef:{current:null},previewTimerRef:{current:null},previewUrlRef:{current:null},audioRef:{current:null},mountedRef:{current:true},projectRef:{current:'p'},projectId:'p',
-  playState:'idle',ownMusic:{path:file},ownGrid:{sourceObservation:{path:file,size:2**31+17,sha256}},cue:null,cueId:'own',roots:{plugin:'/install',data:'/data'},start:12.345,musicKind:'own',videoSeconds:5,
+  playState:'idle',ownMusic:{path:file},ownGrid:{sourceObservation:{path:file,size:2**31+17,scheme,digest}},cue:null,cueId:'own',roots:{plugin:'/install',data:'/data'},start:12.345,musicKind:'own',videoSeconds:5,
   readBytes:async path=>{calls.push(['whole-read',path]);return new Uint8Array(256);},pjoin:(...parts)=>parts.join('/'),uiError:say=>Error(say('en')),t:(_l,key)=>key,L:'en',sayError:(_l,e)=>e.message,
  };
  const states=[],errors=[];globals.setPlayState=value=>states.push(value);globals.setPlayingAudio=value=>calls.push(['playing',value]);globals.setStatus=value=>{if(value?.tone==='error')errors.push(value.say('en'));};

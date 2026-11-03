@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -53,7 +54,7 @@ export async function archiveMusicFixture(t,{entry='template',own=false,silent=f
   avPreset:()=>presets.presets[0],cueGrid:()=>({bpm:72,accepted:true,usableEnd:cue.duration}),musicFit:()=>({snap:value=>value,defaultSection:()=>0,fitted:2,requested:2,gridded:true}),fieldClip:value=>value,
   avMotionBonus:value=>value,avSizesOf:()=>({}),avShotCandidates:()=>[],photoCandsOf:()=>[],avPlanBuild:()=>plan,draftNameOf:()=> 'Archive fixture',adjustLabelsFor:()=>({}),motionOptionsFor:()=>[],AV_QUERIES:{},
   runEpochRef:{current:0},setStep:noop,setProgress:noop,progressRef:{current:null},sdk,busyRef,assets:{scripts:scriptsByName,presets,tsx:{title:'TITLE',credit:'CREDIT',letterbox:'BOX',look:'LOOK',fade:'FADE',motion:'MOTION'}},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory}},invLoadingRef:{current:null},
-  preset:'preset',titleFields:{},creditUsed:false,prefixText:'',nameText:'',clipSound:'ambient',look:true,strength:.5,usePhotos:false,only:null,onlyPhotos:null,musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,ownGrid:own?{sourceObservation:{path:file,size:bytes.length,sha256:digest(bytes)}}:null,cueId:cue.id,cue,musicStart:0,pace:'cinematic',length:'standard',fit:{requested:2},L:'en',tempo:72,grid:{bpm:72,accepted:true,usableEnd:cue.duration},snapCuts:{},assemblyPendingRef:{current:{}},setAssemblyDiscovery:noop,fontB64:async()=>'',
+  preset:'preset',titleFields:{},creditUsed:false,prefixText:'',nameText:'',clipSound:'ambient',look:true,strength:.5,usePhotos:false,only:null,onlyPhotos:null,musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,ownGrid:own?{sourceObservation:{path:file,...mediaFingerprint(bytes)}}:null,cueId:cue.id,cue,musicStart:0,pace:'cinematic',length:'standard',fit:{requested:2},L:'en',tempo:72,grid:{bpm:72,accepted:true,usableEnd:cue.duration},snapCuts:{},assemblyPendingRef:{current:{}},setAssemblyDiscovery:noop,fontB64:async()=>'',
   candidates:{key:'p|null',failed:[],local:[],list:[]},
   // Scene/local evaluation is a separate explicit boundary in this music fixture.
   findCandidates:async()=>({list:[],failed:[]}),scoreLocal:async()=>[],

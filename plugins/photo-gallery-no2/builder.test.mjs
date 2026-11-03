@@ -1,3 +1,4 @@
+import {mediaFingerprint} from '../../tests/media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs';
@@ -54,7 +55,7 @@ test('packaged authoring helpers match existing canonical sources without browse
 
 // Exercise the installed closure alone: importing the whole shared source here
 // would hide a generator that forgot one of the helpers used on error paths.
-const installedAssets=()=>new Function(PANEL_ASSET_SOURCE+';return {prepareDerivedAsset,runAssetMediaTool};')();
+const installedAssets=()=>new Function(PANEL_ASSET_SOURCE+';return {prepareDerivedAsset,runAssetMediaTool,mediaFingerprintBytes};')();
 const unknownMediaJob=()=>Object.freeze(Object.assign(Error('host job reply lost'),{
  terminal:true,preserveTemporaryFiles:true,unconfirmedJobId:'host-job-1',
  retainedTemporaryFiles:Object.freeze(['/host-owned/workspace'])
@@ -72,6 +73,7 @@ test('installed asset closure preserves an unconfirmed media job error',async()=
 test('installed derived asset closure retains only its reserved paths after an unconfirmed job',async()=>{
  const cause=unknownMediaJob(),sha256='a'.repeat(64),source=Buffer.from('source'),disk=new Map([['/source',source],['/foreign',Buffer.from('keep')]]),removed=[];
  const files={
+  mediaFingerprint:async name=>disk.has(name)?mediaFingerprint(disk.get(name)):null,
   join:path.posix.join,exists:async name=>disk.has(name),mkdir:async()=>{},
   stat:async name=>disk.has(name)?{size:disk.get(name).length,isDirectory:false,mtimeMs:1,ino:1}:null,
   readFile:async name=>disk.get(name),readRange:async(name,start,size)=>disk.get(name).subarray(start,start+size),
@@ -82,7 +84,7 @@ test('installed derived asset closure retains only its reserved paths after an u
  };
  let reserved;
  await assert.rejects(installedAssets().prepareDerivedAsset(files,{
-  directory:'/own',key:'b'.repeat(64),sourcePath:'/source',source:{sha256,bytes:source.length},hashFile:async()=>sha256,
+  directory:'/own',key:'b'.repeat(64),sourcePath:'/source',source:{...mediaFingerprint(source),bytes:source.length},
   produce:async(snapshot,output)=>{reserved=[snapshot,output];throw cause;},verify:async()=>{throw Error('unexpected verification');}
  }),error=>{
   assert.equal(error.code,'BUNDLED_ASSET_WORKSPACE_UNKNOWN');assert.equal(error.cause,cause);
@@ -93,4 +95,11 @@ test('installed derived asset closure retains only its reserved paths after an u
  assert.deepEqual(removed,[]);assert.ok(reserved.every(name=>disk.has(name)));
  assert.equal(disk.get(reserved[0]).toString(),'source');assert.equal(disk.get('/foreign').toString(),'keep');
  assert.deepEqual(cause.retainedTemporaryFiles,['/host-owned/workspace']);
+});
+
+test('installed PCM sample helper matches the host scheme for small and large buffers',async()=>{
+ for(const size of [1,786432,2097153]){
+  const bytes=Buffer.alloc(size);for(let i=0;i<size;i++)bytes[i]=(i*31+i%251)%256;
+  assert.deepEqual(await installedAssets().mediaFingerprintBytes(bytes),mediaFingerprint(bytes));
+ }
 });

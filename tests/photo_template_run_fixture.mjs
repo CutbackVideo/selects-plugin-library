@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
-import {webcrypto} from 'node:crypto';
+import {webcrypto,createHash} from 'node:crypto';
 import {fixture,canonicalPhotoPanel} from './photo_authoring_fixture.mjs';
 import {galleryFixture} from './gallery_authoring_fixture.mjs';
 const require=createRequire(import.meta.url);
@@ -40,6 +40,8 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
  const readBridge=f.sdk.call;
  f.sdk.call=async(method,...args)=>{if(method==='listProjectResources')return f.resources;return readBridge(method,...args);};
  f.sdk.finishTemplate=result=>{finishes.push(result);notify();};
+ const nativeFingerprint=f.selects.files.sha256;
+ f.selects.files.sha256=async path=>files.has(path)?{size:files.get(path).length,sha256:createHash('sha256').update(files.get(path)).digest('hex')}:nativeFingerprint(path);
  const nativeStat=f.selects.files.stat,nativeRead=f.selects.files.readRange;
  f.selects.files.stat=async path=>files.has(path)?{size:files.get(path).length,isDirectory:false,mtimeMs:0,ino:1}:nativeStat(path);
  f.selects.files.readRange=async request=>{if(!files.has(request.path))return nativeRead(request);const bytes=files.get(request.path).subarray(request.offset,request.offset+request.length);return {bytesRead:bytes.length,base64:bytes.toString('base64')};};

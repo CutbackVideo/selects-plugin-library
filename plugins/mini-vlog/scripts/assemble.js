@@ -1,7 +1,7 @@
 // @template-assembly 1
 // @template-assembly-intent 1
 // Generated from canonical input/placement checks and the Mini assembly policy.
-async function fingerprintTemplateFile(files,path,check=()=>{}) {
+async function fingerprintTemplateFile(files,path,check=()=>{},scheme=null) {
 /* @noble/hashes 2.2.0; license retained inside serialized SDK copies.
 The MIT License (MIT)
 
@@ -74,15 +74,40 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
     constructor() { super(32); __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b)[0] | 0); __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b)[1] | 0); __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b)[2] | 0); __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b)[3] | 0); __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b)[4] | 0); __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b)[5] | 0); __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b)[6] | 0); __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b)[7] | 0); }
 }; var _ = __templateHashAny(F)(() => new (__templateHashAny(U)), __templateHashAny(T)(1)); return __templateHashAny(M)(N); }))();
 
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function')throw Error('The original file observation input is invalid.');
+ if(scheme!==null&&scheme!=='cutback.media-content.v2')throw Error('Unknown media fingerprint scheme.');
+ const sampled=scheme!==null;
+ check();
+ const native=sampled&&files&&'mediaFingerprint' in files?files.mediaFingerprint:null;
+ if(typeof native==='function'){
+  let supported=true,observed;
+  try{observed=await native.call(files,path);}
+  catch(error){
+   // This is the exact old localFiles bridge response for an unknown action.
+   // Permission, timeout, integrity and other operational failures must propagate.
+   if(!/^(?:Error: )?Unsupported file operation\.?$/.test(String(error?.message??error)))throw error;
+   supported=false;
+  }
+  check();
+  if(supported){
+   if(observed===null)return null;
+   if(!observed||observed.scheme!==scheme||!Number.isSafeInteger(observed.size)||observed.size<=0||typeof observed.digest!=='string'||!/^[a-f0-9]{64}$/.test(observed.digest))throw Error('The sampled media fingerprint could not be confirmed.');
+   return {size:observed.size,scheme:observed.scheme,digest:observed.digest};
+  }
+ }
  if(typeof path!=='string'||!path||path.includes('\0')||typeof check!=='function'||typeof files?.stat!=='function'||typeof files?.readRange!=='function')throw Error('The original file observation input is invalid.');
  const observe=async operation=>{check();const result=await operation();check();return result;};
  const identity=stat=>typeof stat?.sourceIdentity==='string'&&stat.sourceIdentity?stat.sourceIdentity:Number.isFinite(stat?.ino)?stat.ino:null;
  const before=await observe(()=>files.stat(path));
  if(before===null)return null;
  if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||!Number.isFinite(before.mtimeMs)||identity(before)===null)throw Error("The file's size or identity could not be confirmed.");
+ if(sampled&&before.size===0)throw Error('Cannot fingerprint empty media.');
  const hash=__templateFileHash.sha256.create(),alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
- for(let offset=0;offset<before.size;){
-  const length=Math.min(49152,before.size-offset);
+ if(sampled){const prefix=scheme+':'+before.size+':';hash.update(Uint8Array.from(prefix,character=>character.charCodeAt(0)));}
+ const sampleBytes=262144;
+ const ranges=!sampled||before.size<=sampleBytes*3?[[0,before.size]]:[[0,sampleBytes],[Math.floor((before.size-sampleBytes)/2),sampleBytes],[before.size-sampleBytes,sampleBytes]];
+ for(const [start,count] of ranges)for(let offset=start;offset<start+count;){
+  const length=Math.min(49152,start+count-offset);
   const chunk=await observe(()=>files.readRange({path,offset,length}));
   if(!chunk||chunk.bytesRead!==length||typeof chunk.base64!=='string'||chunk.base64.length!==4*Math.ceil(length/3)||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64))throw Error('The file read returned an incomplete or invalid binary chunk.');
   const bytes=new Uint8Array(length);
@@ -100,7 +125,7 @@ var __templateFileHash = __templateHashAny((() => { var w = __templateHashAny(Ob
  if(!after||after.isDirectory!==false||before.size!==after.size||before.mtimeMs!==after.mtimeMs||identity(before)!==identity(after))throw Error('The file changed while its contents were read.');
  const digest=hash.digest();check();
  let hex='';for(let index=0;index<digest.length;index++)hex+=digest[index].toString(16).padStart(2,'0');
- return {size:before.size,sha256:hex};
+ return sampled?{size:before.size,scheme,digest:hex}:{size:before.size,sha256:hex};
 }
 function templateObservedSource(observation,row){
  const invalid=()=>{throw Error('Saved source target could not be confirmed.');};
@@ -212,7 +237,7 @@ async function resolveTemplateMedia(selects,projectId,files,scratchName='Templat
  return {resolved,failed};
 }
 function requireSourceFileSupport(files) {
- if(typeof files?.stat!=='function'||typeof files?.readRange!=='function'){
+ if(typeof files?.mediaFingerprint!=='function'&&(typeof files?.stat!=='function'||typeof files?.readRange!=='function')){
   const message='Update Selects to verify complete source file contents before creating this template.';
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
@@ -221,20 +246,21 @@ async function observeSourceFiles(files,paths,expected=null) {
  const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
  if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
  const selected=[...new Set(paths)];
- const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
+ const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&(row.scheme==='cutback.media-content.v2'?Object.keys(row).length===4&&typeof row.digest==='string'&&/^[0-9a-f]{64}$/.test(row.digest):row.scheme===undefined&&Object.keys(row).length===3&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256));
  if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');
  if(!selected.length)return [];
  requireSourceFileSupport(files);
  const observed=[];
  for(const path of selected){
-  let fingerprint;
-  try{fingerprint=await (typeof files.fingerprint==='function'?files.fingerprint(path):fingerprintTemplateFile(files,path));}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
-  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
-  const row={...fingerprint,path};
-  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
   const before=expected?.find(row=>row.path===path);
-  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
-  observed.push({path,size:row.size,sha256:row.sha256});
+  if(before&&before.scheme!=='cutback.media-content.v2')throw issue('source-file-changed','Reload the Project inputs to confirm their sampled media identities.');
+  let fingerprint;
+  try{fingerprint=await fingerprintTemplateFile(files,path,undefined,'cutback.media-content.v2');}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
+  const row={path,...fingerprint};
+  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
+  if(before&&(before.size!==row.size||before.scheme!==row.scheme||(before.digest??before.sha256)!==(row.digest??row.sha256)))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
+  observed.push(row);
  }
  return observed;
 }

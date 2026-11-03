@@ -29,8 +29,9 @@ other legacy copies retain their current API until their own migration.
   identity/path and a finite positive duration in seconds. It clones these facts.
   `options.client` is the captured private local client; the existing `hostSdk`
   default remains available. `options.dataDir` is nonempty, bounded and NUL-free.
-  Native `files.fingerprint` is mandatory; browser whole-original reads are not
-  used. Missing/unreadable/changed sources are errors, never decoder fallbacks.
+  The private client provides `files.mediaFingerprint` for sampled original
+  identity for both sources and generated outputs; its legacy SDK
+  fallback uses the identical bounded sample scheme. Missing/unreadable/changed sources are errors, never decoder fallbacks.
 - Optional windows are 1..256 finite increasing intervals within the duration,
   covering at most 120 seconds together. Default bins are 0.5 seconds after a
   0.5-second head, up to 120 seconds. Integer sampling FPS is 1..60 (default 8);
@@ -42,10 +43,12 @@ other legacy copies retain their current API until their own migration.
   checked before/after; they are not cancelled file transactions and do not
   promise a wall-clock bound over a stalled host/filesystem.
 - Successful results retain `{rid,windows,sceneCuts,ms,fallback,cached,duration}`
-  plus `sourceObservation:{path,size,sha256}`. Scored bins carry finite 0..1
+  plus `sourceObservation:{path,size,scheme:"cutback.media-content.v2",digest}`. Scored bins carry finite 0..1
   motion/sharpness/luma/clipping, seven boolean flags, and optional `empty:true`.
   Corrupt, incompatible or incomplete cache results regenerate. Recipe identity
-  includes source contents, Resource/path/duration, all thresholds, FPS and windows.
+  includes the explicit source scheme/digest, Resource/path/duration, all
+  thresholds, FPS and windows. Sampled source identity does not detect changes
+  outside its head/middle/tail ranges; generated outputs use the same explicitly tagged sample scheme.
 - `quickScoreAll` accepts at most 256 unique Resource IDs and concurrency 1..3.
   It clones inputs, shares one deadline and controller, aborts siblings on a
   failure and awaits all settlements before rejecting. Progress is advisory;
@@ -61,7 +64,7 @@ other legacy copies retain their current API until their own migration.
 ## Publication, save and recovery
 
 Scores live at `dataDir/quick-score-v3/index/<recipe>.json` and
-`objects/<recipe>/<output-sha256>.json`. Old v1 caches and published objects are
+`objects/<recipe>/<output-digest>.json`. Old v1 caches and published objects are
 preserved. Only owned private snapshot/output/gray reservations are removed.
 JSON derived results opt into `cleanupRequired:true`; existing Gallery defaults
 remain best effort. Unconfirmed cleanup is terminal even if publication succeeded.

@@ -1,3 +1,4 @@
+import {mediaFingerprint} from './media_fingerprint_fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -44,7 +45,7 @@ test('Archive hidden entry carries the actual shipped photo inventory path into 
  await assert.rejects(f.run(),error=>error.boundary===true);
  const config=f.saved.at(-1);
  assert.ok(config);assert.equal(config.sourceBindings.find(row=>row.resourceId==='p0').path,f.photo);
- assert.equal(config.analysisSources.find(row=>row.path===f.photo).sha256,f.digest(fs.readFileSync(f.photo)));
+ assert.deepEqual(JSON.parse(JSON.stringify(config.analysisSources.find(row=>row.path===f.photo))),{path:f.photo,...mediaFingerprint(fs.readFileSync(f.photo))});
  assert.deepEqual(JSON.parse(JSON.stringify(config.crops.p0)),{width:96,height:160});
  assert.equal(f.scripts.filter(row=>row.summary==='Read footage').length,2,'actual projected catalog is reobserved');
 });
