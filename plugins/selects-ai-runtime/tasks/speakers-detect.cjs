@@ -1,6 +1,7 @@
 'use strict';
 const path=require('node:path');
 const {startTool}=require('../lib/process.cjs');
+const {startSpeakerVideo,SpeakerVideoDecodeError}=require('../lib/speaker-video-decode.cjs');
 const {writeJson}=require('../lib/files.cjs');
 const {createVerifiedModelSession}=require('../lib/models.cjs');
 const {rgbToLetterboxBlob,decodeYuNet,mapFaceToDisplay}=require('../lib/yunet-decode.cjs');
@@ -21,24 +22,39 @@ function speakerWindows(range) {
   const length=range.endSeconds-range.startSeconds,count=Math.ceil(length/3);
   return Array.from({length:count},(_,i)=>({start:range.startSeconds+length*i/count,duration:length/count}));
 }
-async function runSpeakers({request,config,outputDir,ort,video,emitProgress,signal,decoderMetrics={}}) {
+async function runSpeakers(options) {
+  try {
+    return await analyzeWindows(options, options.video.singleMp4Video);
+  } catch (error) {
+    if (!(error instanceof SpeakerVideoDecodeError)) throw error;
+    options.signal.throwIfAborted();
+    // No detection document is published until the complete stream is checked.
+    if (options.decoderMetrics) options.decoderMetrics.decodedFrames = 0;
+    return analyzeWindows(options, false);
+  }
+}
+async function analyzeWindows({request,config,outputDir,ort,video,emitProgress,signal,decoderMetrics={}},useStream) {
   const started=performance.now(),range=request.input.sourceRange;
   if(config.models.yunet?.sha256!==descriptor.tasks['faces.detect'].sha256)throw new Error('Speaker face model checksum differs from pinned detector');
   const scale=Math.min(1,960/video.width,540/video.height),width=Math.max(2,Math.round(video.width*scale)),height=Math.max(2,Math.round(video.height*scale));
   const options={executionProviders:['cpu'],intraOpNumThreads:config.intraOpNumThreads??4};
-  const yunet=await createVerifiedModelSession(ort,config.models.yunet,options);let model;
+  const yunet=await createVerifiedModelSession(ort,config.models.yunet,options);let model, stream;
   const all=[];let inferenceMilliseconds=0,faceMilliseconds=0,decodeMilliseconds=0,faceDetections=0,trackCount=0,letterbox,changeMilliseconds=0,denseWindows=0,sparseWindows=0;const changeWindows=[];
   try {
     model=await createVerifiedModelSession(ort,config.models.lightAsd,options);
-    for(const {start,duration} of speakerWindows(range)) {
+    const windows=speakerWindows(range);
+    const seek=start=>start+(video.timestampOriginSeconds??0)-(video.formatStartTime??0);
+    if(useStream && windows.length>1 && seek(windows[0].start)>=0)
+      stream=startSpeakerVideo({executable:config.tools.ffmpeg,source:request.input.source.path,windows,seek,width,height,signal});
+    for(const {start,duration} of windows) {
       signal.throwIfAborted();
       // Source audio and video are decoded from the same origin. No external
       // recorder offsets or per-camera identities are guessed here.
-      const common=['-v','error','-ss',String(start+(video.timestampOriginSeconds??0)-(video.formatStartTime??0)),'-i',request.input.source.path,'-t',String(duration)];
+      const common=['-v','error','-ss',String(seek(start)),'-i',request.input.source.path,'-t',String(duration)];
       await emitProgress({step:'decoding',completed:start-range.startSeconds,total:range.endSeconds-range.startSeconds});
       const decodeBegan=performance.now();
       const [rgb,audio]=await Promise.all([
-        bytes(config.tools.ffmpeg,[...common,'-an','-vf',`fps=25:start_time=0,scale=${width}:${height}`,'-pix_fmt','rgb24','-f','rawvideo','pipe:1'],signal,width*height*3*77),
+        stream ? stream.read(duration) : bytes(config.tools.ffmpeg,[...common,'-an','-vf',`fps=25:start_time=0,scale=${width}:${height}`,'-pix_fmt','rgb24','-f','rawvideo','pipe:1'],signal,width*height*3*77),
         bytes(config.tools.ffmpeg,[...common,'-vn','-ac','1','-ar','16000','-f','s16le','pipe:1'],signal,16000*2*4),
       ]);
       decodeMilliseconds+=performance.now()-decodeBegan;
@@ -89,9 +105,10 @@ async function runSpeakers({request,config,outputDir,ort,video,emitProgress,sign
       }
       for(const sample of samples){sample.faces=sample.faces.map(face=>({...face,box:Object.fromEntries(Object.entries(face.box).map(([k,v])=>[k,v/(k.includes('x')?width/video.width:height/video.height)])),landmarks:face.landmarks?.map(({x,y})=>({x:x/(width/video.width),y:y/(height/video.height)}))}));all.push(sample);}
     }
+    await stream?.finish();
     const document={contractVersion:1,task:'speakers.detect',coordinateSpace:'display-pixels',boxFormat:'xyxy',frameSize:{width:video.width,height:video.height},model:{id:descriptor.tasks['speakers.detect'].model,sha256:descriptor.tasks['speakers.detect'].sha256},parameters:{sourceRange:range},scoreKind:'uncalibrated-logit',sampleRate:25,faceDetectionStride:DETECT_STRIDE,faceDetectionPolicy:'frame-change-dense-window',trackingScope:'three-second-window',samples:all};
     await writeJson(path.join(outputDir,'speakers.json'),document);
-    return {files:{detections:'speakers.json'},metrics:{sampleCount:all.length,faceDetections,trackCount,changeMilliseconds,denseWindows,sparseWindows,decodeMilliseconds,faceMilliseconds,inferenceMilliseconds,elapsedMilliseconds:performance.now()-started},diagnostics:{provider:'cpu',changeWindows,faceDetectionStride:DETECT_STRIDE,modelSha256:document.model.sha256,scoreKind:document.scoreKind,trackingScope:document.trackingScope}};
-  } finally {await model?.release();await yunet.release();}
+    return {files:{detections:'speakers.json'},metrics:{sampleCount:all.length,faceDetections,trackCount,changeMilliseconds,denseWindows,sparseWindows,decodeMilliseconds,faceMilliseconds,inferenceMilliseconds,elapsedMilliseconds:performance.now()-started},diagnostics:{provider:'cpu',videoDecode:stream?'streaming':'per-window',changeWindows,faceDetectionStride:DETECT_STRIDE,modelSha256:document.model.sha256,scoreKind:document.scoreKind,trackingScope:document.trackingScope}};
+  } finally {await stream?.close();await model?.release();await yunet.release();}
 }
 module.exports={runSpeakers,speakerWindows};

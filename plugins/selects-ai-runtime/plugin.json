@@ -31,6 +31,7 @@
     "lib/outputs.cjs",
     "lib/png.cjs",
     "lib/process.cjs",
+    "lib/speaker-video-decode.cjs",
     "lib/request.cjs",
     "lib/runtime-assets.cjs",
     "lib/runtime-cache.cjs",
