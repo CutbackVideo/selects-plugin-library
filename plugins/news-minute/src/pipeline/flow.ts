@@ -189,7 +189,7 @@ export async function writeScript(sdk: PanelSdk, article: Article, preset: Prese
 }
 
 export function checkEdited(script: Script, article: Article) {
-  return P.validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article));
+  return P.validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article), { edited: true });
 }
 
 export const scriptText = (script: Script) => joinScript(script.sentences.map((s) => s.text));

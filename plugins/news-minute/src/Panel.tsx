@@ -6,7 +6,7 @@ import { PRESETS } from "./preset.ts";
 import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
-import { openDraftScript, PLATE_MAX_SECONDS } from "./pipeline/scripts.ts";
+import { openDraftScript } from "./pipeline/scripts.ts";
 import { applyScriptText, scriptBody } from "./pipeline/script-text.ts";
 import { VoicePicker } from "./VoicePicker.tsx";
 import { renameDraft, spaceClickGuard } from "./pipeline/preview.ts";
@@ -14,7 +14,7 @@ import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
 import { reviseGraphics } from "./pipeline/visual-editor.ts";
 import { feedbackRoute, revisePlanPreview } from "./pipeline/feedback.ts";
-import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
+import { EDIT_MAX_CHARS, LAYOUT_ERROR, SCENE_TYPES, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
 import { issueText } from "./issues.ts";
@@ -25,10 +25,8 @@ type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: 
 const box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 } as const;
 const muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 } as const;
 const input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" } as const;
-// Past the target length the short runs over a minute: a warning, not a block. Only a script too long for
-// the background plate (estimated from the reading speed) cannot be approved.
-const MAX_CHARS = TARGET_CHARS.max;
-const HARD_MAX_CHARS = Math.floor((PLATE_MAX_SECONDS - 10) * TTS_CHARS_PER_SEC);
+// The user sets the length: the video simply runs longer. Only a script past EDIT_MAX_CHARS cannot be approved.
+const HARD_MAX_CHARS = EDIT_MAX_CHARS;
 const warn = { color: "#d9822b", fontSize: 12 } as const;
 // Review fields stack the label over its control at any panel width.
 const field = { ...muted, display: "flex", flexDirection: "column", gap: 2 } as const;
@@ -695,7 +693,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
             </div>
           </details>
           <span style={muted}>{T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) })}</span>
-          {chars > MAX_CHARS ? <span style={{ color: "#d9822b", fontSize: 12 }}>{chars > HARD_MAX_CHARS ? T("tooLongHard", { max: HARD_MAX_CHARS }) : T("tooLong", { max: MAX_CHARS })}</span> : null}
+          {chars > HARD_MAX_CHARS ? <span style={{ color: "#d9822b", fontSize: 12 }}>{T("tooLongHard", { max: HARD_MAX_CHARS })}</span> : null}
           {approved ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span style={{ whiteSpace: "nowrap", flex: "none" }}>{"\u2713 " + T("approved")}</span>

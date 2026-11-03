@@ -4,6 +4,8 @@
 // (60.6 s). Tuned to the slower run. Every length number in the prompts and validators is read from here.
 export const TTS_CHARS_PER_SEC = 6.2;
 export const TARGET_CHARS = { min: 320, goal: [340, 360] as [number, number], max: 370 };
+// Cap for a script the user edits; the model still drafts toward TARGET_CHARS.
+export const EDIT_MAX_CHARS = 1000;
 export const SENTENCE_COUNT = { min: 8, max: 14 };
 
 // Sentence endings: ...ni-da (formal), ...ni-kka-yo is not used; questions end with ...l-kka-yo.

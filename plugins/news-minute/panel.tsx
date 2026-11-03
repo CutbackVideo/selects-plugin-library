@@ -55,8 +55,7 @@ var MESSAGES = {
   issue_register: ["Tone", "\uB9D0\uD22C"],
   rewritten: ["Rewritten by the check", "\uAC80\uC0AC\uC5D0\uC11C \uACE0\uCCD0 \uC4F4 \uBB38\uC7A5"],
   length: ["{chars} characters \xB7 about {sec} s", "{chars}\uC790 \xB7 \uC57D {sec}\uCD08"],
-  tooLong: ["Over {max} characters: the short will run past a minute.", "{max}\uC790\uB97C \uB118\uC5B4\uC694. 1\uBD84\uC744 \uB118\uAE38 \uC218 \uC788\uC5B4\uC694."],
-  tooLongHard: ["Over {max} characters: too long to make into a video. Shorten the script.", "{max}\uC790\uB97C \uB118\uC5B4 \uC601\uC0C1\uC73C\uB85C \uB9CC\uB4E4 \uC218 \uC5C6\uC5B4\uC694. \uB300\uBCF8\uC744 \uC904\uC5EC \uC8FC\uC138\uC694."],
+  tooLongHard: ["Over {max} characters. Shorten the script.", "{max}\uC790\uB97C \uB118\uC5C8\uC5B4\uC694. \uB300\uBCF8\uC744 \uC904\uC5EC \uC8FC\uC138\uC694."],
   emptyScript: ["The script is empty.", "\uB300\uBCF8\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694."],
   sources: ["Article passage for each sentence ({n})", "\uBB38\uC7A5\uBCC4 \uADFC\uAC70 \uC6D0\uBB38 ({n})"],
   approve: ["Approve script", "\uB300\uBCF8 \uC2B9\uC778"],
@@ -430,7 +429,7 @@ function decodeHtml(bytes) {
 // src/pipeline/scripts.ts
 var J = (v) => JSON.stringify(v);
 var PLATE_FPS = "30000/1001";
-var PLATE_MAX_SECONDS = 180;
+var PLATE_MAX_SECONDS = 300;
 var READ_CHUNK = 49152;
 var envScript = () => ({
   summary: "Read the plug-in data folder",
@@ -2129,6 +2128,7 @@ function creditQuote(chars) {
 // src/prompts/text.ts
 var TTS_CHARS_PER_SEC = 6.2;
 var TARGET_CHARS = { min: 320, goal: [340, 360], max: 370 };
+var EDIT_MAX_CHARS = 1e3;
 var SENTENCE_COUNT = { min: 8, max: 14 };
 var FORMAL_END = /(\uB2C8\uB2E4|\uAE4C\uC694)[.?]$/;
 var SOFT_END = /\uB294\uB370\uC694[.?]$/;
@@ -2299,7 +2299,7 @@ function fitProblems(type, p) {
 function result(errors, warnings, stats) {
   return { ok: errors.length === 0, errors, warnings, stats };
 }
-function checkRows(rows, headline, article, errors, warnings) {
+function checkRows(rows, headline, article, errors, warnings, countRule = true) {
   const body = normalizeWs(article.body);
   const bodyNums = new Set(numberTokens(article.body));
   for (const k of ["line1", "line2"]) {
@@ -2307,7 +2307,7 @@ function checkRows(rows, headline, article, errors, warnings) {
     if (typeof v !== "string" || !v.trim()) errors.push(`headline.${k} is missing`);
     else if (v.trim().length > headlineMax) errors.push(`headline.${k} is ${v.trim().length} chars; keep it within ${headlineMax}`);
   }
-  if (rows.length < SENTENCE_COUNT.min || rows.length > SENTENCE_COUNT.max) {
+  if (countRule && (rows.length < SENTENCE_COUNT.min || rows.length > SENTENCE_COUNT.max)) {
     errors.push(`need ${SENTENCE_COUNT.min}-${SENTENCE_COUNT.max} sentences, got ${rows.length}`);
   }
   let softCount = 0;
@@ -2345,7 +2345,7 @@ function checkLength(texts, errors) {
   }
   return chars;
 }
-function validateScript(json, article) {
+function validateScript(json, article, opts = {}) {
   const errors = [];
   const warnings = [];
   if (!isObj(json) || !isObj(json.headline) || !Array.isArray(json.sentences)) {
@@ -2354,9 +2354,9 @@ function validateScript(json, article) {
   const s = json.sentences;
   if (s.some((x) => !isObj(x))) return result(["every sentence must be an object {text, sourceQuote}"], [], {});
   const rows = s.map((x, i) => ({ label: `sentence ${i + 1}`, text: x.text, sourceQuote: x.sourceQuote }));
-  const { softCount } = checkRows(rows, json.headline, article, errors, warnings);
+  const { softCount } = checkRows(rows, json.headline, article, errors, warnings, !opts.edited);
   const texts = s.map((x) => String(x.text ?? ""));
-  const chars = checkLength(texts, errors);
+  const chars = opts.edited ? totalChars(texts) : checkLength(texts, errors);
   return result(errors, warnings, {
     sentences: s.length,
     chars,
@@ -5638,7 +5638,7 @@ async function writeScript(sdk, article, preset, log, rec, provider) {
   return { script: { headline: draft.headline, sentences: draft.sentences.map((s) => ({ ...s, issues: [], rewritten: false })) }, errors: [...first.errors, ...fid.errors] };
 }
 function checkEdited(script, article) {
-  return validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article));
+  return validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article), { edited: true });
 }
 var scriptText = (script) => joinScript(script.sentences.map((s) => s.text));
 var revisionOf = (script, voiceId) => ttsRevision(script.headline.line1 + "\n" + script.headline.line2 + "\n" + scriptText(script), voiceId);
@@ -6465,8 +6465,7 @@ import { Fragment, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
 var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 };
 var muted2 = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
-var MAX_CHARS = TARGET_CHARS.max;
-var HARD_MAX_CHARS = Math.floor((PLATE_MAX_SECONDS - 10) * TTS_CHARS_PER_SEC);
+var HARD_MAX_CHARS = EDIT_MAX_CHARS;
 var warn = { color: "#d9822b", fontSize: 12 };
 var field3 = { ...muted2, display: "flex", flexDirection: "column", gap: 2 };
 var thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
@@ -7174,7 +7173,7 @@ function NewsMinutePanel({ sdk, context }) {
             ] }, x.id)) })
           ] }),
           /* @__PURE__ */ jsx2("span", { style: muted2, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
-          chars > MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: chars > HARD_MAX_CHARS ? T("tooLongHard", { max: HARD_MAX_CHARS }) : T("tooLong", { max: MAX_CHARS }) }) : null,
+          chars > HARD_MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLongHard", { max: HARD_MAX_CHARS }) }) : null,
           approved ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
             /* @__PURE__ */ jsx2("span", { style: { whiteSpace: "nowrap", flex: "none" }, children: "\u2713 " + T("approved") }),
             /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
