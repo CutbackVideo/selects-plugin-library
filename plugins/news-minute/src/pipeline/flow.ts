@@ -23,7 +23,7 @@ import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
 import { clearPreviewCache, entranceSec, FPS, openPreview, renameDraft, sceneFrames, sceneStill, seekScene } from "./preview.ts";
 
 export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
-export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
+export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean; autoSource?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
   // Explicit or last-used provider for all LLM stages. Keep the storage key for existing sessions.
@@ -189,7 +189,7 @@ export async function writeScript(sdk: PanelSdk, article: Article, preset: Prese
 }
 
 export function checkEdited(script: Script, article: Article) {
-  return P.validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article));
+  return P.validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article), { edited: true });
 }
 
 export const scriptText = (script: Script) => joinScript(script.sentences.map((s) => s.text));

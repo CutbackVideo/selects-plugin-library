@@ -85,12 +85,43 @@ const RULES: Rule[] = [
   [/^assetSummaries is missing a summary|^scenes must cover every sentence|^reply must be an object/, () => REBUILD],
 ];
 
+// Script checks (src/prompts/validate.ts) after their "sentence 12: " or "headline.line1 " part.
+const SCRIPT_RULES: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^sourceQuote is empty/, () => "\uAE30\uC0AC\uC5D0\uC11C \uADFC\uAC70 \uBB38\uC7A5\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^sourceQuote is not an exact substring/, () => "\uADFC\uAC70 \uBB38\uC7A5\uC774 \uAE30\uC0AC \uC6D0\uBB38\uACFC \uB611\uAC19\uC9C0 \uC54A\uC544\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^number "(.+)" does not appear in the article/, (m) => "\uC22B\uC790 \u201C" + m[1] + "\u201D\uAC00 \uAE30\uC0AC\uC5D0 \uC5C6\uC5B4\uC694. \uAE30\uC0AC\uC5D0 \uB098\uC628 \uC22B\uC790\uC778\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^must end with a formal polite ending/, () => "\u2018~\uB2C8\uB2E4.\u2019\uB098 \u2018~\u3139\uAE4C\uC694?\u2019\uB85C \uB05D\uB098\uB294 \uC874\uB313\uB9D0 \uBB38\uC7A5\uC73C\uB85C \uC368 \uC8FC\uC138\uC694."],
+  [/^(\d+) words is too long for one spoken sentence \(max (\d+)\)/, (m) => m[1] + "\uC5B4\uC808\uC774\uB77C \uD55C \uBC88\uC5D0 \uC77D\uAE30\uC5D4 \uAE38\uC5B4\uC694(\uCD5C\uB300 " + m[2] + "\uC5B4\uC808). \uBB38\uC7A5\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],
+  [/^only (\d+) words/, (m) => m[1] + "\uC5B4\uC808\uBFD0\uC774\uC5D0\uC694."],
+  [/^empty text/, () => "\uBB38\uC7A5\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  [/^is missing/, () => "\uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  [/^is (\d+) chars; keep it within (\d+)/, (m) => m[1] + "\uC790\uC608\uC694. " + m[2] + "\uC790 \uC774\uB0B4\uB85C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^need (\d+)-(\d+) sentences, got (\d+)/, (m) => "\uBB38\uC7A5\uC740 " + m[1] + "~" + m[2] + "\uAC1C\uC5EC\uC57C \uD574\uC694(\uC9C0\uAE08 " + m[3] + "\uAC1C)."],
+  [/^narration is (\d+) chars \(spaces included\); the hard cap is (\d+)/, (m) => "\uB098\uB808\uC774\uC158\uC774 " + m[1] + "\uC790(\uB744\uC5B4\uC4F0\uAE30 \uD3EC\uD568)\uC608\uC694. \uCD5C\uB300 " + m[2] + "\uC790\uB97C \uB118\uC5C8\uC5B4\uC694."],
+  [/^narration is only (\d+) chars; aim for (\d+)-(\d+)/, (m) => "\uB098\uB808\uC774\uC158\uC774 " + m[1] + "\uC790\uB85C \uC9E7\uC544\uC694. " + m[2] + "~" + m[3] + "\uC790\uB85C \uB298\uB824 \uC8FC\uC138\uC694."],
+];
+
 // One check message in the panel's language: the whole message ("scene 7 (highlight_card): ...") or the part a
 // scene row shows after its "scene 7" ("(highlight_card): ...", ".value: ...", "lasts ...").
 export function issueText(lang: string | undefined, msg: string): string {
   if (!String(lang || "").toLowerCase().startsWith("ko")) return msg;
   let rest = msg, scene = "", type = "", path = "";
-  let m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
+  let m = /^(?:sentence s?(\d+): |headline\.line([12]) )(.*)$/.exec(msg);
+  if (m) {
+    const what = m[1] ? m[1] + "\uBC88 \uBB38\uC7A5: " : "\uC81C\uBAA9 " + m[2] + "\uBC88\uC9F8 \uC904: ";
+    for (const [re, ko] of SCRIPT_RULES) {
+      const r = re.exec(m[3]);
+      if (r) return what + ko(r);
+    }
+    return msg;
+  }
+  if (/^(?:need \d|narration is )/.test(msg)) {
+    for (const [re, ko] of SCRIPT_RULES) {
+      const r = re.exec(msg);
+      if (r) return ko(r);
+    }
+  }
+  m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
   if (m) { scene = m[1] + "\uBC88 \uC7A5\uBA74: "; rest = m[2]; }
   if ((m = /^\((\w+)\): (.*)$/.exec(rest))) { type = m[1]; rest = m[2]; }
   else if ((m = /^\.(\S+?): (.*)$/.exec(rest))) { path = m[1]; rest = m[2]; }

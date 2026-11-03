@@ -23,7 +23,7 @@ function result(errors: string[], warnings: string[], stats: Validation["stats"]
 type Row = { label: string; text: string; sourceQuote: string };
 
 // Checks shared by the script and fidelity validators.
-function checkRows(rows: Row[], headline: any, article: Article, errors: string[], warnings: string[]) {
+function checkRows(rows: Row[], headline: any, article: Article, errors: string[], warnings: string[], countRule = true) {
   const body = normalizeWs(article.body);
   const bodyNums = new Set(numberTokens(article.body));
 
@@ -33,7 +33,7 @@ function checkRows(rows: Row[], headline: any, article: Article, errors: string[
     else if (v.trim().length > headlineMax) errors.push(`headline.${k} is ${v.trim().length} chars; keep it within ${headlineMax}`);
   }
 
-  if (rows.length < SENTENCE_COUNT.min || rows.length > SENTENCE_COUNT.max) {
+  if (countRule && (rows.length < SENTENCE_COUNT.min || rows.length > SENTENCE_COUNT.max)) {
     errors.push(`need ${SENTENCE_COUNT.min}-${SENTENCE_COUNT.max} sentences, got ${rows.length}`);
   }
 
@@ -76,7 +76,9 @@ function checkLength(texts: string[], errors: string[]) {
   return chars;
 }
 
-export function validateScript(json: any, article: Article): Validation {
+// `edited`: the user's own edit. The sentence-count and one-minute length rules only steer the model's draft;
+// the user sets the length themselves (the panel caps it at EDIT_MAX_CHARS).
+export function validateScript(json: any, article: Article, opts: { edited?: boolean } = {}): Validation {
   const errors: string[] = [];
   const warnings: string[] = [];
   if (!isObj(json) || !isObj(json.headline) || !Array.isArray(json.sentences)) {
@@ -85,9 +87,9 @@ export function validateScript(json: any, article: Article): Validation {
   const s = (json as ScriptJson).sentences;
   if (s.some((x) => !isObj(x))) return result(["every sentence must be an object {text, sourceQuote}"], [], {});
   const rows = s.map((x, i) => ({ label: `sentence ${i + 1}`, text: x.text, sourceQuote: x.sourceQuote }));
-  const { softCount } = checkRows(rows, json.headline, article, errors, warnings);
+  const { softCount } = checkRows(rows, json.headline, article, errors, warnings, !opts.edited);
   const texts = s.map((x) => String(x.text ?? ""));
-  const chars = checkLength(texts, errors);
+  const chars = opts.edited ? totalChars(texts) : checkLength(texts, errors);
   return result(errors, warnings, {
     sentences: s.length,
     chars,
