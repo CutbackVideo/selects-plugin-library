@@ -828,12 +828,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "61a822e25c330b739f5edfa9696958035f5915554dd785628d736af75e572008",
+      "sha256": "5a1cebff1d9d76f70cf186db769506acb0c404485d20bca73046e94065469dfb",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7818,
+          "endLine": 7820,
           "feature": "panel-ui"
         },
         {
@@ -968,17 +968,17 @@
         },
         {
           "startLine": 7349,
-          "endLine": 7771,
+          "endLine": 7773,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7772,
-          "endLine": 7818,
+          "startLine": 7774,
+          "endLine": 7820,
           "feature": "app-guard"
         },
         {
-          "startLine": 7818,
-          "endLine": 7818,
+          "startLine": 7820,
+          "endLine": 7820,
           "feature": "panel-ui"
         },
         {

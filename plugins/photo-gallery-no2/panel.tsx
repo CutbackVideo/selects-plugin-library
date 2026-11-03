@@ -3115,7 +3115,7 @@ function panelLocalPaths(platform: string) {
 
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
+async function createPanelLocalClient(sdk: any, fileObservation?: (files: any, path: string, check?: () => void, scheme?: string) => Promise<unknown>) {
   const SCRIPT_BYTES = 256 * 1024;
   const runSource = async (script: string, write = false) => {
     if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
@@ -3186,8 +3186,10 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
-    // One script owns every read and its deadline; only the compact digest returns.
-    mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
+    // Only observation consumers supply the self-contained old-host fallback.
+    ...(fileObservation ? {
+      mediaFingerprint: (path: string) => runSource("return await (" + fileObservation.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
+    } : {}),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -3408,7 +3410,7 @@ function panelLocalClient(sdk: any): any {
   if (!client) throw new Error("Local SDK has not initialized.");
   return client;
 }
-function withPanelLocalClient(Component: any) {
+function withPanelLocalClient(Component: any, fileObservation?: Parameters<typeof createPanelLocalClient>[1]) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
     const reported = React.useRef(new WeakMap<object, Set<string>>());
@@ -3430,7 +3432,7 @@ function withPanelLocalClient(Component: any) {
       };
       // This is a read-only bootstrap observation, not a mutation retry or cancel.
       const timer = setTimeout(() => fail(true), 30000);
-      createPanelLocalClient(props.sdk).then(value => {
+      createPanelLocalClient(props.sdk, fileObservation).then(value => {
         client = {...props.sdk, ...value};
         if (!active || settled) { value.dispose(); return; }
         settled = true; clearTimeout(timer);
@@ -3462,7 +3464,7 @@ function withPanelLocalClient(Component: any) {
   };
 }
 
-export default withPanelLocalClient(Panel);
+export default withPanelLocalClient(Panel, fingerprintTemplateFile);
 // local-sdk:end
 
 // app-update-guard:start

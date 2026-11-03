@@ -59,7 +59,13 @@ scoped synchronization now uses the existing canonical implementation as well
 as the new connection behavior. a16z imports the canonical source directly and
 uses its existing bundler. Other embedded copies are not silently migrated.
 
-The read-only `files.mediaFingerprint(path)` uses the native SDK sampled identity,
+File observation is opt-in: `withPanelLocalClient(Panel, fingerprintTemplateFile)`
+passes the separately registered `file-observation` module into the client.
+The sync tool derives this argument from the existing observation block; panels
+without that module have neither `files.mediaFingerprint` nor a bundled hash
+implementation. Bundled consumers import the base client without a hash dependency.
+
+For consumers that opt in, the read-only `files.mediaFingerprint(path)` uses the native SDK sampled identity,
 with equivalent bounded sampling through legacy stat/readRange when unavailable.
 Source and derived-media observations both use this sampled identity. Legacy
 whole-file receipts require reconfirmation; there is no full-file checksum API.

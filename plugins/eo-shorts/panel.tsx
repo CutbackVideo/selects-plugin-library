@@ -399,248 +399,6 @@ var require_face_request_windows = __commonJS({
 
 // ../../shared/local-client.ts
 import React from "react";
-
-// ../../shared/file-observation.js
-async function fingerprintTemplateFile(files, path, check2 = () => {
-}, scheme = null) {
-  const __templateHashAny = (value) => value;
-  var __templateFileHash = __templateHashAny(() => {
-    var w = __templateHashAny(Object).defineProperty;
-    var G = __templateHashAny(Object).getOwnPropertyDescriptor;
-    var V2 = __templateHashAny(Object).getOwnPropertyNames;
-    var O = __templateHashAny(__templateHashAny(Object).prototype).hasOwnProperty;
-    var k = (t2, e, r5) => e in t2 ? __templateHashAny(w)(t2, e, { enumerable: true, configurable: true, writable: true, value: r5 }) : __templateHashAny(t2)[e] = r5;
-    var R = (t2, e) => {
-      for (var r5 in e)
-        __templateHashAny(w)(t2, r5, { get: __templateHashAny(e)[r5], enumerable: true });
-    }, $ = (t2, e, r5, o) => {
-      if (e && typeof e == "object" || typeof e == "function")
-        for (let n2 of __templateHashAny(V2)(e))
-          !__templateHashAny(O).call(t2, n2) && n2 !== r5 && __templateHashAny(w)(t2, n2, { get: () => __templateHashAny(e)[n2], enumerable: !(o = __templateHashAny(G)(e, n2)) || __templateHashAny(o).enumerable });
-      return t2;
-    };
-    var M = (t2) => __templateHashAny($)(__templateHashAny(w)({}, "__esModule", { value: true }), t2);
-    var a = (t2, e, r5) => __templateHashAny(k)(t2, typeof e != "symbol" ? e + "" : e, r5);
-    var N2 = {};
-    __templateHashAny(R)(N2, { sha256: () => _ });
-    function j(t2) {
-      return t2 instanceof Uint8Array || __templateHashAny(ArrayBuffer).isView(t2) && __templateHashAny(__templateHashAny(t2).constructor).name === "Uint8Array" && "BYTES_PER_ELEMENT" in t2 && __templateHashAny(t2).BYTES_PER_ELEMENT === 1;
-    }
-    function m(t2, e, r5 = "") {
-      let o = __templateHashAny(j)(t2), n2 = __templateHashAny(t2)?.length, f = e !== void 0;
-      if (!o || f && n2 !== e) {
-        let s = r5 && `"${r5}" `, x = f ? ` of length ${e}` : "", i = o ? `length=${n2}` : `type=${typeof t2}`, h = s + "expected Uint8Array" + x + ", got " + i;
-        throw o ? new (__templateHashAny(RangeError))(h) : new (__templateHashAny(TypeError))(h);
-      }
-      return t2;
-    }
-    function L(t2, e = true) {
-      if (__templateHashAny(t2).destroyed)
-        throw new (__templateHashAny(Error))("Hash instance has been destroyed");
-      if (e && __templateHashAny(t2).finished)
-        throw new (__templateHashAny(Error))("Hash#digest() has already been called");
-    }
-    function C(t2, e) {
-      __templateHashAny(m)(t2, void 0, "digestInto() output");
-      let r5 = __templateHashAny(e).outputLen;
-      if (__templateHashAny(t2).length < r5)
-        throw new (__templateHashAny(RangeError))('"digestInto() output" expected to be of length >=' + r5);
-    }
-    function y(...t2) {
-      for (let e = 0; e < __templateHashAny(t2).length; e++)
-        __templateHashAny(__templateHashAny(t2)[e]).fill(0);
-    }
-    function A2(t2) {
-      return new (__templateHashAny(DataView))(__templateHashAny(t2).buffer, __templateHashAny(t2).byteOffset, __templateHashAny(t2).byteLength);
-    }
-    function d(t2, e) {
-      return t2 << 32 - e | t2 >>> e;
-    }
-    function F(t2, e = {}) {
-      let r5 = (n2, f) => __templateHashAny(__templateHashAny(__templateHashAny(t2)(f)).update(n2)).digest(), o = __templateHashAny(t2)(void 0);
-      return __templateHashAny(r5).outputLen = __templateHashAny(o).outputLen, __templateHashAny(r5).blockLen = __templateHashAny(o).blockLen, __templateHashAny(r5).canXOF = __templateHashAny(o).canXOF, __templateHashAny(r5).create = (n2) => __templateHashAny(t2)(n2), __templateHashAny(Object).assign(r5, e), __templateHashAny(Object).freeze(r5);
-    }
-    var T2 = (t2) => ({ oid: __templateHashAny(Uint8Array).from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, t2]) });
-    function D(t2, e, r5) {
-      return t2 & e ^ ~t2 & r5;
-    }
-    function I(t2, e, r5) {
-      return t2 & e ^ t2 & r5 ^ e & r5;
-    }
-    var E2 = class {
-      constructor(e, r5, o, n2) {
-        __templateHashAny(a)(__templateHashAny(this), "blockLen");
-        __templateHashAny(a)(__templateHashAny(this), "outputLen");
-        __templateHashAny(a)(__templateHashAny(this), "canXOF", false);
-        __templateHashAny(a)(__templateHashAny(this), "padOffset");
-        __templateHashAny(a)(__templateHashAny(this), "isLE");
-        __templateHashAny(a)(__templateHashAny(this), "buffer");
-        __templateHashAny(a)(__templateHashAny(this), "view");
-        __templateHashAny(a)(__templateHashAny(this), "finished", false);
-        __templateHashAny(a)(__templateHashAny(this), "length", 0);
-        __templateHashAny(a)(__templateHashAny(this), "pos", 0);
-        __templateHashAny(a)(__templateHashAny(this), "destroyed", false);
-        __templateHashAny(__templateHashAny(this)).blockLen = e, __templateHashAny(__templateHashAny(this)).outputLen = r5, __templateHashAny(__templateHashAny(this)).padOffset = o, __templateHashAny(__templateHashAny(this)).isLE = n2, __templateHashAny(__templateHashAny(this)).buffer = new (__templateHashAny(Uint8Array))(e), __templateHashAny(__templateHashAny(this)).view = __templateHashAny(A2)(__templateHashAny(__templateHashAny(this)).buffer);
-      }
-      update(e) {
-        __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(m)(e);
-        let { view: r5, buffer: o, blockLen: n2 } = __templateHashAny(this), f = __templateHashAny(e).length;
-        for (let s = 0; s < f; ) {
-          let x = __templateHashAny(Math).min(n2 - __templateHashAny(__templateHashAny(this)).pos, f - s);
-          if (x === n2) {
-            let i = __templateHashAny(A2)(e);
-            for (; n2 <= f - s; s += n2)
-              __templateHashAny(__templateHashAny(this)).process(i, s);
-            continue;
-          }
-          __templateHashAny(o).set(__templateHashAny(e).subarray(s, s + x), __templateHashAny(__templateHashAny(this)).pos), __templateHashAny(__templateHashAny(this)).pos += x, s += x, __templateHashAny(__templateHashAny(this)).pos === n2 && (__templateHashAny(__templateHashAny(this)).process(r5, 0), __templateHashAny(__templateHashAny(this)).pos = 0);
-        }
-        return __templateHashAny(__templateHashAny(this)).length += __templateHashAny(e).length, __templateHashAny(__templateHashAny(this)).roundClean(), __templateHashAny(this);
-      }
-      digestInto(e) {
-        __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(C)(e, __templateHashAny(this)), __templateHashAny(__templateHashAny(this)).finished = true;
-        let { buffer: r5, view: o, blockLen: n2, isLE: f } = __templateHashAny(this), { pos: s } = __templateHashAny(this);
-        __templateHashAny(r5)[s++] = 128, __templateHashAny(y)(__templateHashAny(__templateHashAny(__templateHashAny(this)).buffer).subarray(s)), __templateHashAny(__templateHashAny(this)).padOffset > n2 - s && (__templateHashAny(__templateHashAny(this)).process(o, 0), s = 0);
-        for (let c = s; c < n2; c++)
-          __templateHashAny(r5)[c] = 0;
-        __templateHashAny(o).setBigUint64(n2 - 8, __templateHashAny(BigInt)(__templateHashAny(__templateHashAny(this)).length * 8), f), __templateHashAny(__templateHashAny(this)).process(o, 0);
-        let x = __templateHashAny(A2)(e), i = __templateHashAny(__templateHashAny(this)).outputLen;
-        if (i % 4)
-          throw new (__templateHashAny(Error))("_sha2: outputLen must be aligned to 32bit");
-        let h = i / 4, u = __templateHashAny(__templateHashAny(this)).get();
-        if (h > __templateHashAny(u).length)
-          throw new (__templateHashAny(Error))("_sha2: outputLen bigger than state");
-        for (let c = 0; c < h; c++)
-          __templateHashAny(x).setUint32(4 * c, __templateHashAny(u)[c], f);
-      }
-      digest() {
-        let { buffer: e, outputLen: r5 } = __templateHashAny(this);
-        __templateHashAny(__templateHashAny(this)).digestInto(e);
-        let o = __templateHashAny(e).slice(0, r5);
-        return __templateHashAny(__templateHashAny(this)).destroy(), o;
-      }
-      _cloneInto(e) {
-        e || (e = new (__templateHashAny(__templateHashAny(__templateHashAny(this)).constructor))()), __templateHashAny(e).set(...__templateHashAny(__templateHashAny(this)).get());
-        let { blockLen: r5, buffer: o, length: n2, finished: f, destroyed: s, pos: x } = __templateHashAny(this);
-        return __templateHashAny(e).destroyed = s, __templateHashAny(e).finished = f, __templateHashAny(e).length = n2, __templateHashAny(e).pos = x, n2 % r5 && __templateHashAny(__templateHashAny(e).buffer).set(o), e;
-      }
-      clone() {
-        return __templateHashAny(__templateHashAny(this))._cloneInto();
-      }
-    }, b2 = __templateHashAny(Uint32Array).from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
-    var W3 = __templateHashAny(Uint32Array).from([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]), l = new (__templateHashAny(Uint32Array))(64), B = class extends __templateHashAny(E2) {
-      constructor(e) {
-        super(64, e, 8, false);
-      }
-      get() {
-        let { A: e, B: r5, C: o, D: n2, E: f, F: s, G: x, H: i } = __templateHashAny(this);
-        return [e, r5, o, n2, f, s, x, i];
-      }
-      set(e, r5, o, n2, f, s, x, i) {
-        __templateHashAny(__templateHashAny(this)).A = e | 0, __templateHashAny(__templateHashAny(this)).B = r5 | 0, __templateHashAny(__templateHashAny(this)).C = o | 0, __templateHashAny(__templateHashAny(this)).D = n2 | 0, __templateHashAny(__templateHashAny(this)).E = f | 0, __templateHashAny(__templateHashAny(this)).F = s | 0, __templateHashAny(__templateHashAny(this)).G = x | 0, __templateHashAny(__templateHashAny(this)).H = i | 0;
-      }
-      process(e, r5) {
-        for (let c = 0; c < 16; c++, r5 += 4)
-          __templateHashAny(l)[c] = __templateHashAny(e).getUint32(r5, false);
-        for (let c = 16; c < 64; c++) {
-          let g = __templateHashAny(l)[c - 15], p = __templateHashAny(l)[c - 2], S7 = __templateHashAny(d)(g, 7) ^ __templateHashAny(d)(g, 18) ^ g >>> 3, H2 = __templateHashAny(d)(p, 17) ^ __templateHashAny(d)(p, 19) ^ p >>> 10;
-          __templateHashAny(l)[c] = H2 + __templateHashAny(l)[c - 7] + S7 + __templateHashAny(l)[c - 16] | 0;
-        }
-        let { A: o, B: n2, C: f, D: s, E: x, F: i, G: h, H: u } = __templateHashAny(this);
-        for (let c = 0; c < 64; c++) {
-          let g = __templateHashAny(d)(x, 6) ^ __templateHashAny(d)(x, 11) ^ __templateHashAny(d)(x, 25), p = u + g + __templateHashAny(D)(x, i, h) + __templateHashAny(W3)[c] + __templateHashAny(l)[c] | 0, H2 = (__templateHashAny(d)(o, 2) ^ __templateHashAny(d)(o, 13) ^ __templateHashAny(d)(o, 22)) + __templateHashAny(I)(o, n2, f) | 0;
-          u = h, h = i, i = x, x = s + p | 0, s = f, f = n2, n2 = o, o = p + H2 | 0;
-        }
-        o = o + __templateHashAny(__templateHashAny(this)).A | 0, n2 = n2 + __templateHashAny(__templateHashAny(this)).B | 0, f = f + __templateHashAny(__templateHashAny(this)).C | 0, s = s + __templateHashAny(__templateHashAny(this)).D | 0, x = x + __templateHashAny(__templateHashAny(this)).E | 0, i = i + __templateHashAny(__templateHashAny(this)).F | 0, h = h + __templateHashAny(__templateHashAny(this)).G | 0, u = u + __templateHashAny(__templateHashAny(this)).H | 0, __templateHashAny(__templateHashAny(this)).set(o, n2, f, s, x, i, h, u);
-      }
-      roundClean() {
-        __templateHashAny(y)(l);
-      }
-      destroy() {
-        __templateHashAny(__templateHashAny(this)).destroyed = true, __templateHashAny(__templateHashAny(this)).set(0, 0, 0, 0, 0, 0, 0, 0), __templateHashAny(y)(__templateHashAny(__templateHashAny(this)).buffer);
-      }
-    }, U = class extends __templateHashAny(B) {
-      constructor() {
-        super(32);
-        __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b2)[0] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b2)[1] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b2)[2] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b2)[3] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b2)[4] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b2)[5] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b2)[6] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b2)[7] | 0);
-      }
-    };
-    var _ = __templateHashAny(F)(() => new (__templateHashAny(U))(), __templateHashAny(T2)(1));
-    return __templateHashAny(M)(N2);
-  })();
-  if (typeof path !== "string" || !path || path.includes("\0") || typeof check2 !== "function") throw Error("The original file observation input is invalid.");
-  if (scheme !== null && scheme !== "cutback.media-content.v2") throw Error("Unknown media fingerprint scheme.");
-  const sampled = scheme !== null;
-  check2();
-  const native = sampled && files && "mediaFingerprint" in files ? files.mediaFingerprint : null;
-  if (typeof native === "function") {
-    let supported = true, observed;
-    try {
-      observed = await native.call(files, path);
-    } catch (error) {
-      if (!/^(?:Error: )?Unsupported file operation\.?$/.test(String(error?.message ?? error))) throw error;
-      supported = false;
-    }
-    check2();
-    if (supported) {
-      if (observed === null) return null;
-      if (!observed || observed.scheme !== scheme || !Number.isSafeInteger(observed.size) || observed.size <= 0 || typeof observed.digest !== "string" || !/^[a-f0-9]{64}$/.test(observed.digest)) throw Error("The sampled media fingerprint could not be confirmed.");
-      return { size: observed.size, scheme: observed.scheme, digest: observed.digest };
-    }
-  }
-  if (typeof path !== "string" || !path || path.includes("\0") || typeof check2 !== "function" || typeof files?.stat !== "function" || typeof files?.readRange !== "function") throw Error("The original file observation input is invalid.");
-  const observe = async (operation) => {
-    check2();
-    const result = await operation();
-    check2();
-    return result;
-  };
-  const identity = (stat) => typeof stat?.sourceIdentity === "string" && stat.sourceIdentity ? stat.sourceIdentity : Number.isFinite(stat?.ino) ? stat.ino : null;
-  const before = await observe(() => files.stat(path));
-  if (before === null) return null;
-  if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || identity(before) === null) throw Error("The file's size or identity could not be confirmed.");
-  if (sampled && before.size === 0) throw Error("Cannot fingerprint empty media.");
-  const hash = __templateFileHash.sha256.create(), alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  if (sampled) {
-    const prefix = scheme + ":" + before.size + ":";
-    hash.update(Uint8Array.from(prefix, (character) => character.charCodeAt(0)));
-  }
-  const sampleBytes = 262144;
-  const ranges = !sampled || before.size <= sampleBytes * 3 ? [[0, before.size]] : [[0, sampleBytes], [Math.floor((before.size - sampleBytes) / 2), sampleBytes], [before.size - sampleBytes, sampleBytes]];
-  for (const [start, count3] of ranges) for (let offset = start; offset < start + count3; ) {
-    const length = Math.min(49152, start + count3 - offset);
-    const chunk2 = await observe(() => files.readRange({ path, offset, length }));
-    if (!chunk2 || chunk2.bytesRead !== length || typeof chunk2.base64 !== "string" || chunk2.base64.length !== 4 * Math.ceil(length / 3) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk2.base64)) throw Error("The file read returned an incomplete or invalid binary chunk.");
-    const bytes = new Uint8Array(length);
-    let position2 = 0;
-    for (let i = 0; i < chunk2.base64.length; i += 4) {
-      const a = alphabet.indexOf(chunk2.base64[i]), b2 = alphabet.indexOf(chunk2.base64[i + 1]), c = chunk2.base64[i + 2] === "=" ? 0 : alphabet.indexOf(chunk2.base64[i + 2]), d = chunk2.base64[i + 3] === "=" ? 0 : alphabet.indexOf(chunk2.base64[i + 3]);
-      if (chunk2.base64[i + 2] === "=" && (b2 & 15) !== 0 || chunk2.base64[i + 3] === "=" && chunk2.base64[i + 2] !== "=" && (c & 3) !== 0) throw Error("The file read returned a noncanonical binary chunk.");
-      bytes[position2++] = a << 2 | b2 >> 4;
-      if (position2 < length) bytes[position2++] = (b2 & 15) << 4 | c >> 2;
-      if (position2 < length) bytes[position2++] = (c & 3) << 6 | d;
-    }
-    hash.update(bytes);
-    check2();
-    offset += length;
-  }
-  const after = await observe(() => files.stat(path));
-  if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || identity(before) !== identity(after)) throw Error("The file changed while its contents were read.");
-  const digest = hash.digest();
-  check2();
-  let hex = "";
-  for (let index = 0; index < digest.length; index++) hex += digest[index].toString(16).padStart(2, "0");
-  return sampled ? { size: before.size, scheme, digest: hex } : { size: before.size, sha256: hex };
-}
-
-// ../../shared/local-client.ts
 function panelLocalPaths(platform) {
   const windows = platform === "win32";
   const slash = (path) => {
@@ -701,7 +459,7 @@ function panelLocalPaths(platform) {
     isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
   };
 }
-async function createPanelLocalClient(sdk) {
+async function createPanelLocalClient(sdk, fileObservation) {
   const SCRIPT_BYTES = 256 * 1024;
   const runSource = async (script, write = false) => {
     if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
@@ -770,8 +528,10 @@ async function createPanelLocalClient(sdk) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
-    // One script owns every read and its deadline; only the compact digest returns.
-    mediaFingerprint: (path) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ',undefined,"cutback.media-content.v2");'),
+    // Only observation consumers supply the self-contained old-host fallback.
+    ...fileObservation ? {
+      mediaFingerprint: (path) => runSource("return await (" + fileObservation.toString() + ")(selects.files," + JSON.stringify(path) + ',undefined,"cutback.media-content.v2");')
+    } : {},
     readdir: (path) => run2("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -1008,7 +768,7 @@ function panelLocalClient(sdk) {
   if (!client) throw new Error("Local SDK has not initialized.");
   return client;
 }
-function withPanelLocalClient(Component) {
+function withPanelLocalClient(Component, fileObservation) {
   return function LocalSdkPanel(props) {
     const [state2, setState] = React.useState(null);
     const reported = React.useRef(/* @__PURE__ */ new WeakMap());
@@ -1028,7 +788,7 @@ function withPanelLocalClient(Component) {
         setState({ sdk: props.sdk, key, error, cause });
       };
       const timer = setTimeout(() => fail(true), 3e4);
-      createPanelLocalClient(props.sdk).then((value) => {
+      createPanelLocalClient(props.sdk, fileObservation).then((value) => {
         client = { ...props.sdk, ...value };
         if (!active || settled) {
           value.dispose();

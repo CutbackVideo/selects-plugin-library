@@ -252,12 +252,12 @@ test('wrapper waits for environment, keeps original public sdk, and removes the 
   const api=load(React),h=host();let release;
   const original=h.sdk.runScript;
   h.sdk.runScript=async input=>{if(input.script.includes('environment'))await new Promise(resolve=>{release=resolve;});return original(input);};
-  const Component=()=>null,Wrapped=api.withPanelLocalClient(Component),props={sdk:h.sdk,context:{}};
+  const Component=()=>null,Wrapped=api.withPanelLocalClient(Component,fingerprintTemplateFile),props={sdk:h.sdk,context:{}};
   assert.equal(Wrapped(props).props.role,'status');cleanup=effect();
   assert.throws(()=>api.panelLocalClient(h.sdk),/not initialized/);
   release();await new Promise(resolve=>setImmediate(resolve));
   const rendered=Wrapped(props);assert.equal(rendered.type,Component);assert.equal(rendered.props.sdk,h.sdk);
-  assert(api.panelLocalClient(h.sdk).files);assert.equal(h.sdk.files,undefined);
+  assert.equal(typeof api.panelLocalClient(h.sdk).files.mediaFingerprint,'function');assert.equal(h.sdk.files,undefined);
   cleanup();assert.throws(()=>api.panelLocalClient(h.sdk),/not initialized/);
 });
 test('all plugins embedding the local helper wrap their component before use',()=>{
@@ -410,7 +410,7 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
 });
 test('the private canonical read overload supports source observations without changing positional EOF reads',async()=>{
- const h=host();h.files.set('/a',Buffer.from('alpha'));const client=await load().createPanelLocalClient(h.sdk);
+ const h=host();h.files.set('/a',Buffer.from('alpha'));const client=await load().createPanelLocalClient(h.sdk,fingerprintTemplateFile);
  const sdkRead=await client.files.readRange({path:'/a',offset:1,length:2});assert.deepEqual(sdkRead,{bytesRead:2,base64:'bHA='});
  assert.equal(Buffer.from(await client.files.readRange('/a',3,10)).toString(),'ha');
  const {observeSourceFiles}=await import('../shared/native-image-input.mjs');const rows=await observeSourceFiles(client.files,['/a']);assert.equal(rows[0].digest,mediaFingerprint(Buffer.from('alpha')).digest);
@@ -418,7 +418,7 @@ test('the private canonical read overload supports source observations without c
 
 test('panel source observations use one host fingerprint call per file',async()=>{
  const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/observed-original',bytes);
- const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
+ const client=await load().createPanelLocalClient(h.sdk,fingerprintTemplateFile),before=h.calls.length;
  const {observeSourceFiles}=await import('../shared/native-image-input.mjs');
  const rows=await observeSourceFiles(client.files,['/observed-original']);
  assert.equal(rows[0].digest,mediaFingerprint(bytes).digest);
@@ -489,4 +489,37 @@ for(const oversized of [{width:6000,height:4000},{frameRate:121},{frameRate:.5},
  const client=await load().createPanelLocalClient(h.sdk);
  await client.media.runVideoTranscode({sourcePath:'/in',outputPath:'/out',width:1920,height:1080,frameRate:30,frameCount:60,bitrate:10000000,...oversized},['-i','/in','/out'],true);
  assert.deepEqual(calls,[{args:['-i','/in','/out']}]);client.dispose();
+});
+
+// The optional adapter keeps hash code out of panels that never observe media.
+test('fingerprinting is opt-in and its old-host sampler remains bounded',async()=>{
+ const api=load(),plain=await api.createPanelLocalClient(host().sdk);
+ assert.equal('mediaFingerprint' in plain.files,false);
+ assert.doesNotMatch(source,/import.*file-observation/);
+ for(const legacy of ['missing','unsupported','permission']){
+  const h=host(),bytes=Buffer.alloc(2*1024*1024,27);h.files.set('/source',bytes);
+  if(legacy==='missing')delete h.fileService.mediaFingerprint;
+  else h.fileService.mediaFingerprint=async()=>{throw Error(legacy==='unsupported'?'Unsupported file operation.':'Permission denied');};
+  const client=await api.createPanelLocalClient(h.sdk,fingerprintTemplateFile);
+  if(legacy==='permission'){
+   await assert.rejects(client.files.mediaFingerprint('/source'),/Permission denied/);
+   assert.equal(h.fileCalls.length,0);
+  }else{
+   assert.deepEqual(await client.files.mediaFingerprint('/source'),mediaFingerprint(bytes));
+   assert.equal(h.fileCalls.reduce((sum,call)=>sum+call.length,0),3*262144);
+  }
+ }
+});
+
+test('shipped panels include the compatibility hash only when registered for file observation',()=>{
+ const registry=JSON.parse(fs.readFileSync(new URL('../shared/panel-modules.json',import.meta.url),'utf8'));
+ const consumers=new Set(registry.modules.find(module=>module.id==='file-observation').targets);
+ for(const directory of fs.readdirSync(new URL('../plugins/',import.meta.url))){
+  const relative=`plugins/${directory}/panel.tsx`,file=new URL('../'+relative,import.meta.url);
+  if(!fs.existsSync(file))continue;
+  const panel=fs.readFileSync(file,'utf8');
+  assert.equal(panel.includes('function fingerprintTemplateFile('),consumers.has(relative),relative);
+  if(consumers.has(relative)&&panel.includes('fileObservation?:'))
+   assert.match(panel,/export default withPanelLocalClient\(\w+, fingerprintTemplateFile\);/,relative);
+ }
 });
