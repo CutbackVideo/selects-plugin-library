@@ -1649,8 +1649,8 @@ async function hostRoots(sdk, id, marker) {
 // hold:start
 // Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
 // video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
-// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched. Full
-// source/output hashes and private source snapshots belong to the shared asset owner. Domain callbacks own
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched.
+// Sampled source/output identities and private source snapshots belong to the shared asset owner. Domain callbacks own
 // the encoding and whole-output validation. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
@@ -1676,7 +1676,8 @@ async function holdTool(kind, argv, seconds, options = {}) {
 async function holdProbe(path, countFrames = false, options = {}) {
   let result;
   try {
-    result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
+    result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []),
+      ...(countFrames === 'first-frame' ? ['-select_streams', 'v:0', '-read_intervals', '%+#1'] : []), '-show_entries',
       'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames:stream_side_data=rotation:stream_tags=rotate',
       '-of', 'json', path], 45, options);
   } catch (error) { if (error.code === 'host-missing' || error.terminal) throw error; throw holdError('Video cannot be decoded'); }
@@ -1728,7 +1729,8 @@ async function holdEncode(source, target, frames, options = {}) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
   // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
-  const filters = 'fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6) + ',' + scale;
+  // Scale each decoded source frame once, before fps/tpad duplicate it.
+  const filters = scale + ',fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6);
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
@@ -1739,7 +1741,7 @@ async function holdConvertOne(source, identity, sourceDimensions, frames, cacheR
   const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.scheme,identity.digest,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
   const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,
-    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
+    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,'first-frame',options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
 }
@@ -1759,10 +1761,11 @@ async function holdVideos(request, dataDir, options = {}) {
   }
   if(typeof globalThis.crypto?.subtle?.digest!=='function')throw holdError('Update Selects to verify complete source media contents');
   const cacheRoot = files.join(dataDir, 'held-v3'),selected=new Map();
-  // Observe every requested source before generating any derived file.
+  // Admit every source with one decoded video frame; the encoder and final output
+  // validation check the remaining frames without two full source decoding passes.
   for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
     const identity=await readAssetFileIdentity(files,raw,current);
-    const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
+    const {video}=await holdProbe(raw,'first-frame',options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
   }
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
