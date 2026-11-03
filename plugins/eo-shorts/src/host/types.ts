@@ -36,6 +36,7 @@ export type HostRuntime = {
     onStdout?: (chunk: string) => void,
     onStderr?: (chunk: string) => void,
   ): Promise<FfResult>;
+  runVideoTranscode?(request: Record<string, unknown>, fallbackArgs: string[], quiet?: boolean, signal?: AbortSignal): Promise<FfResult>;
   runFFprobe(args: string[], withoutLog?: boolean, signal?: AbortSignal): Promise<FfResult>;
   getHostingVersion?(): string;
   getPlatform?(): string;

@@ -1699,8 +1699,22 @@ async function createPanelLocalClient(sdk: any) {
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
     // Detect an absent interface before dispatch. Never retry an uncertain or failed job.
-    const startSource = transcode
-      ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); return await (typeof transcode === 'function' ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");"
+    const requiredFeatures = transcode ? [
+      ...(/^https?:/i.test(String(transcode.sourcePath)) ? ["remote-source"] : []),
+      ...("sourceStartSeconds" in transcode || "sourceEndSeconds" in transcode ? ["source-range"] : []),
+      ...(transcode.inputKind === "image" ? ["image-input"] : []),
+      ...("fit" in transcode || "position" in transcode ? ["framing"] : []),
+      ...("endBehavior" in transcode ? ["end-behavior"] : []),
+    ] : [];
+    // Existing recipes may preserve a camera/photo size outside this job's bounds.
+    // Select their original argv before dispatch instead of silently resizing.
+    const withinTranscodeBounds = !transcode || (
+      [transcode.width, transcode.height].every(value => Number.isInteger(value) && Number(value) >= 2 && Number(value) <= 4096 && Number(value) % 2 === 0) &&
+      Number.isFinite(transcode.frameRate) && Number(transcode.frameRate) >= 1 && Number(transcode.frameRate) <= 120 &&
+      Number.isInteger(transcode.frameCount) && Number(transcode.frameCount) >= 1 && Number(transcode.frameCount) <= 36000 &&
+      Number.isFinite(transcode.bitrate) && Number(transcode.bitrate) >= 100000 && Number(transcode.bitrate) <= 100000000);
+    const startSource = transcode && withinTranscodeBounds
+      ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); const discover = Reflect.get(selects.media, 'videoTranscodeFeatures'); const required = " + JSON.stringify(requiredFeatures.join(",")) + ".split(',').filter(Boolean); const features = required.length && typeof discover === 'function' ? await discover.call(selects.media) : []; return await (typeof transcode === 'function' && (!required.length || Array.isArray(features) && required.every(feature => features.includes(feature))) ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");"
       : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;

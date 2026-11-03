@@ -448,13 +448,13 @@ test('an operational transcode start failure never falls back to another job',as
  h.selects.media.startFFmpeg=async()=>{fallback++;throw Error('unexpected fallback');};
  h.selects.media.startVideoTranscode=async()=>{throw Error('storage unavailable');};
  const client=await load().createPanelLocalClient(h.sdk);
- await assert.rejects(client.media.runVideoTranscode({},['-version'],true),error=>error.preserveTemporaryFiles===true);
+ await assert.rejects(client.media.runVideoTranscode({width:1920,height:1080,frameRate:30,frameCount:60,bitrate:10000000},['-version'],true),error=>error.preserveTemporaryFiles===true);
  assert.equal(fallback,0);client.dispose();
 });
 
 test('the optional transcode dispatch typechecks against an older media SDK', {skip:!typescript},async()=>{
  const h=host(),client=await load().createPanelLocalClient(h.sdk);
- await client.media.runVideoTranscode({sourcePath:'/in',outputPath:'/out'},['-version'],true);
+ await client.media.runVideoTranscode({sourcePath:'/in',outputPath:'/out',width:1920,height:1080,frameRate:30,frameCount:60,bitrate:10000000,fit:'fill',endBehavior:'stop'},['-version'],true);
  const script=h.calls.find(call=>call.script.includes("Reflect.get(selects.media, 'startVideoTranscode')")).script;
  const directory=fs.mkdtempSync(path.join(tmpdir(),'transcode-legacy-types-'));
  try{
@@ -464,4 +464,29 @@ test('the optional transcode dispatch typechecks against an older media SDK', {s
   const diagnostics=typescript.getPreEmitDiagnostics(program);
   assert.equal(diagnostics.length,0,typescript.formatDiagnostics(diagnostics,{getCanonicalFileName:file=>file,getCurrentDirectory:()=>directory,getNewLine:()=> '\n'}));
  }finally{client.dispose();fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('expanded video requests require every advertised feature before starting a job',async()=>{
+ const request={width:1920,height:1080,frameRate:30,frameCount:60,bitrate:10000000,sourcePath:'https://example.test/source.mp4',outputPath:'/out.mp4',sourceStartSeconds:1,sourceEndSeconds:2,inputKind:'image',fit:'cover',position:{x:.5,y:.5},endBehavior:'stop'};
+ const required=['remote-source','source-range','image-input','framing','end-behavior'];
+ for(const features of [undefined,[],...required.map(missing=>required.filter(feature=>feature!==missing)),required]){
+  const h=host(),calls=[],legacy=h.selects.media.startFFmpeg;
+  h.selects.media.startFFmpeg=async value=>{calls.push(['legacy',value]);return legacy();};
+  h.selects.media.startVideoTranscode=async value=>{calls.push(['transcode',value]);return legacy();};
+  if(features)h.selects.media.videoTranscodeFeatures=()=>features;
+  const client=await load().createPanelLocalClient(h.sdk);
+  await client.media.runVideoTranscode(request,['-ss','1','-i',request.sourcePath,'/out.mp4'],true);
+  const supported=features===required;
+  assert.deepEqual(calls,[[supported?'transcode':'legacy',supported?request:{args:['-ss','1','-i',request.sourcePath,'/out.mp4']}]]);
+  client.dispose();
+ }
+});
+
+for(const oversized of [{width:6000,height:4000},{frameRate:121},{frameRate:.5},{width:1},{height:1081},{frameCount:36001},{frameCount:NaN},{bitrate:99999}])test('oversized source-preserving recipes select original argv before dispatch '+JSON.stringify(oversized),async()=>{
+ const h=host(),calls=[],legacy=h.selects.media.startFFmpeg;
+ h.selects.media.startFFmpeg=async value=>{calls.push(value);return legacy();};
+ h.selects.media.startVideoTranscode=async()=>{throw Error('unsupported request must never start');};
+ const client=await load().createPanelLocalClient(h.sdk);
+ await client.media.runVideoTranscode({sourcePath:'/in',outputPath:'/out',width:1920,height:1080,frameRate:30,frameCount:60,bitrate:10000000,...oversized},['-i','/in','/out'],true);
+ assert.deepEqual(calls,[{args:['-i','/in','/out']}]);client.dispose();
 });

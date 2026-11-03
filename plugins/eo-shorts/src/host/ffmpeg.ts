@@ -39,6 +39,7 @@ function tail(text: string, n = 1500): string {
 }
 
 function toFfError(e: unknown, args: string[], streamed: string, timedOut: boolean, outerSignal?: AbortSignal | null): Error {
+  if (e instanceof Error && ((e as any).terminal || (e as any).preserveTemporaryFiles)) return e;
   if (timedOut) return new FfmpegError("timeout", "ffmpeg did not finish in time.", { args, stderrTail: tail(streamed) });
   if (outerSignal?.aborted || isAbortError(e)) return new AbortedError();
   const err = e as { message?: string; stderr?: string; exitCode?: number | null };
@@ -86,14 +87,14 @@ export async function analyze(rt: HostRuntime | null | undefined, args: string[]
 export async function encode(
   rt: HostRuntime | null | undefined,
   args: string[],
-  opts: FfOptions & { outPath?: string; fs?: HostFs } = {},
+  opts: FfOptions & { outPath?: string; fs?: HostFs; transcode?: Record<string, unknown> } = {},
 ): Promise<FfRun> {
   const runtime = requireTool(rt, "runFFmpeg");
   const child = childSignal(opts.signal, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const t0 = Date.now();
   let r: FfResult;
   try {
-    r = await runtime.runFFmpeg(args, true, child.signal);
+    r = opts.transcode && runtime.runVideoTranscode ? await runtime.runVideoTranscode(opts.transcode, args, true, child.signal) : await runtime.runFFmpeg(args, true, child.signal);
   } catch (e) {
     throw toFfError(e, args, "", child.timedOut(), opts.signal);
   } finally {
@@ -178,7 +179,7 @@ export async function probeJson(
 export type MediaProbe = {
   durationSec: number | null;
   formatName: string | null;
-  video: { codec: string; width: number; height: number; fps: string | null; nbFrames: number | null; durationSec: number | null } | null;
+  video: { codec: string; width: number; height: number; rotation?: number; sampleAspectRatio?: string; averageFrameRate?: string; fps: string | null; nbFrames: number | null; durationSec: number | null } | null;
   audio: { codec: string; sampleRate: number | null; channels: number | null; durationSec: number | null } | null;
 };
 
@@ -197,7 +198,7 @@ export async function probeMedia(
     [
       ...(opts.countFrames ? ["-count_frames"] : []),
       "-show_entries",
-      "format=duration,format_name:stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames,nb_read_frames,duration,sample_rate,channels",
+      "format=duration,format_name:stream=codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames,nb_read_frames,duration,sample_rate,channels,sample_aspect_ratio:stream_side_data=rotation",
       ...(opts.inputFormat ?? []),
       path,
     ],
@@ -214,6 +215,9 @@ export async function probeMedia(
           codec: String(v.codec_name ?? ""),
           width: Number(v.width ?? 0),
           height: Number(v.height ?? 0),
+          ...(Array.isArray(v.side_data_list) ? { rotation: Number(v.side_data_list.find((row: any) => row.rotation != null)?.rotation || 0) } : {}),
+          ...(v.sample_aspect_ratio ? { sampleAspectRatio: String(v.sample_aspect_ratio) } : {}),
+          ...(v.avg_frame_rate ? { averageFrameRate: String(v.avg_frame_rate) } : {}),
           fps: (v.r_frame_rate as string) ?? null,
           nbFrames: n(v.nb_read_frames) ?? n(v.nb_frames),
           durationSec: n(v.duration),

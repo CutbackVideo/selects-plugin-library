@@ -110,8 +110,15 @@ fault/recovery evidence and remaining installed-app acceptance boundaries.
 start/status/cancel ownership above. It checks for `selects.media.startVideoTranscode`
 inside the start script before dispatch. `Reflect.get` keeps this check valid
 against older SDK declarations. An absent method selects `startFFmpeg` with the
-caller's existing argv; an operational error or uncertain start never starts a
-second job. This is an additive transport method; existing FFmpeg consumers keep
+caller's existing argv. Expanded requests also require the corresponding
+`videoTranscodeFeatures()` entries (`source-range`, `image-input`, `framing`,
+`end-behavior`, and `remote-source` for HTTP URLs); a missing discovery method or
+feature selects the same legacy argv before dispatch. Source-preserving recipes
+outside the job's dimensions, frame-rate, frame-count or bitrate bounds also
+select that original argv; no implicit downscale is introduced. Stock recipes
+retain legacy processing for detected variable frame rate, non-square pixels
+and arbitrary rotation. An operational error or
+uncertain start never starts a second job. This is an additive transport method; existing FFmpeg consumers keep
 their argv and behavior.
 
 Photo Grid Reveal opts in with the verified snapshot/output paths, upright even

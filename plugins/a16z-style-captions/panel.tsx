@@ -891,7 +891,15 @@ async function createPanelLocalClient(sdk) {
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
-    const startSource = transcode ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); return await (typeof transcode === 'function' ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");" : "return await " + legacyStart + ";";
+    const requiredFeatures = transcode ? [
+      .../^https?:/i.test(String(transcode.sourcePath)) ? ["remote-source"] : [],
+      ..."sourceStartSeconds" in transcode || "sourceEndSeconds" in transcode ? ["source-range"] : [],
+      ...transcode.inputKind === "image" ? ["image-input"] : [],
+      ..."fit" in transcode || "position" in transcode ? ["framing"] : [],
+      ..."endBehavior" in transcode ? ["end-behavior"] : []
+    ] : [];
+    const withinTranscodeBounds = !transcode || [transcode.width, transcode.height].every((value) => Number.isInteger(value) && Number(value) >= 2 && Number(value) <= 4096 && Number(value) % 2 === 0) && Number.isFinite(transcode.frameRate) && Number(transcode.frameRate) >= 1 && Number(transcode.frameRate) <= 120 && Number.isInteger(transcode.frameCount) && Number(transcode.frameCount) >= 1 && Number(transcode.frameCount) <= 36e3 && Number.isFinite(transcode.bitrate) && Number(transcode.bitrate) >= 1e5 && Number(transcode.bitrate) <= 1e8;
+    const startSource = transcode && withinTranscodeBounds ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); const discover = Reflect.get(selects.media, 'videoTranscodeFeatures'); const required = " + JSON.stringify(requiredFeatures.join(",")) + ".split(',').filter(Boolean); const features = required.length && typeof discover === 'function' ? await discover.call(selects.media) : []; return await (typeof transcode === 'function' && (!required.length || Array.isArray(features) && required.every(feature => features.includes(feature))) ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");" : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started;
     const starting = runSource(startSource, true);
@@ -1156,7 +1164,7 @@ async function hostRoots(sdk, id, marker) {
   }
   return { plugin, data };
 }
-async function hostFF(tool, args, timeoutMs = 12e4) {
+async function hostFF(tool, args, timeoutMs = 12e4, transcode) {
   const rt = hostApi("Runtime", tool);
   if (!rt) throw hostError("host-missing", "this Selects build has no Runtime." + tool + "; update Selects", "Runtime." + tool);
   const controller = typeof AbortController === "undefined" ? null : new AbortController();
@@ -1166,7 +1174,7 @@ async function hostFF(tool, args, timeoutMs = 12e4) {
     const extra = tool === "runFFmpeg" ? [void 0, (x) => {
       chunks.push(String(x));
     }] : [];
-    const r = await rt[tool](args, true, controller ? controller.signal : void 0, ...extra);
+    const r = transcode && typeof rt.runVideoTranscode === "function" ? await rt.runVideoTranscode(transcode, args, true, controller ? controller.signal : void 0) : await rt[tool](args, true, controller ? controller.signal : void 0, ...extra);
     return { stdout: String(r?.stdout ?? ""), stderr: String(r?.stderr || chunks.join("")) };
   } finally {
     if (timer) clearTimeout(timer);
@@ -3827,6 +3835,21 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
     const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
+    const probeArgs = ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", c.url];
+    let source = {};
+    try {
+      source = JSON.parse((await hostFF("runFFprobe", probeArgs, 3e4)).stdout).streams?.[0] || {};
+    } catch (error) {
+      if (isTerminalMediaFailure(error)) throw error;
+    }
+    if ((source.side_data_list || []).some((row) => Math.abs(Number(row.rotation || 0)) % 180 === 90)) {
+      [source.width, source.height] = [source.height, source.width];
+    }
+    const [num, den] = String(source.avg_frame_rate).split("/").map(Number);
+    const fps = num / (den || 1);
+    const [nominalNum, nominalDen] = String(source.r_frame_rate).split("/").map(Number);
+    const nominalFps = nominalNum / (nominalDen || 1);
+    const scale = Math.max((portrait ? 1080 : 1920) / source.width, (portrait ? 1920 : 1080) / source.height);
     await hostFF(
       "runFFmpeg",
       [
@@ -3852,7 +3875,20 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
         "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2",
         part
       ],
-      15e4
+      15e4,
+      source.width > 0 && source.height > 0 && fps > 0 && Number.isFinite(fps) && (!nominalFps || Math.abs(nominalFps - fps) / fps < 1e-3) && (source.side_data_list || []).every((row) => Number(row.rotation || 0) % 90 === 0) && (!source.sample_aspect_ratio || ["1:1", "0:1", "N/A"].includes(source.sample_aspect_ratio)) ? {
+        sourcePath: c.url,
+        outputPath: part,
+        width: Math.ceil(source.width * scale / 2) * 2,
+        height: Math.ceil(source.height * scale / 2) * 2,
+        frameRate: fps,
+        frameCount: Math.ceil(Number(length.toFixed(2)) * fps),
+        bitrate: 1e7,
+        sourceStartSeconds: Number(start.toFixed(2)),
+        sourceEndSeconds: Number(start.toFixed(2)) + Number(length.toFixed(2)),
+        fit: "fill",
+        endBehavior: "stop"
+      } : void 0
     );
     if (part !== out) await fs().rename(part, out);
   }

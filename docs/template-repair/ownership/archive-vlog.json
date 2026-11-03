@@ -972,13 +972,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "2b84af0c98730481c1a986f7e4117a1d429f1d7ea11a664e84c0d6e619fef7f2",
+      "sha256": "de582700ce12e2488af9ce84ed91447527defbb65fb22b8bc902dbfd2182f2f8",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8103,
+          "endLine": 8117,
           "feature": "panel-ui"
         },
         {
@@ -1018,12 +1018,12 @@
         },
         {
           "startLine": 7648,
-          "endLine": 8056,
+          "endLine": 8070,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8058,
-          "endLine": 8103,
+          "startLine": 8072,
+          "endLine": 8117,
           "feature": "app-guard"
         },
         {
@@ -1753,13 +1753,13 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "e0e7cde0ff161dfd2923cf9f5b0c49f2f9903e589e92db1042d036af68814551",
+      "sha256": "2345696e3b8d7749fc5ce186594202cf292438f873081395282e29c4c64da6eb",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 409,
+          "endLine": 423,
           "feature": "local-sdk"
         }
       ]
