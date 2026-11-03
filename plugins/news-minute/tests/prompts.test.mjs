@@ -471,3 +471,23 @@ test('validateScript skips the draft count and length rules for a user edit', ()
   assert.ok(!edited.errors.some((e) => e.includes('8-14') || e.includes('hard cap') || e.includes('only')), edited.errors.join('\n'));
   assert.equal(P.EDIT_MAX_CHARS, 1000);
 });
+
+test('every script check message has a Korean text for the panel; English panels keep the message', async () => {
+  const { issueText } = await import('../src/issues.ts');
+  const seen = new Set();
+  const runs = [
+    P.validateScript({headline: {line1: '', line2: 'x'.repeat(40)}, sentences: [mk('\uC6D4\uC138\uAC00 99\uB9CC\uC6D0\uC785\uB2C8\uB2E4.', 'nope'), mk('', ''), mk('\uC6D4\uC138 \uC62C\uB790\uB2E4', ''), mk(Array(25).fill('\uB9D0').join(' ') + '\uC785\uB2C8\uB2E4.', body.slice(0, 10))]}, art),
+    P.validateScript({headline: {line1: 'a', line2: 'b'}, sentences: Array.from({length: 9}, () => mk('\uAC00'.repeat(60) + '\uC785\uB2C8\uB2E4.', body.slice(0, 10)))}, art),
+  ];
+  for (const v of runs) for (const m of v.errors) seen.add(m);
+  assert.ok(seen.size >= 9, [...seen].join(' | '));
+  for (const m of seen) {
+    const ko = issueText('ko', m);
+    assert.notEqual(ko, m, 'no Korean text for: ' + m);
+    assert.match(ko, /[\uAC00-\uD7A3]/);
+    assert.doesNotMatch(ko, /sourceQuote/);
+    assert.equal(issueText('en', m), m);
+  }
+  assert.equal(issueText('ko', 'sentence 12: sourceQuote is empty'), '12\uBC88 \uBB38\uC7A5: \uAE30\uC0AC\uC5D0\uC11C \uADFC\uAC70 \uBB38\uC7A5\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694.');
+  assert.match(issueText('ko', 'sentence s3: number "990000" does not appear in the article'), /^3\uBC88 \uBB38\uC7A5: \uC22B\uC790 \u201C990000\u201D/);
+});

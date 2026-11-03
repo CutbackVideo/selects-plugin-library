@@ -23,7 +23,7 @@ import { findHeadlineFont, headlineFontNote } from "../fonts/headlineFont.ts";
 import { clearPreviewCache, entranceSec, FPS, openPreview, renameDraft, sceneFrames, sceneStill, seekScene } from "./preview.ts";
 
 export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
-export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
+export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean; autoSource?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
   // Explicit or last-used provider for all LLM stages. Keep the storage key for existing sessions.

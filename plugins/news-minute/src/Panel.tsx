@@ -278,7 +278,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
 
   const setScriptText = (v: string) => {
     if (!s.script) return;
-    const sentences = applyScriptText(s.script.sentences, v);
+    const sentences = applyScriptText(s.script.sentences, v, s.article?.body);
     setScriptDraft({ text: v, sentences });
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
@@ -287,7 +287,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const approve = () => guard(async () => {
     if (chars > HARD_MAX_CHARS) throw new Error(T("tooLongHard", { max: HARD_MAX_CHARS }));
     if (!s.script!.sentences.length) throw new Error(T("emptyScript"));
-    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
+    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).map((x) => issueText(lang, x)).join("\n") })) return;
     const projectId = await F.ensureProject(sdk, env.current!, s);
     await update({ ...s, projectId, approved: F.revisionOf(s.script!, s.voiceId) });
     setTts(await F.readTts(sdk, projectId));
@@ -671,7 +671,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
         <Step done={!!plan} summary={T("scriptDone", { n: sc.sentences.length })}>
           <strong>{T("review")}</strong>
           <span style={muted}>{T("reviewHint")}</span>
-          {liveErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{liveErrors.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
+          {liveErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{liveErrors.map((x, i) => <div key={i}>{"\u2022 " + issueText(lang, x)}</div>)}</div> : null}
           <label>{T("headline1")}<input style={input} value={sc.headline.line1} disabled={busy || approved} onChange={(e) => setHead("line1", e.target.value)} /></label>
           <label>{T("headline2")}<input style={input} value={sc.headline.line2} disabled={busy || approved} onChange={(e) => setHead("line2", e.target.value)} /></label>
           <label>{T("accent")}<input style={input} value={sc.headline.accent ?? ""} disabled={busy || approved} onChange={(e) => setHead("accent", e.target.value)} /></label>

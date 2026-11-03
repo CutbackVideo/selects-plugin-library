@@ -695,6 +695,48 @@ async function readFileBase64(sdk, path, maxBytes) {
   return btoa(s);
 }
 
+// src/prompts/text.ts
+var TTS_CHARS_PER_SEC = 6.2;
+var TARGET_CHARS = { min: 320, goal: [340, 360], max: 370 };
+var EDIT_MAX_CHARS = 1e3;
+var SENTENCE_COUNT = { min: 8, max: 14 };
+var FORMAL_END = /(\uB2C8\uB2E4|\uAE4C\uC694)[.?]$/;
+var SOFT_END = /\uB294\uB370\uC694[.?]$/;
+var HEADLINE_MAX_CHARS = 24;
+var isFormalEnding = (s) => FORMAL_END.test(s.trim()) || SOFT_END.test(s.trim());
+var isSoftEnding = (s) => SOFT_END.test(s.trim());
+var headlineMax = HEADLINE_MAX_CHARS;
+var normalizeWs = (s) => String(s ?? "").replace(/[\u2018\u2019\u201B]/g, "'").replace(/[\u201C\u201D\u201F]/g, '"').replace(/\s+/g, " ").trim();
+var eojeolCount = (s) => normalizeWs(s).split(" ").filter(Boolean).length;
+function rawNumberTokens(s) {
+  const out = String(s ?? "").match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
+  return out.map((t2) => t2.replace(/,/g, ""));
+}
+var UNIT_VALUE = { "\uCC9C": 1e3, "\uB9CC": 1e4, "\uC5B5": 1e8, "\uC870": 1e12 };
+var NUM = "\\d[\\d,]*(?:\\.\\d+)?";
+var UNIT = "[\uCC9C\uB9CC\uC5B5\uC870]";
+var AMOUNT_RE = new RegExp(`${NUM}(?:${UNIT}(?:\\s?${NUM}(?:${UNIT})?)*)?`, "g");
+function numberTokens(s) {
+  const out = [];
+  for (const m of String(s ?? "").match(AMOUNT_RE) ?? []) {
+    let total = 0;
+    for (const seg of m.matchAll(new RegExp(`(${NUM})(${UNIT})?`, "g"))) {
+      const n = parseFloat(seg[1].replace(/,/g, ""));
+      total += n * (seg[2] ? UNIT_VALUE[seg[2]] : 1);
+    }
+    out.push(String(Math.round(total * 1e6) / 1e6));
+  }
+  return out;
+}
+function estimateSeconds(sentences) {
+  const chars = sentences.map((x) => x.trim()).join(" ").length;
+  return chars / TTS_CHARS_PER_SEC;
+}
+var totalChars = (sentences) => sentences.map((x) => x.trim()).join(" ").length;
+function isObj(x) {
+  return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
 // src/pipeline/script-text.ts
 var scriptBody = (sentences) => sentences.map((s) => s.text.trim()).join("\n");
 function splitScript(text) {
@@ -702,10 +744,10 @@ function splitScript(text) {
 }
 var core = (s) => s.trim().replace(/[.?!]+$/, "");
 var idNumber = (id) => /^s(\d+)$/.exec(id) ? Number(/^s(\d+)$/.exec(id)[1]) : 0;
-function applyScriptText(prev, text) {
+function applyScriptText(prev, text, body = "") {
   const texts = splitScript(text);
   if (texts.length === prev.length) {
-    return texts.map((t2, i) => t2 === prev[i].text.trim() ? prev[i] : { ...prev[i], text: t2, edited: true });
+    return texts.map((t2, i) => t2 === prev[i].text.trim() ? prev[i] : { ...prev[i], text: t2, edited: true, ...refind(prev[i], t2, body) });
   }
   const used = /* @__PURE__ */ new Set();
   const kept = texts.map((t2) => {
@@ -718,8 +760,44 @@ function applyScriptText(prev, text) {
   return texts.map((t2, k) => {
     if (kept[k] >= 0) return prev[kept[k]];
     const near = prev.find((l, i) => !used.has(i) && contains(l, t2)) ?? prev.find((l) => contains(l, t2));
-    return { id: "s" + next++, text: t2, sourceQuote: near?.sourceQuote ?? "", issues: [], rewritten: false, edited: true };
+    const line = { id: "s" + next++, text: t2, sourceQuote: near?.sourceQuote ?? "", issues: [], rewritten: false, edited: true };
+    if (near?.sourceQuote) return near.autoSource || pairs(t2).size < SOURCE_MIN_PAIRS ? { ...line, autoSource: true } : line;
+    return { ...line, ...refind(line, t2, body) };
   });
+}
+function refind(l, t2, body) {
+  if (l.sourceQuote && !l.autoSource) return {};
+  const q = findSourceQuote(t2, body);
+  return { sourceQuote: q, autoSource: !!q };
+}
+var pairs = (s) => {
+  const c = [...s.replace(/[^\p{L}\p{N}]+/gu, "")];
+  const out = /* @__PURE__ */ new Set();
+  for (let i = 0; i + 1 < c.length; i++) out.add(c[i] + c[i + 1]);
+  return out;
+};
+var SOURCE_MATCH_MIN = 0.4;
+var SOURCE_MIN_PAIRS = 8;
+function findSourceQuote(text, body) {
+  const want = pairs(text);
+  if (want.size < SOURCE_MIN_PAIRS || !body) return "";
+  const nums = numberTokens(text);
+  let best = "", bestScore = 0;
+  for (const cand of normalizeWs(body).split(/(?<=[.?!]["'\u201D\u2019)]?)\s+/)) {
+    if (nums.length) {
+      const have = new Set(numberTokens(cand));
+      if (!nums.every((n) => have.has(n))) continue;
+    }
+    const got = pairs(cand);
+    let hit = 0;
+    for (const x of want) if (got.has(x)) hit++;
+    const score = hit / want.size;
+    if (score > bestScore) {
+      best = cand;
+      bestScore = score;
+    }
+  }
+  return bestScore >= SOURCE_MATCH_MIN ? best : "";
 }
 
 // src/VoicePicker.tsx
@@ -1078,10 +1156,10 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
 function cardStyle(s, hero = false) {
   return { boxSizing: "border-box", background: C.card, border: (hero ? 3 : 2) * s.k + "px solid " + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
 }
-var NUM = /-?\d[\d,]*(?:\.\d+)?/g;
+var NUM2 = /-?\d[\d,]*(?:\.\d+)?/g;
 function countable(v) {
   const text = typeof v === "number" ? String(v) : String(v ?? "");
-  const hits = text.match(NUM) || [];
+  const hits = text.match(NUM2) || [];
   if (hits.length !== 1) return null;
   const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf(".");
   return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, "")), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(",") || Math.abs(Number(raw.replace(/,/g, ""))) >= 1e4 };
@@ -2123,48 +2201,6 @@ var HOLD_FACTOR = 1.1;
 function creditQuote(chars) {
   const estimated = chars * CREDITS_PER_CHAR;
   return { estimated: Math.round(estimated * 100) / 100, held: Math.round(estimated * HOLD_FACTOR * 100) / 100 };
-}
-
-// src/prompts/text.ts
-var TTS_CHARS_PER_SEC = 6.2;
-var TARGET_CHARS = { min: 320, goal: [340, 360], max: 370 };
-var EDIT_MAX_CHARS = 1e3;
-var SENTENCE_COUNT = { min: 8, max: 14 };
-var FORMAL_END = /(\uB2C8\uB2E4|\uAE4C\uC694)[.?]$/;
-var SOFT_END = /\uB294\uB370\uC694[.?]$/;
-var HEADLINE_MAX_CHARS = 24;
-var isFormalEnding = (s) => FORMAL_END.test(s.trim()) || SOFT_END.test(s.trim());
-var isSoftEnding = (s) => SOFT_END.test(s.trim());
-var headlineMax = HEADLINE_MAX_CHARS;
-var normalizeWs = (s) => String(s ?? "").replace(/[\u2018\u2019\u201B]/g, "'").replace(/[\u201C\u201D\u201F]/g, '"').replace(/\s+/g, " ").trim();
-var eojeolCount = (s) => normalizeWs(s).split(" ").filter(Boolean).length;
-function rawNumberTokens(s) {
-  const out = String(s ?? "").match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
-  return out.map((t2) => t2.replace(/,/g, ""));
-}
-var UNIT_VALUE = { "\uCC9C": 1e3, "\uB9CC": 1e4, "\uC5B5": 1e8, "\uC870": 1e12 };
-var NUM2 = "\\d[\\d,]*(?:\\.\\d+)?";
-var UNIT = "[\uCC9C\uB9CC\uC5B5\uC870]";
-var AMOUNT_RE = new RegExp(`${NUM2}(?:${UNIT}(?:\\s?${NUM2}(?:${UNIT})?)*)?`, "g");
-function numberTokens(s) {
-  const out = [];
-  for (const m of String(s ?? "").match(AMOUNT_RE) ?? []) {
-    let total = 0;
-    for (const seg of m.matchAll(new RegExp(`(${NUM2})(${UNIT})?`, "g"))) {
-      const n = parseFloat(seg[1].replace(/,/g, ""));
-      total += n * (seg[2] ? UNIT_VALUE[seg[2]] : 1);
-    }
-    out.push(String(Math.round(total * 1e6) / 1e6));
-  }
-  return out;
-}
-function estimateSeconds(sentences) {
-  const chars = sentences.map((x) => x.trim()).join(" ").length;
-  return chars / TTS_CHARS_PER_SEC;
-}
-var totalChars = (sentences) => sentences.map((x) => x.trim()).join(" ").length;
-function isObj(x) {
-  return !!x && typeof x === "object" && !Array.isArray(x);
 }
 
 // src/prompts/script.ts
@@ -5376,12 +5412,12 @@ async function createSubsetter(wasm) {
 // src/fonts/renameFamily.ts
 var RESERVED_FONT_NAMES = Object.freeze({ "Playfair Display": "EO Serif" });
 function renamePairs(from, to) {
-  const pairs = [[from, to]];
+  const pairs2 = [[from, to]];
   const a = from.replace(/\s+/g, ""), b = to.replace(/\s+/g, "");
-  if (a !== from) pairs.push([a, b]);
-  return pairs;
+  if (a !== from) pairs2.push([a, b]);
+  return pairs2;
 }
-function renameFamily(bytes, pairs) {
+function renameFamily(bytes, pairs2) {
   const dirs = sfntTables(bytes);
   const name = dirs.name;
   if (!name) throw new Error("The font has no name table.");
@@ -5402,7 +5438,7 @@ function renameFamily(bytes, pairs) {
       if (utf16) for (let k = 0; k + 1 < raw.length; k += 2) text += String.fromCharCode(raw[k] << 8 | raw[k + 1]);
       else text = String.fromCharCode(...raw);
       let next = text;
-      for (const [from, to] of pairs) next = next.split(from).join(to);
+      for (const [from, to] of pairs2) next = next.split(from).join(to);
       if (next !== text) {
         changed += 1;
         if (utf16) {
@@ -6438,10 +6474,39 @@ var RULES2 = [
   [/^the opening scene should use the strongest visual/, () => "\uCCAB \uC7A5\uBA74\uC740 \uAE00\uC790 \uCE74\uB4DC\uBCF4\uB2E4 \uAC00\uC7A5 \uB208\uC5D0 \uB744\uB294 \uC0AC\uC9C4\uC774\uB098 \uADF8\uB798\uD53D\uC774 \uC88B\uC544\uC694."],
   [/^assetSummaries is missing a summary|^scenes must cover every sentence|^reply must be an object/, () => REBUILD]
 ];
+var SCRIPT_RULES = [
+  [/^sourceQuote is empty/, () => "\uAE30\uC0AC\uC5D0\uC11C \uADFC\uAC70 \uBB38\uC7A5\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^sourceQuote is not an exact substring/, () => "\uADFC\uAC70 \uBB38\uC7A5\uC774 \uAE30\uC0AC \uC6D0\uBB38\uACFC \uB611\uAC19\uC9C0 \uC54A\uC544\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^number "(.+)" does not appear in the article/, (m) => "\uC22B\uC790 \u201C" + m[1] + "\u201D\uAC00 \uAE30\uC0AC\uC5D0 \uC5C6\uC5B4\uC694. \uAE30\uC0AC\uC5D0 \uB098\uC628 \uC22B\uC790\uC778\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^must end with a formal polite ending/, () => "\u2018~\uB2C8\uB2E4.\u2019\uB098 \u2018~\u3139\uAE4C\uC694?\u2019\uB85C \uB05D\uB098\uB294 \uC874\uB313\uB9D0 \uBB38\uC7A5\uC73C\uB85C \uC368 \uC8FC\uC138\uC694."],
+  [/^(\d+) words is too long for one spoken sentence \(max (\d+)\)/, (m) => m[1] + "\uC5B4\uC808\uC774\uB77C \uD55C \uBC88\uC5D0 \uC77D\uAE30\uC5D4 \uAE38\uC5B4\uC694(\uCD5C\uB300 " + m[2] + "\uC5B4\uC808). \uBB38\uC7A5\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],
+  [/^only (\d+) words/, (m) => m[1] + "\uC5B4\uC808\uBFD0\uC774\uC5D0\uC694."],
+  [/^empty text/, () => "\uBB38\uC7A5\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  [/^is missing/, () => "\uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  [/^is (\d+) chars; keep it within (\d+)/, (m) => m[1] + "\uC790\uC608\uC694. " + m[2] + "\uC790 \uC774\uB0B4\uB85C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^need (\d+)-(\d+) sentences, got (\d+)/, (m) => "\uBB38\uC7A5\uC740 " + m[1] + "~" + m[2] + "\uAC1C\uC5EC\uC57C \uD574\uC694(\uC9C0\uAE08 " + m[3] + "\uAC1C)."],
+  [/^narration is (\d+) chars \(spaces included\); the hard cap is (\d+)/, (m) => "\uB098\uB808\uC774\uC158\uC774 " + m[1] + "\uC790(\uB744\uC5B4\uC4F0\uAE30 \uD3EC\uD568)\uC608\uC694. \uCD5C\uB300 " + m[2] + "\uC790\uB97C \uB118\uC5C8\uC5B4\uC694."],
+  [/^narration is only (\d+) chars; aim for (\d+)-(\d+)/, (m) => "\uB098\uB808\uC774\uC158\uC774 " + m[1] + "\uC790\uB85C \uC9E7\uC544\uC694. " + m[2] + "~" + m[3] + "\uC790\uB85C \uB298\uB824 \uC8FC\uC138\uC694."]
+];
 function issueText(lang, msg) {
   if (!String(lang || "").toLowerCase().startsWith("ko")) return msg;
   let rest = msg, scene = "", type = "", path = "";
-  let m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
+  let m = /^(?:sentence s?(\d+): |headline\.line([12]) )(.*)$/.exec(msg);
+  if (m) {
+    const what = m[1] ? m[1] + "\uBC88 \uBB38\uC7A5: " : "\uC81C\uBAA9 " + m[2] + "\uBC88\uC9F8 \uC904: ";
+    for (const [re, ko] of SCRIPT_RULES) {
+      const r = re.exec(m[3]);
+      if (r) return what + ko(r);
+    }
+    return msg;
+  }
+  if (/^(?:need \d|narration is )/.test(msg)) {
+    for (const [re, ko] of SCRIPT_RULES) {
+      const r = re.exec(msg);
+      if (r) return ko(r);
+    }
+  }
+  m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
   if (m) {
     scene = m[1] + "\uBC88 \uC7A5\uBA74: ";
     rest = m[2];
@@ -6726,7 +6791,7 @@ function NewsMinutePanel({ sdk, context }) {
   });
   const setScriptText = (v) => {
     if (!s.script) return;
-    const sentences = applyScriptText(s.script.sentences, v);
+    const sentences = applyScriptText(s.script.sentences, v, s.article?.body);
     setScriptDraft({ text: v, sentences });
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
@@ -6734,7 +6799,7 @@ function NewsMinutePanel({ sdk, context }) {
   const approve = () => guard(async () => {
     if (chars > HARD_MAX_CHARS) throw new Error(T("tooLongHard", { max: HARD_MAX_CHARS }));
     if (!s.script.sentences.length) throw new Error(T("emptyScript"));
-    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
+    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).map((x) => issueText(lang, x)).join("\n") })) return;
     const projectId = await ensureProject(sdk, env.current, s);
     await update({ ...s, projectId, approved: revisionOf(s.script, s.voiceId) });
     setTts(await readTts(sdk, projectId));
@@ -7130,7 +7195,7 @@ function NewsMinutePanel({ sdk, context }) {
         /* @__PURE__ */ jsxs2(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
           /* @__PURE__ */ jsx2("strong", { children: T("review") }),
           /* @__PURE__ */ jsx2("span", { style: muted2, children: T("reviewHint") }),
-          liveErrors.length ? /* @__PURE__ */ jsx2("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx2("div", { children: "\u2022 " + x }, i)) }) : null,
+          liveErrors.length ? /* @__PURE__ */ jsx2("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx2("div", { children: "\u2022 " + issueText(lang, x) }, i)) }) : null,
           /* @__PURE__ */ jsxs2("label", { children: [
             T("headline1"),
             /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
