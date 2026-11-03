@@ -4850,14 +4850,20 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           ]}
           disabled={busy}
         />
-        {langTemplates.length ? (
+        {job?.plan && t ? <>
+          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={t.id} options={[...templates, ...(templates.some((x: any) => x.id === t.id) ? [] : [t])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) { void selectTemplate(next); setJob(revised({ templateId: id, templateSnapshot: clone(next) })); } }} disabled={busy} />
+          {job.templateSnapshot && tplOf(t.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(t.id)) ? <ui.Stack>
+            <ui.Message tone="muted">{S.savedTemplateNotice}</ui.Message>
+            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(t.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
+          </ui.Stack> : null}
+        </> : langTemplates.length ? (
           <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={tplId} onChange={(id: string) => { const t = tplOf(id); if (t) void selectTemplate(t); }} options={templates.map((x: any) => ({ value:x.id, label:tplLabel(x,lang,S), description:<span style={{display:"block",width:96,margin:"0 auto"}}><CardPreview t={x} card={{role:"cover",headline:STRINGS[cardLangOf(x)].sampleHeadline}} bodyIndex={1} vars={{}} S={S} /></span> }))} disabled={busy} />
         ) : (
           <ui.Message>{S.noTplForLang}</ui.Message>
         )}
         {t && <small>{descOf(t, lang)}</small>}
         {t && <CardPreview t={t} card={{ role: "cover", headline: STRINGS[cardLangOf(t)].sampleHeadline }} bodyIndex={1} vars={{}} S={S} maxWidth={160} />}
-        {mode === "link" ? <ui.Message tone="muted">{S.photoSlotsHint}</ui.Message> : <ui.Segmented
+        {mode !== "link" && <ui.Segmented
           label={S.count}
           value={countMode}
           onChange={setCountMode}
@@ -4923,30 +4929,11 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
 
   let bodyN = 0;
   const reviewT = job ? jobTemplate(job, templates) : null;
-  let articleUrl = "";
-  try {
-    const parsed = new URL(job?.source?.url || job?.plan?.article?.url || "");
-    if (job?.source?.mode === "link" && /^https?:$/.test(parsed.protocol) && !parsed.username && !parsed.password) articleUrl = parsed.href;
-  } catch {}
   const review =
     job?.plan && reviewT ? (
       <ui.Stack gap={16}>
         <ui.Section title={S.review}>
-          {articleUrl && <ui.Stack gap={4}>
-            <small>{S.url}</small>
-            <a href={articleUrl} style={{ overflowWrap: "anywhere" }} aria-disabled={busy} onClick={async (event: any) => {
-              event.preventDefault();
-              if (busy) return;
-              try { await script(`return await selects.editor.browser.open({url:${JSON.stringify(articleUrl)},visible:true});`, "Open the source article"); }
-              catch (e: any) { setError(String(e?.message || e)); }
-            }}>{job.plan.article?.title || articleUrl}</a>
-          </ui.Stack>}
           <ui.TextField label={S.tplName} value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
-          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={reviewT.id} options={[...templates, ...(templates.some((x: any) => x.id === reviewT.id) ? [] : [reviewT])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) setJob(revised({ templateId: id, templateSnapshot: clone(next) })); }} disabled={busy} />
-          {job.templateSnapshot && tplOf(reviewT.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(reviewT.id)) ? <ui.Stack>
-            <ui.Message tone="muted">{S.savedTemplateNotice}</ui.Message>
-            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
-          </ui.Stack> : null}
           <small>{S.reviewHint}</small>
           {job.plan.article?.images?.some((image: any) => image.unavailable) && <ui.Message tone="muted">{S.photoUnavailable}</ui.Message>}
           {job.countMode === "photos" ? <small>{S.fixedPhotoCount(job.count, job.plan.cards.length)}</small> : job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
@@ -4995,9 +4982,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         <ui.Section title={S.exportPng}>
           {job.done && job.export?.files?.length > 0 && <ui.Message tone="success">{S.exportDone(job.export.files.length)}</ui.Message>}
           <ui.Actions>
-            <ui.Menu label={S.moreActions} disabled={busy} items={[
-              { label: S.startOver, onSelect: () => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); } },
-            ]} />
+            <ui.Button variant="ghost" disabled={busy} onClick={() => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); }}>{S.startOver}</ui.Button>
             {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
             <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
           </ui.Actions>
@@ -5027,6 +5012,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     <ui.Stack gap={16}>
       {error && <ui.Message tone="error">{error}</ui.Message>}
       {!working && !error && status && !(job?.done && job.export?.files?.length) && <ui.Message tone="success">{status}</ui.Message>}
+      {form}
       {working ? (
         <ui.Section title={phase === 0 ? S.generate : S.working}>
           <ui.Progress label={status || S.working} busy />
@@ -5039,7 +5025,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           </ui.Button>
         </ui.Stack>
       ) : (
-        review || form
+        review
       )}
     </ui.Stack>
   );

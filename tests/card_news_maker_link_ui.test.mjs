@@ -187,7 +187,7 @@ test('article fallback belongs to its URL and is cleared by Start over before a 
     h.find('Toggle','Add my own photos (optional)').props.onChange(true);await h.find('FileDrop').props.onChange({path:'/photos/fallback.jpg'});
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
     assert.match(prompts[0], /ONLY_OLD_ARTICLE_FACT/);
-    h.menuItem('Start over').onSelect();
+    h.find('Button','Start over').props.onClick();
     assert.equal(h.find('TextField', 'Article text'), undefined);
     h.find('TextField', 'Article link').props.onChange('https://example.test/b');
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
@@ -214,7 +214,7 @@ test('Start over and Saved reopen the newest edited work without requiring a rem
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     const e = h.component('CardEditor'); e.props.onChange({ ...e.props.card, headline: 'Newest edit' }); await h.settle();
-    h.menuItem('Start over').onSelect(); await h.settle();
+    h.find('Button','Start over').props.onClick(); await h.settle();
     h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     assert.equal(h.component('CardEditor').props.card.headline, 'Newest edit');
   } finally { h.close(); }
@@ -239,7 +239,7 @@ test('an older background Saved read cannot replace a newer edit in cache or on 
     await h.find('Button', 'Save images').props.onClick(); await h.settle(); assert.equal(gated, true);
     const editor = h.component('CardEditor'); editor.props.onChange({ ...editor.props.card, headline: 'Newest edit' }); await h.settle();
     release(); await h.settle();
-    h.menuItem('Start over').onSelect(); await h.settle();
+    h.find('Button','Start over').props.onClick(); await h.settle();
     h.find('Select', 'Saved').props.onChange('j'); await h.settle();
     assert.equal(h.component('CardEditor').props.card.headline, 'Newest edit');
     assert.equal(JSON.parse(new TextDecoder().decode(h.disk.get(root + '/jobs/j.json'))).plan.cards[0].headline, 'Newest edit');
@@ -257,7 +257,7 @@ test('progress spins only during a live request, including 503 and Saved restore
     const request = h.find('Button', 'Generate').props.onClick(); await h.settle();
     assert.equal(h.find('Progress').props.steps, undefined);
     assert.equal(h.find('Progress').props.busy, true);
-    assert.equal(h.find('TextField','Article link'),undefined);
+    assert.equal(h.find('TextField','Article link').props.disabled,true);
     reject(Error('HTTP 503')); await request; await h.settle();
     assert.equal(h.find('Progress'), undefined);
     assert.ok(h.find('TextField','Article link'));
@@ -795,7 +795,7 @@ test('article photos prepare before editing, mix with optional local photos and 
     assert.equal(cards[0].picture.path, beforePaths[1]); assert.equal(cards[1].picture.path, beforePaths[0]);
     const jobs = await h.bindings.makeStore().list('jobs'), job = jobs.find(j => j.plan);
     assert.equal(job.timings.aiCalls, 1); assert.equal(job.timings.repairs, 0); assert.ok(job.timings.editableMs >= 0);
-    h.menuItem('Start over').onSelect(); await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    h.find('Button','Start over').props.onClick(); await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
     assert.deepEqual(nodes(h.render()).filter(n => n.type === h.bindings.CardEditor).map(n => n.props.card), cards);
     assert.equal(downloads.length, 3);
   } finally { h.close(); }
@@ -902,10 +902,10 @@ test('generation uses one actual status screen then opens card editing without m
   h.files.downloadFile=async(_,p)=>{await articleGate;h.disk.set(p,new TextEncoder().encode('<meta property="og:type" content="article"><article><p>'+'Verified facts. '.repeat(40)+'</p><img src="https://example.test/a.jpg"><img src="https://example.test/b.jpg"></article>'))};
   try{
     await h.settle();h.find('TextField','Article link').props.onChange('https://example.test/article');const request=h.find('Button','Generate').props.onClick();await h.settle();
-    assert.equal(h.find('Progress').props.label,'Loading the article and photos…');assert.equal(h.find('Progress').props.steps,undefined);assert.equal(h.find('TextField','Article link'),undefined);assert.equal(calls,0);
+    assert.equal(h.find('Progress').props.label,'Loading the article and photos…');assert.equal(h.find('Progress').props.steps,undefined);assert.equal(h.find('TextField','Article link').props.value,'https://example.test/article');assert.equal(h.find('TextField','Article link').props.disabled,true);assert.equal(calls,0);
     releaseArticle();await h.settle();assert.equal(h.find('Progress').props.label,'Writing headlines and body text…');assert.equal(calls,1);
     releaseAI({text:'{"cards":[{"headline":"Cover facts","image":{"source":"none"},"slotIndex":0},{"body":"Body facts","image":{"source":"none"},"slotIndex":1}]}'});await request;await h.settle();
-    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)').props.variant,'secondary');assert.equal(h.menuItem('Add to timeline (optional)'),undefined);assert.ok(h.find('Menu','More actions'));
+    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)').props.variant,'secondary');assert.equal(h.menuItem('Add to timeline (optional)'),undefined);assert.equal(h.find('Menu','More actions'),undefined);assert.ok(h.find('Button','Start over'));
   }finally{releaseArticle?.();releaseAI?.({text:'{}'});h.close()}
 });
 
@@ -1019,31 +1019,24 @@ test('save location and timeline actions follow every edited card and caption wi
 });
 
 
-test('results keep the original article link and title beside the existing template without exposing generation inputs', async () => {
-  const url = 'https://example.test/article?query=%22news%22#photos'; let opened;
-  const job = { id: 'source-summary', projectId: 'p', templateId: 'layout-team', name: 'Edited work name', source: { mode: 'link', url }, plan: { article: { title: 'Original article title' }, cards: [{ role: 'cover', headline: 'Edited headline' }], caption: '' } };
-  const h = harness({ job, sdk: { runScript: async input => {
-    if (input.summary === 'Open the source article') return { result: await new (Object.getPrototypeOf(async () => {}).constructor)('selects', input.script)({ editor: { browser: { open: async value => { opened = value; return { targetId: 'article-tab' }; } } } }) };
-    return { result: [] };
-  } } });
+test('article inputs stay above saved results and editing them never replaces existing cards', async () => {
+  const card = { id: 'fixed-id', role: 'cover', headline: 'Keep edited headline', picture: { kind: 'none' }, crop: { zoom: 1.4 } };
+  const job = { id: 'stable-form', projectId: 'p', templateId: 'layout-team', source: { mode: 'link', url: 'https://example.test/original', ownPhotos: true, photos: [] }, note: 'Original request', plan: { cards: [card], caption: 'Keep caption' } };
+  let ai = 0; const h = harness({ job, sdk: { askAI: async () => { ai++; throw Error('Not requested'); } } });
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
-    const before = h.disk.get(root + '/jobs/' + job.id + '.json'); assert.ok(before);
-    const anchor = nodes(h.render()).find(n => n.type === 'a');
-    assert.equal(anchor.props.href, url); assert.ok(anchor.props.children.includes('Original article title'));
-    assert.equal(h.find('TextField', 'Article link'), undefined);
-    assert.equal(nodes(h.render()).filter(n => n.type === 'TemplateChoice').length, 1);
-    let prevented = false; await anchor.props.onClick({ preventDefault() { prevented = true; } });
-    assert.ok(prevented); assert.equal(JSON.stringify(opened), JSON.stringify({ url, visible: true }));
-    assert.equal(h.disk.get(root + '/jobs/' + job.id + '.json'), before);
+    let tree = nodes(h.render());
+    assert.ok(tree.findIndex(n => n.type === 'TextField' && n.props.label === 'Article link') < tree.findIndex(n => n.type === h.bindings.CardEditor));
+    assert.equal(tree.filter(n => n.type === 'TemplateChoice').length, 1);
+    assert.equal(tree.find(n => n.type === 'a'), undefined);
+    assert.equal(h.find('TextField', 'Article link').props.value, job.source.url);
+    h.find('TextField', 'Article link').props.onChange('https://example.test/next');
+    h.find('TextField', 'Extra instructions (optional)').props.onChange('Next request');
+    h.find('Toggle', 'Add my own photos (optional)').props.onChange(false); await h.settle();
+    assert.deepEqual(plain(h.component('CardEditor').props.card), card);
+    assert.equal(ai, 0); assert.equal(h.find('TextField', 'Article link').props.value, 'https://example.test/next');
+    const saved = (await h.bindings.makeStore().list('jobs')).find(j => j.id === job.id);
+    assert.equal(saved.source.url, job.source.url); assert.equal(saved.note, job.note); assert.deepEqual(plain(saved.plan.cards[0]), card);
+    assert.ok(h.find('Button', 'Generate'));
   } finally { h.close(); }
-});
-
-test('invalid source URLs never become result links and non-article modes keep their current UI', async () => {
-  for (const [mode, url] of [['link', 'javascript:alert(1)'], ['link', 'https://user:secret@example.test/news'], ['link', 'not a URL'], ['text', 'https://example.test/news']]) {
-    const job = { id: 'unsafe-source', projectId: 'p', templateId: 'layout-team', source: { mode, url }, plan: { cards: [{ role: 'cover', headline: 'Safe card' }], caption: '' } };
-    const h = harness({ job });
-    try { await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle(); assert.equal(nodes(h.render()).find(n => n.type === 'a'), undefined); }
-    finally { h.close(); }
-  }
 });
