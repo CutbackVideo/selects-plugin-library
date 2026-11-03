@@ -4938,30 +4938,6 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           {job.countMode === "photos" ? <small>{S.fixedPhotoCount(job.count, job.plan.cards.length)}</small> : job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
           {job.countMode === "photos" && job.plan.article?.images?.length > (job.plan.photoChoices || []).filter((p: any) => p.kind === "article").length && <ui.Message tone="muted">{S.photoBudgetNotice(job.plan.article.images.length, (job.plan.photoChoices || []).filter((p: any) => p.kind === "article").length)}</ui.Message>}
         </ui.Section>
-        <ui.Stack gap={8}>
-          {job.done && job.export?.files?.length > 0 && <ui.Message tone="success">{S.exportDone(job.export.files.length)}</ui.Message>}
-          <ui.Actions>
-            <ui.Menu label={S.moreActions} disabled={busy} items={[
-              job.draftId ? { label: S.open, onSelect: () => { void openDraft(job.draftId); } } : { label: S.build, onSelect: () => { void build(); } },
-              { separator: true },
-              { label: S.startOver, onSelect: () => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); } },
-            ]} />
-            {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
-            <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
-          </ui.Actions>
-          <details>
-            <summary>{S.saveOptions}</summary>
-            <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
-            <ui.Row gap={8}>
-              {job.saveTo && <small style={{ minWidth: 0, overflowWrap: "anywhere" }}>{S.saveFolder}: {job.saveTo.split(/[\\/]/).filter(Boolean).pop()}</small>}
-              <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
-            </ui.Row>
-            {(job.saveTo || job.export?.dir) && <details>
-              <summary>{S.locationInfo}</summary>
-              <small style={{ display: "block", overflowWrap: "anywhere" }}>{job.export?.dir || job.saveTo}</small>
-            </details>}
-          </details>
-        </ui.Stack>
         <ui.Grid minItemWidth={240}>
           {job.plan.cards.map((c: any, i: number) => {
             if (c.role === "body") bodyN++;
@@ -5002,6 +4978,31 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             ))}
           </ui.Grid>
         )}
+        <ui.Section title={S.exportPng}>
+          {job.done && job.export?.files?.length > 0 && <ui.Message tone="success">{S.exportDone(job.export.files.length)}</ui.Message>}
+          <ui.Actions>
+            <ui.Menu label={S.moreActions} disabled={busy} items={[
+              { label: S.startOver, onSelect: () => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); } },
+            ]} />
+            {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
+            <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
+          </ui.Actions>
+          <ui.Actions>
+            <ui.Button variant="secondary" onClick={() => { if (job.draftId) void openDraft(job.draftId); else void build(); }} disabled={busy}>{job.draftId ? S.open : S.build}</ui.Button>
+          </ui.Actions>
+          <details>
+            <summary>{S.saveOptions}</summary>
+            <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
+            <ui.Row gap={8}>
+              {job.saveTo && <small style={{ minWidth: 0, overflowWrap: "anywhere" }}>{S.saveFolder}: {job.saveTo.split(/[\\/]/).filter(Boolean).pop()}</small>}
+              <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
+            </ui.Row>
+            {(job.saveTo || job.export?.dir) && <details>
+              <summary>{S.locationInfo}</summary>
+              <small style={{ display: "block", overflowWrap: "anywhere" }}>{job.export?.dir || job.saveTo}</small>
+            </details>}
+          </details>
+        </ui.Section>
       </ui.Stack>
     ) : null;
 

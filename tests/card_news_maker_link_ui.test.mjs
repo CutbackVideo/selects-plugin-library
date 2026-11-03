@@ -905,14 +905,14 @@ test('generation uses one actual status screen then opens card editing without m
     assert.equal(h.find('Progress').props.label,'Loading the article and photos…');assert.equal(h.find('Progress').props.steps,undefined);assert.equal(h.find('TextField','Article link'),undefined);assert.equal(calls,0);
     releaseArticle();await h.settle();assert.equal(h.find('Progress').props.label,'Writing headlines and body text…');assert.equal(calls,1);
     releaseAI({text:'{"cards":[{"headline":"Cover facts","image":{"source":"none"},"slotIndex":0},{"body":"Body facts","image":{"source":"none"},"slotIndex":1}]}'});await request;await h.settle();
-    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)'),undefined);assert.ok(h.menuItem('Add to timeline (optional)'));assert.ok(h.find('Menu','More actions'));
+    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)').props.variant,'secondary');assert.equal(h.menuItem('Add to timeline (optional)'),undefined);assert.ok(h.find('Menu','More actions'));
   }finally{releaseArticle?.();releaseAI?.({text:'{}'});h.close()}
 });
 
 test('completed saved work shows a concise receipt and folder action with full locations only in collapsed options', async () => {
   const job={id:'receipt',projectId:'p',templateId:'layout-team',draftId:'existing-draft',folder:{done:true},done:true,saveTo:'C:\\Users\\Editor\\Pictures\\Cards',export:{dir:'C:\\Users\\Editor\\Pictures\\Cards\\receipt-output',files:['one.png','two.png']},plan:{cards:[{id:'a',role:'cover',headline:'Keep text',picture:{kind:'none'}}],caption:'Caption'}};
   const queries=[];const h=harness({job,sdk:{runScript:async input=>{queries.push(input.summary);return {result:[]}}}});
-  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const tree=nodes(h.render());assert.equal(h.find('Progress'),undefined);assert.ok(tree.some(n=>n.type==='Message'&&n.props.children.includes('Saved 2 images.')));assert.ok(h.find('Button','Open folder'));assert.ok(h.menuItem('Open timeline'));assert.equal(h.find('Button','Open timeline'),undefined);assert.ok(!tree.some(n=>n.type==='Message'&&n.props.children.some(c=>typeof c==='string'&&c.includes('C:\\Users'))));const details=tree.filter(n=>n.type==='details');assert.ok(details.length>=2);assert.ok(tree.some(n=>n.type==='summary'&&n.props.children.includes('Save options')));assert.ok(details.every(n=>!n.props.open));assert.ok(tree.some(n=>n.type==='small'&&n.props.children.includes('Cards')));assert.equal(queries.filter(q=>q!=='List project videos').length,0)}finally{h.close()}
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const tree=nodes(h.render());assert.equal(h.find('Progress'),undefined);assert.ok(tree.some(n=>n.type==='Message'&&n.props.children.includes('Saved 2 images.')));assert.ok(h.find('Button','Open folder'));assert.equal(h.menuItem('Open timeline'),undefined);assert.equal(h.find('Button','Open timeline').props.variant,'secondary');assert.ok(!tree.some(n=>n.type==='Message'&&n.props.children.some(c=>typeof c==='string'&&c.includes('C:\\Users'))));const details=tree.filter(n=>n.type==='details');assert.ok(details.length>=2);assert.ok(tree.some(n=>n.type==='summary'&&n.props.children.includes('Save options')));assert.ok(details.every(n=>!n.props.open));assert.ok(tree.some(n=>n.type==='small'&&n.props.children.includes('Cards')));assert.equal(queries.filter(q=>q!=='List project videos').length,0)}finally{h.close()}
 });
 
 test('article generation refuses zero photos before AI and keeps the input and photo-add controls', async () => {
@@ -993,4 +993,27 @@ test('a first catalog installation remembers its update link across app reopen',
     h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));await h.settleEditor();
     reopened=harness({layouts:[],disk:h.disk});await reopened.settleEditor();assert.ok(reopened.editorFind('Button','View shared version'));assert.equal(reopened.editorFind('Button','Restore backup'),undefined);
   }finally{reopened?.close();h.close()}
+});
+
+
+test('save location and timeline actions follow every edited card and caption without running on open', async () => {
+  const job = { id: 'bottom-actions', projectId: 'p', templateId: 'layout-team', plan: { cards: [{ role: 'cover', headline: 'Cover' }, { role: 'body', body: 'Body' }], caption: 'Caption', hashtags: '#tag' } };
+  const calls = []; let picks = 0;
+  const h = harness({ job, sdk: { runScript: async input => { calls.push(input.summary); return { result: [] }; } }, dialogs: { pickDirectoryPath: async () => { picks++; return '/chosen/cards'; } } });
+  try {
+    await h.settle();
+    assert.equal(h.find('Button', 'Save images'), undefined);
+    assert.equal(h.find('Button', 'Change folder'), undefined);
+    h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    const tree = nodes(h.render());
+    const footer = tree.find(n => n.type === 'Section' && n.props.title === 'Save images');
+    const footerNodes = nodes(footer);
+    assert.ok(tree.indexOf(footer) > tree.findLastIndex(n => n.type === h.bindings.CardEditor));
+    assert.ok(tree.indexOf(footer) > tree.findIndex(n => n.type === 'TextField' && n.props.label === 'Caption'));
+    assert.ok(footerNodes.some(n => n.type === 'Button' && n.props.children.includes('Save images')));
+    assert.ok(footerNodes.some(n => n.type === 'Button' && n.props.children.includes('Add to timeline (optional)')));
+    assert.equal(picks, 0); assert.equal(calls.filter(c => c !== 'List project videos').length, 0);
+    await h.find('Button', 'Change folder').props.onClick(); await h.settle();
+    assert.equal(picks, 1); assert.ok(nodes(h.render()).some(n => n.type === 'small' && n.props.children.includes('cards')));
+  } finally { h.close(); }
 });
