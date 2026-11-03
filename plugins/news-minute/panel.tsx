@@ -41,7 +41,7 @@ var MESSAGES = {
   checking: ["Checking it against the article\u2026", "\uC6D0\uBB38\uACFC \uB300\uC870\uD558\uACE0 \uC788\uC5B4\uC694\u2026"],
   repairing: ["Fixing problems the check found\u2026", "\uAC80\uC0AC\uC5D0\uC11C \uB098\uC628 \uBB38\uC81C\uB97C \uACE0\uCE58\uACE0 \uC788\uC5B4\uC694\u2026"],
   review: ["Review the script", "\uB300\uBCF8 \uAC80\uD1A0"],
-  reviewHint: ["Each line shows the article passage it comes from. Edit freely; numbers must match the article.", "\uBB38\uC7A5\uB9C8\uB2E4 \uADFC\uAC70\uAC00 \uB41C \uAE30\uC0AC \uC6D0\uBB38\uC744 \uD568\uAED8 \uBCF4\uC5EC \uC918\uC694. \uC790\uC720\uB86D\uAC8C \uACE0\uCE58\uB418 \uC22B\uC790\uB294 \uAE30\uC0AC\uC640 \uAC19\uC544\uC57C \uD574\uC694."],
+  reviewHint: ["Edit the whole script in one box, one sentence per line. Numbers must match the article; each sentence's article passage is listed below.", "\uB300\uBCF8 \uC804\uCCB4\uB97C \uD55C \uCE78\uC5D0\uC11C \uACE0\uCE60 \uC218 \uC788\uC5B4\uC694. \uD55C \uC904\uC5D0 \uD55C \uBB38\uC7A5\uC529 \uC368 \uC8FC\uC138\uC694. \uC22B\uC790\uB294 \uAE30\uC0AC\uC640 \uAC19\uC544\uC57C \uD558\uACE0, \uBB38\uC7A5\uBCC4 \uADFC\uAC70 \uC6D0\uBB38\uC740 \uC544\uB798\uC5D0\uC11C \uBCFC \uC218 \uC788\uC5B4\uC694."],
   headline1: ["Headline line 1", "\uD5E4\uB4DC\uB77C\uC778 1\uC904"],
   headline2: ["Headline line 2 (yellow box)", "\uD5E4\uB4DC\uB77C\uC778 2\uC904(\uB178\uB780 \uBC15\uC2A4)"],
   accent: ["Highlight in line 1 (optional)", "1\uC904 \uAC15\uC870 \uB2E8\uC5B4(\uC120\uD0DD)"],
@@ -56,6 +56,9 @@ var MESSAGES = {
   rewritten: ["Rewritten by the check", "\uAC80\uC0AC\uC5D0\uC11C \uACE0\uCCD0 \uC4F4 \uBB38\uC7A5"],
   length: ["{chars} characters \xB7 about {sec} s", "{chars}\uC790 \xB7 \uC57D {sec}\uCD08"],
   tooLong: ["Over {max} characters: the short will run past a minute.", "{max}\uC790\uB97C \uB118\uC5B4\uC694. 1\uBD84\uC744 \uB118\uAE38 \uC218 \uC788\uC5B4\uC694."],
+  tooLongHard: ["Over {max} characters: too long to make into a video. Shorten the script.", "{max}\uC790\uB97C \uB118\uC5B4 \uC601\uC0C1\uC73C\uB85C \uB9CC\uB4E4 \uC218 \uC5C6\uC5B4\uC694. \uB300\uBCF8\uC744 \uC904\uC5EC \uC8FC\uC138\uC694."],
+  emptyScript: ["The script is empty.", "\uB300\uBCF8\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  sources: ["Article passage for each sentence ({n})", "\uBB38\uC7A5\uBCC4 \uADFC\uAC70 \uC6D0\uBB38 ({n})"],
   approve: ["Approve script", "\uB300\uBCF8 \uC2B9\uC778"],
   approved: ["Approved", "\uC2B9\uC778\uB428"],
   edit: ["Edit again", "\uB2E4\uC2DC \uACE0\uCE58\uAE30"],
@@ -427,7 +430,7 @@ function decodeHtml(bytes) {
 // src/pipeline/scripts.ts
 var J = (v) => JSON.stringify(v);
 var PLATE_FPS = "30000/1001";
-var PLATE_MAX_SECONDS = 90;
+var PLATE_MAX_SECONDS = 180;
 var READ_CHUNK = 49152;
 var envScript = () => ({
   summary: "Read the plug-in data folder",
@@ -691,6 +694,33 @@ async function readFileBase64(sdk, path, maxBytes) {
   let s = "";
   for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
   return btoa(s);
+}
+
+// src/pipeline/script-text.ts
+var scriptBody = (sentences) => sentences.map((s) => s.text.trim()).join("\n");
+function splitScript(text) {
+  return String(text ?? "").split(/\r?\n/).flatMap((line) => line.split(/(?<=[.?!])\s+/)).map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+var core = (s) => s.trim().replace(/[.?!]+$/, "");
+var idNumber = (id) => /^s(\d+)$/.exec(id) ? Number(/^s(\d+)$/.exec(id)[1]) : 0;
+function applyScriptText(prev, text) {
+  const texts = splitScript(text);
+  if (texts.length === prev.length) {
+    return texts.map((t2, i) => t2 === prev[i].text.trim() ? prev[i] : { ...prev[i], text: t2, edited: true });
+  }
+  const used = /* @__PURE__ */ new Set();
+  const kept = texts.map((t2) => {
+    const same = prev.findIndex((l, i) => !used.has(i) && l.text.trim() === t2);
+    if (same >= 0) used.add(same);
+    return same;
+  });
+  const contains = (l, t2) => !!core(l.text) && !!core(t2) && (l.text.includes(core(t2)) || t2.includes(core(l.text)));
+  let next = prev.reduce((m, l) => Math.max(m, idNumber(l.id)), 0) + 1;
+  return texts.map((t2, k) => {
+    if (kept[k] >= 0) return prev[kept[k]];
+    const near = prev.find((l, i) => !used.has(i) && contains(l, t2)) ?? prev.find((l) => contains(l, t2));
+    return { id: "s" + next++, text: t2, sourceQuote: near?.sourceQuote ?? "", issues: [], rewritten: false, edited: true };
+  });
 }
 
 // src/VoicePicker.tsx
@@ -6436,6 +6466,7 @@ var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, pad
 var muted2 = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
 var MAX_CHARS = TARGET_CHARS.max;
+var HARD_MAX_CHARS = Math.floor((PLATE_MAX_SECONDS - 10) * TTS_CHARS_PER_SEC);
 var warn = { color: "#d9822b", fontSize: 12 };
 var field3 = { ...muted2, display: "flex", flexDirection: "column", gap: 2 };
 var thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
@@ -6489,6 +6520,7 @@ function NewsMinutePanel({ sdk, context }) {
   const [narrationRecovery, setNarrationRecovery] = useState2(false);
   const [status, setStatus] = useState2("");
   const [lines, setLines] = useState2([]);
+  const [scriptDraft, setScriptDraft] = useState2(null);
   const [error, setError] = useState2("");
   const [providers, setProviders] = useState2(null);
   const [providerError, setProviderError] = useState2("");
@@ -6693,14 +6725,16 @@ function NewsMinutePanel({ sdk, context }) {
     }
     await update({ ...selected, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
   });
-  const setLine = (i, v) => {
+  const setScriptText = (v) => {
     if (!s.script) return;
-    const sentences = s.script.sentences.map((x, k) => k === i ? { ...x, text: v, edited: true } : x);
+    const sentences = applyScriptText(s.script.sentences, v);
+    setScriptDraft({ text: v, sentences });
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
   const setHead = (k, v) => s.script && update({ ...s, script: { ...s.script, headline: { ...s.script.headline, [k]: v } }, approved: null });
   const approve = () => guard(async () => {
-    if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
+    if (chars > HARD_MAX_CHARS) throw new Error(T("tooLongHard", { max: HARD_MAX_CHARS }));
+    if (!s.script.sentences.length) throw new Error(T("emptyScript"));
     if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
     const projectId = await ensureProject(sdk, env.current, s);
     await update({ ...s, projectId, approved: revisionOf(s.script, s.voiceId) });
@@ -7110,27 +7144,41 @@ function NewsMinutePanel({ sdk, context }) {
             T("accent"),
             /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
           ] }),
-          sc.sentences.map((x, i) => /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-            /* @__PURE__ */ jsx2("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
-            /* @__PURE__ */ jsxs2("span", { style: muted2, children: [
-              T("source"),
-              ": ",
-              x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
-            ] }),
-            x.rewritten ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#4a90d9" }, children: T("rewritten") }) : null,
-            x.edited ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#d9822b" }, children: T("editedCheck") }) : null,
-            x.issues.length ? /* @__PURE__ */ jsxs2("span", { style: { ...muted2, color: "#d9822b" }, children: [
-              T("issues"),
-              ": ",
-              x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
-            ] }) : null
-          ] }, x.id)),
+          /* @__PURE__ */ jsx2(
+            "textarea",
+            {
+              style: input,
+              rows: Math.max(6, sc.sentences.reduce((n, x) => n + Math.ceil(([...x.text].length + 1) / 22), 0)),
+              value: scriptDraft && scriptDraft.sentences === sc.sentences ? scriptDraft.text : scriptBody(sc.sentences),
+              disabled: busy || approved,
+              onChange: (e) => setScriptText(e.target.value)
+            }
+          ),
+          /* @__PURE__ */ jsxs2("details", { open: sc.sentences.some((x) => x.edited || x.issues.length), children: [
+            /* @__PURE__ */ jsx2("summary", { style: muted2, children: T("sources", { n: sc.sentences.length }) }),
+            /* @__PURE__ */ jsx2("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }, children: sc.sentences.map((x, i) => /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+              /* @__PURE__ */ jsxs2("span", { style: muted2, children: [
+                i + 1,
+                ". ",
+                T("source"),
+                ": ",
+                x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
+              ] }),
+              x.rewritten ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#4a90d9" }, children: T("rewritten") }) : null,
+              x.edited ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#d9822b" }, children: T("editedCheck") }) : null,
+              x.issues.length ? /* @__PURE__ */ jsxs2("span", { style: { ...muted2, color: "#d9822b" }, children: [
+                T("issues"),
+                ": ",
+                x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
+              ] }) : null
+            ] }, x.id)) })
+          ] }),
           /* @__PURE__ */ jsx2("span", { style: muted2, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
-          chars > MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
+          chars > MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: chars > HARD_MAX_CHARS ? T("tooLongHard", { max: HARD_MAX_CHARS }) : T("tooLong", { max: MAX_CHARS }) }) : null,
           approved ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
             /* @__PURE__ */ jsx2("span", { style: { whiteSpace: "nowrap", flex: "none" }, children: "\u2713 " + T("approved") }),
             /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
-          ] }) : /* @__PURE__ */ jsx2("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
+          ] }) : /* @__PURE__ */ jsx2("button", { disabled: busy || chars > HARD_MAX_CHARS || !sc.sentences.length, onClick: approve, children: T("approve") })
         ] })
       ),
       approved && next ? /* @__PURE__ */ jsxs2(Step, { done: !!plan && next.kind === "ready" && !narrationRecovery, summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [

@@ -5,7 +5,7 @@ export type ScriptCall = { summary: string; script: string; allowCommit?: boolea
 const J = (v: unknown) => JSON.stringify(v);
 
 export const PLATE_FPS = "30000/1001";
-export const PLATE_MAX_SECONDS = 90;
+export const PLATE_MAX_SECONDS = 180;
 export const READ_CHUNK = 49152;
 
 export const envScript = (): ScriptCall => ({
