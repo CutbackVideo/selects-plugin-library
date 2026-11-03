@@ -886,11 +886,12 @@ async function createPanelLocalClient(sdk) {
     );
   });
   const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, transcode) => {
     if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    const startSource = transcode ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); return await (typeof transcode === 'function' ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");" : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started;
     const starting = runSource(startSource, true);
@@ -987,6 +988,7 @@ async function createPanelLocalClient(sdk) {
     environment,
     media: {
       runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request, fallbackArgs, quiet, signal) => process("FFmpeg", fallbackArgs, quiet, signal, void 0, void 0, request),
       runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
     },
     dialogs: {
