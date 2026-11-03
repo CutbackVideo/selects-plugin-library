@@ -1017,3 +1017,33 @@ test('save location and timeline actions follow every edited card and caption wi
     assert.equal(picks, 1); assert.ok(nodes(h.render()).some(n => n.type === 'small' && n.props.children.includes('cards')));
   } finally { h.close(); }
 });
+
+
+test('results keep the original article link and title beside the existing template without exposing generation inputs', async () => {
+  const url = 'https://example.test/article?query=%22news%22#photos'; let opened;
+  const job = { id: 'source-summary', projectId: 'p', templateId: 'layout-team', name: 'Edited work name', source: { mode: 'link', url }, plan: { article: { title: 'Original article title' }, cards: [{ role: 'cover', headline: 'Edited headline' }], caption: '' } };
+  const h = harness({ job, sdk: { runScript: async input => {
+    if (input.summary === 'Open the source article') return { result: await new (Object.getPrototypeOf(async () => {}).constructor)('selects', input.script)({ editor: { browser: { open: async value => { opened = value; return { targetId: 'article-tab' }; } } } }) };
+    return { result: [] };
+  } } });
+  try {
+    await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    const before = h.disk.get(root + '/jobs/' + job.id + '.json'); assert.ok(before);
+    const anchor = nodes(h.render()).find(n => n.type === 'a');
+    assert.equal(anchor.props.href, url); assert.ok(anchor.props.children.includes('Original article title'));
+    assert.equal(h.find('TextField', 'Article link'), undefined);
+    assert.equal(nodes(h.render()).filter(n => n.type === 'TemplateChoice').length, 1);
+    let prevented = false; await anchor.props.onClick({ preventDefault() { prevented = true; } });
+    assert.ok(prevented); assert.equal(JSON.stringify(opened), JSON.stringify({ url, visible: true }));
+    assert.equal(h.disk.get(root + '/jobs/' + job.id + '.json'), before);
+  } finally { h.close(); }
+});
+
+test('invalid source URLs never become result links and non-article modes keep their current UI', async () => {
+  for (const [mode, url] of [['link', 'javascript:alert(1)'], ['link', 'https://user:secret@example.test/news'], ['link', 'not a URL'], ['text', 'https://example.test/news']]) {
+    const job = { id: 'unsafe-source', projectId: 'p', templateId: 'layout-team', source: { mode, url }, plan: { cards: [{ role: 'cover', headline: 'Safe card' }], caption: '' } };
+    const h = harness({ job });
+    try { await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle(); assert.equal(nodes(h.render()).find(n => n.type === 'a'), undefined); }
+    finally { h.close(); }
+  }
+});

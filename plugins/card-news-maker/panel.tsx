@@ -4923,10 +4923,24 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
 
   let bodyN = 0;
   const reviewT = job ? jobTemplate(job, templates) : null;
+  let articleUrl = "";
+  try {
+    const parsed = new URL(job?.source?.url || job?.plan?.article?.url || "");
+    if (job?.source?.mode === "link" && /^https?:$/.test(parsed.protocol) && !parsed.username && !parsed.password) articleUrl = parsed.href;
+  } catch {}
   const review =
     job?.plan && reviewT ? (
       <ui.Stack gap={16}>
         <ui.Section title={S.review}>
+          {articleUrl && <ui.Stack gap={4}>
+            <small>{S.url}</small>
+            <a href={articleUrl} style={{ overflowWrap: "anywhere" }} aria-disabled={busy} onClick={async (event: any) => {
+              event.preventDefault();
+              if (busy) return;
+              try { await script(`return await selects.editor.browser.open({url:${JSON.stringify(articleUrl)},visible:true});`, "Open the source article"); }
+              catch (e: any) { setError(String(e?.message || e)); }
+            }}>{job.plan.article?.title || articleUrl}</a>
+          </ui.Stack>}
           <ui.TextField label={S.tplName} value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
           <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={reviewT.id} options={[...templates, ...(templates.some((x: any) => x.id === reviewT.id) ? [] : [reviewT])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) setJob(revised({ templateId: id, templateSnapshot: clone(next) })); }} disabled={busy} />
           {job.templateSnapshot && tplOf(reviewT.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(reviewT.id)) ? <ui.Stack>
