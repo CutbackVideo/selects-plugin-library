@@ -4639,19 +4639,20 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     return await createImageBitmap(new Blob([bytes], { type: m[1] }));
   }
 
-  async function finishCard(still: HTMLImageElement, t: any, card: any, pic: any): Promise<Uint8Array> {
+  async function finishCard(still: HTMLImageElement, t: any, card: any, pic: any, jpeg = false): Promise<Uint8Array | null> {
     const c = document.createElement("canvas");
     const { width: W, height: H } = templateSize(t);
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 1;
+    const pg = probe.getContext("2d")!;
+    pg.drawImage(still, 2, 2, 1, 1, 0, 0, 1, 1);
+    const corner = pg.getImageData(0, 0, 1, 1).data[3];
+    const needsPhoto = corner < 250 && pic?.path && store.fs;
+    if (!jpeg && !needsPhoto && still.naturalWidth === W && still.naturalHeight === H) return null;
     c.width = W;
     c.height = H;
     const g = c.getContext("2d")!;
-    const probe = document.createElement("canvas");
-    probe.width = still.naturalWidth;
-    probe.height = still.naturalHeight;
-    const pg = probe.getContext("2d")!;
-    pg.drawImage(still, 0, 0);
-    const corner = pg.getImageData(2, 2, 1, 1).data[3];
-    if (corner < 250 && pic?.path && store.fs) {
+    if (needsPhoto) {
       const img = new Image();
       try {
         img.crossOrigin = "anonymous";
@@ -4671,7 +4672,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       } finally { img.src = ""; }
     }
     g.drawImage(still, 0, 0, W, H);
-    const blob: Blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("png"))), "image/png"));
+    const blob: Blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("The card could not be encoded."))), jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
     return new Uint8Array(await blob.arrayBuffer());
   }
 
@@ -4702,29 +4703,40 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       await store.ensure(dir);
       j = await saveJob({ ...j, export: { dir, files: [] }, done: false });
       const files: string[] = [];
-      for (let i = 0; i < info.cards.length; i++) {
-        setStatus(S.rendering(i + 1, info.cards.length));
+      let completed = 0;
+      setStatus(S.rendering(completed, info.cards.length));
+      const renderCard = async (i: number) => {
         const frame = Math.floor((info.cards[i][1] + info.cards[i][2]) / 2);
         const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
         await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: j.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
         const still = new Image();
         const card = j.plan.cards[i] || { role: "body" };
         const pic = j.pictures?.[i];
-        let png: Uint8Array;
+        let png: Uint8Array | null;
         try {
           still.crossOrigin = "anonymous";
           still.src = await photoUrl(store.fs, rawPath);
           await still.decode();
-          png = await finishCard(still, t || BUILTIN_TEMPLATES[0], card, pic);
+          png = await finishCard(still, t || BUILTIN_TEMPLATES[0], card, pic, j.format === "jpeg");
         } finally {
           still.src = "";
         }
-        await store.fs.removeFile({ filePath: rawPath });
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.${j.format === "jpeg" ? "jpg" : "png"}`);
-        await store.fs.writeFile(out, j.format === "jpeg" ? await CardSupport.pngToJpeg(png) : png);
-        files.push(out);
+        if (png === null) await store.fs.rename(rawPath, out);
+        else {
+          await store.fs.writeFile(out, png);
+          await store.fs.removeFile({ filePath: rawPath });
+        }
+        setStatus(S.rendering(++completed, info.cards.length));
+        return out;
+      };
+      for (let offset = 0; offset < info.cards.length; offset += 2) {
+        const results = await Promise.allSettled(info.cards.slice(offset, offset + 2).map((_: any, index: number) => renderCard(offset + index)));
+        for (const result of results) if (result.status === "fulfilled") files.push(result.value);
         j = await saveJob({ ...j, export: { dir, files: [...files] }, done: false });
         setExported([...files]);
+        const failure = results.find(result => result.status === "rejected");
+        if (failure?.status === "rejected") throw failure.reason;
       }
       const caption = [j.plan.caption, j.plan.hashtags].filter(Boolean).join("\n\n");
       await store.fs.writeFile(store.join(dir, "caption.txt"), enc(caption));
@@ -4986,9 +4998,9 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
             <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
           </ui.Actions>
-          <ui.Actions>
-            <ui.Button variant="secondary" onClick={() => { if (job.draftId) void openDraft(job.draftId); else void build(); }} disabled={busy}>{job.draftId ? S.open : S.build}</ui.Button>
-          </ui.Actions>
+          {!job.draftId && <ui.Actions>
+            <ui.Button variant="secondary" onClick={() => void build()} disabled={busy}>{S.build}</ui.Button>
+          </ui.Actions>}
           <details>
             <summary>{S.saveOptions}</summary>
             <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
