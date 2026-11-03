@@ -3486,7 +3486,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
             <ui.Select label={S.picture} value={value} onChange={choose} options={options} disabled={busy} />
             {img.kind === "generate" && <ui.TextField label={S.prompt} value={img.prompt || ""} onChange={(v: string) => onChange({ ...card, picture: { ...img, prompt: v } })} multiline disabled={busy} />}
           </details>}
-          <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />
+          {t.importedLayoutId !== "chosun-basic" && <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />}
         </ui.Stack>
       )}
     </ui.Section>
