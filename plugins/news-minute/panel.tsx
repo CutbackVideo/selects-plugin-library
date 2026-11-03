@@ -746,15 +746,21 @@ var core = (s) => s.trim().replace(/[.?!]+$/, "");
 var idNumber = (id) => /^s(\d+)$/.exec(id) ? Number(/^s(\d+)$/.exec(id)[1]) : 0;
 function applyScriptText(prev, text, body = "") {
   const texts = splitScript(text);
-  if (texts.length === prev.length) {
-    return texts.map((t2, i) => t2 === prev[i].text.trim() ? prev[i] : { ...prev[i], text: t2, edited: true, ...refind(prev[i], t2, body) });
-  }
   const used = /* @__PURE__ */ new Set();
   const kept = texts.map((t2) => {
     const same = prev.findIndex((l, i) => !used.has(i) && l.text.trim() === t2);
     if (same >= 0) used.add(same);
     return same;
   });
+  if (texts.length === prev.length) {
+    const free = prev.map((_, i) => i).filter((i) => !used.has(i));
+    let f = 0;
+    return texts.map((t2, k) => {
+      if (kept[k] >= 0) return prev[kept[k]];
+      const l = prev[free[f++]];
+      return { ...l, text: t2, edited: true, ...refind(l, t2, body) };
+    });
+  }
   const contains = (l, t2) => !!core(l.text) && !!core(t2) && (l.text.includes(core(t2)) || t2.includes(core(l.text)));
   let next = prev.reduce((m, l) => Math.max(m, idNumber(l.id)), 0) + 1;
   return texts.map((t2, k) => {

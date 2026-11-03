@@ -83,3 +83,13 @@ test('a fragment typed after Korean sentences does not keep the passage it borro
   for (const t of ['\uC624\uB298', '\uC624\uB298 \uB0A0\uC528\uB294', '\uC624\uB298 \uB0A0\uC528\uB294 \uB9D1\uACE0 \uAE30\uC628\uC774 \uB192\uACA0\uC2B5\uB2C8\uB2E4.']) other = applyScriptText(other, scriptBody(ko) + '\n' + t, article);
   assert.equal(other[2].sourceQuote, '');
 });
+
+test('reordering sentences moves each id, source passage and flags with its sentence', () => {
+  const two = [line('s1', '\uC11C\uC6B8 \uC6D4\uC138\uAC00 \uD06C\uAC8C \uC62C\uB790\uC2B5\uB2C8\uB2E4.', '\uC11C\uC6B8 \uC6D4\uC138\uAC00 164\uB9CC1000\uC6D0\uC73C\uB85C \uC62C\uB790\uB2E4.'), {...line('s2', '\uBD80\uC0B0 \uC9D1\uAC12\uC774 \uD06C\uAC8C \uB0B4\uB838\uC2B5\uB2C8\uB2E4.', 'qs2'), issues: [{kind: 'number', note: 'n'}], rewritten: true}];
+  const out = applyScriptText(two, '\uBD80\uC0B0 \uC9D1\uAC12\uC774 \uD06C\uAC8C \uB0B4\uB838\uC2B5\uB2C8\uB2E4.\n\uC11C\uC6B8 \uC6D4\uC138\uAC00 \uD06C\uAC8C \uC62C\uB790\uC2B5\uB2C8\uB2E4.', article);
+  assert.equal(out[0], two[1]);
+  assert.equal(out[1], two[0]);
+  // a moved sentence and an edited one: the edited one takes the entry left over
+  const mixed = applyScriptText(prev, 'Third fact holds.\nFirst fact changed.\nSecond fact holds.');
+  assert.deepEqual(mixed.map((x) => [x.id, x.sourceQuote, !!x.edited]), [['s3', 'qs3', false], ['s1', 'qs1', true], ['s2', 'qs2', false]]);
+});

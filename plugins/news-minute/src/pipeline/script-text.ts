@@ -20,23 +20,30 @@ export function splitScript(text: string): string[] {
 const core = (s: string) => s.trim().replace(/[.?!]+$/, "");
 const idNumber = (id: string) => (/^s(\d+)$/.exec(id) ? Number(/^s(\d+)$/.exec(id)![1]) : 0);
 
-// The sentences after an edit of the whole text. With the same sentence count each line keeps its position
-// (id, source passage and flags); a changed line is marked edited. When sentences were added, removed, split
-// or merged, unchanged sentences keep their entry, a new sentence borrows the source passage of an old
-// sentence it contains or is contained in, and gets a fresh id.
+// The sentences after an edit of the whole text. An unchanged sentence keeps its entry (id, source passage and
+// flags) wherever it moved. With the same sentence count, the changed sentences take the remaining entries in
+// order and are marked edited. When sentences were added, removed, split or merged, a new sentence borrows the
+// source passage of an old sentence it contains or is contained in, and gets a fresh id.
 // `body` (the article body) lets a sentence with no source passage of its own find one (see refind).
 export function applyScriptText(prev: Line[], text: string, body = ""): Line[] {
   const texts = splitScript(text);
-  if (texts.length === prev.length) {
-    return texts.map((t, i) => (t === prev[i].text.trim() ? prev[i] : { ...prev[i], text: t, edited: true, ...refind(prev[i], t, body) }));
-  }
-  // Unchanged sentences first, so a fragment of an edited sentence is matched against the edited ones.
+  // Unchanged sentences first, so a moved sentence keeps its own source and a fragment of an edited sentence
+  // is matched against the edited ones.
   const used = new Set<number>();
   const kept = texts.map((t) => {
     const same = prev.findIndex((l, i) => !used.has(i) && l.text.trim() === t);
     if (same >= 0) used.add(same);
     return same;
   });
+  if (texts.length === prev.length) {
+    const free = prev.map((_, i) => i).filter((i) => !used.has(i));
+    let f = 0;
+    return texts.map((t, k) => {
+      if (kept[k] >= 0) return prev[kept[k]];
+      const l = prev[free[f++]];
+      return { ...l, text: t, edited: true, ...refind(l, t, body) };
+    });
+  }
   const contains = (l: Line, t: string) => !!core(l.text) && !!core(t) && (l.text.includes(core(t)) || t.includes(core(l.text)));
   let next = prev.reduce((m, l) => Math.max(m, idNumber(l.id)), 0) + 1;
   return texts.map((t, k) => {
