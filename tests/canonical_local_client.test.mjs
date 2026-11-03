@@ -57,7 +57,7 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
       return {state:job.state,events,nextCursor:events.at(-1)?.cursor??cursor,truncated:false};
     },
   };
-  return {sdk,files,calls,jobs,fileCalls,fileService};
+  return {sdk,files,calls,jobs,fileCalls,fileService,selects};
 }
 
 // Match the host's pre-execution check, which JavaScript-only tests cannot catch.
@@ -426,4 +426,42 @@ test('panel source observations use one host fingerprint call per file',async()=
  assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,0);
  h.files.set('/observed-original',Buffer.alloc(bytes.length,24));
  await assert.rejects(observeSourceFiles(client.files,['/observed-original'],rows),error=>error.code==='source-file-changed');
+});
+
+// Plugins and clients ship independently: only an absent interface may select the
+// old executable path; failed/uncertain starts must never dispatch a second job.
+test('video transcode chooses the new API or the legacy job before dispatch',async()=>{
+ for(const available of [false,true]){
+  const h=host(),calls=[];
+  const request={sourcePath:'/input.mp4',outputPath:'/output.mp4',width:1920,height:1080,frameRate:60,frameCount:853,bitrate:10000000};
+  const legacy=h.selects.media.startFFmpeg;
+  h.selects.media.startFFmpeg=async value=>{calls.push(['legacy',value]);return legacy();};
+  if(available)h.selects.media.startVideoTranscode=async value=>{calls.push(['transcode',value]);return legacy();};
+  const client=await load().createPanelLocalClient(h.sdk);
+  await client.media.runVideoTranscode(request,['-version'],true);
+  assert.deepEqual(calls,[[available?'transcode':'legacy',available?request:{args:['-version']}]]);
+  client.dispose();
+ }
+});
+test('an operational transcode start failure never falls back to another job',async()=>{
+ const h=host();let fallback=0;
+ h.selects.media.startFFmpeg=async()=>{fallback++;throw Error('unexpected fallback');};
+ h.selects.media.startVideoTranscode=async()=>{throw Error('storage unavailable');};
+ const client=await load().createPanelLocalClient(h.sdk);
+ await assert.rejects(client.media.runVideoTranscode({},['-version'],true),error=>error.preserveTemporaryFiles===true);
+ assert.equal(fallback,0);client.dispose();
+});
+
+test('the optional transcode dispatch typechecks against an older media SDK', {skip:!typescript},async()=>{
+ const h=host(),client=await load().createPanelLocalClient(h.sdk);
+ await client.media.runVideoTranscode({sourcePath:'/in',outputPath:'/out'},['-version'],true);
+ const script=h.calls.find(call=>call.script.includes("Reflect.get(selects.media, 'startVideoTranscode')")).script;
+ const directory=fs.mkdtempSync(path.join(tmpdir(),'transcode-legacy-types-'));
+ try{
+  const file=path.join(directory,'script.ts');
+  fs.writeFileSync(file,'declare const selects: {media: {startFFmpeg(input: {args: string[]}): Promise<{jobId: string}>}};\nasync function run(){'+script+'}');
+  const program=typescript.createProgram([file],{noEmit:true,strict:true,skipLibCheck:true,types:[],target:typescript.ScriptTarget.ES2022});
+  const diagnostics=typescript.getPreEmitDiagnostics(program);
+  assert.equal(diagnostics.length,0,typescript.formatDiagnostics(diagnostics,{getCanonicalFileName:file=>file,getCurrentDirectory:()=>directory,getNewLine:()=> '\n'}));
+ }finally{client.dispose();fs.rmSync(directory,{recursive:true,force:true});}
 });

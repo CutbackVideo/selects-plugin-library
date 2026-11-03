@@ -65,7 +65,7 @@ async function hostRoots(sdk, id, marker) {
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
-const HOLD_ALGORITHM = 'photo-gallery-hold-v4-sampled-frozen-max1920-h264-crf18';
+const HOLD_ALGORITHM = 'photo-gallery-hold-v5-sampled-frozen-max1920-h264-webcodecs10m-crf18';
 function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed',publicMessage:message }); }
 // Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
 function holdPathKey(path) {
@@ -135,12 +135,17 @@ async function holdKey(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function holdEncode(source, target, frames, options = {}) {
+async function holdEncode(source, target, frames, options = {}, dimensions) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
   // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
   // Scale each decoded source frame once, before fps/tpad duplicate it.
   const filters = scale + ',fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6);
+  if (dimensions && typeof options.client?.media?.runVideoTranscode === 'function') {
+    const media = options.client.media;
+    const request = { sourcePath: source, outputPath: target, width: dimensions[0], height: dimensions[1], frameRate: HOLD_FPS, frameCount: frames, bitrate: 10000000 };
+    options = { ...options, client: { ...options.client, media: { ...media, runFFmpeg: (args, quiet, signal) => media.runVideoTranscode(request, args, quiet, signal) } } };
+  }
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
@@ -151,7 +156,7 @@ async function holdConvertOne(source, identity, sourceDimensions, frames, cacheR
   const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.scheme,identity.digest,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
   const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,
-    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,'first-frame',options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
+    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,'first-frame',options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options,dimensions);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
 }
@@ -1686,13 +1691,17 @@ async function createPanelLocalClient(sdk: any) {
       cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, transcode?: Record<string, unknown>) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
       onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    // Detect an absent interface before dispatch. Never retry an uncertain or failed job.
+    const startSource = transcode
+      ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); return await (typeof transcode === 'function' ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");"
+      : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;
     const starting = runSource(startSource, true);
@@ -1777,6 +1786,7 @@ async function createPanelLocalClient(sdk: any) {
     environment,
     media: {
       runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request: Record<string, unknown>, fallbackArgs: string[], quiet?: boolean, signal?: AbortSignal) => process("FFmpeg", fallbackArgs, quiet, signal, undefined, undefined, request),
       runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
     },
     dialogs: {

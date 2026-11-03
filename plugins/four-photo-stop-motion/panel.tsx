@@ -2839,13 +2839,17 @@ async function createPanelLocalClient(sdk: any) {
       cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, transcode?: Record<string, unknown>) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
       onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    // Detect an absent interface before dispatch. Never retry an uncertain or failed job.
+    const startSource = transcode
+      ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); return await (typeof transcode === 'function' ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");"
+      : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;
     const starting = runSource(startSource, true);
@@ -2930,6 +2934,7 @@ async function createPanelLocalClient(sdk: any) {
     environment,
     media: {
       runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request: Record<string, unknown>, fallbackArgs: string[], quiet?: boolean, signal?: AbortSignal) => process("FFmpeg", fallbackArgs, quiet, signal, undefined, undefined, request),
       runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
     },
     dialogs: {

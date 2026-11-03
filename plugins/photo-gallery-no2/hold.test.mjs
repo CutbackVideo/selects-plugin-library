@@ -202,3 +202,19 @@ test('scaling before duplication preserves the decoded 4K-source result', { skip
   const frameHashes = file => execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'framemd5', '-'], { encoding: 'utf8' });
   assert.equal(frameHashes(result.videos[0].outputPath), frameHashes(baseline));
 });
+
+test('the hold producer passes an explicit video-only transcode request when available', { skip: !tools && 'ffmpeg/ffprobe required' }, async t => {
+  const dir=scratch();t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const source=path.join(dir,'source.mp4');sourceVideo(source);
+  const di=host(),client=asyncSdk(di),requests=[];
+  client.media.runVideoTranscode=async(request,args,quiet,signal)=>{
+    requests.push(request);
+    return di.Runtime.runFFmpeg(args,quiet,signal);
+  };
+  await load(di).holdVideos({videos:[{path:source}],durationFrames:18},path.join(dir,'data'),{client});
+  assert.equal(requests.length,1);
+  const {sourcePath,outputPath,...format}=requests[0];
+  assert.notEqual(sourcePath,source,'encode the verified snapshot, not a mutable source');
+  assert.notEqual(sourcePath,outputPath);
+  assert.deepEqual(JSON.parse(JSON.stringify(format)),{width:128,height:96,frameRate:60,frameCount:18,bitrate:10000000});
+});
