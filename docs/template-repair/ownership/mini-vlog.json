@@ -223,24 +223,26 @@
       "id": "local-sdk",
       "decision": "reuse",
       "owner": "local-client",
-      "reason": "The complete async file/media bridge already has one canonical source; its embedded functions are managed compatibility delivery, not new module candidates.",
+      "reason": "This template retains its existing embedded snapshot of the shared async file/media client. It is not migrated with the transcode consumers and is not asserted to match the current canonical source.",
       "contract": {
         "input": "Bound SDK runScript/call, host-native file paths, bounded file chunks/media argv and AbortSignal.",
         "output": "Typed file facts, content fingerprints, native media output or structured transport/lifetime errors.",
         "identity": "Captured client, exact job id and exact source/output paths; cancellation acknowledgement is not exit.",
-        "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets.",
+        "dependencies": "The retained local-sdk snapshot in plugins/mini-vlog/panel.tsx, SDK environment, file/media primitives and fixed protocol budgets. shared/local-client.ts remains the shared implementation reference, not the exact source of this retained snapshot.",
         "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
         "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
         "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
         "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
         "retry": "No media start replay; late identity can cancel that original job once.",
-        "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
-        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+        "distribution": "Retained embedded local-sdk snapshot, excluded from the current automatic synchronization scope. tests/template_module_pipeline.test.mjs verifies that template generation leaves this panel unchanged; synchronization checks for migrated consumers do not establish equality with this snapshot.",
+        "validation": "Template-specific tests exercise the retained panel. The pipeline regression verifies preservation of its bytes during generation. Canonical client and shared media-settlement tests validate their selected implementations, not the complete retained snapshot; installed whole-template acceptance remains separate."
       },
       "evidence": [
         "shared/local-client.ts",
         "tests/canonical_local_client.test.mjs",
-        "tests/local_media_settlement.test.mjs"
+        "tests/local_media_settlement.test.mjs",
+        "plugins/mini-vlog/panel.tsx",
+        "tests/template_module_pipeline.test.mjs"
       ],
       "implementation": "existing"
     },
