@@ -13,7 +13,7 @@ export function canonicalPhotoPanel(source){
  return source.replace(/\/\/ native-image-authoring:start\n[\s\S]*?\/\/ native-image-authoring:end/,'// native-image-authoring:start\n'+authoring+'// native-image-authoring:end')+(source.includes('function readTemplateDraftSources(')?'':'\n'+observation);
 }
 
-export function fixture(id,{failEffect=false,presetShader=null,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true,canonicalAuthoring=process.env.PHOTO_CANONICAL_AUTHORING==='1'}={}){
+export function fixture(id,{transcriptLanes=false,failEffect=false,presetShader=null,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true,canonicalAuthoring=process.env.PHOTO_CANONICAL_AUTHORING==='1'}={}){
  const count=id==='polaroid-photo-dump'?17:id==='camera-shutter-dump'?12:4,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
  const resources=[...photos.map(p=>({...p,type:'Image'})),...Array.from({length:6},(_,i)=>({resourceId:'a'+i,name:'Sound '+i,type:'Audio',durationSeconds:10}))];
  const nodes=resources.map(r=>({...r,type:r.type.toLowerCase(),path:r.path||'/audio/'+r.name+'.wav',frameSize:{width:640,height:960},durationSeconds:10}));
@@ -29,7 +29,11 @@ export function fixture(id,{failEffect=false,presetShader=null,tamperSaved=false
    // Imported Audio's source skeleton uses 120 fps in the pinned client. Source
    // In/Out snap there before its single media clip conforms to the Draft grid.
    insertResource:async({resourceId,sourceRange})=>{const startSeconds=Math.round(sourceRange.startSeconds*120)/120,endSeconds=Math.round(sourceRange.endSeconds*120)/120;state.durationFrames=Math.round((endSeconds-startSeconds)*state.fps);add('main',resourceId,{startFrame:0,endFrame:state.durationFrames,_source:{startSeconds,endSeconds:startSeconds+state.durationFrames/state.fps}});},
-   overlayResource:async({resource,over,sourceStartSeconds=0})=>add(resources.find(r=>r.resourceId===resource.id)?.type==='Audio'?'audio':'video',resource.id,{...over,_source:{startSeconds:sourceStartSeconds,endSeconds:sourceStartSeconds+(over.endFrame-over.startFrame)/state.fps}}),
+   ...transcriptLanes?{addTrack:async({kind})=>{(state.outerTracks??={})[kind]=true;return {trackId:'outer-'+kind};}}:{},
+   overlayResource:async({resource,over,sourceStartSeconds=0})=>{
+    const kind=resources.find(r=>r.resourceId===resource.id)?.type==='Audio'?'audio':'video';
+    return add(transcriptLanes&&!state.outerTracks?.[kind]?'main':kind,resource.id,{...over,_source:{startSeconds:sourceStartSeconds,endSeconds:sourceStartSeconds+(over.endFrame-over.startFrame)/state.fps}});
+   },
    setClipTransform:async({clip,...patch})=>{const row=clips.find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);assert.ok(row);row._transform={...row._transform,...structuredClone(patch)};},
    ...transformReadSupported?{clipTransform:async clip=>{const row=clips.find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);assert.ok(row);return structuredClone({enabled:true,position:{x:0,y:0},scale:{x:1,y:1},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[],...row._transform});}}:{},
    addVideoEffect:async({clip,label,...program})=>{if(failEffect)throw Error('effect compiler failed');const row=clips.find(c=>c.clipId===clip.clipId);(row._effects??=[]).push({name:label,enabled:true,...structuredClone(program)});},

@@ -913,22 +913,29 @@ async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false,fitBu
   catch(error){error.safeNotSaved=true;throw error;}
 }
 
-async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{}}) {
+async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{},onStage=()=>{}}) {
+  onStage('verify-inputs');
   Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
+  onStage('plan');
   const plan=await planGalleryPreparation(sdk,input,isCurrent);
+  onStage('prepare-videos');
   input.media=await prepareVisuals(sdk,t,input.media,plan.preparation,input.projectId,onImportStarted,isCurrent);
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  onStage('resolve-resources');
   input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
+  onStage('preflight');
   const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
   if(preflight.isError||preflight.result?.status!=='ready')throw Object.assign(new Error(preflight.result?.message||preflight.output||t.failed),{safeNotSaved:true});
   await onDispatched();
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  onStage('create-draft');
   const response=await sdk.runScript({script:buildScript({...input,operation:'create',...runReceipt?{runReceipt}:{}}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
   if(typeof response.result?.draftId==='string'&&response.result.draftId)await onDraft(response.result.draftId);
   if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
-    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null});
+    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null,stage:result?.stage,code:result?.code});
   }
   const result=response.result;
+  onStage('verify-saved-draft');
   await verifyGallerySavedDraft(sdk,input.projectId,result);
   return {...result,verified:true,readReturned:true};
 }
@@ -1394,29 +1401,40 @@ function GalleryTemplateRun({ sdk, context }) {
     const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
     const say = text => { if (live()) setStatus(text); };
     preparing.say = say;
-    let dispatched = false, draftId = null;
+    let dispatched = false, draftId = null, phase = 'check-host';
+    const startedAt = Date.now();
+    const onStage = value => {
+      phase = value;
+      console.info('[photo-gallery-no2] template stage', JSON.stringify({phase,elapsedMs:Date.now()-startedAt}));
+    };
     (async () => {
       try {
         if (!projectId) throw templateIssue('Open a Project, then try again.');
         requireGalleryAuthoringHost(sdk);
         const app = window.parent, libraryId = templateLibrary(app, projectId, template);
         const request=galleryRunRequest(template);
+        onStage('check-readers');
         await requireGalleryRunReaders(sdk,projectId,request.music);
         const built=await executeTemplateRun(sdk,panelLocalClient(sdk).files,{pluginId:'photo-gallery-no2',libraryId,projectId,runId},request,live,async(runReceipt,onDispatch)=>{
+          onStage('resolve-selected-media');
           say('Finding your photos and videos…');
           const media=await templateTiles(sdk,app,projectId,libraryId,template?.inputs);
           if(!live())throw templateIssue('The template run ended before the Draft was made.');
           const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
+          onStage('verify-inputs');
           Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          onStage('face-focus');
           Object.assign(input,await focusGalleryPhotos(sdk,input,live));
+          onStage('plan');
           await planGalleryPreparation(sdk,input,live,false,request.music==='bundled');
           if(request.music!=='none'){
+            onStage('prepare-music');
             say('Adding the music…');
             const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,fps:input.fps,isCurrent:live,onImportStarted:()=>{}});
             input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,durationSeconds:audio.durationSeconds,startFrame:0};
           }
           say('Building the gallery…');
-          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
+          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onStage,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
         },result=>verifyGallerySavedDraft(sdk,projectId,result));
         draftId=built.draftId;
         if(!draftId||!Array.isArray(built.clips)||built.clips.length!==21)throw templateIssue('The saved Gallery could not be confirmed. Inspect the Project before starting a new run.');
@@ -1424,7 +1442,12 @@ function GalleryTemplateRun({ sdk, context }) {
         finish({ sequenceId: built.draftId });
       } catch (error) {
         if(!draftId&&typeof error?.draftId==='string'&&error.draftId)draftId=error.draftId;
-        console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), { draftId, dispatched });
+        const errors=[],seen=new Set();
+        for(let cause=error;cause&&!seen.has(cause)&&errors.length<5;cause=cause.cause){
+          seen.add(cause);
+          errors.push({message:String(cause.message||cause).slice(0,2000),code:cause.code,stage:cause.stage,safeNotSaved:cause.safeNotSaved});
+        }
+        console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), JSON.stringify({phase,elapsedMs:Date.now()-startedAt,draftId,dispatched,errors}));
         say('Stopped.');
         finish({ error: draftId ? TEMPLATE_PARTIAL+' ('+draftId+')' : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
       } finally {
