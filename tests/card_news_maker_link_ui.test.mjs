@@ -1089,3 +1089,70 @@ test('JPEG export encodes the final canvas once with no intermediate PNG encodin
   const original=h.bindings.CardSupport.pngToJpeg;h.bindings.CardSupport.pngToJpeg=()=>{throw Error('Redundant PNG conversion');};
   try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();await h.find('Button','Save images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.done,true);assert.match(saved.export.files[0],/\.jpg$/);}finally{h.bindings.CardSupport.pngToJpeg=original;h.close();}
 });
+
+test('cancel during article loading stops later planning without starting AI', async () => {
+  let release; const gate = new Promise(resolve => release = resolve); let ai = 0, cancels = 0;
+  const h = harness({ sdk: { askAI: async () => { ai++; throw Error('Not requested'); }, cancelAI: async () => { cancels++; } } });
+  h.files.downloadFile = async (_, path) => { await gate; h.disk.set(path, new TextEncoder().encode('<article><p>' + 'Verified source facts. '.repeat(40) + '</p><img src="https://example.test/a.jpg"></article>')); };
+  try {
+    await h.settle(); h.find('TextField', 'Article link').props.onChange('https://example.test/article');
+    const pending = h.find('Button', 'Generate').props.onClick(); await h.settle();
+    await h.find('Button', 'Cancel').props.onClick(); await h.settle();
+    assert.equal(cancels, 1); assert.equal(h.find('Progress'), undefined); assert.equal(h.find('Button', 'Generate').props.disabled, false);
+    release(); await pending; await h.settle();
+    assert.equal(ai, 0); assert.ok(!(await h.bindings.makeStore().list('jobs')).some(job => job.plan));
+    assert.ok(!nodes(h.render()).some(n => n.type === 'Message' && n.props.tone === 'error'));
+  } finally { release?.(); h.close(); }
+});
+
+test('cancel restores existing cards and a late AI reply cannot repair or replace the next result', async () => {
+  const replies = []; let cancels = 0;
+  const original = { id: 'keep-original', projectId: 'p', templateId: 'layout-team', source: { mode: 'link', url: 'https://example.test/article' }, plan: { cards: [{ id: 'old-card', role: 'cover', headline: 'Keep edited text', picture: { kind: 'none' }, crop: { zoom: 1.4 } }], caption: 'Keep caption' } };
+  const h = harness({ job: original, sdk: { askAI: () => new Promise(resolve => replies.push(resolve)), cancelAI: async () => { cancels++; } } });
+  try {
+    await h.settle(); h.find('Select', 'Saved').props.onChange(original.id); await h.settle();
+    const old = h.find('Button', 'Generate').props.onClick(); await h.settle(); assert.equal(replies.length, 1);
+    await h.find('Button', 'Cancel').props.onClick(); await h.settle();
+    assert.equal(cancels, 1); assert.equal(h.component('CardEditor').props.card.headline, 'Keep edited text');
+    const current = h.find('Button', 'Generate').props.onClick(); await h.settle(); assert.equal(replies.length, 2);
+    replies[1]({ text: '{"cards":[{"slotIndex":0,"headline":"Current result"}]}' }); await current; await h.settle();
+    replies[0]({ text: '{"cards":[{"slotIndex":0,"headline":"Late stale result"}]}' }); await old; await h.settle();
+    assert.equal(replies.length, 2); assert.equal(h.component('CardEditor').props.card.headline, 'Current result');
+    const saved = await h.bindings.makeStore().list('jobs');
+    assert.ok(!saved.some(job => job.plan?.cards.some(card => card.headline === 'Late stale result')));
+    assert.equal(saved.find(job => job.id === original.id).plan.cards[0].headline, 'Keep edited text');
+  } finally { replies.forEach(resolve => resolve({ text: '{}' })); h.close(); }
+});
+
+test('cancel while reading a video transcript never starts the next page or AI', async () => {
+  let release, pages = 0, ai = 0; const gate = new Promise(resolve => release = resolve);
+  const h = harness({ sdk: { cancelAI: async () => {}, askAI: async () => { ai++; throw Error('Not requested'); }, runScript: async ({ summary }) => {
+    if (summary === 'List project videos') return { result: { array: true, page: { rows: [{ id: 'video', name: 'Video', analyzed: true }] }, total: 1 } };
+    if (summary === 'Read the transcript') { pages++; await gate; return { result: { lines: [[0, 1, 'Transcript facts']], total: 1000 } }; }
+    return { result: [] };
+  } } });
+  try {
+    await h.settle(); h.find('Segmented', 'Source').props.onChange('video'); await h.settle();
+    const video = nodes(h.render()).find(n => n.type === 'Select' && n.props.options?.some(o => o.value === 'video'));
+    video.props.onChange('video'); await h.settle();
+    const generate = nodes(h.render()).find(n => n.type === 'Button' && n.props.variant === 'primary' && n.props.onClick);
+    const pending = generate.props.onClick(); await h.settle(); assert.equal(pages, 1);
+    await h.find('Button', 'Cancel').props.onClick(); release(); await pending; await h.settle();
+    assert.equal(pages, 1); assert.equal(ai, 0);
+  } finally { release?.(); h.close(); }
+});
+
+
+test('project switch during generation cancels the old request and releases the form', async () => {
+  let reply; let cancels = 0;
+  const h = harness({ sdk: { askAI: () => new Promise(resolve => reply = resolve), cancelAI: async () => { cancels++; } } });
+  try {
+    await h.settle(); h.find('TextField', 'Article link').props.onChange('https://example.test/article');
+    const pending = h.find('Button', 'Generate').props.onClick(); await h.settle(); assert.ok(reply);
+    h.context.projectId = 'next-project'; await h.settle();
+    assert.equal(cancels, 1); assert.equal(h.find('Progress'), undefined); assert.equal(h.find('Button', 'Generate').props.disabled, false);
+    reply({ text: '{"cards":[{"slotIndex":0,"headline":"Old project result"}]}' }); await pending; await h.settle();
+    assert.equal(h.component('CardEditor'), undefined);
+    assert.ok(!(await h.bindings.makeStore().list('jobs')).some(job => job.plan));
+  } finally { reply?.({ text: '{}' }); h.close(); }
+});
