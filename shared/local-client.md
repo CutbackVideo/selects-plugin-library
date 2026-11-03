@@ -103,3 +103,26 @@ on remount/age is added: a filename or elapsed observation budget is not proof o
 native exit or later file ownership. See
 [the checkpoint](../docs/template-repair/local-media-lifetime.md) for actual SDK
 fault/recovery evidence and remaining installed-app acceptance boundaries.
+
+## Optional video preparation job
+
+`media.runVideoTranscode(request, fallbackArgs, quiet, signal)` uses the same
+start/status/cancel ownership above. It checks for `selects.media.startVideoTranscode`
+inside the start script before dispatch. `Reflect.get` keeps this check valid
+against older SDK declarations. An absent method selects `startFFmpeg` with the
+caller's existing argv; an operational error or uncertain start never starts a
+second job. This is an additive transport method; existing FFmpeg consumers keep
+their argv and behavior.
+
+Photo Grid Reveal opts in with the verified snapshot/output paths, upright even
+width/height, 60 fps, exact output frame count, and 10,000,000 bits/second. The host
+prepares video-only H.264 MP4, repeating its last picture to the requested length.
+The browser implementation prefers WebCodecs and retains bounded decoder/output
+storage; unsupported configurations use the host's FFmpeg implementation. Older
+clients retain Gallery's CRF18 command. The v5 hold cache identity separates this
+encoding policy from v4. Full output counting and strict decoding still run.
+
+The new/absent-interface selection, no-replay behavior and strict older-SDK
+TypeScript compatibility are covered by `tests/canonical_local_client.test.mjs`.
+The Gallery producer request and unchanged legacy decoded-frame parity are
+covered by `plugins/photo-gallery-no2/hold.test.mjs`.
