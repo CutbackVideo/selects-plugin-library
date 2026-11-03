@@ -9,7 +9,7 @@ const layout = { kind: 'layout', id: 'team', name: 'Team design', version: 1, la
 const work = { id: 'legacy', name: 'Saved photo work', articleUrl: 'https://example.test/news', createdAt: '2026-10-30', updatedAt: '2026-10-30', requirements: 'Saved instructions', format: 'jpeg', template: layout, cards: [{ lines: ['One', 'Two'], crop: { zoom: 1.6, x: -.25, y: .4 }, photo: { path: '/photos/a.png', name: 'a.png', width: 1920, height: 1080 } }] };
 const root = '/memory/.selects/plugin-data/card-news-maker';
 function nodes(tree) { const out = [], seen = new Set(); function visit(v) { if (!v || typeof v !== 'object' || seen.has(v)) return; seen.add(v); if ('type' in v && 'props' in v) out.push(v); if (v.type === 'TemplateTransferDialog' && !v.props.open) return; for (const x of Object.values(v)) visit(x); } visit(tree); return out; }
-function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: existingDisk, layouts = [layout], language = 'en', compositeAlpha = 255, dialogs = { pickDirectoryPath: async () => '/photos' } } = {}) {
+function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: existingDisk, layouts = [layout], language = 'en', compositeAlpha = 255, imageWidth = 1920, imageHeight = 1080, dialogs = { pickDirectoryPath: async () => '/photos' } } = {}) {
   const disk = existingDisk || new Map(layouts.map(l => [root + '/layout-templates/' + l.id + '.json', new TextEncoder().encode(JSON.stringify(l))]));
   if (legacy) disk.set(root + '/photo-works/legacy.json', new TextEncoder().encode(JSON.stringify(work)));
   if (job) disk.set(root + '/jobs/' + job.id + '.json', new TextEncoder().encode(JSON.stringify(job)));
@@ -28,7 +28,7 @@ function harness({ legacy = false, sdk: extra = {}, job, templatePack, disk: exi
   const ui = new Proxy({}, { get: (_, k) => String(k) });
   const context = { projectId: 'p', language, templatePack };
   const canvas = () => ({ getContext: () => ({ measureText: () => ({ width: 1 }), fillRect() {}, drawImage() {}, fillText() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {}, getImageData: () => ({ data: [0, 0, 0, compositeAlpha] }) }), toDataURL: () => 'data:image/jpeg;base64,YQ==', toBlob: (fn, mime) => fn(new Blob([new Uint8Array([1, 2, 3])], { type: mime })) });
-  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'replaceInstalledTemplate', 'templateList', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { URL, crypto, Blob, Image: class { naturalWidth = 1920; naturalHeight = 1080; src = ''; async decode() {} }, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
+  const bindings = loadPanelModule(source, { names: ['ProjectPanel', 'TemplateEditor', 'CardEditor', 'CardSupport', 'makeStore', 'installLinkedTemplate', 'replaceInstalledTemplate', 'templateList', 'BUILTIN_TEMPLATES'], React, overrides: { hostSdk: { files, dialogs }, hostUseSdk() {}, useAppUpdateGuard() {} }, globals: { URL, crypto, Blob, Image: class { naturalWidth = imageWidth; naturalHeight = imageHeight; src = ''; async decode() {} }, window: {}, document: { createElement: canvas }, createImageBitmap: async () => ({ width: 1920, height: 1080, close() {} }) } });
   function render() { hooks = mainHooks; at = 0; tree = bindings.ProjectPanel({ sdk, ui, context }); return tree; }
   function renderEditor() { const node = nodes(render()).find(n => n.type === bindings.TemplateEditor); if (!node) return null; hooks = editorHooks; at = 0; return bindings.TemplateEditor(node.props); }
   return {
@@ -187,7 +187,7 @@ test('article fallback belongs to its URL and is cleared by Start over before a 
     h.find('Toggle','Add my own photos (optional)').props.onChange(true);await h.find('FileDrop').props.onChange({path:'/photos/fallback.jpg'});
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
     assert.match(prompts[0], /ONLY_OLD_ARTICLE_FACT/);
-    h.menuItem('Start over').onSelect();
+    h.find('Button','Start over').props.onClick();
     assert.equal(h.find('TextField', 'Article text'), undefined);
     h.find('TextField', 'Article link').props.onChange('https://example.test/b');
     await h.find('Button', 'Generate').props.onClick(); await h.settle();
@@ -214,7 +214,7 @@ test('Start over and Saved reopen the newest edited work without requiring a rem
   try {
     await h.settle(); h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     const e = h.component('CardEditor'); e.props.onChange({ ...e.props.card, headline: 'Newest edit' }); await h.settle();
-    h.menuItem('Start over').onSelect(); await h.settle();
+    h.find('Button','Start over').props.onClick(); await h.settle();
     h.find('Select', 'Saved').props.onChange('photo-p-legacy'); await h.settle();
     assert.equal(h.component('CardEditor').props.card.headline, 'Newest edit');
   } finally { h.close(); }
@@ -239,7 +239,7 @@ test('an older background Saved read cannot replace a newer edit in cache or on 
     await h.find('Button', 'Save images').props.onClick(); await h.settle(); assert.equal(gated, true);
     const editor = h.component('CardEditor'); editor.props.onChange({ ...editor.props.card, headline: 'Newest edit' }); await h.settle();
     release(); await h.settle();
-    h.menuItem('Start over').onSelect(); await h.settle();
+    h.find('Button','Start over').props.onClick(); await h.settle();
     h.find('Select', 'Saved').props.onChange('j'); await h.settle();
     assert.equal(h.component('CardEditor').props.card.headline, 'Newest edit');
     assert.equal(JSON.parse(new TextDecoder().decode(h.disk.get(root + '/jobs/j.json'))).plan.cards[0].headline, 'Newest edit');
@@ -257,7 +257,7 @@ test('progress spins only during a live request, including 503 and Saved restore
     const request = h.find('Button', 'Generate').props.onClick(); await h.settle();
     assert.equal(h.find('Progress').props.steps, undefined);
     assert.equal(h.find('Progress').props.busy, true);
-    assert.equal(h.find('TextField','Article link'),undefined);
+    assert.equal(h.find('TextField','Article link').props.disabled,true);
     reject(Error('HTTP 503')); await request; await h.settle();
     assert.equal(h.find('Progress'), undefined);
     assert.ok(h.find('TextField','Article link'));
@@ -795,7 +795,7 @@ test('article photos prepare before editing, mix with optional local photos and 
     assert.equal(cards[0].picture.path, beforePaths[1]); assert.equal(cards[1].picture.path, beforePaths[0]);
     const jobs = await h.bindings.makeStore().list('jobs'), job = jobs.find(j => j.plan);
     assert.equal(job.timings.aiCalls, 1); assert.equal(job.timings.repairs, 0); assert.ok(job.timings.editableMs >= 0);
-    h.menuItem('Start over').onSelect(); await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    h.find('Button','Start over').props.onClick(); await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
     assert.deepEqual(nodes(h.render()).filter(n => n.type === h.bindings.CardEditor).map(n => n.props.card), cards);
     assert.equal(downloads.length, 3);
   } finally { h.close(); }
@@ -902,17 +902,17 @@ test('generation uses one actual status screen then opens card editing without m
   h.files.downloadFile=async(_,p)=>{await articleGate;h.disk.set(p,new TextEncoder().encode('<meta property="og:type" content="article"><article><p>'+'Verified facts. '.repeat(40)+'</p><img src="https://example.test/a.jpg"><img src="https://example.test/b.jpg"></article>'))};
   try{
     await h.settle();h.find('TextField','Article link').props.onChange('https://example.test/article');const request=h.find('Button','Generate').props.onClick();await h.settle();
-    assert.equal(h.find('Progress').props.label,'Loading the article and photos…');assert.equal(h.find('Progress').props.steps,undefined);assert.equal(h.find('TextField','Article link'),undefined);assert.equal(calls,0);
+    assert.equal(h.find('Progress').props.label,'Loading the article and photos…');assert.equal(h.find('Progress').props.steps,undefined);assert.equal(h.find('TextField','Article link').props.value,'https://example.test/article');assert.equal(h.find('TextField','Article link').props.disabled,true);assert.equal(calls,0);
     releaseArticle();await h.settle();assert.equal(h.find('Progress').props.label,'Writing headlines and body text…');assert.equal(calls,1);
     releaseAI({text:'{"cards":[{"headline":"Cover facts","image":{"source":"none"},"slotIndex":0},{"body":"Body facts","image":{"source":"none"},"slotIndex":1}]}'});await request;await h.settle();
-    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)'),undefined);assert.ok(h.menuItem('Add to timeline (optional)'));assert.ok(h.find('Menu','More actions'));
+    assert.equal(h.find('Progress'),undefined);assert.ok(h.component('CardEditor'));assert.equal(h.find('Button','Save images').props.variant,'primary');assert.equal(h.find('Button','Add to timeline (optional)').props.variant,'secondary');assert.equal(h.menuItem('Add to timeline (optional)'),undefined);assert.equal(h.find('Menu','More actions'),undefined);assert.ok(h.find('Button','Start over'));
   }finally{releaseArticle?.();releaseAI?.({text:'{}'});h.close()}
 });
 
 test('completed saved work shows a concise receipt and folder action with full locations only in collapsed options', async () => {
   const job={id:'receipt',projectId:'p',templateId:'layout-team',draftId:'existing-draft',folder:{done:true},done:true,saveTo:'C:\\Users\\Editor\\Pictures\\Cards',export:{dir:'C:\\Users\\Editor\\Pictures\\Cards\\receipt-output',files:['one.png','two.png']},plan:{cards:[{id:'a',role:'cover',headline:'Keep text',picture:{kind:'none'}}],caption:'Caption'}};
   const queries=[];const h=harness({job,sdk:{runScript:async input=>{queries.push(input.summary);return {result:[]}}}});
-  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const tree=nodes(h.render());assert.equal(h.find('Progress'),undefined);assert.ok(tree.some(n=>n.type==='Message'&&n.props.children.includes('Saved 2 images.')));assert.ok(h.find('Button','Open folder'));assert.ok(h.menuItem('Open timeline'));assert.equal(h.find('Button','Open timeline'),undefined);assert.ok(!tree.some(n=>n.type==='Message'&&n.props.children.some(c=>typeof c==='string'&&c.includes('C:\\Users'))));const details=tree.filter(n=>n.type==='details');assert.ok(details.length>=2);assert.ok(tree.some(n=>n.type==='summary'&&n.props.children.includes('Save options')));assert.ok(details.every(n=>!n.props.open));assert.ok(tree.some(n=>n.type==='small'&&n.props.children.includes('Cards')));assert.equal(queries.filter(q=>q!=='List project videos').length,0)}finally{h.close()}
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();const tree=nodes(h.render());assert.equal(h.find('Progress'),undefined);assert.ok(tree.some(n=>n.type==='Message'&&n.props.children.includes('Saved 2 images.')));assert.ok(h.find('Button','Open folder'));assert.equal(h.menuItem('Open timeline'),undefined);assert.equal(h.find('Button','Open timeline'),undefined);assert.ok(!tree.some(n=>n.type==='Message'&&n.props.children.some(c=>typeof c==='string'&&c.includes('C:\\Users'))));const details=tree.filter(n=>n.type==='details');assert.ok(details.length>=2);assert.ok(tree.some(n=>n.type==='summary'&&n.props.children.includes('Save options')));assert.ok(details.every(n=>!n.props.open));assert.ok(tree.some(n=>n.type==='small'&&n.props.children.includes('Cards')));assert.equal(queries.filter(q=>q!=='List project videos').length,0)}finally{h.close()}
 });
 
 test('article generation refuses zero photos before AI and keeps the input and photo-add controls', async () => {
@@ -993,4 +993,99 @@ test('a first catalog installation remembers its update link across app reopen',
     h.files.downloadFile=async(_,to)=>h.disk.set(to,new TextEncoder().encode(JSON.stringify(chosunV2())));await h.settleEditor();
     reopened=harness({layouts:[],disk:h.disk});await reopened.settleEditor();assert.ok(reopened.editorFind('Button','View shared version'));assert.equal(reopened.editorFind('Button','Restore backup'),undefined);
   }finally{reopened?.close();h.close()}
+});
+
+
+test('save location and timeline actions follow every edited card and caption without running on open', async () => {
+  const job = { id: 'bottom-actions', projectId: 'p', templateId: 'layout-team', plan: { cards: [{ role: 'cover', headline: 'Cover' }, { role: 'body', body: 'Body' }], caption: 'Caption', hashtags: '#tag' } };
+  const calls = []; let picks = 0;
+  const h = harness({ job, sdk: { runScript: async input => { calls.push(input.summary); return { result: [] }; } }, dialogs: { pickDirectoryPath: async () => { picks++; return '/chosen/cards'; } } });
+  try {
+    await h.settle();
+    assert.equal(h.find('Button', 'Save images'), undefined);
+    assert.equal(h.find('Button', 'Change folder'), undefined);
+    h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    const tree = nodes(h.render());
+    const footer = tree.find(n => n.type === 'Section' && n.props.title === 'Save images');
+    const footerNodes = nodes(footer);
+    assert.ok(tree.indexOf(footer) > tree.findLastIndex(n => n.type === h.bindings.CardEditor));
+    assert.ok(tree.indexOf(footer) > tree.findIndex(n => n.type === 'TextField' && n.props.label === 'Caption'));
+    assert.ok(footerNodes.some(n => n.type === 'Button' && n.props.children.includes('Save images')));
+    assert.ok(footerNodes.some(n => n.type === 'Button' && n.props.children.includes('Add to timeline (optional)')));
+    assert.equal(picks, 0); assert.equal(calls.filter(c => c !== 'List project videos').length, 0);
+    await h.find('Button', 'Change folder').props.onClick(); await h.settle();
+    assert.equal(picks, 1); assert.ok(nodes(h.render()).some(n => n.type === 'small' && n.props.children.includes('cards')));
+  } finally { h.close(); }
+});
+
+
+test('article inputs stay above saved results and editing them never replaces existing cards', async () => {
+  const card = { id: 'fixed-id', role: 'cover', headline: 'Keep edited headline', picture: { kind: 'none' }, crop: { zoom: 1.4 } };
+  const job = { id: 'stable-form', projectId: 'p', templateId: 'layout-team', source: { mode: 'link', url: 'https://example.test/original', ownPhotos: true, photos: [] }, note: 'Original request', plan: { cards: [card], caption: 'Keep caption' } };
+  let ai = 0; const h = harness({ job, sdk: { askAI: async () => { ai++; throw Error('Not requested'); } } });
+  try {
+    await h.settle(); h.find('Select', 'Saved').props.onChange(job.id); await h.settle();
+    let tree = nodes(h.render());
+    assert.ok(tree.findIndex(n => n.type === 'TextField' && n.props.label === 'Article link') < tree.findIndex(n => n.type === h.bindings.CardEditor));
+    assert.equal(tree.filter(n => n.type === 'TemplateChoice').length, 1);
+    assert.equal(tree.find(n => n.type === 'a'), undefined);
+    assert.equal(h.find('TextField', 'Article link').props.value, job.source.url);
+    h.find('TextField', 'Article link').props.onChange('https://example.test/next');
+    h.find('TextField', 'Extra instructions (optional)').props.onChange('Next request');
+    h.find('Toggle', 'Add my own photos (optional)').props.onChange(false); await h.settle();
+    assert.deepEqual(plain(h.component('CardEditor').props.card), card);
+    assert.equal(ai, 0); assert.equal(h.find('TextField', 'Article link').props.value, 'https://example.test/next');
+    const saved = (await h.bindings.makeStore().list('jobs')).find(j => j.id === job.id);
+    assert.equal(saved.source.url, job.source.url); assert.equal(saved.note, job.note); assert.deepEqual(plain(saved.plan.cards[0]), card);
+    assert.ok(h.find('Button', 'Generate'));
+  } finally { h.close(); }
+});
+
+
+test('finished PNGs are renamed byte-for-byte without re-encoding or chunk writes', async () => {
+  const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 42]);
+  const job = { id: 'direct-png', projectId: 'p', templateId: 'layout-team', draftId: 'existing', plan: { cards: [{role:'cover',headline:'Keep'}] } };
+  let renamed = 0;
+  const h = harness({job, imageWidth:1080, imageHeight:1350, sdk:{runScript:async ({summary,script})=>{
+    if(summary==='Read the card ranges')return {result:{fps:24,cards:[['Card 01',0,72]]}};
+    if(summary==='Export card composite')await new (Object.getPrototypeOf(async()=>{}).constructor)('selects',script)({export:{still:async ({outPath})=>{h.disk.set(outPath,bytes)}}});
+    if(summary==='Add exported card images to the project')return {result:{added:1}};
+    return {result:[]};
+  }}});
+  h.files.rename=async (from,to)=>{assert.equal(h.disk.get(from),bytes);h.disk.set(to,h.disk.get(from));h.disk.delete(from);renamed++;};
+  const write=h.files.writeFile;
+  h.files.writeFile=async (p,b)=>{assert.ok(!p.endsWith('.png'),'PNG must not pass through chunk writes');return write(p,b);};
+  try {
+    await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();
+    await h.find('Button','Save images').props.onClick();await h.settle();
+    const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);
+    assert.equal(saved.done,true);assert.equal(renamed,1);assert.equal(h.disk.get(saved.export.files[0]),bytes);
+    assert.ok(![...h.disk.keys()].some(p=>p.endsWith('/source-01.png')));
+  } finally {h.close();}
+});
+
+test('export runs at most two cards and records card order after reverse completion', async () => {
+  const job={id:'parallel',projectId:'p',templateId:'layout-team',draftId:'draft',plan:{cards:Array.from({length:4},()=>({role:'body',body:'Text'}))}};
+  const releases=[];let active=0,peak=0,calls=0;
+  const h=harness({job,sdk:{runScript:async({summary})=>{
+    if(summary==='Read the card ranges')return{result:{cards:Array.from({length:4},(_,i)=>['Card '+i,i*72,(i+1)*72])}};
+    if(summary==='Export card composite'){const i=calls++;peak=Math.max(peak,++active);await new Promise(r=>releases[i]=r);active--;}
+    if(summary==='Add exported card images to the project')return{result:{added:4}};
+    return{result:[]};
+  }}});
+  try{
+    await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();
+    const pending=h.find('Button','Save images').props.onClick();await h.settle();assert.equal(calls,2);
+    releases[1]();await h.settle();assert.equal(calls,2);releases[0]();await h.settle();assert.equal(calls,4);
+    releases[3]();await h.settle();releases[2]();await pending;await h.settle();
+    const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);
+    assert.equal(peak,2);assert.equal(saved.done,true);assert.deepEqual(plain(saved.export.files.map(p=>p.split('/').pop())),['card-01.png','card-02.png','card-03.png','card-04.png']);
+  }finally{h.close();}
+});
+
+test('JPEG export encodes the final canvas once with no intermediate PNG encoding',async()=>{
+  const job={id:'jpeg-once',projectId:'p',templateId:'layout-team',draftId:'draft',format:'jpeg',plan:{cards:[{role:'body',body:'Text'}]}};
+  const h=harness({job,sdk:{runScript:async({summary})=>summary==='Read the card ranges'?{result:{cards:[['Card 01',0,72]]}}:summary==='Add exported card images to the project'?{result:{added:1}}:{result:[]}}});
+  const original=h.bindings.CardSupport.pngToJpeg;h.bindings.CardSupport.pngToJpeg=()=>{throw Error('Redundant PNG conversion');};
+  try{await h.settle();h.find('Select','Saved').props.onChange(job.id);await h.settle();await h.find('Button','Save images').props.onClick();await h.settle();const saved=(await h.bindings.makeStore().list('jobs')).find(j=>j.id===job.id);assert.equal(saved.done,true);assert.match(saved.export.files[0],/\.jpg$/);}finally{h.bindings.CardSupport.pngToJpeg=original;h.close();}
 });

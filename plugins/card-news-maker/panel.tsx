@@ -3486,7 +3486,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
             <ui.Select label={S.picture} value={value} onChange={choose} options={options} disabled={busy} />
             {img.kind === "generate" && <ui.TextField label={S.prompt} value={img.prompt || ""} onChange={(v: string) => onChange({ ...card, picture: { ...img, prompt: v } })} multiline disabled={busy} />}
           </details>}
-          <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />
+          {t.importedLayoutId !== "chosun-basic" && <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />}
         </ui.Stack>
       )}
     </ui.Section>
@@ -4639,19 +4639,20 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     return await createImageBitmap(new Blob([bytes], { type: m[1] }));
   }
 
-  async function finishCard(still: HTMLImageElement, t: any, card: any, pic: any): Promise<Uint8Array> {
+  async function finishCard(still: HTMLImageElement, t: any, card: any, pic: any, jpeg = false): Promise<Uint8Array | null> {
     const c = document.createElement("canvas");
     const { width: W, height: H } = templateSize(t);
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 1;
+    const pg = probe.getContext("2d")!;
+    pg.drawImage(still, 2, 2, 1, 1, 0, 0, 1, 1);
+    const corner = pg.getImageData(0, 0, 1, 1).data[3];
+    const needsPhoto = corner < 250 && pic?.path && store.fs;
+    if (!jpeg && !needsPhoto && still.naturalWidth === W && still.naturalHeight === H) return null;
     c.width = W;
     c.height = H;
     const g = c.getContext("2d")!;
-    const probe = document.createElement("canvas");
-    probe.width = still.naturalWidth;
-    probe.height = still.naturalHeight;
-    const pg = probe.getContext("2d")!;
-    pg.drawImage(still, 0, 0);
-    const corner = pg.getImageData(2, 2, 1, 1).data[3];
-    if (corner < 250 && pic?.path && store.fs) {
+    if (needsPhoto) {
       const img = new Image();
       try {
         img.crossOrigin = "anonymous";
@@ -4671,7 +4672,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       } finally { img.src = ""; }
     }
     g.drawImage(still, 0, 0, W, H);
-    const blob: Blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("png"))), "image/png"));
+    const blob: Blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("The card could not be encoded."))), jpeg ? "image/jpeg" : "image/png", jpeg ? 0.92 : undefined));
     return new Uint8Array(await blob.arrayBuffer());
   }
 
@@ -4702,29 +4703,40 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       await store.ensure(dir);
       j = await saveJob({ ...j, export: { dir, files: [] }, done: false });
       const files: string[] = [];
-      for (let i = 0; i < info.cards.length; i++) {
-        setStatus(S.rendering(i + 1, info.cards.length));
+      let completed = 0;
+      setStatus(S.rendering(completed, info.cards.length));
+      const renderCard = async (i: number) => {
         const frame = Math.floor((info.cards[i][1] + info.cards[i][2]) / 2);
         const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
         await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: j.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
         const still = new Image();
         const card = j.plan.cards[i] || { role: "body" };
         const pic = j.pictures?.[i];
-        let png: Uint8Array;
+        let png: Uint8Array | null;
         try {
           still.crossOrigin = "anonymous";
           still.src = await photoUrl(store.fs, rawPath);
           await still.decode();
-          png = await finishCard(still, t || BUILTIN_TEMPLATES[0], card, pic);
+          png = await finishCard(still, t || BUILTIN_TEMPLATES[0], card, pic, j.format === "jpeg");
         } finally {
           still.src = "";
         }
-        await store.fs.removeFile({ filePath: rawPath });
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.${j.format === "jpeg" ? "jpg" : "png"}`);
-        await store.fs.writeFile(out, j.format === "jpeg" ? await CardSupport.pngToJpeg(png) : png);
-        files.push(out);
+        if (png === null) await store.fs.rename(rawPath, out);
+        else {
+          await store.fs.writeFile(out, png);
+          await store.fs.removeFile({ filePath: rawPath });
+        }
+        setStatus(S.rendering(++completed, info.cards.length));
+        return out;
+      };
+      for (let offset = 0; offset < info.cards.length; offset += 2) {
+        const results = await Promise.allSettled(info.cards.slice(offset, offset + 2).map((_: any, index: number) => renderCard(offset + index)));
+        for (const result of results) if (result.status === "fulfilled") files.push(result.value);
         j = await saveJob({ ...j, export: { dir, files: [...files] }, done: false });
         setExported([...files]);
+        const failure = results.find(result => result.status === "rejected");
+        if (failure?.status === "rejected") throw failure.reason;
       }
       const caption = [j.plan.caption, j.plan.hashtags].filter(Boolean).join("\n\n");
       await store.fs.writeFile(store.join(dir, "caption.txt"), enc(caption));
@@ -4850,14 +4862,20 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           ]}
           disabled={busy}
         />
-        {langTemplates.length ? (
+        {job?.plan && t ? <>
+          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={t.id} options={[...templates, ...(templates.some((x: any) => x.id === t.id) ? [] : [t])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) { void selectTemplate(next); setJob(revised({ templateId: id, templateSnapshot: clone(next) })); } }} disabled={busy} />
+          {job.templateSnapshot && tplOf(t.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(t.id)) ? <ui.Stack>
+            <ui.Message tone="muted">{S.savedTemplateNotice}</ui.Message>
+            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(t.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
+          </ui.Stack> : null}
+        </> : langTemplates.length ? (
           <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={tplId} onChange={(id: string) => { const t = tplOf(id); if (t) void selectTemplate(t); }} options={templates.map((x: any) => ({ value:x.id, label:tplLabel(x,lang,S), description:<span style={{display:"block",width:96,margin:"0 auto"}}><CardPreview t={x} card={{role:"cover",headline:STRINGS[cardLangOf(x)].sampleHeadline}} bodyIndex={1} vars={{}} S={S} /></span> }))} disabled={busy} />
         ) : (
           <ui.Message>{S.noTplForLang}</ui.Message>
         )}
         {t && <small>{descOf(t, lang)}</small>}
         {t && <CardPreview t={t} card={{ role: "cover", headline: STRINGS[cardLangOf(t)].sampleHeadline }} bodyIndex={1} vars={{}} S={S} maxWidth={160} />}
-        {mode === "link" ? <ui.Message tone="muted">{S.photoSlotsHint}</ui.Message> : <ui.Segmented
+        {mode !== "link" && <ui.Segmented
           label={S.count}
           value={countMode}
           onChange={setCountMode}
@@ -4928,40 +4946,11 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       <ui.Stack gap={16}>
         <ui.Section title={S.review}>
           <ui.TextField label={S.tplName} value={job.name || job.plan.article?.title || ""} onChange={(name: string) => setJob({ ...job, name })} disabled={busy} />
-          <ui.TemplateChoice labels={{description:S.templateDescription,search:S.searchTemplates,noMatches:S.noMatches}} label={S.template} value={reviewT.id} options={[...templates, ...(templates.some((x: any) => x.id === reviewT.id) ? [] : [reviewT])].map((x: any) => ({ value: x.id, label: tplLabel(x, lang, S) }))} onChange={(id: string) => { const next = tplOf(id); if (next) setJob(revised({ templateId: id, templateSnapshot: clone(next) })); }} disabled={busy} />
-          {job.templateSnapshot && tplOf(reviewT.id) && JSON.stringify(job.templateSnapshot) !== JSON.stringify(tplOf(reviewT.id)) ? <ui.Stack>
-            <ui.Message tone="muted">{S.savedTemplateNotice}</ui.Message>
-            <ui.Button variant="secondary" onClick={() => setJob(revised({ templateSnapshot: clone(tplOf(reviewT.id)) }))} disabled={busy}>{S.applyTemplateChanges}</ui.Button>
-          </ui.Stack> : null}
           <small>{S.reviewHint}</small>
           {job.plan.article?.images?.some((image: any) => image.unavailable) && <ui.Message tone="muted">{S.photoUnavailable}</ui.Message>}
           {job.countMode === "photos" ? <small>{S.fixedPhotoCount(job.count, job.plan.cards.length)}</small> : job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
           {job.countMode === "photos" && job.plan.article?.images?.length > (job.plan.photoChoices || []).filter((p: any) => p.kind === "article").length && <ui.Message tone="muted">{S.photoBudgetNotice(job.plan.article.images.length, (job.plan.photoChoices || []).filter((p: any) => p.kind === "article").length)}</ui.Message>}
         </ui.Section>
-        <ui.Stack gap={8}>
-          {job.done && job.export?.files?.length > 0 && <ui.Message tone="success">{S.exportDone(job.export.files.length)}</ui.Message>}
-          <ui.Actions>
-            <ui.Menu label={S.moreActions} disabled={busy} items={[
-              job.draftId ? { label: S.open, onSelect: () => { void openDraft(job.draftId); } } : { label: S.build, onSelect: () => { void build(); } },
-              { separator: true },
-              { label: S.startOver, onSelect: () => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); } },
-            ]} />
-            {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
-            <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
-          </ui.Actions>
-          <details>
-            <summary>{S.saveOptions}</summary>
-            <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
-            <ui.Row gap={8}>
-              {job.saveTo && <small style={{ minWidth: 0, overflowWrap: "anywhere" }}>{S.saveFolder}: {job.saveTo.split(/[\\/]/).filter(Boolean).pop()}</small>}
-              <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
-            </ui.Row>
-            {(job.saveTo || job.export?.dir) && <details>
-              <summary>{S.locationInfo}</summary>
-              <small style={{ display: "block", overflowWrap: "anywhere" }}>{job.export?.dir || job.saveTo}</small>
-            </details>}
-          </details>
-        </ui.Stack>
         <ui.Grid minItemWidth={240}>
           {job.plan.cards.map((c: any, i: number) => {
             if (c.role === "body") bodyN++;
@@ -5002,6 +4991,29 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             ))}
           </ui.Grid>
         )}
+        <ui.Section title={S.exportPng}>
+          {job.done && job.export?.files?.length > 0 && <ui.Message tone="success">{S.exportDone(job.export.files.length)}</ui.Message>}
+          <ui.Actions>
+            <ui.Button variant="ghost" disabled={busy} onClick={() => { setJob(null); setStatus(""); setError(""); setExported([]); setArticleText(""); setArticleFallback(false); }}>{S.startOver}</ui.Button>
+            {job.export?.dir && <ui.Button variant="secondary" icon="folder" onClick={() => openFolder(job.export.dir)} disabled={busy}>{S.openFolder}</ui.Button>}
+            <ui.Button variant="primary" busy={busy} busyLabel={S.exporting} onClick={exportCards}>{S.exportPng}</ui.Button>
+          </ui.Actions>
+          {!job.draftId && <ui.Actions>
+            <ui.Button variant="secondary" onClick={() => void build()} disabled={busy}>{S.build}</ui.Button>
+          </ui.Actions>}
+          <details>
+            <summary>{S.saveOptions}</summary>
+            <ui.Select label={S.exportFormat} value={job.format || "png"} options={[{ value: "png", label: "PNG" }, { value: "jpeg", label: "JPEG" }]} onChange={(format: string) => setJob({ ...job, format })} disabled={busy} />
+            <ui.Row gap={8}>
+              {job.saveTo && <small style={{ minWidth: 0, overflowWrap: "anywhere" }}>{S.saveFolder}: {job.saveTo.split(/[\\/]/).filter(Boolean).pop()}</small>}
+              <ui.Button variant="ghost" onClick={async () => { const saveTo = await hostSdk.dialogs.pickDirectoryPath(); if (saveTo) setJob({ ...job, saveTo }); }} disabled={busy}>{S.changeFolder}</ui.Button>
+            </ui.Row>
+            {(job.saveTo || job.export?.dir) && <details>
+              <summary>{S.locationInfo}</summary>
+              <small style={{ display: "block", overflowWrap: "anywhere" }}>{job.export?.dir || job.saveTo}</small>
+            </details>}
+          </details>
+        </ui.Section>
       </ui.Stack>
     ) : null;
 
@@ -5012,6 +5024,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     <ui.Stack gap={16}>
       {error && <ui.Message tone="error">{error}</ui.Message>}
       {!working && !error && status && !(job?.done && job.export?.files?.length) && <ui.Message tone="success">{status}</ui.Message>}
+      {form}
       {working ? (
         <ui.Section title={phase === 0 ? S.generate : S.working}>
           <ui.Progress label={status || S.working} busy />
@@ -5024,7 +5037,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           </ui.Button>
         </ui.Stack>
       ) : (
-        review || form
+        review
       )}
     </ui.Stack>
   );

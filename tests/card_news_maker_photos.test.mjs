@@ -477,3 +477,23 @@ test('header order controls respect first last ending and busy boundaries while 
     if(kind==='generate')assert.ok(tree.some(n=>n.type==='TextField'&&n.props.value==='Existing prompt'));
   }
 });
+
+
+test('Chosun card editors hide unused credit without deleting it or hiding other templates credits', () => {
+  const raw = JSON.parse(fs.readFileSync(new URL('../plugins/card-news-maker/template-packs/chosun-basic/template.json', import.meta.url)));
+  const chosun = b.CardSupport.fromLayout(raw), regular = b.BUILTIN_TEMPLATES[0];
+  const ui = new Proxy({}, { get: (_, key) => String(key) });
+  for (const S of [b.STRINGS.en, b.STRINGS.ko]) {
+    for (const t of [chosun, { ...chosun, id: 'saved-copy', version: 1 }, regular, b.CardSupport.fromLayout(layout())]) {
+      for (const role of ['cover', 'body']) {
+        const card = { id: 'saved-card', role, headline: 'Headline', body: 'Body', picture: { kind: 'file', path: '/photo.jpg' }, credit: 'Existing photo credit' };
+        const before = JSON.stringify(card); let changed;
+        const tree = nodes(b.CardEditor({ ui, S, t, card, index: 0, bodyIndex: 1, plan: { cards: [card] }, vars: {}, onChange: value => changed = value }));
+        const field = tree.find(n => n.type === 'TextField' && n.props.label === S.credit);
+        assert.equal(Boolean(field), t.importedLayoutId !== 'chosun-basic');
+        assert.equal(JSON.stringify(card), before);
+        if (field) { assert.equal(field.props.value, card.credit); field.props.onChange('Updated credit'); assert.equal(changed.credit, 'Updated credit'); assert.equal(card.credit, 'Existing photo credit'); }
+      }
+    }
+  }
+});
