@@ -211,7 +211,7 @@
         "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
         "retry": "No media start replay; late identity can cancel that original job once.",
         "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
-        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate. Optional video transcode transport: new/absent API selection, no operational-failure replay, and strict older-SDK typechecking in canonical_local_client.test.mjs. Archive/Mini do not opt into conversion; this is an additive shared transport method."
       },
       "evidence": [
         "shared/local-client.ts",
@@ -972,13 +972,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "ca2cf790abc0c1866e8035b51731ed63113bd0f3a43e2c465383007e8134604d",
+      "sha256": "2b84af0c98730481c1a986f7e4117a1d429f1d7ea11a664e84c0d6e619fef7f2",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8098,
+          "endLine": 8103,
           "feature": "panel-ui"
         },
         {
@@ -1018,12 +1018,12 @@
         },
         {
           "startLine": 7648,
-          "endLine": 8051,
+          "endLine": 8056,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8053,
-          "endLine": 8098,
+          "startLine": 8058,
+          "endLine": 8103,
           "feature": "app-guard"
         },
         {
@@ -1753,13 +1753,13 @@
     },
     {
       "path": "shared/local-client.ts",
-      "sha256": "069f7357c9b0d3cac0b36bc6163ffa6aa6d1bead8e572a94d2c9eb7486c672cb",
+      "sha256": "e0e7cde0ff161dfd2923cf9f5b0c49f2f9903e589e92db1042d036af68814551",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 404,
+          "endLine": 409,
           "feature": "local-sdk"
         }
       ]

@@ -235,7 +235,7 @@
         "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
         "retry": "No media start replay; late identity can cancel that original job once.",
         "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
-        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate. Optional video transcode transport: new/absent API selection, no operational-failure replay, and strict older-SDK typechecking in canonical_local_client.test.mjs. Archive/Mini do not opt into conversion; this is an additive shared transport method."
       },
       "evidence": [
         "shared/local-client.ts",
@@ -828,12 +828,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "caf7390508e6fca6f74f94053cfc54c1cbbc736ec0561a4efb6e2d9d2d197742",
+      "sha256": "41f6dcf61a12f7a16fa7d74e808b39258a93aa618920fea316a47e95b7035326",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7799,
+          "endLine": 7804,
           "feature": "panel-ui"
         },
         {
@@ -968,17 +968,17 @@
         },
         {
           "startLine": 7349,
-          "endLine": 7752,
+          "endLine": 7757,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7753,
-          "endLine": 7799,
+          "startLine": 7758,
+          "endLine": 7804,
           "feature": "app-guard"
         },
         {
-          "startLine": 7799,
-          "endLine": 7799,
+          "startLine": 7804,
+          "endLine": 7804,
           "feature": "panel-ui"
         },
         {
