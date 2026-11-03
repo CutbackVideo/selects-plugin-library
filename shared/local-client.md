@@ -43,8 +43,8 @@ continues to use the existing media job contract.
 The existing `tools/sync_panel_local_client.mjs` now supports a scoped migration:
 
 ```sh
-node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump
-node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump --check
+node tools/sync_panel_local_client.mjs --only=photo-gallery-no2,multicam-generator
+node tools/sync_panel_local_client.mjs --only=photo-gallery-no2,multicam-generator --check
 ```
 
 The check is read-only. All requested consumers/markers/wrappers are validated
@@ -54,10 +54,12 @@ scope the legacy full-repository synchronization behavior remains available;
 do not invoke it for a scoped repair. Multiple file replacements are not one
 filesystem transaction; final drift checks remain required before publishing.
 
-The photo consumers previously had older file batching/cleanup copies. Their
-scoped synchronization now uses the existing canonical implementation as well
-as the new connection behavior. a16z imports the canonical source directly and
-uses its existing bundler. Other embedded copies are not silently migrated.
+The delivery pipeline synchronizes only the five embedded transcode consumers:
+Photo Grid Reveal, Postcard Cutout Studio, Multicam Generator, Gongju Gallery,
+and Chris Williamson Style. A16z, EO Shorts and Podcast import the canonical
+source and use their existing bundlers. Other embedded clients retain their
+existing snapshots, including their original fingerprint fallback; a transcode
+migration must explicitly update both the recipe and its client.
 
 File observation is opt-in: `withPanelLocalClient(Panel, fingerprintTemplateFile)`
 passes the separately registered `file-observation` module into the client.

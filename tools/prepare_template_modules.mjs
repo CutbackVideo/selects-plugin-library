@@ -21,7 +21,9 @@ const registry = JSON.parse(readFileSync(path.join(root, 'shared/panel-modules.j
 for (const module of registry.modules) for (const target of module.buildTimeTargets || []) {
   if (!generators.includes(target)) throw Error('No delivery pipeline for registered builder: ' + target);
 }
-const localConsumers = 'no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump,photo-gallery-no2,mini-vlog,archive-vlog';
+// Only migrate embedded clients whose recipes use the new transcode interface.
+// Other panels retain their existing private client snapshots.
+const localConsumers = 'photo-gallery-no2,postcard-cutout-studio,multicam-generator,gongju-gallery,chris-williamson-style';
 const steps = [
   [process.execPath, ['tools/build_file_observation.mjs']],
   [process.execPath, ['tools/sync_panel_modules.mjs']],
