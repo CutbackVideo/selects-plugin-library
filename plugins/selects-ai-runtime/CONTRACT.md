@@ -177,7 +177,7 @@ The host passes the desktop `request.json` shape without a file path, plus:
 - `source` for `faces.detect`: `width`/`height` in displayed pixels (track rotation and EXIF orientation applied), `frameTimes` (ascending source seconds inside `sourceRange`, the first displayed frame being zero; `[0]` for a photo), and `frames(indices)`, an async iterable of packed RGB24 frames for those indices in order.
 - `source` for `speakers.detect`: `width`/`height` and `decodeWindow({ startSeconds, durationSeconds, fps, width, height, audioSampleRate })`, which resolves `{ rgb, pcm }`: the frames and mono signed 16-bit audio that desktop's two FFmpeg commands write for that window.
 - `download({ url, size, sha256 })`: verified network bytes. The host accepts only `https` pins and rejects any size or digest mismatch.
-- `readPackageFile({ path, size, sha256 })`: a verified file listed in this package, such as the bundled Light-ASD model.
+- `readPackageFile({ path, size, sha256 })`: a verified file listed in this package, such as the bundled Light-ASD model. The web host stores only `web/runtime.mjs` and the Panel when it installs this package, and reads other listed files from the installed library commit on demand.
 - `importModule(bytes)`, `emitProgress(event)` and `signal`.
 
 `run` returns `{ files: { detections: { name, mediaType, json } }, metrics, diagnostics }` with `faces.json` or `speakers.json` in the desktop schema. The host validates and stores the document, then serves it through the same `selects.ai` result and `readJSON` calls as on desktop. `diagnostics.backend` is `onnxruntime-web-wasm`.
