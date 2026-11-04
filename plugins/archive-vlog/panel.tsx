@@ -1915,7 +1915,7 @@ function errorSay(e: any, wrap: (lang: Lang, detail: string) => string): Say {
 
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.26";
+const PLUGIN_VERSION = "0.1.0-alpha.27";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -6978,8 +6978,11 @@ async function readTemplateDraftSources(sdk,projectId,draftId,libraryId=null){
  }
  let clips=[],revision;
  if(!missingMethod){
-  if(typeof snapshot?.revision!=='string'||!snapshot.revision||!Number.isFinite(snapshot.fps)||snapshot.fps<=0||!Array.isArray(snapshot.clips)||snapshot.clips.length>1000||snapshot.clips.some(row=>!row||typeof row!=='object'))fail('Saved Draft media observation is incomplete.');
-  clips=snapshot.clips.filter(row=>row?.resourceId!=null).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds,endSeconds:row.sourceEndSeconds},playbackSpeed:row.playbackSpeed}));
+  // Current hosts expose the SDK's logical Main view alongside physical V1/A1.
+  // Older hosts already store Main clips and retain their original observation.
+  const rows=snapshot?.sdkClips===undefined?snapshot?.clips:snapshot.sdkClips;
+  if(typeof snapshot?.revision!=='string'||!snapshot.revision||!Number.isFinite(snapshot.fps)||snapshot.fps<=0||!Array.isArray(rows)||rows.length>1000||rows.some(row=>!row||typeof row!=='object'))fail('Saved Draft media observation is incomplete.');
+  clips=rows.filter(row=>row?.resourceId!=null).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds,endSeconds:row.sourceEndSeconds},playbackSpeed:row.playbackSpeed}));
   revision=JSON.stringify({core:witness,media:snapshot.revision,clips});
  }else{
   // getDraftCore is an existing public read. Interpret only documented persisted
