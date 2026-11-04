@@ -66,7 +66,8 @@ test('speaker probe reads only the timestamp origin, not the range frames',async
  require('../lib/process.cjs');
  require.cache[processPath]={...original,exports:{...original.exports,collectTool:async(tool,args)=>{
   calls.push(args);
-  if(args.includes('-show_frames'))return JSON.stringify({frames:Array.from({length:64},(_,i)=>({best_effort_timestamp:1000+i*1001}))});
+  assert.ok(!args.includes('-show_frames'), 'Do not enable all frame side data (Dolby Vision can exceed the output bound)');
+  if(args.includes('frame=best_effort_timestamp'))return JSON.stringify({frames:Array.from({length:64},(_,i)=>({best_effort_timestamp:1000+i*1001}))});
   return JSON.stringify({streams:[{width:1920,height:1080,time_base:'1/30000',avg_frame_rate:'30000/1001'}],format:{start_time:'0.033'}});
  }}};
  delete require.cache[videoPath];
@@ -74,14 +75,14 @@ test('speaker probe reads only the timestamp origin, not the range frames',async
   const {probeVideo}=require('../lib/video.cjs');
   const request=task=>({task,input:{source:{path:'/x.mp4'},sourceRange:{startSeconds:.5,endSeconds:1.5}}});
   const video=await probeVideo({tools:{ffprobe:'ffprobe'}},request('speakers.detect'));
-  const frameReads=calls.filter(a=>a.includes('-show_frames'));
+  const frameReads=calls.filter(a=>a.includes('frame=best_effort_timestamp'));
   assert.deepEqual(frameReads.map(a=>a[a.indexOf('-read_intervals')+1]),['%+#64']);
   assert.ok(frameReads.every(a=>a[a.indexOf('-threads')+1]==='2'));
   assert.equal(video.width,1920);assert.equal(video.height,1080);
   assert.ok(Math.abs(video.timestampOriginSeconds-1000/30000)<1e-12);assert.equal(video.formatStartTime,.033);
   calls.length=0;await probeVideo({tools:{ffprobe:'ffprobe'}},request('faces.detect'));
-  assert.equal(calls.filter(a=>a.includes('-show_frames')).length,2);
-  assert.ok(calls.filter(a=>a.includes('-show_frames')).every(a=>a[a.indexOf('-threads')+1]==='2'));
+  assert.equal(calls.filter(a=>a.includes('frame=best_effort_timestamp')).length,2);
+  assert.ok(calls.filter(a=>a.includes('frame=best_effort_timestamp')).every(a=>a[a.indexOf('-threads')+1]==='2'));
  } finally {require.cache[processPath]=original;delete require.cache[videoPath];}
 });
 
