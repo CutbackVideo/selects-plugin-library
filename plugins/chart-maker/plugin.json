@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chart-maker",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Chart Maker",
   "summary": "Paste cells from Excel or Sheets, or load a CSV, then style a bar, line, pie or donut chart with an animated preview and add it to your Draft as an editable graphic. Optional AI design from reference images.",
   "status": "experimental",

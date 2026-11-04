@@ -158,6 +158,36 @@ const STRINGS: any = {
     sourceHint: "Shown in small type under the chart. Leave empty to hide it.",
     align: "Align",
     aligns: { left: "Left", center: "Center", right: "Right" },
+    cutWarn: (rows: number, from: string, to: string, series: string[]) => {
+      const parts: string[] = [];
+      if (rows > 0) parts.push(`${rows} ${rows === 1 ? "row" : "rows"} (${from === to ? from : from + " to " + to})`);
+      if (series.length) parts.push(`${series.length} series (${series.join(", ")})`);
+      return `A chart fits up to 60 rows and 6 series, so this was left out: ${parts.join(" and ")}. To chart it, paste fewer rows or columns.`;
+    },
+    styles: "Saved styles",
+    stylesHint: "A style keeps the colors, fonts, sizes, background and animation. The data, title and position stay as they are.",
+    stylePick: "Style",
+    stylePlaceholder: "Choose a style",
+    noStyles: "No saved styles yet. Set up a look, then save it here.",
+    styleName: "Style name",
+    styleNamePlaceholder: "e.g. Northwind brand",
+    styleSave: "Save style",
+    styleSaved: (n: string) => `Saved “${n}”.`,
+    styleApplied: (n: string) => `Applied “${n}”.`,
+    styleUndo: "Undo",
+    styleDelete: "Delete",
+    styleDeleteTitle: (n: string) => `Delete “${n}”?`,
+    styleDeleteMsg: "Charts already in your drafts keep their look.",
+    styleReplaceTitle: (n: string) => `Replace “${n}”?`,
+    styleReplaceMsg: "A saved style already has this name. Replace it with the current look?",
+    styleReplace: "Replace",
+    styleSaveFailed: "Couldn't save the style. Try again.",
+    highlight: "Highlight",
+    highlightNone: "None",
+    highlightColor: "Highlight color",
+    dimColor: "Color of the rest",
+    highlightHint: "One bar or slice stands out in the highlight color; the rest take the second color.",
+    highlightHintMulti: "The highlighted group keeps its colors; the rest fade toward the background.",
     msgEmpty: "Paste data or load a CSV to make a chart",
     msgNoNumbers: "No numbers found",
     msgPie: "Pie charts need positive numbers",
@@ -313,6 +343,36 @@ const STRINGS: any = {
     sourceHint: "\ucc28\ud2b8 \uc544\ub798\uc5d0 \uc791\uc740 \uae00\uc528\ub85c \ud45c\uc2dc\ub3fc\uc694. \ube44\uc6cc \ub450\uba74 \uc228\uaca8\uc838\uc694.",
     align: "\uc815\ub82c",
     aligns: { left: "\uc67c\ucabd", center: "\uac00\uc6b4\ub370", right: "\uc624\ub978\ucabd" },
+    cutWarn: (rows: number, from: string, to: string, series: string[]) => {
+      const parts: string[] = [];
+      if (rows > 0) parts.push(`${rows}\ud589 (${from === to ? from : from + "~" + to})`);
+      if (series.length) parts.push(`\uacc4\uc5f4 ${series.length}\uac1c (${series.join(", ")})`);
+      return `\ucc28\ud2b8\uc5d0\ub294 \ucd5c\ub300 60\ud589, \uacc4\uc5f4 6\uac1c\uae4c\uc9c0 \ub4e4\uc5b4\uac00\uc11c ${parts.join(", ")}\uc774(\uac00) \ube60\uc84c\uc5b4\uc694. \ube60\uc9c4 \ubd80\ubd84\uae4c\uc9c0 \ub123\uc73c\ub824\uba74 \ud589\uc774\ub098 \uc5f4\uc744 \uc904\uc5ec\uc11c \ubd99\uc5ec \ub123\uc5b4 \uc8fc\uc138\uc694.`;
+    },
+    styles: "\uc800\uc7a5\ud55c \uc2a4\ud0c0\uc77c",
+    stylesHint: "\uc2a4\ud0c0\uc77c\uc5d0\ub294 \uc0c9\uc0c1, \uae00\uaf34, \ud06c\uae30, \ubc30\uacbd, \uc560\ub2c8\uba54\uc774\uc158\uc774 \uc800\uc7a5\ub3fc\uc694. \ub370\uc774\ud130, \uc81c\ubaa9, \uc704\uce58\ub294 \uadf8\ub300\ub85c\uc608\uc694.",
+    stylePick: "\uc2a4\ud0c0\uc77c",
+    stylePlaceholder: "\uc2a4\ud0c0\uc77c \uc120\ud0dd",
+    noStyles: "\uc544\uc9c1 \uc800\uc7a5\ud55c \uc2a4\ud0c0\uc77c\uc774 \uc5c6\uc5b4\uc694. \ub514\uc790\uc778\uc744 \ub9de\ucd98 \ub4a4 \uc5ec\uae30\uc11c \uc800\uc7a5\ud558\uc138\uc694.",
+    styleName: "\uc2a4\ud0c0\uc77c \uc774\ub984",
+    styleNamePlaceholder: "\uc608: \uc6b0\ub9ac \ube0c\ub79c\ub4dc",
+    styleSave: "\uc2a4\ud0c0\uc77c \uc800\uc7a5",
+    styleSaved: (n: string) => `“${n}” \uc2a4\ud0c0\uc77c\uc744 \uc800\uc7a5\ud588\uc5b4\uc694.`,
+    styleApplied: (n: string) => `“${n}” \uc2a4\ud0c0\uc77c\uc744 \uc801\uc6a9\ud588\uc5b4\uc694.`,
+    styleUndo: "\ub418\ub3cc\ub9ac\uae30",
+    styleDelete: "\uc0ad\uc81c",
+    styleDeleteTitle: (n: string) => `“${n}” \uc2a4\ud0c0\uc77c\uc744 \uc0ad\uc81c\ud560\uae4c\uc694?`,
+    styleDeleteMsg: "\ub4dc\ub798\ud504\ud2b8\uc5d0 \uc774\ubbf8 \ub123\uc740 \ucc28\ud2b8\ub294 \uadf8\ub300\ub85c\uc608\uc694.",
+    styleReplaceTitle: (n: string) => `“${n}” \uc2a4\ud0c0\uc77c\uc744 \ubc14\uafc0\uae4c\uc694?`,
+    styleReplaceMsg: "\uac19\uc740 \uc774\ub984\uc758 \uc2a4\ud0c0\uc77c\uc774 \uc788\uc5b4\uc694. \uc9c0\uae08 \ub514\uc790\uc778\uc73c\ub85c \ubc14\uafc0\uae4c\uc694?",
+    styleReplace: "\ubc14\uafb8\uae30",
+    styleSaveFailed: "\uc2a4\ud0c0\uc77c\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
+    highlight: "\uac15\uc870",
+    highlightNone: "\uc5c6\uc74c",
+    highlightColor: "\uac15\uc870 \uc0c9\uc0c1",
+    dimColor: "\ub098\uba38\uc9c0 \uc0c9\uc0c1",
+    highlightHint: "\ub9c9\ub300\ub098 \uc870\uac01 \ud558\ub098\ub9cc \uac15\uc870 \uc0c9\uc0c1\uc73c\ub85c \ub208\uc5d0 \ub744\uac8c \ud558\uace0, \ub098\uba38\uc9c0\ub294 \ub450 \ubc88\uc9f8 \uc0c9\uc0c1\uc73c\ub85c \uce60\ud574\uc694.",
+    highlightHintMulti: "\uac15\uc870\ud55c \uadf8\ub8f9\uc740 \uc6d0\ub798 \uc0c9\uc744 \uc720\uc9c0\ud558\uace0, \ub098\uba38\uc9c0\ub294 \ubc30\uacbd\uc0c9 \ucabd\uc73c\ub85c \ud750\ub824\uc838\uc694.",
     msgEmpty: "\ub370\uc774\ud130\ub97c \ubd99\uc5ec \ub123\uac70\ub098 CSV\ub97c \ubd88\ub7ec\uc624\uba74 \ucc28\ud2b8\uac00 \ub9cc\ub4e4\uc5b4\uc838\uc694",
     msgNoNumbers: "\uc22b\uc790\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694",
     msgPie: "\uc6d0\ud615 \ucc28\ud2b8\uc5d0\ub294 \uc591\uc218\uac00 \ud544\uc694\ud574\uc694",
@@ -360,6 +420,9 @@ const DEFAULTS: Record<string, any> = {
   color5: DEFAULT_COLORS[4],
   color6: DEFAULT_COLORS[5],
   colorEach: false,
+  highlight: "",          // the label of the one bar or slice to stand out; "" for none
+  highlightColor: "#FFD54F",
+  dimColor: "#5C616B",    // the rest, when one is highlighted (single series and pies)
   showGrid: false,
   showBaseline: true,
   axisLines: false,
@@ -380,7 +443,18 @@ const DEFAULTS: Record<string, any> = {
 const DESIGN_KEYS = [
   "background", "titleColor", "valueColor", "labelColor", "axisColor", "color1", "color2", "color3", "color4", "color5", "color6",
   "colorEach", "showGrid", "showBaseline", "barWidth", "cornerRadius", "lineWidth", "showPoints", "fillArea", "donutHole", "chartWidth",
+  "highlight", "highlightColor", "dimColor",
 ];
+
+// What a saved style keeps: the look, not the data, title, source text or position.
+const STYLE_KEYS = [
+  "background", "titleColor", "valueColor", "labelColor", "axisColor", "color1", "color2", "color3", "color4", "color5", "color6",
+  "colorEach", "highlightColor", "dimColor", "showGrid", "showBaseline", "axisLines", "axisMarks", "barWidth", "cornerRadius",
+  "lineWidth", "showPoints", "fillArea", "donutHole", "chartWidth", "fontFamily", "showTitle", "titleSize", "titleWeight",
+  "showValues", "valueSize", "thousands", "decimals", "pieValues", "showLabels", "labelSize", "showLegend",
+  "bgOn", "bgStyle", "bgRadius", "textOutline", "sourceAlign", "sourceSize", "animate", "animStyle", "animSeconds",
+];
+const STYLES_KEY = "styles.v1";
 
 // Shared chart renderer. Its source is embedded into the graphic clip, so it
 // must stay self-contained (no imports, no outer variables). Every size the
@@ -476,23 +550,29 @@ function chartKit() {
       return r.every(function (x) { return x === "" || !isNaN(num(x)); });
     });
     if (hasHeader && allNum && isNaN(num(head[0])) && ncol > body.length + 1) {
+      var tCut = { rows: Math.max(0, head.length - 60), from: String(head[60] || ""), to: String(head[head.length - 1] || ""),
+        series: body.slice(6).map(function (_r, i) { return "Series " + (i + 7); }) };
       return {
         labels: head.slice(0, 60),
         series: body.slice(0, 6).map(function (r, i) {
           return { name: "Series " + (i + 1), values: head.slice(0, 60).map(function (_x, k) { return num(r[k]); }) };
-        }), error: "",
+        }), error: "", cut: tCut,
       };
     }
+    // A chart takes up to 60 rows and 6 series; what is left out is reported, not hidden.
+    var cut = { rows: Math.max(0, body.length - 60), from: String((body[60] || [])[0] || ""), to: String((body[body.length - 1] || [])[0] || ""), series: [] as string[] };
     body = body.slice(0, 60);
     var series: any[] = [];
-    for (var c = 1; c < ncol && series.length < 6; c++) {
+    for (var c = 1; c < ncol; c++) {
       var vals = body.map(function (r) { return num(r[c]); });
       if (vals.some(function (v) { return isFinite(v); })) {
-        series.push({ name: hasHeader && head[c] ? head[c] : "Series " + c, values: vals });
+        var sName = hasHeader && head[c] ? head[c] : "Series " + c;
+        if (series.length < 6) series.push({ name: sName, values: vals });
+        else cut.series.push(sName);
       }
     }
     if (!series.length) return { labels: [], series: [], error: "No numbers found" };
-    return { labels: body.map(function (r) { return r[0] || ""; }), series: series, error: "" };
+    return { labels: body.map(function (r) { return r[0] || ""; }), series: series, error: "", cut: cut };
   }
   function esc(s: any): string {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -582,7 +662,7 @@ function chartKit() {
     var lc = col(d.labelColor, "#FFFFFF"), ac = col(d.axisColor, "#FFFFFF");
     var pal = [d.color1, d.color2, d.color3, d.color4, d.color5, d.color6].map(function (c: any, i: number) { return col(c, DEF[i]); });
     var fam = String(d.fontFamily || "").replace(/["'<>;&]/g, "").trim();
-    var font = (fam ? "'" + fam + "', " : "") + "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+    var font = (fam ? "'" + fam + "', " : "") + "Inter, 'Helvetica Neue', Helvetica, Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
     function mw(s: any, size: number, weight: any): number {
       s = String(s);
       if (!s) return 0;
@@ -688,7 +768,22 @@ function chartKit() {
       var a = hexRgb(base), b = hexRgb(bg), k = Math.min(0.7, 0.38 * round);
       return "rgb(" + a.map(function (x, j) { return Math.round(x + (b[j] - x) * k); }).join(",") + ")";
     }
-    function colorOf(si: number, ci: number): string { return ns > 1 ? pal[si % 6] : bv(d.colorEach, false) ? pc(ci) : pal[0]; }
+    // Highlight: one bar or slice, picked by its label, stands out; the rest
+    // take the second colour (one series, pies) or fade toward the background.
+    var hlLabel = String(d.highlight || "").trim(), hlIdx = -1;
+    if (hlLabel === "__none__") hlLabel = ""; // the menus' "None" item (a select item cannot use "")
+    if (hlLabel && type !== "line") for (var hi = 0; hi < nc; hi++) if (String(t.labels[hi]).trim() === hlLabel) { hlIdx = hi; break; }
+    var hlC = col(d.highlightColor, "#FFD54F"), dimC = col(d.dimColor, "#5C616B");
+    function fade(c: string): string {
+      if (!/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(c) || !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(bg)) return c;
+      var a = hexRgb(c), b = hexRgb(bg);
+      return "rgb(" + a.map(function (x, j) { return Math.round(x + (b[j] - x) * 0.6); }).join(",") + ")";
+    }
+    function colorOf(si: number, ci: number): string {
+      if (hlIdx >= 0) return ns > 1 ? (ci === hlIdx ? pal[si % 6] : fade(pal[si % 6])) : (ci === hlIdx ? hlC : dimC);
+      return ns > 1 ? pal[si % 6] : bv(d.colorEach, false) ? pc(ci) : pal[0];
+    }
+    function sliceColor(i: number): string { return hlIdx >= 0 ? (i === hlIdx ? hlC : dimC) : pc(i); }
 
     // ---- Pie and donut -------------------------------------------------
     if (type === "pie" || type === "donut") {
@@ -738,7 +833,7 @@ function chartKit() {
         var sw = Math.min(full, swept - rel0);
         var rk = radial ? itemP(i, nc) : 1;
         if (sw <= 0 || rk <= 0) continue;
-        o.push('<path d="' + arc(cx, cy, r * rk, hole * rk, a0, a0 + Math.min(sw, Math.PI * 2 - 1e-4)) + '" fill="' + pc(i) + '" stroke="' + (bgMode === "none" ? "rgba(0,0,0,0.35)" : bg) + '" stroke-width="' + f1(bw0) + '"/>');
+        o.push('<path d="' + arc(cx, cy, r * rk, hole * rk, a0, a0 + Math.min(sw, Math.PI * 2 - 1e-4)) + '" fill="' + sliceColor(i) + '" stroke="' + (bgMode === "none" ? "rgba(0,0,0,0.35)" : bg) + '" stroke-width="' + f1(bw0) + '"/>');
         var labOp = radial ? clamp01((rk - 0.6) / 0.4) : clamp01((swept - (rel0 + full / 2)) / (full / 2 + 0.25));
         if (showV && labOp > 0 && vsz >= floorT * 0.9) {
           var mid = a0 + full / 2, rr = hole > 0 ? (r + hole) / 2 : r * 0.64;
@@ -759,7 +854,7 @@ function chartKit() {
         for (var j = 0; j < nc; j++) {
           var cc = Math.floor(j / rows), rw = j % rows;
           var lx = lx0 + cc * (colW + colGap), yy = ly0 + rw * rowH, s2 = lsz * 0.85;
-          o.push(rect(lx, yy - s2 / 2, s2, s2, s2 * 0.2, pc(j)));
+          o.push(rect(lx, yy - s2 / 2, s2, s2, s2 * 0.2, sliceColor(j)));
           o.push(txt(lx + s2 + u * 1.2, yy + lsz * 0.35, t.labels[j], lsz, lc, { anchor: "start", weight: 500, maxW: colW - s2 - u * 1.2 }));
         }
       }
@@ -849,7 +944,10 @@ function chartKit() {
         else if (s2 >= floorT) vm = { mode: "flat", wide: true, size: s2 };
       }
       var valW = vm.mode === "none" ? 0 : maxValW * vm.size / vs + u;
-      var L2 = L0 + labW + (sc.lo < 0 ? valW : 0), R2 = R0 - valW;
+      var L2 = L0 + labW + (sc.lo < 0 ? valW + u * 1.5 : 0), R2 = R0 - valW;
+      // Category labels end before the room kept for negative values, so a
+      // value left of a negative bar never lands on them.
+      var labR = L0 + labW;
       var X = function (v: number) { return L2 + (v - sc.lo) / (sc.hi - sc.lo) * (R2 - L2); };
       if (sc.ticks.length) {
         var tw2 = 0;
@@ -863,7 +961,7 @@ function chartKit() {
       var groupH = vm.wide ? band * 0.92 : gh, slotH = groupH / ns;
       var barH = Math.max(1, gh / ns - (ns > 1 ? (gh / ns) * 0.12 : 0));
       for (var ci = 0; ci < nc; ci++) {
-        if (showL && ci % step === 0) out.push(txt(L2 - u * 1.2, T2 + band * (ci + 0.5) + lsz * 0.35, t.labels[ci], lsz, lc, { anchor: "end", weight: 500, maxW: labW - u * 1.5 }));
+        if (showL && ci % step === 0) out.push(txt(labR - u * 1.2, T2 + band * (ci + 0.5) + lsz * 0.35, t.labels[ci], lsz, lc, { anchor: "end", weight: 500, maxW: labW - u * 1.5 }));
         for (var si = 0; si < ns; si++) {
           var v = t.series[si].values[ci];
           if (!isFinite(v)) continue;
@@ -1108,7 +1206,7 @@ function chartKit() {
     var b = areaBox(String(d.area || "full"), W, H);
     var bg = col(d.background, "#111214");
     var fam = String(d.fontFamily || "").replace(/["'<>;&]/g, "").trim();
-    var font = (fam ? "'" + fam + "', " : "") + "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+    var font = (fam ? "'" + fam + "', " : "") + "Inter, 'Helvetica Neue', Helvetica, Arial, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
     var inner = chartBody(d, b.w, b.h, p, measure, { uFull: Math.min(W, H) / 100, H: H, bgMode: bgMode, boxed: String(d.area || "full") !== "full" });
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + " " + H + '" width="100%" height="100%" style="display:block;font-family:' + esc(font) + '">' +
       (bgMode === "solid" ? '<rect width="' + W + '" height="' + H + '" fill="' + bg + '"/>' : "") +
@@ -1167,6 +1265,9 @@ const WEIGHT_OPTS = [
 ];
 
 // What the Inspector shows for a placed chart clip.
+// A select item cannot have an empty value, so "no highlight" uses this one;
+// the renderer reads it the same as "".
+const HIGHLIGHT_NONE = "__none__";
 const INSPECTOR_DEFS: any[] = [
   { key: "data", label: "Data (paste table)", type: "text", defaultValue: DEFAULTS.data },
   { key: "chartType", label: "Chart type", type: "select", defaultValue: "bar", options: [
@@ -1195,6 +1296,9 @@ const INSPECTOR_DEFS: any[] = [
   { key: "color5", label: "Color 5", type: "color", defaultValue: DEFAULT_COLORS[4] },
   { key: "color6", label: "Color 6", type: "color", defaultValue: DEFAULT_COLORS[5] },
   { key: "colorEach", label: "Color each bar", type: "boolean", defaultValue: false },
+  { key: "highlight", label: "Highlight", type: "select", defaultValue: HIGHLIGHT_NONE, options: [] },
+  { key: "highlightColor", label: "Highlight color", type: "color", defaultValue: "#FFD54F" },
+  { key: "dimColor", label: "Color of the rest", type: "color", defaultValue: "#5C616B" },
   { key: "showValues", label: "Show values", type: "boolean", defaultValue: true },
   { key: "valueSize", label: "Value size", type: "number", defaultValue: 4.5, min: 1, max: 15, step: 0.5 },
   { key: "valueColor", label: "Value color", type: "color", defaultValue: "#FFFFFF" },
@@ -1311,7 +1415,36 @@ const AI_FONTS = [
   "Georgia", "Times New Roman", "Baskerville", "Didot", "Palatino", "American Typewriter", "Rockwell", "Copperplate",
   "Impact", "Menlo", "Courier New", "Marker Felt", "Chalkboard SE",
 ];
-const AI_COLOR_KEYS = ["background", "titleColor", "valueColor", "labelColor", "axisColor", "color1", "color2", "color3", "color4", "color5", "color6"];
+// Korean fonts the AI may pick, offered only when installed on this computer.
+// Apple SD Gothic Neo ships with macOS and Malgun Gothic with Windows.
+const AI_FONTS_KO = [
+  "Apple SD Gothic Neo", "AppleMyungjo", "Malgun Gothic", "Pretendard", "Noto Sans KR", "Noto Serif KR",
+  "Nanum Gothic", "Nanum Myeongjo", "NanumSquare", "Spoqa Han Sans Neo", "SUIT", "Gmarket Sans", "IBM Plex Sans KR",
+];
+// True when a font is installed: text set in it measures differently from the fallbacks.
+function fontInstalled(name: string): boolean {
+  try {
+    const doc: any = (globalThis as any).document;
+    const ctx = doc && doc.createElement("canvas").getContext("2d");
+    if (!ctx) return false;
+    const sample = "\uAC00\uB098\uB2E4\uD55C\uAE00 mmmWWWiii 0123";
+    return ["monospace", "serif"].some((base) => {
+      ctx.font = `48px ${base}`;
+      const w0 = ctx.measureText(sample).width;
+      ctx.font = `48px '${name.replace(/'/g, "")}', ${base}`;
+      return ctx.measureText(sample).width !== w0;
+    });
+  } catch {
+    return false;
+  }
+}
+let koFontsCache: string[] | null = null;
+function installedKoreanFonts(): string[] {
+  if (!koFontsCache) koFontsCache = AI_FONTS_KO.filter(fontInstalled);
+  return koFontsCache;
+}
+const HAS_HANGUL = /[\u3131-\u318E\uAC00-\uD7A3]/;
+const AI_COLOR_KEYS = ["background", "titleColor", "valueColor", "labelColor", "axisColor", "color1", "color2", "color3", "color4", "color5", "color6", "highlightColor", "dimColor"];
 const AI_SPEC: Record<string, any> = {
   chartType: { oneOf: ["bar", "hbar", "line", "pie", "donut"] },
   title: { text: 80 },
@@ -1330,11 +1463,12 @@ const AI_SPEC: Record<string, any> = {
   valuePrefix: { text: 6 }, valueSuffix: { text: 8 },
   decimals: { oneOf: ["auto", "0", "1", "2"] }, pieValues: { oneOf: ["percent", "value", "both"] },
   animStyle: { oneOf: ["draw", "cascade", "bounce", "fade"] }, animSeconds: { range: [0.3, 5] },
+  highlight: { label: true },
 };
 for (const k of AI_COLOR_KEYS) AI_SPEC[k] = { color: true };
 
 // Keep only changes that are valid settings with valid values.
-function sanitizeAiChanges(raw: any, current: Record<string, any>): Record<string, any> {
+function sanitizeAiChanges(raw: any, current: Record<string, any>, labels: string[] = [], fonts: string[] = AI_FONTS): Record<string, any> {
   const out: Record<string, any> = {};
   if (!raw || typeof raw !== "object") return out;
   for (const key of Object.keys(raw)) {
@@ -1345,6 +1479,7 @@ function sanitizeAiChanges(raw: any, current: Record<string, any>): Record<strin
     else if (spec.range) { v = Number(v); if (!isFinite(v)) continue; v = Math.max(spec.range[0], Math.min(spec.range[1], Math.round(v * 10) / 10)); }
     else if (spec.bool) { if (typeof v !== "boolean") continue; }
     else if (spec.text) { if (typeof v !== "string") continue; v = v.slice(0, spec.text); }
+    else if (spec.label) { v = String(v ?? "").trim(); if (v && !labels.some((l) => String(l).trim() === v)) continue; }
     else if (spec.color) {
       v = String(v).trim();
       if (!/^#?[0-9a-fA-F]{3}([0-9a-fA-F]{3})?([0-9a-fA-F]{2})?$/.test(v)) continue;
@@ -1352,7 +1487,7 @@ function sanitizeAiChanges(raw: any, current: Record<string, any>): Record<strin
       if (v.length === 4) v = "#" + v.slice(1).split("").map((c: string) => c + c).join("");
       v = v.toUpperCase();
     }
-    if (key === "fontFamily" && v && !AI_FONTS.includes(v)) continue;
+    if (key === "fontFamily" && v && !fonts.includes(v)) continue;
     if (current[key] === v) continue;
     out[key] = v;
   }
@@ -1436,6 +1571,11 @@ export default function Panel({ sdk, context, ui }: any) {
   const [aiPrev, setAiPrev] = React.useState<Record<string, any> | null>(null);
   const [aiStatus, setAiStatus] = React.useState<any>(null);
   const [aiOffline, setAiOffline] = React.useState(false);
+  const [styles, setStyles] = React.useState<Array<{ name: string; params: Record<string, any> }>>([]);
+  const [styleName, setStyleName] = React.useState("");
+  const [stylePick, setStylePick] = React.useState<string | null>(null);
+  const [stylePrev, setStylePrev] = React.useState<Record<string, any> | null>(null);
+  const [styleStatus, setStyleStatus] = React.useState<any>(null);
   const aiRun = React.useRef(0); // bumps on each run and on Stop; a reply from an older run is ignored // the Selects-credits model could not be assigned
 
   const set = (key: string) => (value: any) => setParams((prev) => ({ ...prev, [key]: value }));
@@ -1484,6 +1624,84 @@ export default function Panel({ sdk, context, ui }: any) {
     }, 400);
     return () => clearTimeout(h);
   }, [params, duration, canvas, placement, restored, mode, aiPrompt, uiLang]);
+
+  // Saved styles live in the app's storage on this computer.
+  React.useEffect(() => {
+    sdk.storage.getItem(STYLES_KEY).then((raw: string | null) => {
+      try {
+        const list = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(list)) setStyles(list.filter((x: any) => x && typeof x.name === "string" && x.params && typeof x.params === "object"));
+      } catch {}
+    }).catch(() => {});
+  }, []);
+
+  async function writeStyles(next: Array<{ name: string; params: Record<string, any> }>): Promise<boolean> {
+    try {
+      await sdk.storage.setItem(STYLES_KEY, JSON.stringify(next));
+      setStyles(next);
+      return true;
+    } catch {
+      setStyleStatus({ tone: "error", text: S.styleSaveFailed });
+      return false;
+    }
+  }
+
+  async function saveStyle() {
+    const name = styleName.trim();
+    if (!name) return;
+    const exists = styles.some((x) => x.name === name);
+    if (exists && sdk.confirm) {
+      try {
+        const ok = await sdk.confirm({ title: S.styleReplaceTitle(name), message: S.styleReplaceMsg, confirmLabel: S.styleReplace });
+        if (!ok) return;
+      } catch { return; }
+    }
+    const look: Record<string, any> = {};
+    for (const k of STYLE_KEYS) if (params[k] !== undefined) look[k] = params[k];
+    const next = exists ? styles.map((x) => (x.name === name ? { name, params: look } : x)) : [...styles, { name, params: look }];
+    if (await writeStyles(next)) {
+      setStylePick(name);
+      setStyleName("");
+      setStyleStatus({ tone: "success", text: S.styleSaved(name) });
+    }
+  }
+
+  function applyStyle(name: string) {
+    const st = styles.find((x) => x.name === name);
+    if (!st) return;
+    setStylePick(name);
+    setStylePrev(params);
+    const look: Record<string, any> = {};
+    for (const k of STYLE_KEYS) if (st.params[k] !== undefined) look[k] = st.params[k];
+    setParams((prev) => ({ ...prev, ...look }));
+    setStyleStatus({ tone: "success", text: S.styleApplied(name) });
+    if (look.animate) play();
+  }
+
+  function undoStyle() {
+    if (!stylePrev) return;
+    const prevLook: Record<string, any> = {};
+    for (const k of STYLE_KEYS) prevLook[k] = stylePrev[k];
+    setParams((prev) => ({ ...prev, ...prevLook }));
+    setStylePrev(null);
+    setStyleStatus(null);
+  }
+
+  async function deleteStyle() {
+    const name = stylePick;
+    if (!name) return;
+    if (sdk.confirm) {
+      try {
+        const ok = await sdk.confirm({ title: S.styleDeleteTitle(name), message: S.styleDeleteMsg, confirmLabel: S.styleDelete, destructive: true });
+        if (!ok) return;
+      } catch { return; }
+    }
+    if (await writeStyles(styles.filter((x) => x.name !== name))) {
+      setStylePick(null);
+      setStylePrev(null);
+      setStyleStatus(null);
+    }
+  }
 
   async function refreshDraft(): Promise<any> {
     const seq = context.sequenceId;
@@ -1611,6 +1829,10 @@ return { parameters: p ? p.parameters : null, bg };`,
     : parsed.series.map((s: any) => s.name).slice(0, 6);
   const colorCount = Math.max(1, Math.min(6, colorNames.length));
   const isBusy = busy != null;
+  // Highlight works on bars and slices; its menu lists this chart's labels.
+  const canHighlight = type !== "line" && parsed.labels.length > 1;
+  const highlightNames: string[] = Array.from(new Set(parsed.labels.map((l: any) => String(l).trim()).filter(Boolean))) as string[];
+  const highlightOn = canHighlight && highlightNames.includes(String(params.highlight || "").trim());
   const editingChart = charts.find((c) => c.id === editingId);
 
   // Inspector controls for a placed chart: only the colour slots this chart
@@ -1633,8 +1855,19 @@ return { parameters: p ? p.parameters : null, bg };`,
       key: "color" + (i + 1), label: short(name || `Color ${i + 1}`) + " color", type: "color", defaultValue: DEFAULT_COLORS[i],
     }));
     const out: any[] = [];
+    const canHighlight = type !== "line" && labels.length > 1;
     for (const def of INSPECTOR_DEFS) {
       if (/^color[1-6]$/.test(def.key)) { if (def.key === "color1") out.push(...colorDefs); continue; }
+      if (def.key === "highlight") {
+        if (!canHighlight) continue;
+        // Options are this chart's labels; a label kept from older data stays selectable.
+        const names = Array.from(new Set(labels.map((l) => String(l).trim()).filter(Boolean)));
+        const cur = String(params.highlight || "").trim();
+        if (cur && cur !== HIGHLIGHT_NONE && !names.includes(cur)) names.push(cur);
+        out.push({ ...def, options: [{ label: "None", value: HIGHLIGHT_NONE }, ...names.map((l) => ({ label: short(l), value: l }))] });
+        continue;
+      }
+      if ((def.key === "highlightColor" || def.key === "dimColor") && !canHighlight) continue;
       out.push(def);
     }
     return out;
@@ -1684,7 +1917,7 @@ return { chunks: out, next: off, done };`,
 
   // The chart clip is always see-through; the background is its own clip.
   function chartParams(linkId: string) {
-    return { ...params, bgMode: "none", linkId };
+    return { ...params, highlight: String(params.highlight || "").trim() || HIGHLIGHT_NONE, bgMode: "none", linkId };
   }
   function bgParams(linkId: string) {
     return {
@@ -1942,6 +2175,10 @@ return { path: ok ? out : SRC, converted: ok };`,
     try {
       const current: Record<string, any> = {};
       for (const k of Object.keys(AI_SPEC)) current[k] = before[k];
+      // Charts with Korean text may also use the Korean fonts installed here.
+      const koText = HAS_HANGUL.test([before.title, before.source, ...parsed.labels, ...parsed.series.map((x: any) => x.name)].join(" "));
+      const koFonts = installedKoreanFonts();
+      const fonts = [...AI_FONTS, ...koFonts];
       const prompt = [
         "You are styling a data chart that will appear in a video.",
         "Reply with a single JSON object only: no prose, no code fences. Do not use any tools and do not change anything in the project.",
@@ -1955,7 +2192,10 @@ return { path: ok ? out : SRC, converted: ok };`,
         "Settings you may change (key: allowed values):",
         "- chartType: bar | hbar | line | pie | donut (only when the instructions ask for another kind of chart)",
         "- title: text (only when the instructions ask)",
-        `- fontFamily: one of ${AI_FONTS.join(", ")}; or "" for the default sans-serif`,
+        `- fontFamily: one of ${fonts.join(", ")}; or "" for the default sans-serif`,
+        koFonts.length
+          ? `  The Korean fonts (${koFonts.join(", ")}) also cover Korean text.${koText ? " This chart has Korean text: pick one of those Korean fonts, or one from the list closest to the reference that still reads clearly." : ""}`
+          : "",
         "- titleSize 1-20, valueSize 1-15, labelSize 1-15 (percent of the frame's shorter side); titleWeight: \"400\" | \"500\" | \"600\" | \"700\" | \"900\"",
         "- colors as hex #RRGGBB (or #RRGGBBAA for transparency): background, titleColor, valueColor, labelColor, axisColor, color1..color6 (series, bar or slice colors in order)",
         "- bgOn: true/false (a background behind the chart); bgStyle: solid (whole frame) | card (behind the chart only); bgRadius 0-10 (card corners); textOutline: true/false (thin dark edge on text, for busy video)",
@@ -1963,6 +2203,7 @@ return { path: ok ? out : SRC, converted: ok };`,
         "- true/false: colorEach, showGrid, showBaseline, showValues, showLabels, showLegend, showPoints, fillArea, thousands, showTitle, animate",
         "- barWidth 5-100, cornerRadius 0-10, lineWidth 1-30, donutHole 10-90, chartWidth 20-100",
         "- valuePrefix, valueSuffix: short text; decimals: auto | 0 | 1 | 2; pieValues: percent | value | both",
+        "- highlight: one category name exactly as listed above, to make that one bar or slice stand out (or \"\" for none). With one series or a pie, it takes highlightColor and every other bar or slice takes dimColor. With several series, the other groups fade. Use it when a reference colors one bar or slice differently, or the instructions ask to emphasise one item.",
         "- animStyle: draw | cascade | bounce | fade; animSeconds 0.3-5",
         "",
         refs.length
@@ -2009,7 +2250,7 @@ return { path: ok ? out : SRC, converted: ok };`,
       if (stale()) return;
       const json = extractJson(r && r.text);
       if (!json) { setAiStatus({ tone: "error", text: S.aiFailed }); return; }
-      const changes = sanitizeAiChanges(json.changes || json, before);
+      const changes = sanitizeAiChanges(json.changes || json, before, parsed.labels, fonts);
       const n = Object.keys(changes).length;
       if (!n) { setAiStatus({ tone: "muted", text: S.aiNoChanges }); return; }
       setAiPrev(before);
@@ -2162,6 +2403,9 @@ return { path: ok ? out : SRC, converted: ok };`,
         {hasData
           ? <ui.Message>{S.parsed(parsed.labels.length, parsed.series.length)}</ui.Message>
           : <ui.Message tone="error">{parsed.error || S.noData}</ui.Message>}
+        {hasData && parsed.cut && (parsed.cut.rows > 0 || parsed.cut.series.length > 0) && (
+          <ui.Message tone="error">{S.cutWarn(parsed.cut.rows, parsed.cut.from, parsed.cut.to, parsed.cut.series)}</ui.Message>
+        )}
       </ui.Section>
     </>
   );
@@ -2222,13 +2466,50 @@ return { path: ok ? out : SRC, converted: ok };`,
 
   const designTab = (
     <>
+      <ui.Section title={S.styles}>
+        {styles.length ? (
+          <ui.Row align="center">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ui.Select label={S.stylePick} value={stylePick && styles.some((x) => x.name === stylePick) ? stylePick : null}
+                placeholder={S.stylePlaceholder} onChange={applyStyle}
+                options={styles.map((x) => ({ value: x.name, label: x.name }))} disabled={isBusy} />
+            </div>
+            {stylePick && styles.some((x) => x.name === stylePick) && (
+              <ui.IconButton icon="trash" label={S.styleDelete} onClick={deleteStyle} disabled={isBusy} />
+            )}
+          </ui.Row>
+        ) : (
+          <ui.Message>{S.noStyles}</ui.Message>
+        )}
+        <ui.TextField label={S.styleName} value={styleName} onChange={setStyleName} placeholder={S.styleNamePlaceholder} disabled={isBusy} />
+        <ui.Actions>
+          {stylePrev && <ui.Button variant="ghost" onClick={undoStyle} disabled={isBusy}>{S.styleUndo}</ui.Button>}
+          <ui.Button variant="secondary" onClick={saveStyle} disabled={isBusy || !styleName.trim()}>{S.styleSave}</ui.Button>
+        </ui.Actions>
+        <ui.Message>{S.stylesHint}</ui.Message>
+        {styleStatus && <ui.Message tone={styleStatus.tone}>{styleStatus.text}</ui.Message>}
+      </ui.Section>
       <ui.Section title={S.colors}>
         {params.bgOn && <ui.ColorField label={S.background} value={params.background} onChange={set("background")} />}
-        {Array.from({ length: colorCount }, (_, i) => (
+        {!(highlightOn && (isPie || parsed.series.length <= 1)) && Array.from({ length: colorCount }, (_, i) => (
           <ui.ColorField key={i} label={colorNames[i] || `${i + 1}`} value={params["color" + (i + 1)]} onChange={set("color" + (i + 1))} />
         ))}
-        {!isPie && parsed.series.length <= 1 && (
+        {!isPie && parsed.series.length <= 1 && !highlightOn && (
           <ui.Toggle label={S.colorEach} value={!!params.colorEach} onChange={set("colorEach")} />
+        )}
+        {canHighlight && (
+          <>
+            <ui.Select label={S.highlight} value={highlightOn ? String(params.highlight).trim() : HIGHLIGHT_NONE}
+              onChange={(v: string) => set("highlight")(v === HIGHLIGHT_NONE ? "" : v)}
+              options={[{ value: HIGHLIGHT_NONE, label: S.highlightNone }, ...highlightNames.map((l) => ({ value: l, label: l }))]} />
+            {highlightOn && (isPie || parsed.series.length <= 1) && (
+              <>
+                <ui.ColorField label={S.highlightColor} value={params.highlightColor} onChange={set("highlightColor")} />
+                <ui.ColorField label={S.dimColor} value={params.dimColor} onChange={set("dimColor")} />
+              </>
+            )}
+            {highlightOn && <ui.Message>{isPie || parsed.series.length <= 1 ? S.highlightHint : S.highlightHintMulti}</ui.Message>}
+          </>
         )}
         {!isPie && <ui.ColorField label={S.axisColor} value={params.axisColor} onChange={set("axisColor")} />}
       </ui.Section>
