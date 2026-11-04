@@ -2728,7 +2728,7 @@ function makeHost(sdk) {
 
 // src/identity.ts
 var PLUGIN_ID = "eo-shorts";
-var PLUGIN_VERSION = true ? "0.1.3" : "0.0.0";
+var PLUGIN_VERSION = true ? "0.1.4" : "0.0.0";
 
 // src/host/roots.ts
 function pluginRoots(fs, id = PLUGIN_ID) {
