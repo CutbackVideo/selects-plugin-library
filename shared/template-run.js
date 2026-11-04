@@ -29,7 +29,7 @@ function templateStateJSON(value,limit=8388608){
  }).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
  if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
 }
-// SDK-safe state of every exposed timeline row. Read-only targets never cross
+// SDK-safe state of authored timeline rows. Read-only targets never cross
 // edits or script calls. Working copies have no source-window read capability:
 // null is explicitly pending, never a source window inferred from the recipe.
 async function readTemplateSavedState(draft,sources=null,observeSource=null){
@@ -37,6 +37,9 @@ async function readTemplateSavedState(draft,sources=null,observeSource=null){
  if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.durationFrames)||meta.durationFrames<1||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows)||rows.length>1024||new Set(rows.map(r=>r.clipId)).size!==rows.length||!Array.isArray(graphics))throw Error('The Draft state is incomplete.');
  const clips=[];
  for(const row of rows){
+  // The host asynchronously generates navigation chapters after a Draft save.
+  // They are not authored media/graphics and must not invalidate the title phase.
+  if(row.trackKind==='chapter'||row.trackKind==='subchapter')continue;
   if(!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string'||!row.trackId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)throw Error('The Draft row is incomplete.');
   const graphic=graphics.find(g=>g.clip.clipId===row.clipId&&g.clip.trackId===row.trackId),media=row.resourceId!=null&&['main','video','audio'].includes(row.trackKind),visual=['main','video'].includes(row.trackKind)&&(media||!!graphic);
   const effects=[];

@@ -85,7 +85,22 @@ export async function cutClip(
   if ((await d.fs.exists(keyPath))) throw new Error("could not remove the old clip record " + keyPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
   await removeFile(d.fs, part);
-  await encode(d.runtime, cutArgs(url, start, seconds, part), { fs: d.fs, outPath: part, signal: d.signal, timeoutMs: 180_000 });
+  const source = d.runtime?.runVideoTranscode ? await probeMedia(d.runtime, url, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal }).catch((error) => {
+    if (error?.terminal || error?.preserveTemporaryFiles || d.signal?.aborted) throw error;
+    return null;
+  }) : null;
+  const video = source?.video;
+  const [num, den] = String(video?.fps).split("/").map(Number), fps = num / (den || 1);
+  const [averageNum, averageDen] = String(video?.averageFrameRate).split("/").map(Number);
+  const averageFps = averageNum / (averageDen || 1);
+  const turned = Math.abs(video?.rotation || 0) % 180 === 90;
+  const width = turned ? video?.height : video?.width, height = turned ? video?.width : video?.height;
+  await encode(d.runtime, cutArgs(url, start, seconds, part), { fs: d.fs, outPath: part, signal: d.signal, timeoutMs: 180_000,
+    transcode: video && fps > 0 && Number.isFinite(fps) && (!averageFps || Math.abs(averageFps - fps) / fps < .001) &&
+      (video.rotation || 0) % 90 === 0 &&
+      (!video.sampleAspectRatio || ["1:1", "0:1", "N/A"].includes(video.sampleAspectRatio)) ? { sourcePath: url, outputPath: part, width, height,
+      frameRate: fps, frameCount: Math.ceil(Number(seconds.toFixed(3)) * fps), bitrate: 10000000,
+      sourceStartSeconds: Number(start.toFixed(3)), sourceEndSeconds: Number(start.toFixed(3)) + Number(seconds.toFixed(3)), fit: "fill", endBehavior: "stop" } : undefined });
   const probe = await probeMedia(d.runtime, part, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
   if (!ok(probe)) {
     await removeFile(d.fs, part);

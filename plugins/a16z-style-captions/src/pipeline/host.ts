@@ -102,7 +102,7 @@ export async function hostRoots(sdk: any, id: string, marker: string): Promise<{
 // The host's bundled ffmpeg / ffprobe (Runtime.runFFmpeg / runFFprobe): an argv array, no shell, nothing to install.
 // Throws when this Selects build lacks the method (callers already treat a failure as "skip this step"), when the
 // tool fails, or after `timeoutMs`.
-export async function hostFF(tool: "runFFmpeg" | "runFFprobe", args: string[], timeoutMs = 120000): Promise<{ stdout: string; stderr: string }> {
+export async function hostFF(tool: "runFFmpeg" | "runFFprobe", args: string[], timeoutMs = 120000, transcode?: Record<string, unknown>): Promise<{ stdout: string; stderr: string }> {
   const rt = hostApi("Runtime", tool);
   if (!rt) throw hostError("host-missing", "this Selects build has no Runtime." + tool + "; update Selects", "Runtime." + tool);
   const controller = typeof AbortController === "undefined" ? null : new AbortController();
@@ -111,7 +111,7 @@ export async function hostFF(tool: "runFFmpeg" | "runFFprobe", args: string[], t
     // runFFmpeg also streams stderr to a callback: kept in case a host build returns it empty with withoutLog.
     const chunks: string[] = [];
     const extra = tool === "runFFmpeg" ? [undefined, (x: string) => { chunks.push(String(x)); }] : [];
-    const r = await rt[tool](args, true, controller ? controller.signal : undefined, ...extra);
+    const r = transcode && typeof rt.runVideoTranscode === "function" ? await rt.runVideoTranscode(transcode, args, true, controller ? controller.signal : undefined) : await rt[tool](args, true, controller ? controller.signal : undefined, ...extra);
     return { stdout: String(r?.stdout ?? ""), stderr: String(r?.stderr || chunks.join("")) };
   } finally {
     if (timer) clearTimeout(timer);

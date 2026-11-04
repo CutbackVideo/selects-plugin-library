@@ -34,8 +34,10 @@ test('real video with audio at zero and first video PTS at one second keeps its 
  const run=args=>{const reply=spawnSync(ffmpeg,args,{encoding:'utf8',maxBuffer:4*1024*1024});assert.equal(reply.status,0,reply.stderr);return reply;};
  for(const delay of [0,1]){
   const clip=path.join(dir,'source-'+delay+'.mp4'),raw=path.join(dir,'samples-'+delay+'.rgb');
+  // Concat uses microseconds; MPEG-4 needs a 30 Hz encoder clock. Preserve the
+  // delayed first PTS instead of filling the initial gap with duplicate frames.
   run(['-nostdin','-v','error','-y','-f','lavfi','-i','color=c=red:s=64x64:r=30:d=2','-f','lavfi','-i','color=c=blue:s=64x64:r=30:d=2','-f','lavfi','-i','anullsrc=r=48000:cl=stereo',
-   '-filter_complex',`[0:v][1:v]concat=n=2:v=1:a=0,setpts=PTS+${delay}/TB[v]`,'-map','[v]','-map','2:a','-t',String(4+delay),'-c:v','mpeg4','-q:v','2','-c:a','aac',clip]);
+   '-filter_complex',`[0:v][1:v]concat=n=2:v=1:a=0,setpts=PTS+${delay}/TB[v]`,'-map','[v]','-map','2:a','-t',String(4+delay),'-c:v','mpeg4','-enc_time_base','1:30','-vsync','0','-q:v','2','-c:a','aac',clip]);
   const decoded=run(cameraSampleArgs({path:clip,start:1,end:4},raw,64,64,5)),rgb=fs.readFileSync(raw),bytes=64*64*3,count=rgb.length/bytes;
   assert.equal(count,18);
   const times=cameraSampleTimes(decoded.stderr,count,1,4);

@@ -8,11 +8,11 @@ const { tmpdir } = require('node:os');
 const { probeVideo } = require('../lib/video.cjs');
 const { timelineKey, readTimeline, writeTimeline, MAX_ENTRIES } = require('../lib/timeline-cache.cjs');
 
-// A stand-in ffprobe: stream headers for the first call, a 30 fps frame timeline for -show_frames, and one
+// A stand-in ffprobe: stream headers for the first call, a 30 fps frame timeline for frame timestamps, and one
 // log line per full timeline pass so a test can count them.
 const FAKE_FFPROBE = `#!/bin/sh
 case "$*" in
-  *-show_frames*)
+  *frame=best_effort_timestamp*)
     echo frames >> "$FAKE_PROBE_LOG"
     printf '{"frames":['
     i=0

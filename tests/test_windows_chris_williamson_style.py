@@ -58,6 +58,23 @@ def runtime_text(text):
     return without_comments(without_mac_only(text))
 
 
+def without_noble_cross_realm_byte_check(text):
+    """Allow only noble's Uint8Array predicate with its complete cross-realm fallback.
+
+    ArrayBuffer.isView accepts views from another renderer realm. Constructor name
+    and element width then distinguish Uint8Array from other typed-array views.
+    A standalone instanceof check anywhere else remains forbidden.
+    """
+    safe_check = re.compile(
+        r'\b(?P<value>[A-Za-z_$][\w$]*) instanceof Uint8Array \|\| '
+        r'__templateHashAny\(ArrayBuffer\)\.isView\((?P=value)\) && '
+        r'__templateHashAny\(__templateHashAny\((?P=value)\)\.constructor\)\.name === "Uint8Array" && '
+        r'"BYTES_PER_ELEMENT" in (?P=value) && '
+        r'__templateHashAny\((?P=value)\)\.BYTES_PER_ELEMENT === 1'
+    )
+    return safe_check.sub('crossRealmSafeUint8Array', text)
+
+
 def build(src):
     """What build.py assembles from src/ (without writing anything)."""
     s = (src / 'panel.template.tsx').read_text(encoding='utf-8')
@@ -112,7 +129,20 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
                 self.assertNotIn(needle, body, f'{name}: {needle!r} outside a mac-only region')
             for pattern, what in FORBIDDEN_RE:
                 self.assertIsNone(pattern.search(body), f'{name}: {what} outside a mac-only region')
-            self.assertNotIn('instanceof Uint8Array', body, f'{name}: cross-realm bytes need hostBytes')
+            self.assertNotIn('instanceof Uint8Array', without_noble_cross_realm_byte_check(body),
+                             f'{name}: cross-realm bytes need hostBytes or the complete noble fallback')
+
+    def test_byte_guard_allows_only_the_complete_cross_realm_predicate(self):
+        canonical = (ROOT / 'shared/file-observation.js').read_text(encoding='utf-8')
+        safe = re.search(r'return (t instanceof Uint8Array.*? === 1);', canonical).group(1)
+        self.assertNotIn('instanceof Uint8Array', without_noble_cross_realm_byte_check(safe))
+        for unsafe in [
+            't instanceof Uint8Array',
+            safe.replace('ArrayBuffer).isView(t)', 'ArrayBuffer).isView(other)'),
+            safe.replace(' === 1', ' === 2'),
+            safe + '; other instanceof Uint8Array',
+        ]:
+            self.assertIn('instanceof Uint8Array', without_noble_cross_realm_byte_check(unsafe))
 
     def test_no_shell_call_outside_mac_only(self):
         # The av-host block makes no shell call; only mac-only regions may.

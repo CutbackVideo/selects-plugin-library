@@ -80,7 +80,7 @@ export async function script(sdk: Sdk, summary: string, body: string, allowCommi
 // binaries bundled with Selects, so quoting and %-signs never matter and macOS and Windows behave alike.
 // Output arrives in chunks; they are joined exactly as written (the runner's own result inserts newlines
 // between chunks, which can split a number). `timeoutMs` cancels the process.
-export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, captureLog = false): Promise<{ stdout: string; stderr: string }> {
+export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, captureLog = false, transcode?: Record<string, unknown>): Promise<{ stdout: string; stderr: string }> {
   const rt = hostSdk.media;
   if (typeof rt?.runFFmpeg !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   const ac = new AbortController();
@@ -91,12 +91,14 @@ export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, 
     // The app keeps stream listeners for the window's lifetime, so they are attached only when the log
     // itself is the result.
     if (!captureLog) {
-      const r = await rt.runFFmpeg(["-hide_banner", "-nostdin", ...args], true, ac.signal);
+      const argv = ["-hide_banner", "-nostdin", ...args];
+      const r = transcode && typeof rt.runVideoTranscode === "function" ? await rt.runVideoTranscode(transcode, argv, true, ac.signal) : await rt.runFFmpeg(argv, true, ac.signal);
       return { stdout: String(r?.stdout ?? ""), stderr: String(r?.stderr ?? "") };
     }
     await rt.runFFmpeg(["-hide_banner", "-nostdin", ...args], true, ac.signal, (c: string) => (out += c), (c: string) => (err += c));
     return { stdout: out, stderr: err };
   } catch (e: any) {
+    if (e?.terminal || e?.preserveTemporaryFiles) throw e;
     if (ac.signal.aborted) throw new Error(label + " took too long.");
     throw new Error(label + " failed" + toolError(e, err));
   } finally {
@@ -112,6 +114,7 @@ export async function ffprobe(label: string, args: string[], timeoutMs = 60000):
     const r = await rt.runFFprobe(["-hide_banner", ...args], true, ac.signal);
     return String(r?.stdout ?? "");
   } catch (e: any) {
+    if (e?.terminal || e?.preserveTemporaryFiles) throw e;
     if (ac.signal.aborted) throw new Error(label + " took too long.");
     throw new Error(label + " failed" + toolError(e, ""));
   } finally {

@@ -18,17 +18,18 @@ async function cwPool(items, size, fn) {
 }
 // ffmpeg / ffprobe with a time limit: { ok, out, err }. The log is collected as it streams as well, since some host
 // builds only return it that way; a failed run carries the host's message.
-async function cwTool(kind, args, timeoutMs) {
+async function cwTool(kind, args, timeoutMs, transcode = null) {
   const rt = hostNeed("Runtime", kind);
   const c = typeof AbortController === "undefined" ? null : new AbortController();
   const timer = c ? setTimeout(() => c.abort(), timeoutMs) : null;
   let err = "";
   try {
     const r = kind === "runFFmpeg"
-      ? await rt.runFFmpeg(args, true, c ? c.signal : undefined, undefined, (s) => { err += s; })
+      ? transcode && typeof rt.runVideoTranscode === "function" ? await rt.runVideoTranscode(transcode, args, true, c ? c.signal : undefined) : await rt.runFFmpeg(args, true, c ? c.signal : undefined, undefined, (s) => { err += s; })
       : await rt.runFFprobe(args, true, c ? c.signal : undefined);
     return { ok: true, out: String(r?.stdout || ""), err: String(r?.stderr || "") || err };
   } catch (e) {
+    if (e?.terminal || e?.preserveTemporaryFiles) throw e;
     return { ok: false, out: "", err: err + String(e?.stderr || e?.message || e) };
   } finally { if (timer) clearTimeout(timer); }
 }
@@ -311,7 +312,10 @@ async function cwAssets(job, dir) {
     // Short videos are rejected instead of frozen or silently looped.
     if (c.kind === "video" && c.duration < seconds) { rows.push({ id: item.id, ok: false, reason: "Video is shorter than its planned cutaway" }); continue; }
     const args = ["-v", "error", "-y", ...(c.kind === "still" ? ["-loop", "1"] : []), "-i", c.file, "-t", String(seconds), "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-ow)*${x}:(ih-oh)*${y},setsar=1,format=yuv420p`, "-r", String(spec.fps), ...encoder.args, "-movflags", "+faststart", "-write_tmcd", "0", "-an", file];
-    const r = await cwFfmpeg(args, 120000);
+    const r = await cwTool("runFFmpeg", args, 120000, { sourcePath: c.file, outputPath: file, width: 1080, height: 1920,
+      frameRate: spec.fps, frameCount: Math.ceil(seconds * spec.fps), bitrate: 10000000,
+      inputKind: c.kind === "still" ? "image" : "video", sourceEndSeconds: seconds,
+      fit: "cover", position: { x, y }, endBehavior: "stop" });
     if (!r.ok) throw new Error("Asset rendering failed: " + r.err.slice(-300));
     const frames = [];
     for (const [n, t] of (c.kind === "video" ? [0, seconds / 2, Math.max(0, seconds - 0.1)] : [0]).entries()) {

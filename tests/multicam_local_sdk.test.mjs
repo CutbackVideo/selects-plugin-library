@@ -70,3 +70,14 @@ for (const platform of [undefined,'desktop','web']) test(`${platform} inspection
  assert.equal(tile.some(value=>String(value).endsWith('insp%d.jpg')),platform!=='web');
  assert.equal([...sdk.outputs.keys()].some(value=>value.endsWith('inspection.txt')),platform==='web');
 });
+
+test('video preparation opts into centered contain at 24 fps with the same legacy argv',async()=>{
+ const sdk=localSdk(),calls=[],legacy=sdk.media.runFFmpeg;
+ sdk.media.runVideoTranscode=async(request,args,quiet,signal)=>{calls.push({request,args});return legacy(args,quiet,signal);};
+ await ctx.prepareMedia(sdk,{path:'/source.mp4',output:'/prepared.mp4',action:'prepare',start:0,duration:4});
+ const {request,args}=JSON.parse(JSON.stringify(calls[0]));
+ assert.deepEqual([request.sourcePath,request.width,request.height,request.frameRate,request.frameCount,request.fit,request.position,request.endBehavior],['/source.mp4',1280,720,24,96,'contain',{x:.5,y:.5},'stop']);
+ assert.equal(args[args.indexOf('-ss')+1],'0');assert.equal(args[args.indexOf('-t')+1],'4');
+ assert.equal(args[args.indexOf('-vf')+1],'fps=24,scale=1280:720,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1');
+ assert.equal(args.at(-1),request.outputPath);
+});

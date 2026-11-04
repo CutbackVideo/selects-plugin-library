@@ -223,24 +223,26 @@
       "id": "local-sdk",
       "decision": "reuse",
       "owner": "local-client",
-      "reason": "The complete async file/media bridge already has one canonical source; its embedded functions are managed compatibility delivery, not new module candidates.",
+      "reason": "This template retains its existing embedded snapshot of the shared async file/media client. It is not migrated with the transcode consumers and is not asserted to match the current canonical source.",
       "contract": {
         "input": "Bound SDK runScript/call, host-native file paths, bounded file chunks/media argv and AbortSignal.",
         "output": "Typed file facts, content fingerprints, native media output or structured transport/lifetime errors.",
         "identity": "Captured client, exact job id and exact source/output paths; cancellation acknowledgement is not exit.",
-        "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets.",
+        "dependencies": "The retained local-sdk snapshot in plugins/mini-vlog/panel.tsx, SDK environment, file/media primitives and fixed protocol budgets. shared/local-client.ts remains the shared implementation reference, not the exact source of this retained snapshot.",
         "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
         "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
         "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
         "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
         "retry": "No media start replay; late identity can cancel that original job once.",
-        "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
-        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+        "distribution": "Retained embedded local-sdk snapshot, excluded from the current automatic synchronization scope. tests/template_module_pipeline.test.mjs verifies that template generation leaves this panel unchanged; synchronization checks for migrated consumers do not establish equality with this snapshot.",
+        "validation": "Template-specific tests exercise the retained panel. The pipeline regression verifies preservation of its bytes during generation. Canonical client and shared media-settlement tests validate their selected implementations, not the complete retained snapshot; installed whole-template acceptance remains separate."
       },
       "evidence": [
         "shared/local-client.ts",
         "tests/canonical_local_client.test.mjs",
-        "tests/local_media_settlement.test.mjs"
+        "tests/local_media_settlement.test.mjs",
+        "plugins/mini-vlog/panel.tsx",
+        "tests/template_module_pipeline.test.mjs"
       ],
       "implementation": "existing"
     },
@@ -828,12 +830,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "caf7390508e6fca6f74f94053cfc54c1cbbc736ec0561a4efb6e2d9d2d197742",
+      "sha256": "32598ab1f094a7320200f758cef55029d840b6d22bfd07c3b810b9e95ceb407f",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7799,
+          "endLine": 7805,
           "feature": "panel-ui"
         },
         {
@@ -917,103 +919,103 @@
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5233,
-          "endLine": 5252,
+          "startLine": 5236,
+          "endLine": 5255,
           "feature": "music-policy"
         },
         {
-          "startLine": 5275,
-          "endLine": 5281,
+          "startLine": 5278,
+          "endLine": 5284,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5282,
-          "endLine": 5292,
+          "startLine": 5285,
+          "endLine": 5295,
           "feature": "music-policy"
         },
         {
-          "startLine": 5311,
-          "endLine": 5341,
+          "startLine": 5314,
+          "endLine": 5344,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5342,
-          "endLine": 5410,
+          "startLine": 5345,
+          "endLine": 5413,
           "feature": "program-policy"
         },
         {
-          "startLine": 5411,
-          "endLine": 6475,
+          "startLine": 5414,
+          "endLine": 6478,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6476,
-          "endLine": 6525,
+          "startLine": 6479,
+          "endLine": 6528,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7001,
-          "endLine": 7019,
+          "startLine": 7007,
+          "endLine": 7025,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7020,
-          "endLine": 7189,
+          "startLine": 7026,
+          "endLine": 7195,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7190,
-          "endLine": 7232,
+          "startLine": 7196,
+          "endLine": 7238,
           "feature": "panel-ui"
         },
         {
-          "startLine": 7349,
-          "endLine": 7752,
+          "startLine": 7355,
+          "endLine": 7758,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7753,
-          "endLine": 7799,
+          "startLine": 7759,
+          "endLine": 7805,
           "feature": "app-guard"
         },
         {
-          "startLine": 7799,
-          "endLine": 7799,
+          "startLine": 7805,
+          "endLine": 7805,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5486,
-          "endLine": 5509,
+          "startLine": 5489,
+          "endLine": 5512,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5510,
-          "endLine": 5517,
+          "startLine": 5513,
+          "endLine": 5520,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5781,
-          "endLine": 5875,
+          "startLine": 5784,
+          "endLine": 5878,
           "feature": "music-policy"
         },
         {
-          "startLine": 5878,
-          "endLine": 5896,
+          "startLine": 5881,
+          "endLine": 5899,
           "feature": "scene-observation"
         },
         {
-          "startLine": 5937,
-          "endLine": 6163,
+          "startLine": 5940,
+          "endLine": 6166,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6200,
-          "endLine": 6204,
+          "startLine": 6203,
+          "endLine": 6207,
           "feature": "montage-policy"
         },
         {
-          "startLine": 5255,
-          "endLine": 5274,
+          "startLine": 5258,
+          "endLine": 5277,
           "feature": "music-policy"
         },
         {
@@ -1022,13 +1024,13 @@
           "feature": "asset-owner"
         },
         {
-          "startLine": 6750,
-          "endLine": 7000,
+          "startLine": 6756,
+          "endLine": 7006,
           "feature": "source-input"
         },
         {
           "startLine": 4541,
-          "endLine": 5232,
+          "endLine": 5235,
           "feature": "workflow-owner"
         },
         {
@@ -1037,8 +1039,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7233,
-          "endLine": 7347,
+          "startLine": 7239,
+          "endLine": 7353,
           "feature": "catalog-read"
         },
         {
@@ -1057,13 +1059,13 @@
           "feature": "text-runtime"
         },
         {
-          "startLine": 6526,
-          "endLine": 6654,
+          "startLine": 6529,
+          "endLine": 6657,
           "feature": "file-observation"
         },
         {
-          "startLine": 6655,
-          "endLine": 6749,
+          "startLine": 6658,
+          "endLine": 6755,
           "feature": "draft-observation"
         }
       ],
@@ -1687,11 +1689,11 @@
     {
       "path": "shared/template-run.js",
       "role": "build-source",
-      "sha256": "93106ff5c1ed4ce0de4e057f7680cd5bffc25b91a0febfbef60ea5a16a6bc1fb",
+      "sha256": "1452fe91628a7109603f5f223946e5a94318d921f3d5e8ca553b9ee059299766",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 690,
+          "endLine": 693,
           "feature": "workflow-owner"
         }
       ]
@@ -1852,12 +1854,12 @@
     },
     {
       "path": "shared/draft-observation.js",
-      "sha256": "a10d33209d1a9de6a7ed735b24751735ec99b91cd5431308d78807cb63a6bbd9",
+      "sha256": "bdfac66668809182d919fdb2ac41b3bc78dc7928517fa8a15dd6f87532c73057",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 96,
+          "endLine": 98,
           "feature": "draft-observation"
         }
       ]
@@ -2006,7 +2008,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "04c3010209077174c36ea6a3bdad651eab7815d88b3300b9974c1ed7f4089bdf",
+      "sha256": "d273327316bfdd9c44fba8a0c7769c62dc4e667e043caa9c26a33147b8cd128e",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"

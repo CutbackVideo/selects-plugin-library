@@ -1,5 +1,4 @@
 import React from "react";
-import {fingerprintTemplateFile} from './file-observation.js';
 /** Pure host-platform path operations; no filesystem or renderer globals. */
 function panelLocalPaths(platform: string) {
   const windows = platform === "win32";
@@ -73,7 +72,7 @@ function panelLocalPaths(platform: string) {
 
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
+async function createPanelLocalClient(sdk: any, fileObservation?: (files: any, path: string, check?: () => void, scheme?: string) => Promise<unknown>) {
   const SCRIPT_BYTES = 256 * 1024;
   const runSource = async (script: string, write = false) => {
     if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
@@ -144,8 +143,10 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
-    // One script owns every read and its deadline; only the compact digest returns.
-    mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
+    // Only observation consumers supply the self-contained old-host fallback.
+    ...(fileObservation ? {
+      mediaFingerprint: (path: string) => runSource("return await (" + fileObservation.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
+    } : {}),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -239,13 +240,31 @@ async function createPanelLocalClient(sdk: any) {
       cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, transcode?: Record<string, unknown>) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
       onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    // Detect an absent interface before dispatch. Never retry an uncertain or failed job.
+    const requiredFeatures = transcode ? [
+      ...(/^https?:/i.test(String(transcode.sourcePath)) ? ["remote-source"] : []),
+      ...("sourceStartSeconds" in transcode || "sourceEndSeconds" in transcode ? ["source-range"] : []),
+      ...(transcode.inputKind === "image" ? ["image-input"] : []),
+      ...("fit" in transcode || "position" in transcode ? ["framing"] : []),
+      ...("endBehavior" in transcode ? ["end-behavior"] : []),
+    ] : [];
+    // Existing recipes may preserve a camera/photo size outside this job's bounds.
+    // Select their original argv before dispatch instead of silently resizing.
+    const withinTranscodeBounds = !transcode || (
+      [transcode.width, transcode.height].every(value => Number.isInteger(value) && Number(value) >= 2 && Number(value) <= 4096 && Number(value) % 2 === 0) &&
+      Number.isFinite(transcode.frameRate) && Number(transcode.frameRate) >= 1 && Number(transcode.frameRate) <= 120 &&
+      Number.isInteger(transcode.frameCount) && Number(transcode.frameCount) >= 1 && Number(transcode.frameCount) <= 36000 &&
+      Number.isFinite(transcode.bitrate) && Number(transcode.bitrate) >= 100000 && Number(transcode.bitrate) <= 100000000);
+    const startSource = transcode && withinTranscodeBounds
+      ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); const discover = Reflect.get(selects.media, 'videoTranscodeFeatures'); const required = " + JSON.stringify(requiredFeatures.join(",")) + ".split(',').filter(Boolean); const features = required.length && typeof discover === 'function' ? await discover.call(selects.media) : []; return await (typeof transcode === 'function' && (!required.length || Array.isArray(features) && required.every(feature => features.includes(feature))) ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");"
+      : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;
     const starting = runSource(startSource, true);
@@ -330,6 +349,7 @@ async function createPanelLocalClient(sdk: any) {
     environment,
     media: {
       runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request: Record<string, unknown>, fallbackArgs: string[], quiet?: boolean, signal?: AbortSignal) => process("FFmpeg", fallbackArgs, quiet, signal, undefined, undefined, request),
       runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
     },
     dialogs: {
@@ -347,7 +367,7 @@ function panelLocalClient(sdk: any): any {
   if (!client) throw new Error("Local SDK has not initialized.");
   return client;
 }
-function withPanelLocalClient(Component: any) {
+function withPanelLocalClient(Component: any, fileObservation?: Parameters<typeof createPanelLocalClient>[1]) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
     const reported = React.useRef(new WeakMap<object, Set<string>>());
@@ -369,7 +389,7 @@ function withPanelLocalClient(Component: any) {
       };
       // This is a read-only bootstrap observation, not a mutation retry or cancel.
       const timer = setTimeout(() => fail(true), 30000);
-      createPanelLocalClient(props.sdk).then(value => {
+      createPanelLocalClient(props.sdk, fileObservation).then(value => {
         client = {...props.sdk, ...value};
         if (!active || settled) { value.dispose(); return; }
         settled = true; clearTimeout(timer);

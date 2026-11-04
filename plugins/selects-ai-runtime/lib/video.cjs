@@ -40,6 +40,9 @@ function relativeTimeline(rawPts) {
   return sourcePts;
 }
 
+// -show_entries enables frame reads itself. Adding -show_frames also enables all
+// side-data fields (including large Dolby Vision metadata). Keep timestamp-only
+// selection and compact JSON for both range probes and full matte timelines.
 async function probeVideo(config, request, signal) {
   const filename = request.input.source.path;
   const data = await probeJSON(config, filename, [
@@ -72,7 +75,7 @@ async function probeVideo(config, request, signal) {
         // Use two decoding threads for frame timestamp probes, matching the RGB
         // decoder below. The default probe decoding is slower on long ranges.
         '-v', 'error', '-threads', '2', '-select_streams', 'v:0', '-read_intervals', interval,
-        '-show_frames', '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
+        '-show_entries', 'frame=best_effort_timestamp', '-of', 'json=compact=1', filename,
       ], signal, result => {
         if (!relativeTimeline((result.frames ?? []).map(frame => frame.best_effort_timestamp))) {
           throw new Error('Source frame timestamps are unavailable or not ordered');
@@ -123,8 +126,8 @@ async function probeVideo(config, request, signal) {
   let sourcePts = cachedPts;
   if (!rawPts) {
     const timeline = JSON.parse(await collectTool(config.tools.ffprobe, [
-      '-v', 'error', '-select_streams', 'v:0', '-show_frames',
-      '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
+      '-v', 'error', '-select_streams', 'v:0',
+      '-show_entries', 'frame=best_effort_timestamp', '-of', 'json=compact=1', filename,
     ], { signal }));
     rawPts = (timeline.frames ?? []).map(frame => frame.best_effort_timestamp);
     if (!rawPts.length || rawPts.some(value => !Number.isSafeInteger(value))) throw new Error('Source frame timestamps are unavailable');

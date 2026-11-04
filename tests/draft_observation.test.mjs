@@ -44,3 +44,16 @@ test('revision witness changes when the saved source changes',async()=>{
  const second=await readTemplateDraftSources(host({unsupported:true,raw}),'p','d','l');
  assert.notEqual(first.revision,second.revision);
 });
+
+test('split V1/A1 hosts use SDK rows without counting paired audio twice',async()=>{
+ const picture={clipId:1,trackId:'v1',trackKind:'main',resourceId:'footage',startFrame:0,endFrame:30,sourceStartSeconds:2,sourceEndSeconds:3,playbackSpeed:1};
+ const pairedAudio={...picture,clipId:2,trackId:'a1',trackKind:'audio'};
+ const snapshot={revision:'split',fps:30,clips:[picture,pairedAudio],sdkClips:[picture]};
+ const result=await readTemplateDraftSources(host({snapshot}),'p','d','l');
+ assert.equal(result.clips.length,1);
+ assert.deepEqual(templateObservedSource(result,picture),{clipId:1,startSeconds:2,endSeconds:3});
+});
+test('a malformed SDK projection is rejected rather than silently using physical rows',async()=>{
+ const snapshot={revision:'split',fps:30,clips:[],sdkClips:null};
+ await assert.rejects(readTemplateDraftSources(host({snapshot}),'p','d','l'));
+});

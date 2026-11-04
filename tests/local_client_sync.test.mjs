@@ -44,14 +44,14 @@ test('scoped sync accepts Windows line endings without copying module imports',(
  const shared=path.join(root,'shared/local-client.ts');fs.writeFileSync(shared,fs.readFileSync(shared,'utf8').replaceAll('\n','\r\n'));
  fs.writeFileSync(file('no14-still-video'),fs.readFileSync(file('no14-still-video'),'utf8').replaceAll('\n','\r\n'));
  assert.equal(call('--only=no14-still-video').status,0);
- const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/\bimport\s/);assert.match(result,/async function fingerprintTemplateFile/);assert.match(result,/files\.mediaFingerprint/);
+ const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/\bimport\s/);assert.doesNotMatch(result,/fingerprintTemplateFile/);
  assert.equal(call('--only=no14-still-video','--check').status,0);
 }));
 test('a separately registered observation block is preserved and not duplicated inside local-sdk',()=>fixture(({file,call})=>{
  const target=file('no14-still-video'),block='// file-observation:start\n'+fingerprintTemplateFile.toString()+'\n// file-observation:end\n';
  fs.writeFileSync(target,block+fs.readFileSync(target,'utf8'));
  assert.equal(call('--only=no14-still-video').status,0);
- const result=fs.readFileSync(target,'utf8');assert(result.startsWith(block));assert.equal([...result.matchAll(/async function fingerprintTemplateFile\(/g)].length,1);
+ const result=fs.readFileSync(target,'utf8');assert(result.startsWith(block));assert.match(result,/export default withPanelLocalClient\(Panel, fingerprintTemplateFile\);/);assert.equal([...result.matchAll(/async function fingerprintTemplateFile\(/g)].length,1);
  const local=result.split('// local-sdk:start\n')[1].split('// local-sdk:end')[0];assert.doesNotMatch(local,/async function fingerprintTemplateFile\(/);assert.doesNotMatch(local,/\bimport\s/);
  assert.equal(call('--only=no14-still-video','--check').status,0);
 }));

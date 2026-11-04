@@ -73,6 +73,86 @@ var require_ai_job_client = __commonJS({
       if (typeof projectId !== "string" || !projectId || typeof scope !== "string" || !scope || ![runScript2, load, save].every((f) => typeof f === "function")) throw invalid();
       const storageKey = stable({ projectId, scope });
       const fresh = () => ({ version: 1, projectId, scope, records: [] });
+      function observation(options, cancel3 = false) {
+        const timing = (value, fallback, max, zero = false) => {
+          const n2 = value ?? fallback;
+          if (!Number.isFinite(n2) || n2 < (zero ? 0 : 1) || n2 > max) throw invalid();
+          return n2;
+        };
+        const maxWaitMs = timing(options.maxWaitMs ?? env.maxWaitMs, cancel3 ? 6e4 : 18e5, 864e5);
+        const pollMs = timing(options.pollMs ?? env.pollMs, 500, 6e4, true);
+        const readTimeoutMs = timing(options.readTimeoutMs ?? env.readTimeoutMs, 3e4, 6e4);
+        const readRetryMs = timing(options.readRetryMs ?? env.readRetryMs, 500, 6e4, true);
+        const now = typeof performance !== "undefined" && typeof performance.now === "function" ? () => performance.now() : () => Date.now();
+        const deadline = now() + maxWaitMs, signal = options.signal;
+        const pending2 = (record2, cause) => {
+          const message = cancel3 ? "AI cancellation could not be confirmed. Cancellation is saved; reopen to recover it." : "AI progress or results could not be confirmed. Reopen to recover the saved job.";
+          return Object.assign(
+            error(cancel3 ? "SHARED_AI_CANCEL_PENDING" : "SHARED_AI_OBSERVATION_PENDING", message),
+            { publicMessage: message, workflowId: record2?.workflowId, projectId, ...cause === void 0 ? {} : { cause } }
+          );
+        };
+        const check2 = (record2) => {
+          attached(signal);
+          if (now() >= deadline) throw pending2(record2);
+        };
+        function wait(task, milliseconds, onTimeout) {
+          return new Promise((resolve, reject) => {
+            let done = false;
+            const finish2 = (fn, value) => {
+              if (done) return;
+              done = true;
+              clearTimeout(timer);
+              signal?.removeEventListener("abort", abort);
+              fn(value);
+            };
+            const abort = () => {
+              try {
+                attached(signal);
+              } catch (cause) {
+                finish2(reject, cause);
+              }
+            };
+            const timer = setTimeout(() => task ? finish2(reject, onTimeout()) : finish2(resolve), milliseconds);
+            signal?.addEventListener("abort", abort, { once: true });
+            if (signal?.aborted) {
+              abort();
+              return;
+            }
+            if (task) Promise.resolve().then(task).then((value) => finish2(resolve, value), (cause) => finish2(reject, cause));
+          });
+        }
+        async function pause(milliseconds, record2) {
+          check2(record2);
+          const remaining = Math.max(0, deadline - now());
+          await wait(null, Math.min(milliseconds, remaining));
+          if (milliseconds >= remaining) throw pending2(record2);
+          check2(record2);
+        }
+        async function read2(record2, script, summary) {
+          for (let attempt2 = 0; attempt2 < 3; attempt2++) {
+            check2(record2);
+            let value;
+            try {
+              const remaining = Math.max(0, deadline - now());
+              value = await wait(
+                () => runScript2(script, summary, false),
+                Math.min(readTimeoutMs, remaining),
+                () => readTimeoutMs >= remaining ? pending2(record2) : error("SHARED_AI_READ_TIMEOUT", "The AI observation read timed out.")
+              );
+            } catch (cause) {
+              if (["SHARED_AI_DETACHED", "SHARED_AI_OBSERVATION_PENDING", "SHARED_AI_CANCEL_PENDING"].includes(cause?.code)) throw cause;
+              check2(record2);
+              if (attempt2 === 2) throw pending2(record2, cause);
+              await pause(Math.min(6e4, readRetryMs * 2 ** attempt2), record2);
+              continue;
+            }
+            check2(record2);
+            return value;
+          }
+        }
+        return { check: check2, read: read2, pause: (record2) => pause(pollMs, record2) };
+      }
       async function read() {
         let journal;
         try {
@@ -129,28 +209,28 @@ var require_ai_job_client = __commonJS({
         await update(record2);
         attached(signal);
       }
-      async function status(record2, cancel3 = false) {
-        const value = await runScript2(`return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).${cancel3 ? "cancel" : "status"}();`, cancel3 ? "Cancel shared AI analysis" : "Read shared AI progress", cancel3);
+      async function status(record2, observer, cancel3 = false) {
+        observer.check(record2);
+        const script = `return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).${cancel3 ? "cancel" : "status"}();`;
+        const value = cancel3 ? await runScript2(script, "Cancel shared AI analysis", true) : await observer.read(record2, script, "Read shared AI progress");
         if (value?.workflowId !== record2.workflowId || value.projectId !== projectId || value.runtimeId !== "selects-ai-runtime" || value.task !== record2.input.task || !STATUS2.has(value.status)) throw invalid();
         record2.status = value.status;
         await update(record2);
         return value;
       }
-      async function stop(record2, options = {}) {
+      async function stop(record2, options, observer) {
         record2.cancelRequested = true;
         await update(record2);
         await ack(record2, options.signal);
-        if (!terminal(record2.status)) await status(record2, true);
-        const deadline = Date.now() + (options.maxWaitMs ?? 6e4);
+        if (!terminal(record2.status)) await status(record2, observer, true);
         while (!terminal(record2.status)) {
-          attached(options.signal);
-          if (Date.now() >= deadline) throw error("SHARED_AI_CANCEL_PENDING", "AI is still stopping. Cancellation is saved; reopen to recover it.");
-          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
-          await status(record2);
+          await observer.pause(record2);
+          await status(record2, observer);
         }
       }
       async function run2(request2, options = {}) {
         attached(options.signal);
+        const observer = observation(options);
         const input = inputFor(projectId, request2), identity = options.identity ?? "";
         if (typeof identity !== "string") throw invalid();
         const journal = await read();
@@ -158,10 +238,10 @@ var require_ai_job_client = __commonJS({
         if (record2 && record2.input.requestKey !== await requestKey(scope, identity, input, record2.attempt)) throw invalid();
         if (record2?.workflowId && options.retryTerminal) {
           attached(options.signal);
-          await status(record2);
+          await status(record2, observer);
           attached(options.signal);
         }
-        if (record2 && options.retryTerminal && record2.cancelRequested && !terminal(record2.status)) await stop(record2, options);
+        if (record2 && options.retryTerminal && record2.cancelRequested && !terminal(record2.status)) await stop(record2, options, observer);
         if (!record2 || options.retryTerminal && (["failed", "canceled"].includes(record2.status) || record2.cancelRequested && terminal(record2.status))) {
           const attempt2 = record2 ? record2.attempt + 1 : 0;
           if (attempt2 > 255) throw invalid();
@@ -174,26 +254,27 @@ var require_ai_job_client = __commonJS({
           const latest = (await read()).records.find((r5) => r5.input.requestKey === record2.input.requestKey);
           if (!latest) throw invalid();
           Object.assign(record2, latest);
-          const value = await status(record2, record2.cancelRequested && !terminal(record2.status));
+          const value = await status(record2, observer, record2.cancelRequested && !terminal(record2.status));
           attached(options.signal);
           if (record2.cancelRequested || record2.status === "canceled") throw error("SHARED_AI_CANCELED", "AI analysis was canceled. Start again to retry.");
           if (record2.status === "failed") throw error("SHARED_AI_FAILED", "AI analysis failed. " + String(value.lastErrorMessage || "").slice(0, 300));
           if (record2.status === "succeeded") {
-            const result = await runScript2(`return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
+            const result = await observer.read(record2, `return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
             attached(options.signal);
             if (result?.workflowId !== record2.workflowId || result.task !== record2.input.task || !result.files || typeof result.files !== "object") throw invalid();
             return { workflowId: record2.workflowId, input: clone(record2.input), result };
           }
           options.onProgress?.(value);
-          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+          await observer.pause(record2);
         }
       }
       async function cancel2(options = {}) {
+        const observer = observation(options, true);
         const journal = await read();
         for (const record2 of journal.records) {
           if (options.identity !== void 0 && record2.identity !== options.identity || terminal(record2.status)) continue;
           if (record2.input.requestKey !== await requestKey(scope, record2.identity, record2.input, record2.attempt)) throw invalid();
-          await stop(record2, options);
+          await stop(record2, options, observer);
         }
       }
       return { run: run2, cancel: cancel2 };
@@ -378,7 +459,7 @@ function panelLocalPaths(platform) {
     isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
   };
 }
-async function createPanelLocalClient(sdk) {
+async function createPanelLocalClient(sdk, fileObservation) {
   const SCRIPT_BYTES = 256 * 1024;
   const runSource = async (script, write = false) => {
     if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
@@ -447,8 +528,14 @@ async function createPanelLocalClient(sdk) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
+    // Only observation consumers supply the self-contained old-host fallback.
+    ...fileObservation ? {
+      mediaFingerprint: (path) => runSource("return await (" + fileObservation.toString() + ")(selects.files," + JSON.stringify(path) + ',undefined,"cutback.media-content.v2");')
+    } : {},
     readdir: (path) => run2("files.readdir", [path]),
-    readRange,
+    // SDK-shaped requests support the same shared observation in SDK scripts and
+    // the panel. Positional reads retain their existing byte/partial-EOF contract.
+    readRange: (path, offset, length) => typeof path === "string" ? readRange(path, offset, length) : run2("files.readRange", [path]),
     async readFile(path, encoding) {
       const stat = await run2("files.stat", [path]);
       if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
@@ -517,34 +604,119 @@ async function createPanelLocalClient(sdk) {
     pathToLocalURL: (path) => run2("files.localUrl", [path]),
     localURLToPath: (url) => run2("files.pathFromLocalUrl", [url])
   };
-  const activeJobs = /* @__PURE__ */ new Set();
+  const activeJobs = /* @__PURE__ */ new Map();
   let disposed = false;
+  const SETTLEMENT_MS = 5e3, OUTPUT_BYTES = 4 * 1024 * 1024;
+  const mediaIssue = (code, message, cause, uncertain = false) => Object.assign(new Error(message), {
+    code: "LOCAL_MEDIA_" + code,
+    publicMessage: message,
+    terminal: true,
+    cause,
+    ...uncertain ? { preserveTemporaryFiles: true } : {}
+  });
   const cancel2 = async (jobId) => {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+  const observeMedia = (read, deadline) => new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      reject(mediaIssue("STATUS", "The media job response could not be confirmed."));
+      return;
+    }
+    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+    Promise.resolve().then(read).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (cause) => {
+        clearTimeout(timer);
+        reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause));
+      }
+    );
+  });
+  const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, transcode) => {
+    if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
+      throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run2("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation = null;
-    const abort = () => {
-      cancellation ??= cancel2(jobId);
-      void cancellation.catch(() => {
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    const requiredFeatures = transcode ? [
+      .../^https?:/i.test(String(transcode.sourcePath)) ? ["remote-source"] : [],
+      ..."sourceStartSeconds" in transcode || "sourceEndSeconds" in transcode ? ["source-range"] : [],
+      ...transcode.inputKind === "image" ? ["image-input"] : [],
+      ..."fit" in transcode || "position" in transcode ? ["framing"] : [],
+      ..."endBehavior" in transcode ? ["end-behavior"] : []
+    ] : [];
+    const withinTranscodeBounds = !transcode || [transcode.width, transcode.height].every((value) => Number.isInteger(value) && Number(value) >= 2 && Number(value) <= 4096 && Number(value) % 2 === 0) && Number.isFinite(transcode.frameRate) && Number(transcode.frameRate) >= 1 && Number(transcode.frameRate) <= 120 && Number.isInteger(transcode.frameCount) && Number(transcode.frameCount) >= 1 && Number(transcode.frameCount) <= 36e3 && Number.isFinite(transcode.bitrate) && Number(transcode.bitrate) >= 1e5 && Number(transcode.bitrate) <= 1e8;
+    const startSource = transcode && withinTranscodeBounds ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); const discover = Reflect.get(selects.media, 'videoTranscodeFeatures'); const required = " + JSON.stringify(requiredFeatures.join(",")) + ".split(',').filter(Boolean); const features = required.length && typeof discover === 'function' ? await discover.call(selects.media) : []; return await (typeof transcode === 'function' && (!required.length || Array.isArray(features) && required.every(feature => features.includes(feature))) ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");" : "return await " + legacyStart + ";";
+    if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
+    let started;
+    const starting = runSource(startSource, true);
+    try {
+      started = await observeMedia(() => starting, Date.now() + SETTLEMENT_MS);
+    } catch (cause) {
+      void starting.then((value) => validJob(value) ? cancel2(value.jobId) : void 0, () => {
+      }).catch(() => {
       });
+      throw mediaIssue("START_UNKNOWN", "The media job start could not be confirmed. Its temporary workspace is retained for inspection.", cause, true);
+    }
+    if (!validJob(started))
+      throw mediaIssue("START_UNKNOWN", "The media job identity could not be confirmed. Its temporary workspace is retained for inspection.", void 0, true);
+    const jobId = started.jobId;
+    let cancellation = null, cancellationDeadline = null, settled = false;
+    const requestCancel = () => {
+      if (!cancellation) {
+        cancellationDeadline = Date.now() + SETTLEMENT_MS;
+        cancellation = cancel2(jobId);
+        void cancellation.catch(() => {
+        });
+      }
+      return cancellation;
     };
+    const abort = () => {
+      void requestCancel();
+    };
+    activeJobs.set(jobId, requestCancel);
     signal?.addEventListener("abort", abort, { once: true });
     if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
+    let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
+    const knownState = (status) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
+    const statusAt = (deadline) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const settleAfterFailure = async (cause) => {
+      requestCancel();
+      const deadline = cancellationDeadline;
+      while (Date.now() < deadline) {
+        try {
+          const status = await statusAt(deadline);
+          if (knownState(status) && status.state !== "running") {
+            settled = true;
+            return;
+          }
+        } catch {
+        }
+        if (Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+      }
+      throw Object.assign(mediaIssue("SETTLEMENT_UNKNOWN", "The media job exit could not be confirmed. Its temporary workspace is retained for inspection.", cause, true), { jobId });
+    };
     try {
       while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
+          throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
+        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
+        settled = status.state !== "running";
+        if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
+          throw mediaIssue("STATUS", "The media job returned an incomplete status.");
+        if (status.truncated) throw mediaIssue("OUTPUT", "Media output was truncated; no incomplete result was accepted.");
+        let position2 = cursor;
         for (const event of status.events) {
+          if (!event || !["stdout", "stderr"].includes(event.stream) || typeof event.text !== "string" || event.text.length > 4096 || !Number.isSafeInteger(event.cursor) || event.cursor !== position2 + 1 || event.cursor > status.nextCursor)
+            throw mediaIssue("OUTPUT", "The media job returned incomplete output.");
+          outputBytes += new TextEncoder().encode(event.text).byteLength;
+          if (outputBytes > OUTPUT_BYTES) throw mediaIssue("OUTPUT_LIMIT", "The media output exceeds its 4 MiB byte budget.");
+          position2 = event.cursor;
           if (event.stream === "stdout") {
             stdout += event.text;
             onStdout?.(event.text);
@@ -553,17 +725,17 @@ async function createPanelLocalClient(sdk) {
             onStderr?.(event.text);
           }
         }
+        if (position2 !== status.nextCursor) throw mediaIssue("OUTPUT", "The media job returned an incomplete output cursor.");
         cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (settled && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted || disposed) throw new DOMException("Aborted", "AbortError");
           if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
           return { stdout, stderr };
         }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+        if (!settled) await new Promise((resolve) => setTimeout(resolve, 150));
       }
     } catch (error) {
-      await cancel2(jobId).catch(() => {
-      });
+      if (!settled) await settleAfterFailure(error);
       throw error;
     } finally {
       signal?.removeEventListener("abort", abort);
@@ -575,6 +747,7 @@ async function createPanelLocalClient(sdk) {
     environment,
     media: {
       runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request2, fallbackArgs, quiet, signal) => process("FFmpeg", fallbackArgs, quiet, signal, void 0, void 0, request2),
       runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
     },
     dialogs: {
@@ -584,7 +757,7 @@ async function createPanelLocalClient(sdk) {
     },
     dispose() {
       disposed = true;
-      for (const jobId of activeJobs) void cancel2(jobId).catch(() => {
+      for (const requestCancel of activeJobs.values()) void requestCancel().catch(() => {
       });
     }
   };
@@ -595,33 +768,61 @@ function panelLocalClient(sdk) {
   if (!client) throw new Error("Local SDK has not initialized.");
   return client;
 }
-function withPanelLocalClient(Component) {
+function withPanelLocalClient(Component, fileObservation) {
   return function LocalSdkPanel(props) {
     const [state2, setState] = React.useState(null);
+    const reported = React.useRef(/* @__PURE__ */ new WeakMap());
+    const key = JSON.stringify([
+      props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null
+    ]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client;
-      createPanelLocalClient(props.sdk).then((value) => {
+      const fail = (timeout, cause) => {
+        if (!active || settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const error = timeout ? "Connecting to Selects took too long. Reopen the Project and try again." : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        setState({ sdk: props.sdk, key, error, cause });
+      };
+      const timer = setTimeout(() => fail(true), 3e4);
+      createPanelLocalClient(props.sdk, fileObservation).then((value) => {
         client = { ...props.sdk, ...value };
-        if (!active) {
+        if (!active || settled) {
           value.dispose();
           return;
         }
+        settled = true;
+        clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({ sdk: props.sdk });
-      }).catch((error) => {
-        if (active) setState({ error: String(error?.message || error) });
-      });
+        setState({ sdk: props.sdk, key });
+      }).catch((error) => fail(false, error));
       return () => {
         active = false;
+        clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state2?.sdk !== props.sdk || state2?.key !== key || !state2?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? /* @__PURE__ */ new Set();
+      if (seen.has(key)) return;
+      seen.add(key);
+      reported.current.set(props.sdk, seen);
+      try {
+        Promise.resolve(props.sdk.finishTemplate({ error: state2.error })).catch(() => {
+        });
+      } catch {
+      }
+    }, [props.sdk, key, state2, !!props.context?.template]);
+    if (state2?.sdk !== props.sdk || state2?.key !== key) return React.createElement("div", { role: "status" }, "Connecting to Selects…");
     if (state2?.error) return React.createElement("div", { role: "alert" }, state2.error);
-    if (state2?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects…");
     return React.createElement(Component, props);
   };
 }
@@ -2766,6 +2967,7 @@ function tail(text, n2 = 1500) {
   return t2.length > n2 ? t2.slice(t2.length - n2) : t2;
 }
 function toFfError(e, args, streamed, timedOut, outerSignal) {
+  if (e instanceof Error && (e.terminal || e.preserveTemporaryFiles)) return e;
   if (timedOut) return new FfmpegError("timeout", "ffmpeg did not finish in time.", { args, stderrTail: tail(streamed) });
   if (outerSignal?.aborted || isAbortError(e)) return new AbortedError();
   const err = e;
@@ -2813,7 +3015,7 @@ async function encode(rt, args, opts = {}) {
   const t0 = Date.now();
   let r5;
   try {
-    r5 = await runtime.runFFmpeg(args, true, child.signal);
+    r5 = opts.transcode && runtime.runVideoTranscode ? await runtime.runVideoTranscode(opts.transcode, args, true, child.signal) : await runtime.runFFmpeg(args, true, child.signal);
   } catch (e) {
     throw toFfError(e, args, "", child.timedOut(), opts.signal);
   } finally {
@@ -2891,7 +3093,7 @@ async function probeMedia(rt, path, opts = {}) {
     [
       ...opts.countFrames ? ["-count_frames"] : [],
       "-show_entries",
-      "format=duration,format_name:stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames,nb_read_frames,duration,sample_rate,channels",
+      "format=duration,format_name:stream=codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames,nb_read_frames,duration,sample_rate,channels,sample_aspect_ratio:stream_side_data=rotation",
       ...opts.inputFormat ?? [],
       path
     ],
@@ -2907,6 +3109,9 @@ async function probeMedia(rt, path, opts = {}) {
       codec: String(v.codec_name ?? ""),
       width: Number(v.width ?? 0),
       height: Number(v.height ?? 0),
+      ...Array.isArray(v.side_data_list) ? { rotation: Number(v.side_data_list.find((row) => row.rotation != null)?.rotation || 0) } : {},
+      ...v.sample_aspect_ratio ? { sampleAspectRatio: String(v.sample_aspect_ratio) } : {},
+      ...v.avg_frame_rate ? { averageFrameRate: String(v.avg_frame_rate) } : {},
       fps: v.r_frame_rate ?? null,
       nbFrames: n(v.nb_read_frames) ?? n(v.nb_frames),
       durationSec: n(v.duration)
@@ -3323,7 +3528,35 @@ async function cutClip(d, url, start, seconds, out) {
   if (await d.fs.exists(keyPath)) throw new Error("could not remove the old clip record " + keyPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
   await removeFile(d.fs, part);
-  await encode(d.runtime, cutArgs(url, start, seconds, part), { fs: d.fs, outPath: part, signal: d.signal, timeoutMs: 18e4 });
+  const source = d.runtime?.runVideoTranscode ? await probeMedia(d.runtime, url, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal }).catch((error) => {
+    if (error?.terminal || error?.preserveTemporaryFiles || d.signal?.aborted) throw error;
+    return null;
+  }) : null;
+  const video = source?.video;
+  const [num3, den] = String(video?.fps).split("/").map(Number), fps = num3 / (den || 1);
+  const [averageNum, averageDen] = String(video?.averageFrameRate).split("/").map(Number);
+  const averageFps = averageNum / (averageDen || 1);
+  const turned = Math.abs(video?.rotation || 0) % 180 === 90;
+  const width = turned ? video?.height : video?.width, height = turned ? video?.width : video?.height;
+  await encode(d.runtime, cutArgs(url, start, seconds, part), {
+    fs: d.fs,
+    outPath: part,
+    signal: d.signal,
+    timeoutMs: 18e4,
+    transcode: video && fps > 0 && Number.isFinite(fps) && (!averageFps || Math.abs(averageFps - fps) / fps < 1e-3) && (video.rotation || 0) % 90 === 0 && (!video.sampleAspectRatio || ["1:1", "0:1", "N/A"].includes(video.sampleAspectRatio)) ? {
+      sourcePath: url,
+      outputPath: part,
+      width,
+      height,
+      frameRate: fps,
+      frameCount: Math.ceil(Number(seconds.toFixed(3)) * fps),
+      bitrate: 1e7,
+      sourceStartSeconds: Number(start.toFixed(3)),
+      sourceEndSeconds: Number(start.toFixed(3)) + Number(seconds.toFixed(3)),
+      fit: "fill",
+      endBehavior: "stop"
+    } : void 0
+  });
   const probe = await probeMedia(d.runtime, part, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
   if (!ok(probe)) {
     await removeFile(d.fs, part);

@@ -29,3 +29,20 @@ test('Archive save: real bundled title/fonts/effects fit the frozen request and 
  const f=await fixture(t,{realFinish:true});await f.build();assert.equal(f.result()?.decorated,true,JSON.stringify(f.ui.errors));assert.equal(f.commits(),2);assert.ok(f.requests.every(r=>Buffer.byteLength(r.script)<262144));
  const saved=f.saved.get(f.result().sequenceId),graphic=saved.clips.find(row=>row._graphic?.name==='Archive title');assert.equal(graphic._graphic.program.parameters.title,'SATURDAY');assert.ok(graphic._graphic.program.parameters.fonts.length>0);
 });
+
+test('Archive save: host-generated chapters after assembly do not block the original title', async t => {
+ const f = await fixture(t, {realFinish:true});
+ f.hooks.reply = (input, result) => {
+  if (input.summary !== 'Assemble template with owned receipt') return;
+  const state = f.saved.get(result.assembly.sequenceId);
+  for (const [index, trackKind] of ['chapter', 'subchapter'].entries())
+   state.clips.push({clipId:900 + index, trackId:trackKind, trackKind, resourceId:null,
+    startFrame:0, endFrame:30, text:'Automatically generated navigation'});
+ };
+ await f.build();
+ assert.equal(f.result()?.decorated, true, JSON.stringify(f.ui.errors));
+ assert.equal(f.commits(), 2);
+ const clips = f.saved.get(f.result().sequenceId).clips;
+ assert.ok(clips.some(row => row._graphic?.name === 'Archive title'));
+ assert.equal(clips.filter(row => ['chapter', 'subchapter'].includes(row.trackKind)).length, 2);
+});

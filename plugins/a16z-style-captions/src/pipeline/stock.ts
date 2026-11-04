@@ -92,12 +92,30 @@ export async function cutCandidate(sdk: Sdk, c: Candidate, dir: string, seconds:
     // ffmpeg writes a .part file that is renamed once complete, so a failed cut never looks cached
     // (straight to the final name on a host build without renameSync).
     const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
+    const probeArgs = ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", c.url];
+    let source: any = {};
+    try { source = JSON.parse((await hostFF("runFFprobe", probeArgs, 30000)).stdout).streams?.[0] || {}; }
+    catch (error: any) { if (isTerminalMediaFailure(error)) throw error; }
+    // The legacy encoder auto-rotates before scaling; keep those display dimensions.
+    if ((source.side_data_list || []).some((row: any) => Math.abs(Number(row.rotation || 0)) % 180 === 90)) {
+      [source.width, source.height] = [source.height, source.width];
+    }
+    const [num, den] = String(source.avg_frame_rate).split("/").map(Number);
+    const fps = num / (den || 1);
+    const [nominalNum, nominalDen] = String(source.r_frame_rate).split("/").map(Number);
+    const nominalFps = nominalNum / (nominalDen || 1);
+    const scale = Math.max((portrait ? 1080 : 1920) / source.width, (portrait ? 1920 : 1080) / source.height);
     await hostFF(
       "runFFmpeg",
       ["-v", "error", "-y", "-ss", start.toFixed(2), "-t", length.toFixed(2), "-i", c.url,
         "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p",
         "-vf", "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2", part],
-      150000
+      150000,
+      source.width > 0 && source.height > 0 && fps > 0 && Number.isFinite(fps) && (!nominalFps || Math.abs(nominalFps - fps) / fps < .001) &&
+      (source.side_data_list || []).every((row: any) => Number(row.rotation || 0) % 90 === 0) &&
+      (!source.sample_aspect_ratio || ["1:1", "0:1", "N/A"].includes(source.sample_aspect_ratio)) ? { sourcePath: c.url, outputPath: part, width: Math.ceil(source.width * scale / 2) * 2, height: Math.ceil(source.height * scale / 2) * 2,
+        frameRate: fps, frameCount: Math.ceil(Number(length.toFixed(2)) * fps), bitrate: 10000000,
+        sourceStartSeconds: Number(start.toFixed(2)), sourceEndSeconds: Number(start.toFixed(2)) + Number(length.toFixed(2)), fit: "fill", endBehavior: "stop" } : undefined
     );
     if (part !== out) (await fs().rename(part, out));
   }

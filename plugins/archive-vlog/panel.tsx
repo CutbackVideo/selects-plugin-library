@@ -1915,7 +1915,7 @@ function errorSay(e: any, wrap: (lang: Lang, detail: string) => string): Say {
 
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.26";
+const PLUGIN_VERSION = "0.1.0-alpha.28";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -4643,7 +4643,7 @@ function templateStateJSON(value,limit=8388608){
  }).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
  if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
 }
-// SDK-safe state of every exposed timeline row. Read-only targets never cross
+// SDK-safe state of authored timeline rows. Read-only targets never cross
 // edits or script calls. Working copies have no source-window read capability:
 // null is explicitly pending, never a source window inferred from the recipe.
 async function readTemplateSavedState(draft,sources=null,observeSource=null){
@@ -4651,6 +4651,9 @@ async function readTemplateSavedState(draft,sources=null,observeSource=null){
  if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.durationFrames)||meta.durationFrames<1||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows)||rows.length>1024||new Set(rows.map(r=>r.clipId)).size!==rows.length||!Array.isArray(graphics))throw Error('The Draft state is incomplete.');
  const clips=[];
  for(const row of rows){
+  // The host asynchronously generates navigation chapters after a Draft save.
+  // They are not authored media/graphics and must not invalidate the title phase.
+  if(row.trackKind==='chapter'||row.trackKind==='subchapter')continue;
   if(!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string'||!row.trackId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)throw Error('The Draft row is incomplete.');
   const graphic=graphics.find(g=>g.clip.clipId===row.clipId&&g.clip.trackId===row.trackId),media=row.resourceId!=null&&['main','video','audio'].includes(row.trackKind),visual=['main','video'].includes(row.trackKind)&&(media||!!graphic);
   const effects=[];
@@ -6978,8 +6981,11 @@ async function readTemplateDraftSources(sdk,projectId,draftId,libraryId=null){
  }
  let clips=[],revision;
  if(!missingMethod){
-  if(typeof snapshot?.revision!=='string'||!snapshot.revision||!Number.isFinite(snapshot.fps)||snapshot.fps<=0||!Array.isArray(snapshot.clips)||snapshot.clips.length>1000||snapshot.clips.some(row=>!row||typeof row!=='object'))fail('Saved Draft media observation is incomplete.');
-  clips=snapshot.clips.filter(row=>row?.resourceId!=null).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds,endSeconds:row.sourceEndSeconds},playbackSpeed:row.playbackSpeed}));
+  // Current hosts expose the SDK's logical Main view alongside physical V1/A1.
+  // Older hosts already store Main clips and retain their original observation.
+  const rows=snapshot?.sdkClips===undefined?snapshot?.clips:snapshot.sdkClips;
+  if(typeof snapshot?.revision!=='string'||!snapshot.revision||!Number.isFinite(snapshot.fps)||snapshot.fps<=0||!Array.isArray(rows)||rows.length>1000||rows.some(row=>!row||typeof row!=='object'))fail('Saved Draft media observation is incomplete.');
+  clips=rows.filter(row=>row?.resourceId!=null).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:row.sourceStartSeconds,endSeconds:row.sourceEndSeconds},playbackSpeed:row.playbackSpeed}));
   revision=JSON.stringify({core:witness,media:snapshot.revision,clips});
  }else{
   // getDraftCore is an existing public read. Interpret only documented persisted

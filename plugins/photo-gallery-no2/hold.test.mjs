@@ -164,3 +164,57 @@ test('parity with dev/hold_video.py: same stream and the same decoded frames', {
   assert.deepEqual(probe(ported.outputPath), probe(expected.outputPath));
   assert.ok(rawFrames(ported.outputPath).equals(rawFrames(expected.outputPath)), 'decoded frames differ');
 });
+
+
+test('source admission decodes one video frame and scaling precedes frame duplication', { skip: !tools && 'ffmpeg/ffprobe required' }, async t => {
+  const dir = scratch();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = path.join(dir, 'short.mp4'), calls = [];
+  sourceVideo(source);
+  const result = await load(host({ calls })).holdVideos({ videos: [{ path: source }], durationFrames: 18 }, path.join(dir, 'data'));
+  const sourceProbes = calls.filter(call => call[0] === 'ffprobe' && !call.at(-1).includes('.output-') && call.at(-1) !== result.videos[0].outputPath);
+  assert.equal(sourceProbes.length, 2);
+  for (const call of sourceProbes) {
+    assert.equal(call[call.indexOf('-select_streams') + 1], 'v:0');
+    assert.equal(call[call.indexOf('-read_intervals') + 1], '%+#1');
+  }
+  const encode = calls.find(call => call.includes('-vf'));
+  const filters = encode[encode.indexOf('-vf') + 1];
+  assert.ok(filters.indexOf('scale=') < filters.indexOf('fps='), 'Scale each original frame before duplicating it');
+  assert.equal(probe(result.videos[0].outputPath)[0].nb_read_frames, '18');
+});
+
+
+test('scaling before duplication preserves the decoded 4K-source result', { skip: !tools && 'ffmpeg/ffprobe required' }, async t => {
+  const dir = scratch();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = path.join(dir, '4k.mp4'), baseline = path.join(dir, 'baseline.mp4'), calls = [];
+  execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=3840x2160:rate=30:duration=0.1', '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', source]);
+  const result = await load(host({ calls })).holdVideos({ videos: [{ path: source }], durationFrames: 18 }, path.join(dir, 'data'));
+  const oldArgs = calls.find(call => call.includes('-vf')).slice(1);
+  const filterIndex = oldArgs.indexOf('-vf') + 1;
+  const filters = oldArgs[filterIndex], split = filters.indexOf(',fps=');
+  assert.ok(split > 0);
+  oldArgs[filterIndex] = filters.slice(split + 1) + ',' + filters.slice(0, split);
+  oldArgs[oldArgs.indexOf('-i') + 1] = source;
+  oldArgs[oldArgs.length - 1] = baseline;
+  execFileSync('ffmpeg', oldArgs);
+  const frameHashes = file => execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'framemd5', '-'], { encoding: 'utf8' });
+  assert.equal(frameHashes(result.videos[0].outputPath), frameHashes(baseline));
+});
+
+test('the hold producer passes an explicit video-only transcode request when available', { skip: !tools && 'ffmpeg/ffprobe required' }, async t => {
+  const dir=scratch();t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const source=path.join(dir,'source.mp4');sourceVideo(source);
+  const di=host(),client=asyncSdk(di),requests=[];
+  client.media.runVideoTranscode=async(request,args,quiet,signal)=>{
+    requests.push(request);
+    return di.Runtime.runFFmpeg(args,quiet,signal);
+  };
+  await load(di).holdVideos({videos:[{path:source}],durationFrames:18},path.join(dir,'data'),{client});
+  assert.equal(requests.length,1);
+  const {sourcePath,outputPath,...format}=requests[0];
+  assert.notEqual(sourcePath,source,'encode the verified snapshot, not a mutable source');
+  assert.notEqual(sourcePath,outputPath);
+  assert.deepEqual(JSON.parse(JSON.stringify(format)),{width:128,height:96,frameRate:60,frameCount:18,bitrate:10000000});
+});

@@ -408,248 +408,6 @@ var require_face_request_windows = __commonJS({
 
 // shared/local-client.ts
 import React from "react";
-
-// shared/file-observation.js
-async function fingerprintTemplateFile(files, path, check = () => {
-}, scheme = null) {
-  const __templateHashAny = (value) => value;
-  var __templateFileHash = __templateHashAny(() => {
-    var w = __templateHashAny(Object).defineProperty;
-    var G = __templateHashAny(Object).getOwnPropertyDescriptor;
-    var V = __templateHashAny(Object).getOwnPropertyNames;
-    var O = __templateHashAny(__templateHashAny(Object).prototype).hasOwnProperty;
-    var k = (t, e, r) => e in t ? __templateHashAny(w)(t, e, { enumerable: true, configurable: true, writable: true, value: r }) : __templateHashAny(t)[e] = r;
-    var R = (t, e) => {
-      for (var r in e)
-        __templateHashAny(w)(t, r, { get: __templateHashAny(e)[r], enumerable: true });
-    }, $ = (t, e, r, o) => {
-      if (e && typeof e == "object" || typeof e == "function")
-        for (let n of __templateHashAny(V)(e))
-          !__templateHashAny(O).call(t, n) && n !== r && __templateHashAny(w)(t, n, { get: () => __templateHashAny(e)[n], enumerable: !(o = __templateHashAny(G)(e, n)) || __templateHashAny(o).enumerable });
-      return t;
-    };
-    var M = (t) => __templateHashAny($)(__templateHashAny(w)({}, "__esModule", { value: true }), t);
-    var a = (t, e, r) => __templateHashAny(k)(t, typeof e != "symbol" ? e + "" : e, r);
-    var N = {};
-    __templateHashAny(R)(N, { sha256: () => _ });
-    function j(t) {
-      return t instanceof Uint8Array || __templateHashAny(ArrayBuffer).isView(t) && __templateHashAny(__templateHashAny(t).constructor).name === "Uint8Array" && "BYTES_PER_ELEMENT" in t && __templateHashAny(t).BYTES_PER_ELEMENT === 1;
-    }
-    function m(t, e, r = "") {
-      let o = __templateHashAny(j)(t), n = __templateHashAny(t)?.length, f = e !== void 0;
-      if (!o || f && n !== e) {
-        let s = r && `"${r}" `, x = f ? ` of length ${e}` : "", i = o ? `length=${n}` : `type=${typeof t}`, h = s + "expected Uint8Array" + x + ", got " + i;
-        throw o ? new (__templateHashAny(RangeError))(h) : new (__templateHashAny(TypeError))(h);
-      }
-      return t;
-    }
-    function L(t, e = true) {
-      if (__templateHashAny(t).destroyed)
-        throw new (__templateHashAny(Error))("Hash instance has been destroyed");
-      if (e && __templateHashAny(t).finished)
-        throw new (__templateHashAny(Error))("Hash#digest() has already been called");
-    }
-    function C(t, e) {
-      __templateHashAny(m)(t, void 0, "digestInto() output");
-      let r = __templateHashAny(e).outputLen;
-      if (__templateHashAny(t).length < r)
-        throw new (__templateHashAny(RangeError))('"digestInto() output" expected to be of length >=' + r);
-    }
-    function y(...t) {
-      for (let e = 0; e < __templateHashAny(t).length; e++)
-        __templateHashAny(__templateHashAny(t)[e]).fill(0);
-    }
-    function A(t) {
-      return new (__templateHashAny(DataView))(__templateHashAny(t).buffer, __templateHashAny(t).byteOffset, __templateHashAny(t).byteLength);
-    }
-    function d(t, e) {
-      return t << 32 - e | t >>> e;
-    }
-    function F2(t, e = {}) {
-      let r = (n, f) => __templateHashAny(__templateHashAny(__templateHashAny(t)(f)).update(n)).digest(), o = __templateHashAny(t)(void 0);
-      return __templateHashAny(r).outputLen = __templateHashAny(o).outputLen, __templateHashAny(r).blockLen = __templateHashAny(o).blockLen, __templateHashAny(r).canXOF = __templateHashAny(o).canXOF, __templateHashAny(r).create = (n) => __templateHashAny(t)(n), __templateHashAny(Object).assign(r, e), __templateHashAny(Object).freeze(r);
-    }
-    var T = (t) => ({ oid: __templateHashAny(Uint8Array).from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, t]) });
-    function D(t, e, r) {
-      return t & e ^ ~t & r;
-    }
-    function I(t, e, r) {
-      return t & e ^ t & r ^ e & r;
-    }
-    var E = class {
-      constructor(e, r, o, n) {
-        __templateHashAny(a)(__templateHashAny(this), "blockLen");
-        __templateHashAny(a)(__templateHashAny(this), "outputLen");
-        __templateHashAny(a)(__templateHashAny(this), "canXOF", false);
-        __templateHashAny(a)(__templateHashAny(this), "padOffset");
-        __templateHashAny(a)(__templateHashAny(this), "isLE");
-        __templateHashAny(a)(__templateHashAny(this), "buffer");
-        __templateHashAny(a)(__templateHashAny(this), "view");
-        __templateHashAny(a)(__templateHashAny(this), "finished", false);
-        __templateHashAny(a)(__templateHashAny(this), "length", 0);
-        __templateHashAny(a)(__templateHashAny(this), "pos", 0);
-        __templateHashAny(a)(__templateHashAny(this), "destroyed", false);
-        __templateHashAny(__templateHashAny(this)).blockLen = e, __templateHashAny(__templateHashAny(this)).outputLen = r, __templateHashAny(__templateHashAny(this)).padOffset = o, __templateHashAny(__templateHashAny(this)).isLE = n, __templateHashAny(__templateHashAny(this)).buffer = new (__templateHashAny(Uint8Array))(e), __templateHashAny(__templateHashAny(this)).view = __templateHashAny(A)(__templateHashAny(__templateHashAny(this)).buffer);
-      }
-      update(e) {
-        __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(m)(e);
-        let { view: r, buffer: o, blockLen: n } = __templateHashAny(this), f = __templateHashAny(e).length;
-        for (let s = 0; s < f; ) {
-          let x = __templateHashAny(Math).min(n - __templateHashAny(__templateHashAny(this)).pos, f - s);
-          if (x === n) {
-            let i = __templateHashAny(A)(e);
-            for (; n <= f - s; s += n)
-              __templateHashAny(__templateHashAny(this)).process(i, s);
-            continue;
-          }
-          __templateHashAny(o).set(__templateHashAny(e).subarray(s, s + x), __templateHashAny(__templateHashAny(this)).pos), __templateHashAny(__templateHashAny(this)).pos += x, s += x, __templateHashAny(__templateHashAny(this)).pos === n && (__templateHashAny(__templateHashAny(this)).process(r, 0), __templateHashAny(__templateHashAny(this)).pos = 0);
-        }
-        return __templateHashAny(__templateHashAny(this)).length += __templateHashAny(e).length, __templateHashAny(__templateHashAny(this)).roundClean(), __templateHashAny(this);
-      }
-      digestInto(e) {
-        __templateHashAny(L)(__templateHashAny(this)), __templateHashAny(C)(e, __templateHashAny(this)), __templateHashAny(__templateHashAny(this)).finished = true;
-        let { buffer: r, view: o, blockLen: n, isLE: f } = __templateHashAny(this), { pos: s } = __templateHashAny(this);
-        __templateHashAny(r)[s++] = 128, __templateHashAny(y)(__templateHashAny(__templateHashAny(__templateHashAny(this)).buffer).subarray(s)), __templateHashAny(__templateHashAny(this)).padOffset > n - s && (__templateHashAny(__templateHashAny(this)).process(o, 0), s = 0);
-        for (let c = s; c < n; c++)
-          __templateHashAny(r)[c] = 0;
-        __templateHashAny(o).setBigUint64(n - 8, __templateHashAny(BigInt)(__templateHashAny(__templateHashAny(this)).length * 8), f), __templateHashAny(__templateHashAny(this)).process(o, 0);
-        let x = __templateHashAny(A)(e), i = __templateHashAny(__templateHashAny(this)).outputLen;
-        if (i % 4)
-          throw new (__templateHashAny(Error))("_sha2: outputLen must be aligned to 32bit");
-        let h = i / 4, u = __templateHashAny(__templateHashAny(this)).get();
-        if (h > __templateHashAny(u).length)
-          throw new (__templateHashAny(Error))("_sha2: outputLen bigger than state");
-        for (let c = 0; c < h; c++)
-          __templateHashAny(x).setUint32(4 * c, __templateHashAny(u)[c], f);
-      }
-      digest() {
-        let { buffer: e, outputLen: r } = __templateHashAny(this);
-        __templateHashAny(__templateHashAny(this)).digestInto(e);
-        let o = __templateHashAny(e).slice(0, r);
-        return __templateHashAny(__templateHashAny(this)).destroy(), o;
-      }
-      _cloneInto(e) {
-        e || (e = new (__templateHashAny(__templateHashAny(__templateHashAny(this)).constructor))()), __templateHashAny(e).set(...__templateHashAny(__templateHashAny(this)).get());
-        let { blockLen: r, buffer: o, length: n, finished: f, destroyed: s, pos: x } = __templateHashAny(this);
-        return __templateHashAny(e).destroyed = s, __templateHashAny(e).finished = f, __templateHashAny(e).length = n, __templateHashAny(e).pos = x, n % r && __templateHashAny(__templateHashAny(e).buffer).set(o), e;
-      }
-      clone() {
-        return __templateHashAny(__templateHashAny(this))._cloneInto();
-      }
-    }, b = __templateHashAny(Uint32Array).from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
-    var W2 = __templateHashAny(Uint32Array).from([1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]), l = new (__templateHashAny(Uint32Array))(64), B = class extends __templateHashAny(E) {
-      constructor(e) {
-        super(64, e, 8, false);
-      }
-      get() {
-        let { A: e, B: r, C: o, D: n, E: f, F: s, G: x, H: i } = __templateHashAny(this);
-        return [e, r, o, n, f, s, x, i];
-      }
-      set(e, r, o, n, f, s, x, i) {
-        __templateHashAny(__templateHashAny(this)).A = e | 0, __templateHashAny(__templateHashAny(this)).B = r | 0, __templateHashAny(__templateHashAny(this)).C = o | 0, __templateHashAny(__templateHashAny(this)).D = n | 0, __templateHashAny(__templateHashAny(this)).E = f | 0, __templateHashAny(__templateHashAny(this)).F = s | 0, __templateHashAny(__templateHashAny(this)).G = x | 0, __templateHashAny(__templateHashAny(this)).H = i | 0;
-      }
-      process(e, r) {
-        for (let c = 0; c < 16; c++, r += 4)
-          __templateHashAny(l)[c] = __templateHashAny(e).getUint32(r, false);
-        for (let c = 16; c < 64; c++) {
-          let g = __templateHashAny(l)[c - 15], p = __templateHashAny(l)[c - 2], S = __templateHashAny(d)(g, 7) ^ __templateHashAny(d)(g, 18) ^ g >>> 3, H2 = __templateHashAny(d)(p, 17) ^ __templateHashAny(d)(p, 19) ^ p >>> 10;
-          __templateHashAny(l)[c] = H2 + __templateHashAny(l)[c - 7] + S + __templateHashAny(l)[c - 16] | 0;
-        }
-        let { A: o, B: n, C: f, D: s, E: x, F: i, G: h, H: u } = __templateHashAny(this);
-        for (let c = 0; c < 64; c++) {
-          let g = __templateHashAny(d)(x, 6) ^ __templateHashAny(d)(x, 11) ^ __templateHashAny(d)(x, 25), p = u + g + __templateHashAny(D)(x, i, h) + __templateHashAny(W2)[c] + __templateHashAny(l)[c] | 0, H2 = (__templateHashAny(d)(o, 2) ^ __templateHashAny(d)(o, 13) ^ __templateHashAny(d)(o, 22)) + __templateHashAny(I)(o, n, f) | 0;
-          u = h, h = i, i = x, x = s + p | 0, s = f, f = n, n = o, o = p + H2 | 0;
-        }
-        o = o + __templateHashAny(__templateHashAny(this)).A | 0, n = n + __templateHashAny(__templateHashAny(this)).B | 0, f = f + __templateHashAny(__templateHashAny(this)).C | 0, s = s + __templateHashAny(__templateHashAny(this)).D | 0, x = x + __templateHashAny(__templateHashAny(this)).E | 0, i = i + __templateHashAny(__templateHashAny(this)).F | 0, h = h + __templateHashAny(__templateHashAny(this)).G | 0, u = u + __templateHashAny(__templateHashAny(this)).H | 0, __templateHashAny(__templateHashAny(this)).set(o, n, f, s, x, i, h, u);
-      }
-      roundClean() {
-        __templateHashAny(y)(l);
-      }
-      destroy() {
-        __templateHashAny(__templateHashAny(this)).destroyed = true, __templateHashAny(__templateHashAny(this)).set(0, 0, 0, 0, 0, 0, 0, 0), __templateHashAny(y)(__templateHashAny(__templateHashAny(this)).buffer);
-      }
-    }, U = class extends __templateHashAny(B) {
-      constructor() {
-        super(32);
-        __templateHashAny(a)(__templateHashAny(this), "A", __templateHashAny(b)[0] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "B", __templateHashAny(b)[1] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "C", __templateHashAny(b)[2] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "D", __templateHashAny(b)[3] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "E", __templateHashAny(b)[4] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "F", __templateHashAny(b)[5] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "G", __templateHashAny(b)[6] | 0);
-        __templateHashAny(a)(__templateHashAny(this), "H", __templateHashAny(b)[7] | 0);
-      }
-    };
-    var _ = __templateHashAny(F2)(() => new (__templateHashAny(U))(), __templateHashAny(T)(1));
-    return __templateHashAny(M)(N);
-  })();
-  if (typeof path !== "string" || !path || path.includes("\0") || typeof check !== "function") throw Error("The original file observation input is invalid.");
-  if (scheme !== null && scheme !== "cutback.media-content.v2") throw Error("Unknown media fingerprint scheme.");
-  const sampled = scheme !== null;
-  check();
-  const native = sampled && files && "mediaFingerprint" in files ? files.mediaFingerprint : null;
-  if (typeof native === "function") {
-    let supported = true, observed;
-    try {
-      observed = await native.call(files, path);
-    } catch (error) {
-      if (!/^(?:Error: )?Unsupported file operation\.?$/.test(String(error?.message ?? error))) throw error;
-      supported = false;
-    }
-    check();
-    if (supported) {
-      if (observed === null) return null;
-      if (!observed || observed.scheme !== scheme || !Number.isSafeInteger(observed.size) || observed.size <= 0 || typeof observed.digest !== "string" || !/^[a-f0-9]{64}$/.test(observed.digest)) throw Error("The sampled media fingerprint could not be confirmed.");
-      return { size: observed.size, scheme: observed.scheme, digest: observed.digest };
-    }
-  }
-  if (typeof path !== "string" || !path || path.includes("\0") || typeof check !== "function" || typeof files?.stat !== "function" || typeof files?.readRange !== "function") throw Error("The original file observation input is invalid.");
-  const observe = async (operation) => {
-    check();
-    const result = await operation();
-    check();
-    return result;
-  };
-  const identity = (stat) => typeof stat?.sourceIdentity === "string" && stat.sourceIdentity ? stat.sourceIdentity : Number.isFinite(stat?.ino) ? stat.ino : null;
-  const before = await observe(() => files.stat(path));
-  if (before === null) return null;
-  if (!before || before.isDirectory !== false || !Number.isSafeInteger(before.size) || before.size < 0 || !Number.isFinite(before.mtimeMs) || identity(before) === null) throw Error("The file's size or identity could not be confirmed.");
-  if (sampled && before.size === 0) throw Error("Cannot fingerprint empty media.");
-  const hash3 = __templateFileHash.sha256.create(), alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  if (sampled) {
-    const prefix = scheme + ":" + before.size + ":";
-    hash3.update(Uint8Array.from(prefix, (character) => character.charCodeAt(0)));
-  }
-  const sampleBytes = 262144;
-  const ranges = !sampled || before.size <= sampleBytes * 3 ? [[0, before.size]] : [[0, sampleBytes], [Math.floor((before.size - sampleBytes) / 2), sampleBytes], [before.size - sampleBytes, sampleBytes]];
-  for (const [start, count] of ranges) for (let offset = start; offset < start + count; ) {
-    const length = Math.min(49152, start + count - offset);
-    const chunk = await observe(() => files.readRange({ path, offset, length }));
-    if (!chunk || chunk.bytesRead !== length || typeof chunk.base64 !== "string" || chunk.base64.length !== 4 * Math.ceil(length / 3) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(chunk.base64)) throw Error("The file read returned an incomplete or invalid binary chunk.");
-    const bytes = new Uint8Array(length);
-    let position = 0;
-    for (let i = 0; i < chunk.base64.length; i += 4) {
-      const a = alphabet.indexOf(chunk.base64[i]), b = alphabet.indexOf(chunk.base64[i + 1]), c = chunk.base64[i + 2] === "=" ? 0 : alphabet.indexOf(chunk.base64[i + 2]), d = chunk.base64[i + 3] === "=" ? 0 : alphabet.indexOf(chunk.base64[i + 3]);
-      if (chunk.base64[i + 2] === "=" && (b & 15) !== 0 || chunk.base64[i + 3] === "=" && chunk.base64[i + 2] !== "=" && (c & 3) !== 0) throw Error("The file read returned a noncanonical binary chunk.");
-      bytes[position++] = a << 2 | b >> 4;
-      if (position < length) bytes[position++] = (b & 15) << 4 | c >> 2;
-      if (position < length) bytes[position++] = (c & 3) << 6 | d;
-    }
-    hash3.update(bytes);
-    check();
-    offset += length;
-  }
-  const after = await observe(() => files.stat(path));
-  if (!after || after.isDirectory !== false || before.size !== after.size || before.mtimeMs !== after.mtimeMs || identity(before) !== identity(after)) throw Error("The file changed while its contents were read.");
-  const digest = hash3.digest();
-  check();
-  let hex = "";
-  for (let index = 0; index < digest.length; index++) hex += digest[index].toString(16).padStart(2, "0");
-  return sampled ? { size: before.size, scheme, digest: hex } : { size: before.size, sha256: hex };
-}
-
-// shared/local-client.ts
 function panelLocalPaths(platform) {
   const windows = platform === "win32";
   const slash = (path) => {
@@ -710,7 +468,7 @@ function panelLocalPaths(platform) {
     isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
   };
 }
-async function createPanelLocalClient(sdk) {
+async function createPanelLocalClient(sdk, fileObservation) {
   const SCRIPT_BYTES = 256 * 1024;
   const runSource = async (script2, write = false) => {
     if (new TextEncoder().encode(script2).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
@@ -779,8 +537,10 @@ async function createPanelLocalClient(sdk) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
-    // One script owns every read and its deadline; only the compact digest returns.
-    mediaFingerprint: (path) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ',undefined,"cutback.media-content.v2");'),
+    // Only observation consumers supply the self-contained old-host fallback.
+    ...fileObservation ? {
+      mediaFingerprint: (path) => runSource("return await (" + fileObservation.toString() + ")(selects.files," + JSON.stringify(path) + ',undefined,"cutback.media-content.v2");')
+    } : {},
     readdir: (path) => run2("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -886,11 +646,20 @@ async function createPanelLocalClient(sdk) {
     );
   });
   const validJob = (value) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr, transcode) => {
     if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string" || arg.includes("\0")) || signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") || onStdout !== void 0 && typeof onStdout !== "function" || onStderr !== void 0 && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    const requiredFeatures = transcode ? [
+      .../^https?:/i.test(String(transcode.sourcePath)) ? ["remote-source"] : [],
+      ..."sourceStartSeconds" in transcode || "sourceEndSeconds" in transcode ? ["source-range"] : [],
+      ...transcode.inputKind === "image" ? ["image-input"] : [],
+      ..."fit" in transcode || "position" in transcode ? ["framing"] : [],
+      ..."endBehavior" in transcode ? ["end-behavior"] : []
+    ] : [];
+    const withinTranscodeBounds = !transcode || [transcode.width, transcode.height].every((value) => Number.isInteger(value) && Number(value) >= 2 && Number(value) <= 4096 && Number(value) % 2 === 0) && Number.isFinite(transcode.frameRate) && Number(transcode.frameRate) >= 1 && Number(transcode.frameRate) <= 120 && Number.isInteger(transcode.frameCount) && Number(transcode.frameCount) >= 1 && Number(transcode.frameCount) <= 36e3 && Number.isFinite(transcode.bitrate) && Number(transcode.bitrate) >= 1e5 && Number(transcode.bitrate) <= 1e8;
+    const startSource = transcode && withinTranscodeBounds ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); const discover = Reflect.get(selects.media, 'videoTranscodeFeatures'); const required = " + JSON.stringify(requiredFeatures.join(",")) + ".split(',').filter(Boolean); const features = required.length && typeof discover === 'function' ? await discover.call(selects.media) : []; return await (typeof transcode === 'function' && (!required.length || Array.isArray(features) && required.every(feature => features.includes(feature))) ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");" : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started;
     const starting = runSource(startSource, true);
@@ -987,6 +756,7 @@ async function createPanelLocalClient(sdk) {
     environment,
     media: {
       runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request, fallbackArgs, quiet, signal) => process("FFmpeg", fallbackArgs, quiet, signal, void 0, void 0, request),
       runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
     },
     dialogs: {
@@ -1007,7 +777,7 @@ function panelLocalClient(sdk) {
   if (!client) throw new Error("Local SDK has not initialized.");
   return client;
 }
-function withPanelLocalClient(Component) {
+function withPanelLocalClient(Component, fileObservation) {
   return function LocalSdkPanel(props) {
     const [state, setState] = React.useState(null);
     const reported = React.useRef(/* @__PURE__ */ new WeakMap());
@@ -1027,7 +797,7 @@ function withPanelLocalClient(Component) {
         setState({ sdk: props.sdk, key, error, cause });
       };
       const timer = setTimeout(() => fail(true), 3e4);
-      createPanelLocalClient(props.sdk).then((value) => {
+      createPanelLocalClient(props.sdk, fileObservation).then((value) => {
         client = { ...props.sdk, ...value };
         if (!active || settled) {
           value.dispose();
@@ -1154,7 +924,7 @@ async function hostRoots(sdk, id, marker) {
   }
   return { plugin, data };
 }
-async function hostFF(tool, args, timeoutMs = 12e4) {
+async function hostFF(tool, args, timeoutMs = 12e4, transcode) {
   const rt = hostApi("Runtime", tool);
   if (!rt) throw hostError("host-missing", "this Selects build has no Runtime." + tool + "; update Selects", "Runtime." + tool);
   const controller = typeof AbortController === "undefined" ? null : new AbortController();
@@ -1164,7 +934,7 @@ async function hostFF(tool, args, timeoutMs = 12e4) {
     const extra = tool === "runFFmpeg" ? [void 0, (x) => {
       chunks.push(String(x));
     }] : [];
-    const r = await rt[tool](args, true, controller ? controller.signal : void 0, ...extra);
+    const r = transcode && typeof rt.runVideoTranscode === "function" ? await rt.runVideoTranscode(transcode, args, true, controller ? controller.signal : void 0) : await rt[tool](args, true, controller ? controller.signal : void 0, ...extra);
     return { stdout: String(r?.stdout ?? ""), stderr: String(r?.stderr || chunks.join("")) };
   } finally {
     if (timer) clearTimeout(timer);
@@ -3825,6 +3595,21 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
     const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
+    const probeArgs = ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", c.url];
+    let source = {};
+    try {
+      source = JSON.parse((await hostFF("runFFprobe", probeArgs, 3e4)).stdout).streams?.[0] || {};
+    } catch (error) {
+      if (isTerminalMediaFailure(error)) throw error;
+    }
+    if ((source.side_data_list || []).some((row) => Math.abs(Number(row.rotation || 0)) % 180 === 90)) {
+      [source.width, source.height] = [source.height, source.width];
+    }
+    const [num, den] = String(source.avg_frame_rate).split("/").map(Number);
+    const fps = num / (den || 1);
+    const [nominalNum, nominalDen] = String(source.r_frame_rate).split("/").map(Number);
+    const nominalFps = nominalNum / (nominalDen || 1);
+    const scale = Math.max((portrait ? 1080 : 1920) / source.width, (portrait ? 1920 : 1080) / source.height);
     await hostFF(
       "runFFmpeg",
       [
@@ -3850,7 +3635,20 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
         "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2",
         part
       ],
-      15e4
+      15e4,
+      source.width > 0 && source.height > 0 && fps > 0 && Number.isFinite(fps) && (!nominalFps || Math.abs(nominalFps - fps) / fps < 1e-3) && (source.side_data_list || []).every((row) => Number(row.rotation || 0) % 90 === 0) && (!source.sample_aspect_ratio || ["1:1", "0:1", "N/A"].includes(source.sample_aspect_ratio)) ? {
+        sourcePath: c.url,
+        outputPath: part,
+        width: Math.ceil(source.width * scale / 2) * 2,
+        height: Math.ceil(source.height * scale / 2) * 2,
+        frameRate: fps,
+        frameCount: Math.ceil(Number(length.toFixed(2)) * fps),
+        bitrate: 1e7,
+        sourceStartSeconds: Number(start.toFixed(2)),
+        sourceEndSeconds: Number(start.toFixed(2)) + Number(length.toFixed(2)),
+        fit: "fill",
+        endBehavior: "stop"
+      } : void 0
     );
     if (part !== out) await fs().rename(part, out);
   }
