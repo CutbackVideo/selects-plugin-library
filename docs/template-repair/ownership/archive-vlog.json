@@ -973,7 +973,7 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "a3b7ac79a1dd20b0c026191cdfbdfcc2c9bbb2e1adb822119513b8ab08afc3ca",
+      "sha256": "071385f01562673c86a87535340435fdf41dd5b7adc01d945556227f8e1131d7",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [

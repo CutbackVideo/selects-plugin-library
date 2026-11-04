@@ -830,7 +830,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "237807f8aa62520c0f73ff4a9d4281788a8208ef7e024ccc83a8e9da054b9298",
+      "sha256": "32598ab1f094a7320200f758cef55029d840b6d22bfd07c3b810b9e95ceb407f",
       "role": "runtime",
       "ranges": [
         {
