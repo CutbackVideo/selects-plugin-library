@@ -973,13 +973,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "ca2cf790abc0c1866e8035b51731ed63113bd0f3a43e2c465383007e8134604d",
+      "sha256": "8edaa967414c35442660bdbd7e96298979f2e4df8da852614ca5febc7cb8749e",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 8098,
+          "endLine": 8101,
           "feature": "panel-ui"
         },
         {
@@ -1018,13 +1018,13 @@
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 7648,
-          "endLine": 8051,
+          "startLine": 7651,
+          "endLine": 8054,
           "feature": "local-sdk"
         },
         {
-          "startLine": 8053,
-          "endLine": 8098,
+          "startLine": 8056,
+          "endLine": 8101,
           "feature": "app-guard"
         },
         {
@@ -1168,8 +1168,8 @@
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7325,
-          "endLine": 7485,
+          "startLine": 7328,
+          "endLine": 7488,
           "feature": "workflow-policy"
         },
         {
@@ -1193,8 +1193,8 @@
           "feature": "asset-owner"
         },
         {
-          "startLine": 7056,
-          "endLine": 7306,
+          "startLine": 7059,
+          "endLine": 7309,
           "feature": "source-input"
         },
         {
@@ -1208,8 +1208,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7532,
-          "endLine": 7646,
+          "startLine": 7535,
+          "endLine": 7649,
           "feature": "catalog-read"
         },
         {
@@ -1234,7 +1234,7 @@
         },
         {
           "startLine": 6961,
-          "endLine": 7055,
+          "endLine": 7058,
           "feature": "draft-observation"
         }
       ]
@@ -2091,12 +2091,12 @@
     },
     {
       "path": "shared/draft-observation.js",
-      "sha256": "a10d33209d1a9de6a7ed735b24751735ec99b91cd5431308d78807cb63a6bbd9",
+      "sha256": "bdfac66668809182d919fdb2ac41b3bc78dc7928517fa8a15dd6f87532c73057",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 96,
+          "endLine": 98,
           "feature": "draft-observation"
         }
       ]
@@ -2231,7 +2231,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "d3cbb6aa01680750af21c141b85801183e384e8109a0985158d759296465fb61",
+      "sha256": "4b68c43633df6f91a543ec000b3c52c4c8ef1e56b8126c1648ef74562b82b56c",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."

@@ -830,12 +830,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "caf7390508e6fca6f74f94053cfc54c1cbbc736ec0561a4efb6e2d9d2d197742",
+      "sha256": "6993cc0c367d7ce8c65ed34a1728893fe02ce4a6ee9744fb1d96a4d7ffb5700c",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7799,
+          "endLine": 7802,
           "feature": "panel-ui"
         },
         {
@@ -954,33 +954,33 @@
           "feature": "script-dispatch"
         },
         {
-          "startLine": 7001,
-          "endLine": 7019,
+          "startLine": 7004,
+          "endLine": 7022,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7020,
-          "endLine": 7189,
+          "startLine": 7023,
+          "endLine": 7192,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 7190,
-          "endLine": 7232,
+          "startLine": 7193,
+          "endLine": 7235,
           "feature": "panel-ui"
         },
         {
-          "startLine": 7349,
-          "endLine": 7752,
+          "startLine": 7352,
+          "endLine": 7755,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7753,
-          "endLine": 7799,
+          "startLine": 7756,
+          "endLine": 7802,
           "feature": "app-guard"
         },
         {
-          "startLine": 7799,
-          "endLine": 7799,
+          "startLine": 7802,
+          "endLine": 7802,
           "feature": "panel-ui"
         },
         {
@@ -1024,8 +1024,8 @@
           "feature": "asset-owner"
         },
         {
-          "startLine": 6750,
-          "endLine": 7000,
+          "startLine": 6753,
+          "endLine": 7003,
           "feature": "source-input"
         },
         {
@@ -1039,8 +1039,8 @@
           "feature": "worker-owner"
         },
         {
-          "startLine": 7233,
-          "endLine": 7347,
+          "startLine": 7236,
+          "endLine": 7350,
           "feature": "catalog-read"
         },
         {
@@ -1065,7 +1065,7 @@
         },
         {
           "startLine": 6655,
-          "endLine": 6749,
+          "endLine": 6752,
           "feature": "draft-observation"
         }
       ],
@@ -1854,12 +1854,12 @@
     },
     {
       "path": "shared/draft-observation.js",
-      "sha256": "a10d33209d1a9de6a7ed735b24751735ec99b91cd5431308d78807cb63a6bbd9",
+      "sha256": "bdfac66668809182d919fdb2ac41b3bc78dc7928517fa8a15dd6f87532c73057",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 96,
+          "endLine": 98,
           "feature": "draft-observation"
         }
       ]
@@ -2008,7 +2008,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "04c3010209077174c36ea6a3bdad651eab7815d88b3300b9974c1ed7f4089bdf",
+      "sha256": "d93a167480b763c81b8a1ef233c32452ec93d1fb31de272f4f9d8877a0fbbde4",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
