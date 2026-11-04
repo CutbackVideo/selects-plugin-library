@@ -6,43 +6,9 @@ const { writeJson } = require('../lib/files.cjs');
 const { throwIfAborted } = require('../lib/errors.cjs');
 const { createVerifiedModelSession } = require('../lib/models.cjs');
 const { YUNET_INPUT_SIZE, rgbToLetterboxBlob, decodeYuNet, mapFaceToDisplay } = require('../lib/yunet-decode.cjs');
+const { faceParameters, sampleSelector } = require('../lib/face-sampling.cjs');
 
 const YUNET_MODEL_SHA256 = '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4';
-const EPSILON_SECONDS = 1e-7;
-
-function faceParameters(request) {
-  const input = request.input;
-  const range = input?.sourceRange;
-  const sampleEverySeconds = input?.sampleEverySeconds ?? 0.5;
-  const scoreThreshold = input?.scoreThreshold ?? 0.8;
-  if (input?.source?.kind === 'image') {
-    if (range !== undefined || input.sampleEverySeconds !== undefined) throw new Error('Image input cannot have sourceRange or video sampling options');
-    if (!Number.isFinite(scoreThreshold) || scoreThreshold < 0 || scoreThreshold > 1) throw new Error('scoreThreshold must be in [0, 1]');
-    return { scoreThreshold };
-  }
-  if (!range || !Number.isFinite(range.startSeconds) || !Number.isFinite(range.endSeconds)
-    || range.startSeconds < 0 || range.endSeconds <= range.startSeconds) {
-    throw new Error('Expected nonempty sourceRange [startSeconds, endSeconds)');
-  }
-  if (!Number.isFinite(sampleEverySeconds) || sampleEverySeconds <= 0) throw new Error('sampleEverySeconds must be positive');
-  if (!Number.isFinite(scoreThreshold) || scoreThreshold < 0 || scoreThreshold > 1) throw new Error('scoreThreshold must be in [0, 1]');
-  return { sourceRange: { startSeconds: range.startSeconds, endSeconds: range.endSeconds }, sampleEverySeconds, scoreThreshold };
-}
-
-// Use actual source PTS, choosing the first available frame at/after each sample
-// boundary. Advance directly over missing intervals; never invent VFR times.
-function sampleSelector(parameters) {
-  const { sourceRange, sampleEverySeconds } = parameters;
-  if (!sourceRange) return time => time === 0;
-  let next = sourceRange.startSeconds;
-  return (time) => {
-    if (!Number.isFinite(time)) throw new Error('Frame sourceTimeSeconds must be finite');
-    if (time < sourceRange.startSeconds || time >= sourceRange.endSeconds || time + EPSILON_SECONDS < next) return false;
-    const elapsed = Math.max(0, time - sourceRange.startSeconds);
-    next = sourceRange.startSeconds + (Math.floor((elapsed + EPSILON_SECONDS) / sampleEverySeconds) + 1) * sampleEverySeconds;
-    return true;
-  };
-}
 
 async function runFaces(context) {
   const { request, config, outputDir, ort, video, frames, emitProgress, signal } = context;

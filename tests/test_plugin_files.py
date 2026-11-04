@@ -68,6 +68,34 @@ class PluginFilesTest(unittest.TestCase):
         (dependency / 'plugin.json').write_text(json.dumps(dependent))
         self.assertEqual(plugins.check('example', self.root)['id'], 'example')
 
+    def test_native_runtime_serves_web_only_through_a_listed_web_runtime(self):
+        self.manifest.update(compatibility={'platforms': ['macOS', 'web']}, runtime='runtime.json',
+                             files=self.manifest['files'] + ['runtime.json', 'web/runtime.mjs'],
+                             webRuntime='web/runtime.mjs')
+        self.write_local_plugin()
+        self.assertEqual(plugins.check('example', self.root)['id'], 'example')
+        for invalid in ('web/missing.mjs', 'scripts/use.py', 42):
+            with self.subTest(webRuntime=invalid), self.assertRaisesRegex(ValueError, 'webRuntime'):
+                plugins.validate_manifest(dict(self.manifest, webRuntime=invalid))
+        without_runtime = {key: value for key, value in self.manifest.items() if key != 'runtime'}
+        with self.assertRaisesRegex(ValueError, 'webRuntime'):
+            plugins.validate_manifest(without_runtime)
+        # A web plugin may depend on that runtime; dropping its browser module
+        # makes the dependency desktop-only again.
+        consumer = self.root / 'plugins/consumer'
+        consumer.mkdir()
+        (consumer / 'plugin.json').write_text(json.dumps({
+            'schemaVersion': 1, 'id': 'consumer', 'version': '1.0.0',
+            'entrypoint': 'SKILL.md', 'installation': 'INSTALL.md', 'files': ['SKILL.md', 'INSTALL.md'],
+            'compatibility': {'platforms': ['web']}, 'requiresPlugins': ['example']}))
+        for name in ('SKILL.md', 'INSTALL.md'):
+            (consumer / name).write_text('portable source')
+        self.assertEqual(plugins.check('consumer', self.root)['id'], 'consumer')
+        del self.manifest['webRuntime']
+        self.write_local_plugin()
+        with self.assertRaisesRegex(ValueError, 'desktop-only dependency example'):
+            plugins.check('consumer', self.root)
+
     def fetch(self, url, limit):
         self.calls.append(url)
         if '/commits/' in url:

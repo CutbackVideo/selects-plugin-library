@@ -10,9 +10,10 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
-    "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64."
+    "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64. The web host runs faces.detect and speakers.detect through web/runtime.mjs."
   },
   "files": [
     ".gitignore",
@@ -103,7 +104,14 @@
     "tests/speakers.test.cjs",
     "tests/fixtures/speaker-mfcc-reference.json",
     "lib/frame-change.cjs",
-    "tests/frame-change.test.cjs"
+    "tests/frame-change.test.cjs",
+    "lib/face-sampling.cjs",
+    "web/runtime.mjs",
+    "web/runtime.source.mjs",
+    "scripts/build-web-runtime.cjs",
+    "tests/web-runtime.test.cjs",
+    "lib/speaker-window.cjs"
   ],
-  "runtime": "runtime.json"
+  "runtime": "runtime.json",
+  "webRuntime": "web/runtime.mjs"
 }
