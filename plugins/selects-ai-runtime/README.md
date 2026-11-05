@@ -132,3 +132,26 @@ reports a reconnect error, refresh the saved job from Details.
 CPU face/speaker preparation also emits an optional `preparation-reuse.json` sidecar beside its output config, listing the native environment, pinned models and resolved tools. Supporting hosts may reuse that JSON config while runtime source, environment and dependency metadata are unchanged. Workers still hash pinned model bytes and create fresh sessions. Matte omits the sidecar so hardware availability is re-evaluated for every job; old hosts simply ignore it.
 
 Published runtime releases advance the plugin manifest SemVer whenever an app release pins new runtime source. App-managed upgrades use an immutable library commit and this version; an installed newer release is preserved. Different source at the same release version is repaired to the app pin, so published release versions must not be reused for changed source. The private npm package version does not identify the installed plugin release.
+
+### Media process diagnostics
+
+Desktop results add numeric, job-local `processMetrics` for `metadata`,
+`frameTimeline`, `videoDecode`, `audioDecode`, `imageDecode`, and `toolVersion`.
+Each operation accumulates `calls`, `spawned`, `spawnMilliseconds` (request to OS
+spawn event), `firstOutputCount`, `firstOutputMilliseconds` (spawn to first
+buffered stdout byte), `afterOutputMilliseconds` (first byte to close),
+`totalMilliseconds` (request to close), `failed`, `canceled`, and `noOutput`.
+Missing spawn/output events have explicit counts. These event walls overlap task
+stages and parallel decoders; consumer backpressure contributes to close time.
+The OS spawn event is not tool readiness, and these measurements alone do not
+prove antivirus interference. Arguments, executable paths and stdout contents
+are never copied into these metrics. A passive readable listener observes the
+first bytes without consuming them or putting stdout into flowing mode.
+
+`probeMetrics.operations.metadata` and `.frameTimeline` separately accumulate
+`calls`, `cacheHits`, `cacheMisses`, and `milliseconds` for exact probe queries.
+A miss includes disabled/unavailable caches; query wall includes cache work and
+JSON parsing/validation as well as an actual tool invocation. Existing aggregate
+probe counters remain available. Face/speaker range probes use this cache;
+matte's separate full-timeline cache continues to expose `timelineCached`.
+Inference, sampling, timestamps, cached contents and output payloads are unchanged.

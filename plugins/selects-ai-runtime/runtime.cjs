@@ -48,6 +48,8 @@ async function main() {
   const timings = new StageTimings();
   const request = validateRequest(await readJson(argument('--request')));
   const config = await readJson(argument('--config'));
+  // Measurements belong to this worker, never to the source/model identity.
+  config.processMetrics = {};
   outputDir = argument('--output');
   await ensureEmptyDirectory(outputDir);
   ownsOutput = true;
@@ -69,7 +71,7 @@ async function main() {
   const sourceStat = await fs.stat(request.input.source.path);
   if (!sourceStat.isFile()) throw new Error('Source is not a regular file');
   const toolVersions = await timings.measureAsync('toolVersions', () => Promise.all(['ffmpeg', 'ffprobe'].map(async name => {
-    const version = await collectTool(config.tools[name], ['-version'], { signal: controller.signal, limit: 256 * 1024 });
+    const version = await collectTool(config.tools[name], ['-version'], { signal: controller.signal, limit: 256 * 1024, metrics: config.processMetrics, operation: 'toolVersion' });
     return [name, version.split('\n')[0]];
   })));
   const prepareMs = performance.now() - began;
@@ -104,7 +106,7 @@ async function main() {
   observedPeakRssBytes = Math.max(observedPeakRssBytes, process.memoryUsage().rss);
   const summary = {
     contractVersion: 1, task: request.task, status: 'succeeded', files: result.files,
-    metrics: { ...result.metrics, ...decoderMetrics, probeMetrics, runtimeTimings: timings.summary(), prepareMs, probeMs, timelineCached: Boolean(video.timelineCached), totalMs: performance.now() - began, observedPeakRssBytes },
+    metrics: { ...result.metrics, ...decoderMetrics, probeMetrics, processMetrics: config.processMetrics, runtimeTimings: timings.summary(), prepareMs, probeMs, timelineCached: Boolean(video.timelineCached), totalMs: performance.now() - began, observedPeakRssBytes },
     diagnostics: {
       ...result.diagnostics, node: process.versions.node, electron: process.versions.electron ?? null,
       platform: process.platform, arch: process.arch, ortVersion, requestedProvider: config.provider,

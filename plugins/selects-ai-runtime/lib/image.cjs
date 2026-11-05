@@ -41,7 +41,7 @@ async function* decodeImage(config, request, image, signal, emitProgress, decode
     '-v', 'error', '-nostdin', '-xerror', '-err_detect', 'explode', '-threads', '2', '-noautorotate', '-i', request.input.source.path,
     '-map', '0:v:0', '-an', '-sn', '-dn', ...(filter ? ['-vf', filter] : []),
     '-frames:v', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1',
-  ], { signal, onSpawn: pid => emitProgress({ step: 'decoding', decoderPid: pid }) });
+  ], { signal, metrics: config.processMetrics, operation: 'imageDecode', onSpawn: pid => emitProgress({ step: 'decoding', decoderPid: pid }) });
   const size = image.width * image.height * 3, rgb = Buffer.allocUnsafe(size);
   let filled = 0;
   const began = performance.now();
