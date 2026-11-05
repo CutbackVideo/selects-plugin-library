@@ -101,10 +101,12 @@ test('the committed web runtime is the current build of its source', () => {
 test('web runtime pins the desktop YuNet model and npm ONNX Runtime Web files', async () => {
   const runtime = await loadWebRuntime();
   assert.equal(runtime.contractVersion, 1);
-  assert.deepEqual(runtime.tasks, ['faces.detect', 'speakers.detect']);
-  const yunet = MODELS['faces.detect'], lightAsd = MODELS['speakers.detect'];
+  assert.deepEqual(runtime.tasks, ['faces.detect', 'speakers.detect', 'person.matte']);
+  const yunet = MODELS['faces.detect'], lightAsd = MODELS['speakers.detect'], rvm = MODELS['person.matte'];
   assert.deepEqual(runtime.assets.yunet, { url: yunet.url, size: yunet.size, sha256: yunet.sha256 });
   assert.deepEqual(runtime.assets.lightAsd, { path: lightAsd.bundled, size: lightAsd.size, sha256: lightAsd.sha256 });
+  // The same RVM bytes as desktop, served from a CORS-enabled copy.
+  assert.deepEqual(runtime.assets.rvm, { url: 'https://static.cutback.video/assets/ai-runtime/rvm/v1.0.0/rvm_mobilenetv3_fp32.onnx', size: rvm.size, sha256: rvm.sha256 });
   assert.equal(runtime.LIGHT_ASD_MODEL_ID, require('../runtime.json').tasks['speakers.detect'].model);
   for (const pin of Object.values(runtime.assets)) {
     assert.match(pin.url ?? pin.path, pin.url ? /^https:\/\// : /^models\/[\w.-]+\.onnx$/);
@@ -112,6 +114,8 @@ test('web runtime pins the desktop YuNet model and npm ONNX Runtime Web files', 
     assert.ok(Number.isSafeInteger(pin.size) && pin.size > 0);
   }
   assert.match(runtime.assets.ortModule.url, /onnxruntime-web@1\.30\.0\/dist\/ort\.wasm\.bundle\.min\.mjs$/);
+  assert.match(runtime.assets.ortWebGpuModule.url, /onnxruntime-web@1\.30\.0\/dist\/ort\.webgpu\.bundle\.min\.mjs$/);
+  assert.match(runtime.assets.ortWebGpuWasm.url, /onnxruntime-web@1\.30\.0\/dist\/ort-wasm-simd-threaded\.asyncify\.wasm$/);
 });
 
 test('video faces sample actual source times, map boxes, report progress and release the session', async () => {
@@ -155,8 +159,8 @@ test('web runtime rejects unsupported tasks, providers and frame orders before c
   const runtime = await loadWebRuntime();
   const frameTimes = [1.04, 1.55];
   await assert.rejects(runtime.run(context(runtime, {
-    request: { ...videoRequest(), task: 'person.matte' }, frameTimes,
-  }).value), /does not support person\.matte/);
+    request: { ...videoRequest(), task: 'person.segment' }, frameTimes,
+  }).value), /does not support person\.segment/);
   await assert.rejects(runtime.run(context(runtime, {
     request: videoRequest({ provider: 'dml' }), frameTimes,
   }).value), /CPU provider only/);
@@ -318,4 +322,176 @@ test('speaker boxes touching an analysis edge stay inside the display raster', a
     assert.ok(box.xmax <= document.frameSize.width && box.ymax <= document.frameSize.height);
     assert.equal(box.xmax, document.frameSize.width);
   }
+});
+
+// person.matte: a stand-in WebGPU device and ONNX Runtime Web module. The
+// stand-in session returns alpha values -0.5, 0.5 and 1.5 in turn (0, 128 and
+// 255 once clamped) and GPU-resident recurrent tensors.
+const DERIVED_RVM_SHA256 = '424978d0ec0aada0037344adfac6d562a5f459c61843fc671c8d54fd8b906df6';
+
+async function withWebGpu({ fallback = false } = {}, body) {
+  const state = { copies: 0, destroyed: false };
+  const pass = { setPipeline() {}, setBindGroup() {}, dispatchWorkgroups() {}, end() {} };
+  const device = {
+    limits: { maxStorageBufferBindingSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535 },
+    addEventListener() {}, lost: new Promise(() => {}),
+    createTexture: () => ({ createView: () => ({}), destroy() {} }),
+    createBuffer: ({ size }) => ({ size, destroy() {}, async mapAsync() {}, getMappedRange: () => new ArrayBuffer(size), unmap() {} }),
+    createShaderModule: ({ code }) => ({ code }),
+    createComputePipeline: () => ({ getBindGroupLayout: () => ({}) }),
+    createBindGroup: () => ({}),
+    createCommandEncoder: () => ({ beginComputePass: () => pass, copyBufferToBuffer() {}, finish: () => ({}) }),
+    queue: { writeBuffer() {}, submit() {}, onSubmittedWorkDone: async () => {}, copyExternalImageToTexture: () => { state.copies++; } },
+    destroy() { state.destroyed = true; },
+  };
+  const adapter = {
+    info: { vendor: 'apple', architecture: 'metal-3', device: '', description: '', isFallbackAdapter: fallback },
+    limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30 },
+    requestDevice: async () => device,
+  };
+  Object.assign(globalThis, {
+    GPUBufferUsage: { MAP_READ: 1, COPY_SRC: 4, COPY_DST: 8, STORAGE: 128 }, GPUMapMode: { READ: 1 },
+    GPUTextureUsage: { COPY_DST: 2, TEXTURE_BINDING: 4, RENDER_ATTACHMENT: 16 },
+  });
+  Object.defineProperty(globalThis.navigator, 'gpu', { value: { requestAdapter: async () => adapter }, configurable: true });
+  try { return await body(state); } finally {
+    delete globalThis.navigator.gpu;
+    delete globalThis.GPUBufferUsage; delete globalThis.GPUMapMode; delete globalThis.GPUTextureUsage;
+  }
+}
+
+function matteContext(runtime, { input = {}, width = 4, height = 2, frameTimes = [0], timeline, modelBytes } = {}) {
+  const state = { created: null, runs: [], results: [], released: false, written: new Map(), downloads: [], progress: [] };
+  const gpuTensor = (dims, values) => ({
+    type: 'float32', location: 'gpu-buffer', dims, gpuBuffer: { size: dims.reduce((a, b) => a * b, 4) },
+    getData: async () => values, dispose() { this.disposed = true; },
+  });
+  class Tensor {
+    constructor(type, data, dims) { Object.assign(this, { type, data, dims }); }
+    dispose() { this.disposed = true; }
+    static fromGpuBuffer(buffer, { dims }) { return new Tensor('float32', buffer, dims); }
+  }
+  const ort = {
+    env: { wasm: {} }, Tensor,
+    InferenceSession: {
+      create: async (model, options) => {
+        state.created = { model, options };
+        return {
+          inputNames: ['src', 'r1i', 'r2i', 'r3i', 'r4i', 'downsample_ratio'],
+          outputNames: ['fgr', 'pha', 'r1o', 'r2o', 'r3o', 'r4o'],
+          run: async (feeds, outputs) => {
+            state.runs.push({ feeds, outputs });
+            const offset = state.runs.length;
+            const alpha = Float32Array.from({ length: width * height }, (_, p) => [-0.5, 0.5, 1.5][(p + offset) % 3]);
+            const result = { pha: gpuTensor([1, 1, height, width], alpha) };
+            for (const name of ['r1o', 'r2o', 'r3o', 'r4o']) result[name] = gpuTensor([1, 16, 1, 1]);
+            state.results.push(result);
+            return result;
+          },
+          release: async () => { state.released = true; },
+        };
+      },
+    },
+  };
+  const request = { contractVersion: 1, task: 'person.matte', input: { source: {}, ...input } };
+  const value = {
+    request,
+    source: {
+      width, height, frameTimes, timeline,
+      async *canvases(indices) {
+        for (const index of indices) yield { index, sourceTimeSeconds: frameTimes[index], canvas: { width, height } };
+      },
+    },
+    download: async (pin) => { state.downloads.push(pin); return pin === runtime.assets.rvm ? modelBytes : Uint8Array.of(1); },
+    importModule: async () => ort,
+    writeOutput: async (relativePath, bytes) => { state.written.set(relativePath, bytes); },
+    emitProgress: (event) => state.progress.push(event),
+    signal: new AbortController().signal,
+  };
+  return { value, state };
+}
+
+test('person.matte refuses unsupported options and hosts without hardware WebGPU before downloading', async () => {
+  const runtime = await loadWebRuntime();
+  for (const [input, message] of [
+    [{ provider: 'cpu' }, /auto provider \(WebGPU\) only/],
+    [{ alphaEncoding: 'grayscale-avif-8bit' }, /grayscale-png-8bit alpha only/],
+    [{ outputMode: 'foreground-video' }, /foreground-video is desktop-only/],
+    [{ downsampleRatio: 0 }, /downsampleRatio/],
+  ]) {
+    const run = matteContext(runtime, { input });
+    await assert.rejects(runtime.run(run.value), message);
+    assert.deepEqual(run.state.downloads, []);
+  }
+  const noGpu = matteContext(runtime);
+  await assert.rejects(runtime.run(noGpu.value), /requires WebGPU/);
+  const software = matteContext(runtime);
+  await withWebGpu({ fallback: true }, () => assert.rejects(runtime.run(software.value), /hardware WebGPU adapter/));
+  assert.deepEqual([...noGpu.state.downloads, ...software.state.downloads], []);
+});
+
+test('person.matte writes desktop-shaped PNG masks and manifest with recurrent GPU state', async (t) => {
+  // The derived model comes from the real pinned bytes.
+  const modelPath = process.env.RVM_MODEL;
+  if (!modelPath) return t.skip('Set RVM_MODEL to the original rvm_mobilenetv3_fp32.onnx');
+  const modelBytes = new Uint8Array(readFileSync(modelPath));
+  const { encodeGrayPng } = require('../lib/gray-png.cjs');
+  const zlib = require('node:zlib');
+  const scanlines = (png) => {
+    const view = Buffer.from(png), parts = [];
+    for (let p = 8; p < view.length; p += view.readUInt32BE(p) + 12) {
+      if (view.toString('ascii', p + 4, p + 8) === 'IDAT') parts.push(view.subarray(p + 8, p + 8 + view.readUInt32BE(p)));
+    }
+    return zlib.inflateSync(Buffer.concat(parts));
+  };
+  const runtime = await loadWebRuntime();
+  // 25 fps on a 1/12800 clock; the range selects displayed frames 2..4.
+  const timeBase = { numerator: 1, denominator: 12800 };
+  const pts = Array.from({ length: 10 }, (_, index) => index * 512);
+  const frameTimes = pts.slice(2, 5).map((tick) => tick / 12800);
+  const video = matteContext(runtime, {
+    modelBytes, frameTimes, timeline: { timeBase, pts, averageFrameRate: '25/1', firstIndex: 2 },
+    input: { sourceRange: { startSeconds: 0.07, endSeconds: 0.19 } },
+  });
+  const gpu = await withWebGpu({}, async (state) => ({ result: await runtime.run(video.value), state }));
+  const manifest = gpu.result.files.manifest;
+  assert.equal(manifest.name, 'matte.json');
+  assert.deepEqual(Object.keys(manifest.json), ['schemaVersion', 'task', 'frameSize', 'alphaEncoding', 'sourceFrameRate', 'sourceRange', 'frames', 'downsampleRatio', 'model', 'diagnostics']);
+  assert.deepEqual(manifest.json.sourceFrameRate, { numerator: 25, denominator: 1 });
+  assert.deepEqual(manifest.json.sourceRange, { startSeconds: 2 / 25, endSeconds: 5 / 25 });
+  assert.deepEqual(manifest.json.frames, frameTimes.map((sourceTimeSeconds, index) => ({ index, sourceTimeSeconds, file: `alpha/00000${index}.png` })));
+  assert.deepEqual(manifest.json.model, { name: 'rvm-mobilenetv3-fp32', sha256: MODELS['person.matte'].sha256 });
+  assert.equal(manifest.json.downsampleRatio, 0.25);
+  const { diagnostics } = gpu.result;
+  assert.equal(diagnostics.backend, 'onnxruntime-web-webgpu');
+  assert.equal(diagnostics.selectedProvider, 'webgpu');
+  assert.deepEqual(diagnostics.webgpu.derivedModel, {
+    sha256: DERIVED_RVM_SHA256, originalSha256: MODELS['person.matte'].sha256, transformVersion: 'rvm-conv-pad4-v1', graphOptimizationLevel: 'basic',
+  });
+  assert.equal(diagnostics.webgpu.preprocessing, 'canvas-copy-external-image-rgba8-to-planar-f32');
+  // The desktop WebGPU session options; recurrent outputs feed the next frame.
+  const { options } = video.state.created;
+  assert.equal(options.executionProviders[0].name, 'webgpu');
+  assert.equal(options.graphOptimizationLevel, 'basic');
+  assert.deepEqual(options.preferredOutputLocation, { pha: 'gpu-buffer', r1o: 'gpu-buffer', r2o: 'gpu-buffer', r3o: 'gpu-buffer', r4o: 'gpu-buffer' });
+  assert.deepEqual(video.state.runs[0].feeds.r1i.dims, [1, 1, 1, 1]);
+  assert.equal(video.state.runs[1].feeds.r1i, video.state.results[0].r1o);
+  assert.equal(video.state.runs[2].feeds.r4i, video.state.results[1].r4o);
+  assert.equal(video.state.runs[0].feeds.downsample_ratio.data[0], 0.25);
+  // Same scanlines as the desktop PNG writer for the clamped, rounded alpha.
+  for (let index = 0; index < 3; index++) {
+    const expected = Uint8Array.from({ length: 8 }, (_, p) => [0, 128, 255][(p + index + 1) % 3]);
+    assert.deepEqual(scanlines(video.state.written.get(`alpha/00000${index}.png`)), scanlines(await encodeGrayPng(4, 2, expected, zlib.deflateSync)));
+  }
+  assert.equal(gpu.state.copies, 3);
+  assert.equal(gpu.state.destroyed, true);
+  assert.equal(video.state.released, true);
+  assert.deepEqual(video.state.progress.at(-1), { step: 'inference', completed: 3, total: 3 });
+
+  const image = matteContext(runtime, { modelBytes, input: { source: { kind: 'image' } } });
+  const imageManifest = (await withWebGpu({}, () => runtime.run(image.value))).files.manifest.json;
+  assert.equal(imageManifest.sourceKind, 'image');
+  assert.equal(imageManifest.sourceRange, undefined);
+  assert.deepEqual(imageManifest.frames, [{ index: 0, sourceTimeSeconds: 0, file: 'alpha/000000.png' }]);
+  assert.equal(image.state.runs.length, 1);
 });

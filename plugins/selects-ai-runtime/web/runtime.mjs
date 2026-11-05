@@ -442,6 +442,439 @@ function speakersOutput({video,range,model,samples,state,decodeMilliseconds,elap
 }
 module.exports={DETECT_STRIDE,speakerWindows,speakerAnalysisSize,scoreSpeakerWindow,newSpeakerState,speakersOutput};
   },
+  // --- lib/onnx-wire.cjs (embedded verbatim) ---
+  "lib/onnx-wire.cjs": function (module, exports, require) {
+'use strict';
+
+// Protobuf wire format for ONNX models without a protobuf library or Buffer,
+// so a browser Worker can edit a model. canonicalOnnxModel() re-encodes a model
+// exactly as ORT Web 1.30.0's protobufjs codec (lib/onnxjs/ort-schema/protobuf/
+// onnx.js) does after decoding it: fields in field-number order and repeated
+// numbers packed. Fields that codec would silently drop are refused instead.
+
+const VARINT = 0, FIXED64 = 1, BYTES = 2, FIXED32 = 5;
+
+// Field kinds: 'varint', 'fixed32', 'bytes' (strings and bytes, copied raw), a
+// message type name, or a repeated kind ending in '*'. Repeated numbers are packed.
+const SCHEMA = {
+  Model: { 1: 'varint', 2: 'bytes', 3: 'bytes', 4: 'bytes', 5: 'varint', 6: 'bytes', 7: 'Graph', 8: 'OperatorSetId*', 14: 'StringStringEntry*' },
+  OperatorSetId: { 1: 'bytes', 2: 'varint' },
+  StringStringEntry: { 1: 'bytes', 2: 'bytes' },
+  Graph: { 1: 'Node*', 2: 'bytes', 5: 'Tensor*', 10: 'bytes', 11: 'ValueInfo*', 12: 'ValueInfo*', 13: 'ValueInfo*' },
+  Node: { 1: 'bytes*', 2: 'bytes*', 3: 'bytes', 4: 'bytes', 5: 'Attribute*', 6: 'bytes', 7: 'bytes' },
+  Attribute: {
+    1: 'bytes', 2: 'fixed32', 3: 'varint', 4: 'bytes', 5: 'Tensor', 6: 'Graph', 7: 'fixed32*', 8: 'varint*',
+    9: 'bytes*', 10: 'Tensor*', 11: 'Graph*', 13: 'bytes', 14: 'Type', 15: 'Type*', 20: 'varint', 21: 'bytes',
+  },
+  Tensor: {
+    1: 'varint*', 2: 'varint', 3: 'Segment', 4: 'fixed32*', 5: 'varint*', 6: 'bytes*', 7: 'varint*', 8: 'bytes',
+    9: 'bytes', 10: 'fixed64*', 11: 'varint*', 12: 'bytes', 13: 'StringStringEntry*', 14: 'varint',
+  },
+  Segment: { 1: 'varint', 2: 'varint' },
+  ValueInfo: { 1: 'bytes', 2: 'Type', 3: 'bytes' },
+  Type: { 1: 'TypeTensor', 6: 'bytes' },
+  TypeTensor: { 1: 'varint', 2: 'TensorShape' },
+  TensorShape: { 1: 'Dimension*' },
+  Dimension: { 1: 'varint', 2: 'bytes', 3: 'bytes' },
+};
+const WIRE_TYPES = { varint: VARINT, fixed32: FIXED32, fixed64: FIXED64 };
+
+function readVarint(bytes, offset) {
+  let value = 0;
+  for (let index = 0; index < 10; index++) {
+    if (offset + index >= bytes.length) throw new Error('Truncated protobuf varint');
+    const byte = bytes[offset + index];
+    value += (byte & 127) * 2 ** (7 * index);
+    if (byte < 128) return { value, end: offset + index + 1 };
+  }
+  throw new Error('Invalid protobuf varint');
+}
+
+function writeVarint(value) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error('Expected a non-negative safe integer');
+  const bytes = [];
+  for (; value >= 128; value = Math.floor(value / 128)) bytes.push(value % 128 + 128);
+  bytes.push(value);
+  return bytes;
+}
+
+/** [{ number, wireType, data }] where data is the raw payload (a varint keeps its encoded bytes). */
+function readFields(bytes) {
+  const fields = [];
+  for (let offset = 0; offset < bytes.length;) {
+    const tag = readVarint(bytes, offset);
+    const number = Math.floor(tag.value / 8), wireType = tag.value % 8;
+    let start = tag.end, end;
+    if (wireType === VARINT) end = readVarint(bytes, start).end;
+    else if (wireType === FIXED64) end = start + 8;
+    else if (wireType === FIXED32) end = start + 4;
+    else if (wireType === BYTES) { const length = readVarint(bytes, start); start = length.end; end = start + length.value; }
+    else throw new Error('Unsupported protobuf wire type ' + wireType);
+    if (number < 1 || end > bytes.length) throw new Error('Truncated protobuf field');
+    fields.push({ number, wireType, data: bytes.subarray(start, end) });
+    offset = end;
+  }
+  return fields;
+}
+
+function encodeFields(fields) {
+  const parts = fields.map(({ number, wireType, data }) => [
+    writeVarint(number * 8 + wireType), wireType === BYTES ? writeVarint(data.length) : [], data,
+  ]);
+  const output = new Uint8Array(parts.reduce((sum, [tag, length, data]) => sum + tag.length + length.length + data.length, 0));
+  let offset = 0;
+  for (const part of parts) for (const piece of part) { output.set(piece, offset); offset += piece.length; }
+  return output;
+}
+
+function concat(chunks) {
+  const output = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.length; }
+  return output;
+}
+
+const bytesField = (number, data) => ({ number, wireType: BYTES, data });
+const varintField = (number, value) => ({ number, wireType: VARINT, data: Uint8Array.from(writeVarint(value)) });
+const packedVarintField = (number, values) => bytesField(number, Uint8Array.from(values.flatMap(writeVarint)));
+const varintValue = (field) => readVarint(field.data, 0).value;
+/** Values of a repeated varint field, packed or not. */
+function varintValues(fields, number) {
+  const values = [];
+  for (const field of fields) {
+    if (field.number !== number) continue;
+    if (field.wireType === VARINT) { values.push(varintValue(field)); continue; }
+    for (let offset = 0; offset < field.data.length;) {
+      const { value, end } = readVarint(field.data, offset);
+      values.push(value); offset = end;
+    }
+  }
+  return values;
+}
+
+function canonicalMessage(type, payload) {
+  const schema = SCHEMA[type];
+  const fields = [], packed = new Map(), seen = new Set();
+  for (const field of readFields(payload)) {
+    const kind = schema[field.number];
+    if (!kind) throw new Error(`Unsupported ONNX ${type} field ${field.number}`);
+    const repeated = kind.endsWith('*'), base = repeated ? kind.slice(0, -1) : kind;
+    if (!repeated && seen.has(field.number)) throw new Error(`Repeated singular ONNX ${type} field ${field.number}`);
+    seen.add(field.number);
+    const numberWire = WIRE_TYPES[base];
+    if (repeated && numberWire !== undefined) {
+      if (field.wireType !== numberWire && field.wireType !== BYTES) throw new Error(`Unexpected ONNX ${type} field ${field.number} wire type`);
+      if (!packed.has(field.number)) packed.set(field.number, []);
+      packed.get(field.number).push(field.data);
+      continue;
+    }
+    if (field.wireType !== (numberWire ?? BYTES)) throw new Error(`Unexpected ONNX ${type} field ${field.number} wire type`);
+    fields.push(SCHEMA[base] ? bytesField(field.number, canonicalMessage(base, field.data)) : field);
+  }
+  for (const [number, chunks] of packed) {
+    const data = concat(chunks);
+    if (data.length) fields.push(bytesField(number, data));
+  }
+  // Array.prototype.sort is stable, so repeated fields keep their order.
+  return encodeFields(fields.sort((a, b) => a.number - b.number));
+}
+
+const canonicalOnnxModel = (bytes) => canonicalMessage('Model', bytes);
+
+module.exports = {
+  readFields, encodeFields, bytesField, varintField, packedVarintField, varintValue, varintValues, canonicalOnnxModel,
+};
+  },
+  // --- lib/rvm-conv-padding.cjs (embedded verbatim) ---
+  "lib/rvm-conv-padding.cjs": function (module, exports, require) {
+'use strict';
+
+// Transform 'rvm-conv-pad4-v1' on the ONNX wire format, for hosts without
+// Node or protobufjs (the web runtime). It writes the same bytes as
+// lib/rvm-webgpu-model.cjs: ORT WebGPU needs Conv input channels in multiples
+// of four, so five RVM Conv inputs and weights are zero-padded on that axis.
+const {
+  readFields, encodeFields, bytesField, varintField, packedVarintField, varintValue, varintValues, canonicalOnnxModel,
+} = require('./onnx-wire.cjs');
+
+const ORIGINAL_RVM_BYTES = 14975696;
+const TRANSFORM_VERSION = 'rvm-conv-pad4-v1';
+const GRAPH_OPTIMIZATION_LEVEL = 'basic';
+const EXPECTED_CONVS = Object.freeze([
+  { name: 'Conv_8', weight: '824', dims: [16, 3, 3, 3] },
+  { name: 'Conv_200', weight: '965', dims: [80, 171, 3, 3] },
+  { name: 'Conv_230', weight: '968', dims: [40, 107, 3, 3] },
+  { name: 'Conv_260', weight: '971', dims: [32, 59, 3, 3] },
+  { name: 'Conv_290', weight: '974', dims: [16, 35, 3, 3] },
+]);
+
+const utf8 = new TextDecoder('utf-8', { fatal: true }), toUtf8 = new TextEncoder();
+const text = (field) => field && utf8.decode(field.data);
+const last = (fields, number) => fields.findLast((field) => field.number === number);
+const all = (fields, number) => fields.filter((field) => field.number === number);
+
+function readNode(field) {
+  const fields = readFields(field.data);
+  const groups = all(fields, 5).map((attribute) => readFields(attribute.data))
+    .filter((attribute) => text(last(attribute, 1)) === 'group')
+    .map((attribute) => last(attribute, 3) && varintValue(last(attribute, 3)));
+  return {
+    fields, name: text(last(fields, 3)), opType: text(last(fields, 4)), domain: text(last(fields, 7)),
+    input: all(fields, 1).map(text), output: all(fields, 2).map(text), groups,
+  };
+}
+
+function readTensor(field) {
+  const fields = readFields(field.data);
+  const dataType = last(fields, 2);
+  return {
+    fields, name: text(last(fields, 8)), dataType: dataType ? varintValue(dataType) : 0,
+    dims: varintValues(fields, 1), rawData: last(fields, 9)?.data,
+    hasFloatData: all(fields, 4).some((entry) => entry.data.length), hasExternalData: all(fields, 13).length > 0,
+  };
+}
+
+/** Derived model bytes, identical to the desktop protobufjs transform of the same original. */
+function padRvmModelBytes(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length !== ORIGINAL_RVM_BYTES) {
+    throw new Error('The RVM WebGPU transform requires the original pinned model bytes.');
+  }
+  const modelFields = readFields(bytes);
+  const graphField = last(modelFields, 7);
+  if (!graphField) throw new Error('Expected an ONNX model graph.');
+  const graphFields = readFields(graphField.data);
+  const nodes = new Map(), initializers = new Map(), names = new Set();
+  for (const field of all(graphFields, 1)) {
+    const node = readNode(field);
+    if (node.name && nodes.has(node.name)) throw new Error('Duplicate RVM node name.');
+    if (node.name) nodes.set(node.name, { field, node });
+    for (const name of [...node.input, ...node.output]) names.add(name);
+  }
+  for (const field of all(graphFields, 5)) {
+    const tensor = readTensor(field);
+    if (!tensor.name || initializers.has(tensor.name)) throw new Error('Duplicate or missing RVM initializer name.');
+    initializers.set(tensor.name, { field, tensor }); names.add(tensor.name);
+  }
+  const patches = EXPECTED_CONVS.map((expected) => {
+    const { field: nodeField, node } = nodes.get(expected.name) ?? {};
+    const { field: weightField, tensor: weight } = initializers.get(expected.weight) ?? {};
+    if (node?.opType !== 'Conv' || node.domain || node.input[1] !== expected.weight || !node.input[0]
+      || node.groups.length > 1 || (node.groups.length === 1 && node.groups[0] !== 1)
+      || weight?.dataType !== 1 || weight.dims.join(',') !== expected.dims.join(',')
+      || weight.rawData?.length !== expected.dims.reduce((a, b) => a * b, 4)
+      || weight.hasFloatData || weight.hasExternalData) {
+      throw new Error('Unexpected RVM WebGPU Conv/weight contract: ' + expected.name);
+    }
+    const padName = node.name + '_Pad', padsName = node.name + '_chpad', paddedName = node.input[0] + '_chpad4';
+    if (nodes.has(padName) || names.has(padsName) || names.has(paddedName)) {
+      throw new Error('RVM graph already contains channel padding or a conflicting name.');
+    }
+    return { nodeField, node, weightField, weight, padName, padsName, paddedName };
+  });
+
+  const replacements = new Map(), padsInitializers = [];
+  for (const { nodeField, node, weightField, weight, padName, padsName, paddedName } of patches) {
+    const [outputChannels, inputChannels, height, width] = weight.dims;
+    const padding = (4 - inputChannels % 4) % 4;
+    const oldRowBytes = inputChannels * height * width * 4, newRowBytes = (inputChannels + padding) * height * width * 4;
+    const paddedWeights = new Uint8Array(outputChannels * newRowBytes);
+    for (let output = 0; output < outputChannels; output++) {
+      paddedWeights.set(weight.rawData.subarray(output * oldRowBytes, (output + 1) * oldRowBytes), output * newRowBytes);
+    }
+    replacements.set(weightField, bytesField(5, encodeFields([
+      ...weight.fields.filter((field) => field.number !== 1 && field.number !== 9),
+      packedVarintField(1, [outputChannels, inputChannels + padding, height, width]),
+      bytesField(9, paddedWeights),
+    ])));
+    // ONNX Pad uses int64 [begin N,C,H,W, end N,C,H,W]; only end C is nonzero.
+    const pads = new Uint8Array(8 * 8);
+    pads[5 * 8] = padding;
+    padsInitializers.push(bytesField(5, encodeFields([
+      packedVarintField(1, [8]), varintField(2, 7), bytesField(8, toUtf8.encode(padsName)), bytesField(9, pads),
+    ])));
+    const padNode = bytesField(1, encodeFields([
+      bytesField(1, toUtf8.encode(node.input[0])), bytesField(1, toUtf8.encode(padsName)),
+      bytesField(2, toUtf8.encode(paddedName)), bytesField(3, toUtf8.encode(padName)), bytesField(4, toUtf8.encode('Pad')),
+      bytesField(5, encodeFields([bytesField(1, toUtf8.encode('mode')), bytesField(4, toUtf8.encode('constant')), varintField(20, 3)])),
+    ]));
+    let firstInput = true;
+    const conv = bytesField(1, encodeFields(node.fields.map((field) => {
+      if (field.number !== 1 || !firstInput) return field;
+      firstInput = false;
+      return bytesField(1, toUtf8.encode(paddedName));
+    })));
+    replacements.set(nodeField, [padNode, conv]);
+  }
+  const graph = encodeFields([...graphFields.flatMap((field) => replacements.get(field) ?? field), ...padsInitializers]);
+  const derived = canonicalOnnxModel(encodeFields(modelFields.map((field) => (field === graphField ? bytesField(7, graph) : field))));
+  if (derived.length < bytes.length || derived.length > bytes.length + 64 * 1024) {
+    throw new Error('Unexpected derived RVM model size.');
+  }
+  return derived;
+}
+
+module.exports = { padRvmModelBytes, EXPECTED_CONVS, ORIGINAL_RVM_BYTES, TRANSFORM_VERSION, GRAPH_OPTIMIZATION_LEVEL };
+  },
+  // --- lib/webgpu-rvm-session.cjs (embedded verbatim) ---
+  "lib/webgpu-rvm-session.cjs": function (module, exports, require) {
+'use strict';
+
+// The ORT WebGPU RVM session contract shared by Mac Dawn (lib/webgpu-matte.cjs)
+// and the browser (web/runtime.source.mjs): session options and the GPU-side
+// first-frame validation. Uses only WebGPU globals, so a browser Worker can run it.
+const { GRAPH_OPTIMIZATION_LEVEL } = require('./rvm-conv-padding.cjs');
+
+const RVM_INPUTS = Object.freeze(['src', 'r1i', 'r2i', 'r3i', 'r4i', 'downsample_ratio']);
+
+/** Requested outputs stay on GPU; recurrent state is fed back without readback. */
+function rvmSessionOptions(device, outputs) {
+  return {
+    executionProviders: [{ name: 'webgpu', device }], graphOptimizationLevel: GRAPH_OPTIMIZATION_LEVEL,
+    preferredOutputLocation: Object.fromEntries(outputs.map(name => [name, 'gpu-buffer'])), logSeverityLevel: 3,
+  };
+}
+
+const FINITE_SHADER = `
+@group(0) @binding(0) var<storage, read> values: array<f32>;
+@group(0) @binding(1) var<storage, read_write> invalid: atomic<u32>;
+@compute @workgroup_size(256) fn main(@builtin(global_invocation_id) id: vec3<u32>, @builtin(num_workgroups) groups: vec3<u32>) {
+  let p = id.x + id.y * groups.x * 256u; if (p >= arrayLength(&values)) { return; }
+  let bits = bitcast<u32>(values[p]);
+  if ((bits & 0x7f800000u) == 0x7f800000u) { atomicStore(&invalid, 1u); }
+}`;
+
+function tensorElements(tensor, fixedDims) {
+  const dims = tensor?.dims;
+  if (tensor?.type !== 'float32' || tensor.location !== 'gpu-buffer' || !Array.isArray(dims)
+    || dims.length !== 4 || dims[0] !== 1 || dims.some(n => !Number.isSafeInteger(n) || n < 1)
+    || fixedDims && dims.join(',') !== fixedDims.join(',')) throw new Error('WebGPU output violates its GPU tensor contract.');
+  const count = dims.reduce((a, b) => a * b, 1);
+  if (!Number.isSafeInteger(count) || count * 4 > tensor.gpuBuffer.size) throw new Error('WebGPU output buffer is smaller than its shape.');
+  return count;
+}
+
+function dispatchShape(count, limit) {
+  if (!Number.isSafeInteger(count) || count < 1 || !Number.isSafeInteger(limit) || limit < 1) throw new Error('Invalid GPU dispatch size.');
+  const groups = Math.ceil(count / 256), x = Math.min(groups, limit), y = Math.ceil(groups / x);
+  if (y > limit) throw new Error('Tensor exceeds the GPU dispatch limit.');
+  return [x, y];
+}
+
+/** Finite validation reads one flag, preserving every recurrent tensor on GPU. */
+async function validateGpuFirstResult(device, result, width, height, wantsForeground) {
+  const names = ['pha', 'r1o', 'r2o', 'r3o', 'r4o', ...(wantsForeground ? ['fgr'] : [])];
+  const counts = names.map(name => tensorElements(result?.[name], name === 'pha' ? [1, 1, height, width]
+    : name === 'fgr' ? [1, 3, height, width] : null));
+  const flag = device.createBuffer({ size: 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+  const readback = device.createBuffer({ size: 4, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+  try {
+    device.queue.writeBuffer(flag, 0, new Uint32Array([0]));
+    const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module: device.createShaderModule({ code: FINITE_SHADER }), entryPoint: 'main' } });
+    const encoder = device.createCommandEncoder();
+    for (let i = 0; i < names.length; i++) {
+      const pass = encoder.beginComputePass(); pass.setPipeline(pipeline);
+      pass.setBindGroup(0, device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
+        { binding: 0, resource: { buffer: result[names[i]].gpuBuffer, size: counts[i] * 4 } },
+        { binding: 1, resource: { buffer: flag } },
+      ] }));
+      pass.dispatchWorkgroups(...dispatchShape(counts[i], device.limits.maxComputeWorkgroupsPerDimension)); pass.end();
+    }
+    encoder.copyBufferToBuffer(flag, 0, readback, 0, 4); device.queue.submit([encoder.finish()]);
+    await readback.mapAsync(GPUMapMode.READ);
+    if (new Uint32Array(readback.getMappedRange())[0] !== 0) throw new Error('WebGPU first-frame output contains a non-finite value.');
+    readback.unmap();
+  } finally { readback.destroy(); flag.destroy(); }
+}
+
+module.exports = { RVM_INPUTS, rvmSessionOptions, validateGpuFirstResult, tensorElements, dispatchShape };
+  },
+  // --- lib/gray-png.cjs (embedded verbatim) ---
+  "lib/gray-png.cjs": function (module, exports, require) {
+'use strict';
+
+// Grayscale 8-bit PNG encoding without Node, shared by the desktop writer
+// (lib/png.cjs) and the web runtime. The caller supplies zlib-format deflate:
+// node:zlib on desktop, CompressionStream('deflate') in a browser.
+const crcTable = Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  return value >>> 0;
+});
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = crcTable[(crc ^ byte) & 255] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function chunk(type, data) {
+  const bytes = new Uint8Array(data.length + 12), view = new DataView(bytes.buffer);
+  view.setUint32(0, data.length);
+  for (let index = 0; index < 4; index++) bytes[4 + index] = type.charCodeAt(index);
+  bytes.set(data, 8);
+  view.setUint32(data.length + 8, crc32(bytes.subarray(4, data.length + 8)));
+  return bytes;
+}
+function paeth(left, above, upperLeft) {
+  const estimate = left + above - upperLeft;
+  const a = Math.abs(estimate - left), b = Math.abs(estimate - above), c = Math.abs(estimate - upperLeft);
+  return a <= b && a <= c ? left : b <= c ? above : upperLeft;
+}
+/** PNG bytes for a width x height 8-bit gray raster; deflate(Uint8Array) may be sync or async. */
+async function encodeGrayPng(width, height, pixels, deflate) {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || pixels.length !== width * height) {
+    throw new Error('Invalid grayscale raster');
+  }
+  const header = new Uint8Array(13), headerView = new DataView(header.buffer);
+  headerView.setUint32(0, width);
+  headerView.setUint32(4, height);
+  header[8] = 8;
+  const rows = new Uint8Array((width + 1) * height);
+  const source = new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+  // Standard PNG Paeth predicts from three already-decoded neighbors. It is
+  // lossless and preserves independent frame access through existing decoders.
+  for (let row = 0; row < height; row++) {
+    const target = row * (width + 1);
+    const current = row * width;
+    rows[target] = 4;
+    for (let x = 0; x < width; x++) {
+      const left = x ? source[current + x - 1] : 0;
+      const above = row ? source[current - width + x] : 0;
+      const upperLeft = row && x ? source[current - width + x - 1] : 0;
+      rows[target + x + 1] = source[current + x] - paeth(left, above, upperLeft);
+    }
+  }
+  const parts = [
+    Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10),
+    chunk('IHDR', header), chunk('IDAT', await deflate(rows)), chunk('IEND', new Uint8Array(0)),
+  ];
+  const png = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) { png.set(part, offset); offset += part.length; }
+  return png;
+}
+module.exports = { encodeGrayPng };
+  },
+  // --- lib/constant-frame-rate.cjs (embedded verbatim) ---
+  "lib/constant-frame-rate.cjs": function (module, exports, require) {
+'use strict';
+
+// Actual source PTS, rather than the container's declared fps, decide whether
+// a fixed-rate foreground movie preserves the selected source clock.
+function constantFrameRate(average, sourcePts, timeBase) {
+  const [numerator, denominator] = String(average).split('/').map(Number);
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) || numerator <= 0 || denominator <= 0 || sourcePts.length < 2) return null;
+  const ticksPerFrame = denominator * timeBase.denominator / (numerator * timeBase.numerator);
+  if (!Number.isFinite(ticksPerFrame) || ticksPerFrame < 1) return null;
+  // An integral clock has no quantization error. A one-tick allowance could
+  // otherwise hide a missing frame when a frame itself occupies one tick.
+  const integralClock = Number.isInteger(ticksPerFrame);
+  for (let index = 0; index < sourcePts.length; index++) {
+    if (!Number.isSafeInteger(sourcePts[index]) || (index && sourcePts[index] <= sourcePts[index - 1]) ||
+      (integralClock ? sourcePts[index] !== index * ticksPerFrame : Math.abs(sourcePts[index] - index * ticksPerFrame) > 1.01)) return null;
+  }
+  return { numerator, denominator };
+}
+module.exports = { constantFrameRate };
+  },
 };
 const sharedCache = new Map();
 function requireShared(id) {
@@ -453,8 +886,8 @@ function requireShared(id) {
   }
   return sharedCache.get(id).exports;
 }
-// Web runtime contract v1 for selects-ai-runtime: faces.detect and
-// speakers.detect in a browser.
+// Web runtime contract v1 for selects-ai-runtime: faces.detect,
+// speakers.detect and person.matte in a browser.
 //
 // Selects' web host loads the generated web/runtime.mjs (this file with the
 // imported CommonJS libraries inlined; see scripts/build-web-runtime.cjs) in a
@@ -466,13 +899,20 @@ function requireShared(id) {
 //   request         { contractVersion: 1, task, input: { source: { kind? }, sourceRange?, ...options } }
 //                   (the desktop request.json shape without a file path)
 //   source          { width, height, frameTimes, frames(indices) } for faces.detect;
-//                   { width, height, decodeWindow(options) } for speakers.detect
+//                   { width, height, decodeWindow(options) } for speakers.detect;
+//                   { width, height, frameTimes, canvases(indices), timeline? } for person.matte
 //                     width/height  displayed pixels (rotation and EXIF orientation applied)
 //                     frameTimes    ascending source seconds of the frames inside sourceRange,
 //                                   the first displayed frame of the file being zero;
 //                                   [0] for an image
 //                     frames(i[])   async iterable of { index, sourceTimeSeconds, rgb }
 //                                   (packed RGB24) for the requested frameTimes indices
+//                     canvases(i[]) async iterable of { index, sourceTimeSeconds, canvas }
+//                                   (OffscreenCanvas or ImageBitmap at width x height)
+//                     timeline      video only: { timeBase: { numerator, denominator }, pts,
+//                                   averageFrameRate: 'N/D', firstIndex } where pts are the integer
+//                                   ticks of every displayed frame relative to the first and
+//                                   firstIndex is the pts index of frameTimes[0]
 //                     decodeWindow({ startSeconds, durationSeconds, fps, width, height, audioSampleRate })
 //                                   resolves { rgb, pcm }: frames at fps scaled to width x height
 //                                   (packed RGB24) and mono signed 16-bit audio from the same
@@ -481,22 +921,32 @@ function requireShared(id) {
 //                   ({ path, size, sha256 })
 //   download(pin)   resolves verified bytes for { url, size, sha256 }
 //   importModule(bytes)  imports verified JavaScript module bytes
+//   writeOutput(relativePath, bytes)  person.matte only: stores one job output file
 //   emitProgress({ step, completed?, total? }), signal
-// and receives { files: { detections: { name, mediaType, json } }, metrics, diagnostics }.
+// and receives { files: { <detections|manifest>: { name, mediaType, json } }, metrics, diagnostics }.
 const yunetDecode = requireShared("lib/yunet-decode.cjs");
 const faceSampling = requireShared("lib/face-sampling.cjs");
 const runtimeAssets = requireShared("lib/runtime-assets.cjs");
 const speakerWindow = requireShared("lib/speaker-window.cjs");
+const rvmConvPadding = requireShared("lib/rvm-conv-padding.cjs");
+const webgpuRvmSession = requireShared("lib/webgpu-rvm-session.cjs");
+const grayPng = requireShared("lib/gray-png.cjs");
+const constantFrameRateClock = requireShared("lib/constant-frame-rate.cjs");
 
 const { YUNET_INPUT_SIZE, rgbToLetterboxBlob, decodeYuNet, mapFaceToDisplay } = yunetDecode;
 const { faceParameters, sampleSelector } = faceSampling;
 const { speakerWindows, speakerAnalysisSize, scoreSpeakerWindow, newSpeakerState, speakersOutput } = speakerWindow;
+const { padRvmModelBytes, TRANSFORM_VERSION, GRAPH_OPTIMIZATION_LEVEL } = rvmConvPadding;
+const { RVM_INPUTS, rvmSessionOptions, validateGpuFirstResult, dispatchShape } = webgpuRvmSession;
+const { encodeGrayPng } = grayPng;
+const { constantFrameRate } = constantFrameRateClock;
 
 export const contractVersion = 1;
-export const tasks = Object.freeze(['faces.detect', 'speakers.detect']);
+export const tasks = Object.freeze(['faces.detect', 'speakers.detect', 'person.matte']);
 
 const YUNET = runtimeAssets.MODELS['faces.detect'];
 const LIGHT_ASD = runtimeAssets.MODELS['speakers.detect'];
+const RVM = runtimeAssets.MODELS['person.matte'];
 /** runtime.json tasks['speakers.detect'].model; the document names the model by it. */
 export const LIGHT_ASD_MODEL_ID = 'light-asd-ava';
 const ORT_DIST = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${runtimeAssets.ORT_VERSION}/dist`;
@@ -513,6 +963,20 @@ export const assets = Object.freeze({
   ortWasm: Object.freeze({
     url: `${ORT_DIST}/ort-wasm-simd-threaded.wasm`, size: 14239897,
     sha256: '3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2',
+  }),
+  // The desktop model bytes from Cutback's CDN: the GitHub release has no CORS.
+  rvm: Object.freeze({
+    url: 'https://static.cutback.video/assets/ai-runtime/rvm/v1.0.0/rvm_mobilenetv3_fp32.onnx',
+    size: RVM.size, sha256: RVM.sha256,
+  }),
+  // The WebGPU build runs on the Asyncify WASM binary.
+  ortWebGpuModule: Object.freeze({
+    url: `${ORT_DIST}/ort.webgpu.bundle.min.mjs`, size: 117732,
+    sha256: '0730816731ce2cdfb06f273da065d4a1c7091eb9d1756a83b2916c8a89d015e2',
+  }),
+  ortWebGpuWasm: Object.freeze({
+    url: `${ORT_DIST}/ort-wasm-simd-threaded.asyncify.wasm`, size: 26781914,
+    sha256: '39f9f0894d478800487ed9f7dbe92618498db320cf55c8e3d89adff8dce658da',
   }),
 });
 
@@ -543,11 +1007,26 @@ async function createSession(context) {
   return { ort, session };
 }
 
+function checkedFrames(source) {
+  const { width, height, frameTimes } = source;
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
+    throw new Error('Source has no displayed frame size');
+  }
+  if (!Array.isArray(frameTimes) || frameTimes.some((time, index) => !Number.isFinite(time) || (index && time <= frameTimes[index - 1]))) {
+    throw new Error('Source frame timestamps are unavailable or not ordered');
+  }
+  return { width, height, frameTimes };
+}
+
 export async function run(context) {
   throwIfAborted(context.signal);
   const { request } = context;
   if (request?.contractVersion !== 1) throw new Error('Unsupported web runtime request contract');
   if (!tasks.includes(request.task)) throw new Error(`The web runtime does not support ${request.task}`);
+  if (request.task === 'person.matte') {
+    if ((request.input.provider ?? 'auto') !== 'auto') throw new Error('Person matte on web supports the auto provider (WebGPU) only');
+    return runMatte(context);
+  }
   const provider = request.input.provider ?? 'cpu';
   if (provider !== 'cpu') throw new Error('Face and speaker detection support the CPU provider only');
   return request.task === 'speakers.detect' ? runSpeakers(context) : runFaces(context);
@@ -558,13 +1037,7 @@ async function runFaces(context) {
   const parameters = faceParameters(request);
   const provider = 'cpu';
   const isImage = request.input.source?.kind === 'image';
-  const { width, height, frameTimes } = source;
-  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
-    throw new Error('Source has no displayed frame size');
-  }
-  if (!Array.isArray(frameTimes) || frameTimes.some((time, index) => !Number.isFinite(time) || (index && time <= frameTimes[index - 1]))) {
-    throw new Error('Source frame timestamps are unavailable or not ordered');
-  }
+  const { width, height, frameTimes } = checkedFrames(source);
   const select = sampleSelector(parameters);
   const indices = frameTimes.flatMap((time, index) => (select(time) ? [index] : []));
   const total = indices.length;
@@ -701,5 +1174,219 @@ async function runSpeakers(context) {
   } finally {
     await model?.release?.();
     await yunet.release?.();
+  }
+}
+
+// person.matte mirrors tasks/person-matte.cjs on its WebGPU path: the same
+// derived model, session options, first-frame validation and manifest. The
+// host draws each displayed frame on a canvas; the GPU copies it into the RVM
+// input, so source pixels are never read back. There is no CPU fallback.
+const RVM_OUTPUTS = ['pha', 'r1o', 'r2o', 'r3o', 'r4o'];
+const CANVAS_SHADER = `
+@group(0) @binding(0) var frame: texture_2d<f32>;
+@group(0) @binding(1) var<storage, read_write> planar: array<f32>;
+@compute @workgroup_size(256) fn main(@builtin(global_invocation_id) id: vec3<u32>, @builtin(num_workgroups) groups: vec3<u32>) {
+  let size = textureDimensions(frame); let pixels = size.x * size.y; let p = id.x + id.y * groups.x * 256u;
+  if (p >= pixels) { return; }
+  let c = textureLoad(frame, vec2<u32>(p % size.x, p / size.x), 0);
+  planar[p] = c.r;
+  planar[pixels + p] = c.g;
+  planar[2u * pixels + p] = c.b;
+}`;
+const SOFTWARE_ADAPTER = /swiftshader|llvmpipe|lavapipe|software|basic render/i;
+
+async function sha256Hex(bytes) {
+  const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+const deflate = async (bytes) => new Uint8Array(
+  await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer(),
+);
+
+/** sourceFrameRate and the exact frame-index sourceRange when the PTS verify CFR, as lib/video.cjs derives them. */
+function verifiedClock(timeline, frameTimes) {
+  if (!timeline) return null;
+  const { timeBase, pts, averageFrameRate, firstIndex } = timeline;
+  if (!Array.isArray(pts) || !Number.isSafeInteger(firstIndex) || firstIndex < 0 || firstIndex + frameTimes.length > pts.length) {
+    throw new Error('Source timeline does not cover the requested frames');
+  }
+  const rate = constantFrameRate(averageFrameRate, pts, timeBase);
+  if (!rate) return null;
+  if (frameTimes.some((time, index) => Math.abs(pts[firstIndex + index] * timeBase.numerator / timeBase.denominator - time) > 0.000001)) {
+    throw new Error('Source timeline does not match the frame timestamps');
+  }
+  const fps = rate.numerator / rate.denominator;
+  return { sourceFrameRate: rate, sourceRange: { startSeconds: firstIndex / fps, endSeconds: (firstIndex + frameTimes.length) / fps } };
+}
+
+async function requestHardwareDevice() {
+  const gpu = globalThis.navigator?.gpu;
+  if (!gpu) throw new Error('Person matte on web requires WebGPU, which this browser does not provide');
+  const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
+  const info = adapter?.info ?? {};
+  const adapterInfo = Object.fromEntries(['vendor', 'architecture', 'device', 'description'].map((key) => [key, info[key]]));
+  adapterInfo.isFallbackAdapter = info.isFallbackAdapter ?? adapter?.isFallbackAdapter ?? false;
+  if (!adapter || adapterInfo.isFallbackAdapter || SOFTWARE_ADAPTER.test(Object.values(adapterInfo).join(' '))) {
+    throw new Error('Person matte on web requires a hardware WebGPU adapter; this browser offers only a software adapter');
+  }
+  const device = await adapter.requestDevice({ requiredLimits: {
+    maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, maxBufferSize: adapter.limits.maxBufferSize,
+  } });
+  return { device, adapterInfo };
+}
+
+async function runMatte(context) {
+  const { request, source, emitProgress, signal } = context;
+  const { input } = request;
+  const isImage = input.source?.kind === 'image';
+  const downsampleRatio = input.downsampleRatio ?? 0.25;
+  if (!Number.isFinite(downsampleRatio) || downsampleRatio <= 0 || downsampleRatio > 1) {
+    throw new Error('downsampleRatio must be greater than zero and at most one.');
+  }
+  const alphaEncoding = input.alphaEncoding ?? 'grayscale-png-8bit';
+  if (alphaEncoding !== 'grayscale-png-8bit') throw new Error('Person matte on web writes grayscale-png-8bit alpha only');
+  if ((input.outputMode ?? 'alpha-frames') !== 'alpha-frames') throw new Error('Person matte on web writes alpha frames only; foreground-video is desktop-only');
+  const { width, height, frameTimes } = checkedFrames(source);
+  if (frameTimes.length === 0) throw new Error('RVM requires at least one frame timestamp.');
+  if (isImage && (frameTimes.length !== 1 || frameTimes[0] !== 0)) throw new Error('Image inference requires exactly one independent raster');
+  if (typeof source.canvases !== 'function' || typeof context.writeOutput !== 'function') {
+    throw new Error('This host cannot provide frame canvases or write matte frames');
+  }
+  const clock = isImage ? null : verifiedClock(source.timeline, frameTimes);
+
+  const started = now();
+  const pixels = width * height;
+  await emitProgress({ step: 'loading-model', completed: 0, total: 1 });
+  const { device, adapterInfo } = await requestHardwareDevice();
+  let gpuError, session, texture, planarBuffer, sourceTensor, ratio, rec, result;
+  device.addEventListener('uncapturederror', (event) => { gpuError ??= event.error; });
+  device.lost.then((info) => { if (info.reason !== 'destroyed') gpuError ??= new Error('WebGPU device lost: ' + info.message); });
+  const dispose = (tensors) => { for (const tensor of tensors ?? []) tensor?.dispose?.(); };
+  try {
+    if (pixels * 3 * 4 > device.limits.maxStorageBufferBindingSize) throw new Error('Source frame exceeds the WebGPU storage limit.');
+    const [moduleBytes, wasmBytes, modelBytes] = await Promise.all([
+      context.download(assets.ortWebGpuModule), context.download(assets.ortWebGpuWasm), context.download(assets.rvm),
+    ]);
+    throwIfAborted(signal);
+    const derivedBytes = padRvmModelBytes(modelBytes);
+    const derivedModel = {
+      sha256: await sha256Hex(derivedBytes), originalSha256: assets.rvm.sha256,
+      transformVersion: TRANSFORM_VERSION, graphOptimizationLevel: GRAPH_OPTIMIZATION_LEVEL,
+    };
+    const ort = await context.importModule(moduleBytes);
+    if (!ort?.InferenceSession || !ort?.Tensor?.fromGpuBuffer || !ort?.env?.wasm) throw new Error('ONNX Runtime Web WebGPU module is not usable');
+    ort.env.wasm.wasmBinary = wasmBytes;
+    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.proxy = false;
+    ort.env.logLevel = 'error';
+    session = await ort.InferenceSession.create(derivedBytes, rvmSessionOptions(device, RVM_OUTPUTS));
+    if (!RVM_INPUTS.every((name) => session.inputNames.includes(name)) || !RVM_OUTPUTS.every((name) => session.outputNames.includes(name))) {
+      throw new Error('Unexpected WebGPU RVM model inputs or outputs.');
+    }
+    texture = device.createTexture({
+      size: [width, height], format: 'rgba8unorm',
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    planarBuffer = device.createBuffer({ size: pixels * 3 * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module: device.createShaderModule({ code: CANVAS_SHADER }), entryPoint: 'main' } });
+    const bindGroup = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [
+      { binding: 0, resource: texture.createView() }, { binding: 1, resource: { buffer: planarBuffer } },
+    ] });
+    sourceTensor = ort.Tensor.fromGpuBuffer(planarBuffer, { dataType: 'float32', dims: [1, 3, height, width] });
+    ratio = new ort.Tensor('float32', new Float32Array([downsampleRatio]), [1]);
+    // Recurrent state starts from zero for every job, as on desktop.
+    rec = Array.from({ length: 4 }, () => new ort.Tensor('float32', new Float32Array(1), [1, 1, 1, 1]));
+    const createMilliseconds = now() - started;
+    const dispatch = dispatchShape(pixels, device.limits.maxComputeWorkgroupsPerDimension);
+    const alphaBytes = new Uint8Array(pixels);
+    const entries = [];
+    let preprocessMilliseconds = 0, inferenceMilliseconds = 0, readbackMilliseconds = 0, writeMilliseconds = 0;
+    await emitProgress({ step: 'inference', completed: 0, total: frameTimes.length });
+    for await (const frame of source.canvases(frameTimes.map((_, index) => index))) {
+      throwIfAborted(signal);
+      if (gpuError) throw gpuError;
+      const expected = entries.length;
+      if (frame.index !== expected || frame.sourceTimeSeconds !== frameTimes[expected]) throw new Error('Source frames must arrive in the requested order');
+      if (frame.canvas?.width !== width || frame.canvas?.height !== height) throw new Error('Source canvas does not match the displayed frame size');
+      const preprocessBegan = now();
+      device.queue.copyExternalImageToTexture({ source: frame.canvas }, { texture }, [width, height]);
+      const encoder = device.createCommandEncoder(), pass = encoder.beginComputePass();
+      pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.dispatchWorkgroups(...dispatch); pass.end();
+      device.queue.submit([encoder.finish()]);
+      preprocessMilliseconds += now() - preprocessBegan;
+      const inferenceBegan = now();
+      result = await session.run({ src: sourceTensor, r1i: rec[0], r2i: rec[1], r3i: rec[2], r4i: rec[3], downsample_ratio: ratio }, RVM_OUTPUTS);
+      // GPU-resident outputs alone do not mean submitted work has finished.
+      await device.queue.onSubmittedWorkDone();
+      inferenceMilliseconds += now() - inferenceBegan;
+      if (gpuError) throw gpuError;
+      if (expected === 0) await validateGpuFirstResult(device, result, width, height, false);
+      dispose(rec);
+      rec = [result.r1o, result.r2o, result.r3o, result.r4o];
+      const alpha = result.pha;
+      result = null;
+      try {
+        throwIfAborted(signal);
+        const readBegan = now();
+        const values = await alpha.getData();
+        readbackMilliseconds += now() - readBegan;
+        const writeBegan = now();
+        for (let p = 0; p < pixels; p++) {
+          const value = values[p];
+          if (!Number.isFinite(value)) throw new Error('RVM returned a non-finite alpha value.');
+          alphaBytes[p] = Math.round(Math.min(1, Math.max(0, value)) * 255);
+        }
+        const file = 'alpha/' + String(frame.index).padStart(6, '0') + '.png';
+        await context.writeOutput(file, await encodeGrayPng(width, height, alphaBytes, deflate));
+        writeMilliseconds += now() - writeBegan;
+        entries.push({ index: frame.index, sourceTimeSeconds: frame.sourceTimeSeconds, file });
+      } finally {
+        alpha.dispose?.();
+      }
+      await emitProgress({ step: 'inference', completed: entries.length, total: frameTimes.length });
+    }
+    throwIfAborted(signal);
+    if (entries.length !== frameTimes.length) throw new Error('RVM decoded frame count does not match the timestamp count.');
+    const diagnostics = {
+      requestedProvider: 'auto', selectedProvider: 'webgpu', providerSelectionReason: 'web-webgpu-first-frame-verified',
+      providerAttempts: [{ provider: 'webgpu', status: 'selected', stage: 'first-frame' }],
+      observedExecutionProviders: null, providerObservation: 'hardware-webgpu-adapter-and-gpu-resident-outputs',
+      backend: 'onnxruntime-web-webgpu', ortVersion: runtimeAssets.ORT_VERSION,
+      webgpu: {
+        adapter: adapterInfo, derivedModel, preprocessing: 'canvas-copy-external-image-rgba8-to-planar-f32',
+        recurrentStateLocation: 'gpu-buffer', firstFrameFiniteValidation: 'gpu-reduction-with-one-flag-readback', kernelPlacement: 'not-profiled',
+      },
+      recurrentState: 'initialized-at-interval-start-and-kept-per-job',
+      alphaEncoding,
+    };
+    return {
+      files: {
+        manifest: {
+          name: 'matte.json', mediaType: 'application/json',
+          json: {
+            schemaVersion: 1, task: 'person.matte',
+            ...(isImage ? { sourceKind: 'image' } : {}),
+            frameSize: { width, height }, alphaEncoding,
+            ...(clock ?? {}),
+            frames: entries, downsampleRatio,
+            model: { name: 'rvm-mobilenetv3-fp32', sha256: assets.rvm.sha256 },
+            diagnostics,
+          },
+        },
+      },
+      metrics: {
+        frames: entries.length, createMilliseconds, preprocessMilliseconds, inferenceMilliseconds,
+        readbackMilliseconds, writeMilliseconds, totalMilliseconds: now() - started,
+      },
+      diagnostics,
+    };
+  } finally {
+    if (result) dispose(Object.values(result));
+    dispose(rec);
+    dispose([sourceTensor, ratio]);
+    texture?.destroy();
+    planarBuffer?.destroy();
+    try { await session?.release(); } finally { device.destroy(); }
   }
 }

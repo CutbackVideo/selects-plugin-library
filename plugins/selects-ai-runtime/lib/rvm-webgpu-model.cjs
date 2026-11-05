@@ -5,16 +5,10 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const ORIGINAL_RVM_SHA256 = '88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828';
-const ORIGINAL_RVM_BYTES = 14975696;
-const TRANSFORM_VERSION = 'rvm-conv-pad4-v1';
-const GRAPH_OPTIMIZATION_LEVEL = 'basic';
-const EXPECTED_CONVS = Object.freeze([
-  { name: 'Conv_8', weight: '824', dims: [16, 3, 3, 3] },
-  { name: 'Conv_200', weight: '965', dims: [80, 171, 3, 3] },
-  { name: 'Conv_230', weight: '968', dims: [40, 107, 3, 3] },
-  { name: 'Conv_260', weight: '971', dims: [32, 59, 3, 3] },
-  { name: 'Conv_290', weight: '974', dims: [16, 35, 3, 3] },
-]);
+// lib/rvm-conv-padding.cjs applies the same transform without protobufjs (web).
+const {
+  EXPECTED_CONVS, ORIGINAL_RVM_BYTES, TRANSFORM_VERSION, GRAPH_OPTIMIZATION_LEVEL,
+} = require('./rvm-conv-padding.cjs');
 
 function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
 
