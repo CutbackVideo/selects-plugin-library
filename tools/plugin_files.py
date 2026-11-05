@@ -70,6 +70,11 @@ def validate_manifest(manifest):
         relative_file(name)
     for key in ('entrypoint', 'installation'):
         require(manifest.get(key) in files, 'Entrypoint/install guide must be included')
+    if 'webRuntime' in manifest:
+        # A browser module that serves some of a native runtime's tasks on web.
+        require(manifest.get('runtime') and isinstance(manifest['webRuntime'], str)
+                and manifest['webRuntime'] in files and manifest['webRuntime'].endswith('.mjs'),
+                'webRuntime must be a listed .mjs file of a runtime plugin')
     if 'localized' in manifest:
         localized = manifest['localized']
         require(isinstance(localized, dict), 'Invalid localized metadata')
@@ -114,6 +119,11 @@ def check_layout(pid, name, text):
                 f'use SELECTS_USER_SKILLS_ROOT/{pid} for bundled files')
 
 
+def serves_web(manifest):
+    """A native runtime reaches web only through its declared browser module."""
+    return not manifest.get('runtime') or bool(manifest.get('webRuntime'))
+
+
 def check(pid, root=ROOT):
     directory = Path(root).resolve() / 'plugins' / plugin_id(pid)
     manifest = json.loads((directory / 'plugin.json').read_text())
@@ -122,14 +132,14 @@ def check(pid, root=ROOT):
     require('platforms' not in manifest, 'Use compatibility.platforms, not root platforms')
     names = validate_manifest(manifest)
     if 'web' in manifest['compatibility']['platforms']:
-        require(not manifest.get('runtime'), 'Native runtime plugins cannot declare web')
+        require(serves_web(manifest), 'Native runtime plugins cannot declare web without a webRuntime')
         dependencies = manifest.get('requiresPlugins', [])
         require(isinstance(dependencies, list), 'Invalid requiresPlugins')
         for dependency in dependencies:
             dependency = plugin_id(dependency)
             dependent = json.loads((Path(root) / 'plugins' / dependency / 'plugin.json').read_text())
             validate_manifest(dependent)
-            require('web' in dependent.get('compatibility', {}).get('platforms', []) and not dependent.get('runtime'),
+            require('web' in dependent.get('compatibility', {}).get('platforms', []) and serves_web(dependent),
                     f'Web plugin {pid} requires desktop-only dependency {dependency}')
     for name in names:
         path = directory / name

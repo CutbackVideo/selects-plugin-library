@@ -167,3 +167,23 @@ Clients must check the host's `activeSpeakerSupported` before submission.
 ## Optional preparation reuse sidecar
 
 CPU face/speaker preparation writes `preparation-reuse.json` next to the requested output config. Version 1 contains absolute `paths` covering the complete native environment (including common modules and its ready marker), pinned model files and resolved media tools. A supporting host may reuse successful JSON configuration only while these dependencies, runtime source, task and child environment remain unchanged. Worker model pins and fresh session creation remain required. Runtimes with transient hardware/permission decisions omit this sidecar; shared matte preparation always does. Missing, invalid or unsupported sidecars mean ordinary per-job preparation. Old hosts ignore the file.
+
+## Web runtime (faces.detect, speakers.detect)
+
+`plugin.json` names `webRuntime: "web/runtime.mjs"`, a single self-contained ES module that Selects' web host imports in a dedicated Worker. Web hosts admit this package, and plugins that require it, only because of that declaration; a runtime without `webRuntime` stays desktop-only. The module exports `contractVersion: 1`, `tasks: ["faces.detect", "speakers.detect"]`, its pinned `assets` and `run(context)`.
+
+The host passes the desktop `request.json` shape without a file path, plus:
+
+- `source` for `faces.detect`: `width`/`height` in displayed pixels (track rotation and EXIF orientation applied), `frameTimes` (ascending source seconds inside `sourceRange`, the first displayed frame being zero; `[0]` for a photo), and `frames(indices)`, an async iterable of packed RGB24 frames for those indices in order.
+- `source` for `speakers.detect`: `width`/`height` and `decodeWindow({ startSeconds, durationSeconds, fps, width, height, audioSampleRate })`, which resolves `{ rgb, pcm }`: the frames and mono signed 16-bit audio that desktop's two FFmpeg commands write for that window.
+- `download({ url, size, sha256 })`: verified network bytes. The host accepts only `https` pins and rejects any size or digest mismatch.
+- `readPackageFile({ path, size, sha256 })`: a verified file listed in this package, such as the bundled Light-ASD model. The web host stores only `web/runtime.mjs` and the Panel when it installs this package, and reads other listed files from the installed library commit on demand.
+- `importModule(bytes)`, `emitProgress(event)` and `signal`.
+
+`run` returns `{ files: { detections: { name, mediaType, json } }, metrics, diagnostics }` with `faces.json` or `speakers.json` in the desktop schema. The host validates and stores the document, then serves it through the same `selects.ai` result and `readJSON` calls as on desktop. `diagnostics.backend` is `onnxruntime-web-wasm`.
+
+Speaker scoring is `lib/speaker-window.cjs`, shared with `tasks/speakers-detect.cjs`: the same windows, analysis size, change detection, YuNet stride, tracking, MFCC and Light-ASD passes. On identical decoded input the web task writes the desktop document (boxes within 0.0002 px, scores within 1e-6). The web host decodes with WebCodecs only and fails a source it cannot decode with `AI_SOURCE_UNSUPPORTED` before `run` is called, so this module never sees an undecodable file. Browser and FFmpeg decoding differ slightly in pixels, so results from the same file are close to, not identical with, desktop.
+
+ONNX Runtime Web 1.30.0 is pinned to the single-file WebAssembly build (`ort.wasm.bundle.min.mjs` and `ort-wasm-simd-threaded.wasm`, matching the npm tarball). The verified binary is passed to ONNX Runtime directly, and the runtime is single-threaded because browsers without cross-origin isolation have no shared memory.
+
+`web/runtime.mjs` is generated. Edit `web/runtime.source.mjs` or the shared libraries it imports, then run `node scripts/build-web-runtime.cjs`. The build embeds every reachable `lib/*.cjs` verbatim in a small module table and refuses any library that loads something other than a sibling `./*.cjs`, so desktop and web share one implementation. `tests/web-runtime.test.cjs` fails when the generated file is stale. With `YUNET_MODEL` set, it also checks that the web and desktop face tasks write identical detections. `person.matte` remains desktop-only.

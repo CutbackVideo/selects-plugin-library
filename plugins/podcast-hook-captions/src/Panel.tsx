@@ -55,7 +55,7 @@ const STORE = "podcast-hook-captions:v2:";
 
 function PodcastHookReel({ sdk, context, ui, saved }: any) {
   useAppUpdateGuard(sdk, context?.language, () => !!(busy));
-  hostUseSdk(sdk);
+  hostUseSdk(sdk, context?.platform);
   const [seconds, setSeconds] = useState(25);
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);

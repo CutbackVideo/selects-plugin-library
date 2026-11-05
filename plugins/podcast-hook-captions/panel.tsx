@@ -840,6 +840,7 @@ function versionBelow(version, minimum) {
   return false;
 }
 function requireSharedAiHost() {
+  if (hostTarget === "web") return;
   const version = hostVersion();
   if (!/^\d+\.\d+\.\d+$/.test(version) || versionBelow(version, "2.0.560")) {
     throw new Error("Shared face tracking needs Selects 2.0.560 or later" + (version ? " (this is " + version + ")" : "") + ".");
@@ -944,7 +945,9 @@ function lastJsonObject(text) {
   throw new Error("The assistant's JSON could not be read.");
 }
 var hostSdk;
-function hostUseSdk(sdk) {
+var hostTarget = "desktop";
+function hostUseSdk(sdk, target = "desktop") {
+  hostTarget = target;
   hostSdk = panelLocalClient(sdk);
   if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin.");
 }
@@ -4831,7 +4834,7 @@ function withStoredPanel(Component, load) {
 var STORE = "podcast-hook-captions:v2:";
 function PodcastHookReel({ sdk, context, ui, saved }) {
   useAppUpdateGuard(sdk, context?.language, () => !!busy);
-  hostUseSdk(sdk);
+  hostUseSdk(sdk, context?.platform);
   const [seconds, setSeconds] = useState2(25);
   const [hint, setHint] = useState2("");
   const [busy, setBusy] = useState2(false);
