@@ -115,7 +115,9 @@
     "lib/rvm-conv-padding.cjs",
     "lib/webgpu-rvm-session.cjs",
     "lib/gray-png.cjs",
-    "tests/rvm-conv-padding.test.cjs"
+    "tests/rvm-conv-padding.test.cjs",
+    "lib/stage-timings.cjs",
+    "tests/stage-timings.test.cjs"
   ],
   "runtime": "runtime.json",
   "webRuntime": "web/runtime.mjs"

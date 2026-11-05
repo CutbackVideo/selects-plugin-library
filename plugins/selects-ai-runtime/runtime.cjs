@@ -4,6 +4,7 @@
 // with process teardown and abort an otherwise successful analysis.
 process.env.ORT_DISABLE_TELEMETRY = '1';
 const path = require('node:path');
+const { StageTimings } = require('./lib/stage-timings.cjs');
 const fs = require('node:fs/promises');
 const { writeSync } = require('node:fs');
 const { readJson, writeJson, ensureEmptyDirectory } = require('./lib/files.cjs');
@@ -44,6 +45,7 @@ function abort(cause) {
 }
 async function main() {
   const began = performance.now();
+  const timings = new StageTimings();
   const request = validateRequest(await readJson(argument('--request')));
   const config = await readJson(argument('--config'));
   outputDir = argument('--output');
@@ -59,21 +61,22 @@ async function main() {
   if (!Number.isInteger(config.intraOpNumThreads ?? 4) || (config.intraOpNumThreads ?? 4) < 1) throw new Error('Invalid inference thread limit');
   const model = config.models?.[request.task === 'speakers.detect' ? 'lightAsd' : request.task === 'faces.detect' ? 'yunet' : 'rvm'];
   if (model?.sha256 !== require('./runtime.json').tasks[request.task].sha256) throw new Error('Model checksum differs from the pinned task descriptor');
-  await verifyModel(model);
+  await timings.measureAsync('modelChecksum', () => verifyModel(model));
   throwIfAborted(controller.signal);
   const ortVersion = require(path.join(config.ortModule, 'package.json')).version;
   if (ortVersion !== '1.30.0') throw new Error('PoC is pinned to onnxruntime-node 1.30.0');
-  const ort = require(config.ortModule);
+  const ort = timings.measure('nativeModuleLoad', () => require(config.ortModule));
   const sourceStat = await fs.stat(request.input.source.path);
   if (!sourceStat.isFile()) throw new Error('Source is not a regular file');
-  const toolVersions = await Promise.all(['ffmpeg', 'ffprobe'].map(async name => {
+  const toolVersions = await timings.measureAsync('toolVersions', () => Promise.all(['ffmpeg', 'ffprobe'].map(async name => {
     const version = await collectTool(config.tools[name], ['-version'], { signal: controller.signal, limit: 256 * 1024 });
     return [name, version.split('\n')[0]];
-  }));
+  })));
   const prepareMs = performance.now() - began;
   const probeBegan = performance.now();
   const isImage = request.input.source.kind === 'image';
-  const video = await (isImage ? probeImage : probeVideo)(config, request, controller.signal);
+  const probeMetrics = { cacheHits: 0, toolCalls: 0, toolMilliseconds: 0 };
+  const video = await timings.measureAsync('sourceProbe', () => (isImage ? probeImage : probeVideo)(config, request, controller.signal, probeMetrics));
   const probeMs = performance.now() - probeBegan;
   const selectFace = request.task === 'faces.detect' && !isImage ? sampleSelector(faceParameters(request)) : null;
   const frameIndices = selectFace ? video.frameTimes.flatMap((time, index) => selectFace(time) ? [index] : []) : undefined;
@@ -88,10 +91,10 @@ async function main() {
         { reuseFrameBuffer: request.task === 'person.matte', frameIndices }),
     };
     const run = request.task === 'speakers.detect' ? require('./tasks/speakers-detect.cjs').runSpeakers : request.task === 'faces.detect' ? require('./tasks/faces-detect.cjs').runFaces : require('./tasks/person-matte.cjs').runMatte;
-    result = await run(context);
+    result = await timings.measureAsync('task', () => run(context));
     throwIfAborted(controller.signal);
     emitProgress({ step: 'validating-output' });
-    await verifyOutputs(outputDir, request, result, video);
+    await timings.measureAsync('outputValidation', () => verifyOutputs(outputDir, request, result, video));
   } finally {
     clearInterval(memorySampler);
   }
@@ -101,7 +104,7 @@ async function main() {
   observedPeakRssBytes = Math.max(observedPeakRssBytes, process.memoryUsage().rss);
   const summary = {
     contractVersion: 1, task: request.task, status: 'succeeded', files: result.files,
-    metrics: { ...result.metrics, ...decoderMetrics, prepareMs, probeMs, timelineCached: Boolean(video.timelineCached), totalMs: performance.now() - began, observedPeakRssBytes },
+    metrics: { ...result.metrics, ...decoderMetrics, probeMetrics, runtimeTimings: timings.summary(), prepareMs, probeMs, timelineCached: Boolean(video.timelineCached), totalMs: performance.now() - began, observedPeakRssBytes },
     diagnostics: {
       ...result.diagnostics, node: process.versions.node, electron: process.versions.electron ?? null,
       platform: process.platform, arch: process.arch, ortVersion, requestedProvider: config.provider,

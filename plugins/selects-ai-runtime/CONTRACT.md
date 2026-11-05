@@ -191,3 +191,27 @@ Speaker scoring is `lib/speaker-window.cjs`, shared with `tasks/speakers-detect.
 ONNX Runtime Web 1.30.0 is pinned to the single-file WebAssembly build (`ort.wasm.bundle.min.mjs` and `ort-wasm-simd-threaded.wasm`, matching the npm tarball); matte uses its WebGPU build (`ort.webgpu.bundle.min.mjs` and `ort-wasm-simd-threaded.asyncify.wasm`). The original RVM model is downloaded from Cutback's CDN copy of the GitHub release file (same size and SHA-256), because the release URL sends no CORS headers. The verified binary is passed to ONNX Runtime directly, and the runtime is single-threaded because browsers without cross-origin isolation have no shared memory.
 
 `web/runtime.mjs` is generated. Edit `web/runtime.source.mjs` or the shared libraries it imports, then run `node scripts/build-web-runtime.cjs`. The build embeds every reachable `lib/*.cjs` verbatim in a small module table and refuses any library that loads something other than a sibling `./*.cjs`, so desktop and web share one implementation. `tests/web-runtime.test.cjs` fails when the generated file is stale. With `YUNET_MODEL` set, it also checks that the web and desktop face tasks write identical detections; with `RVM_MODEL` set, it runs `person.matte` against a stand-in WebGPU device on the real derived model. `tests/rvm-conv-padding.test.cjs` checks the derived model SHA-256 against desktop's when `RVM_MODEL` is set.
+
+## Desktop analysis latency measurements
+
+Face and speaker result `metrics.stageTimings` contain exclusive cumulative
+`{ calls, milliseconds }` stages, `totalMilliseconds`, and `otherMilliseconds`.
+They separate model loading/release, RGB/PCM or tensor preparation, YuNet
+`faceInference`, Light-ASD `speakerInference`, postprocessing, and file writing.
+Only awaited model `session.run()` calls count as inference. Existing timing
+fields retain their previous (sometimes broader) meanings.
+
+For speakers, `mediaDecode` measures the combined wait for concurrent video and
+audio FFmpeg tools per window. `videoDecodeMs` and `audioDecodeMs` are overlapping
+tool wall times: do not add them together or to `mediaDecode`. For faces,
+`mediaDecodeWait` measures iterator advancement including RGB assembly; decoding
+can also progress while inference runs, so it is exposed decode wait, not full
+FFmpeg CPU time. `decoderWaitMs` measures the narrower stdout wait.
+
+`runtimeTimings` separates source probing, native module loading, model checksum,
+tool version checks, the entire task, and output validation. Its `task` includes
+all `stageTimings`; those two summaries must not be added together. `probeMetrics`
+records successful metadata cache hits, FFprobe calls and cumulative tool wall
+time. A fresh analysis request can still reuse metadata and installed models.
+No source paths, pixels, audio, transcripts or model outputs are added to these
+measurements. This instrumentation does not change sampling or inference settings.

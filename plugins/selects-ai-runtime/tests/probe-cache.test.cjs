@@ -108,3 +108,15 @@ test('cache publication enforces both count and total byte budgets', async () =>
   await probeJSON(config, source, args);
   assert.equal(await calls(), 1);
 }));
+
+
+test('probe measurements distinguish cached metadata from actual tool execution', async () => fixture(async ({source,config,args}) => {
+  const metrics = { cacheHits:0,toolCalls:0,toolMilliseconds:0 };
+  const first=await probeJSON(config,source,args,undefined,undefined,metrics);
+  assert.equal(metrics.toolCalls,1);assert.equal(metrics.cacheHits,0);
+  assert.ok(metrics.toolMilliseconds>0);
+  const elapsed=metrics.toolMilliseconds;
+  assert.deepEqual(await probeJSON(config,source,args,undefined,undefined,metrics),first);
+  assert.equal(metrics.cacheHits,1);assert.equal(metrics.toolCalls,1);
+  assert.equal(metrics.toolMilliseconds,elapsed);
+}));
