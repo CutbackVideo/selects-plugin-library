@@ -205,8 +205,11 @@ test('web and desktop faces tasks write the same detections for the same frames'
     });
     const stored = JSON.parse(await readFile(path.join(directory, result.files.detections), 'utf8'));
     assert.deepEqual(web.files.detections.json, stored);
+    // Desktop adds host-side measurements; detections and existing counters match.
+    const { stageTimings, ...desktopMetrics } = result.metrics;
+    assert.equal(stageTimings.stages.faceInference.calls, 2);
     assert.deepEqual({ ...web.metrics, inferenceMilliseconds: 0, elapsedMilliseconds: 0 },
-      { ...result.metrics, inferenceMilliseconds: 0, elapsedMilliseconds: 0 });
+      { ...desktopMetrics, inferenceMilliseconds: 0, elapsedMilliseconds: 0 });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -318,4 +321,25 @@ test('speaker boxes touching an analysis edge stay inside the display raster', a
     assert.ok(box.xmax <= document.frameSize.width && box.ymax <= document.frameSize.height);
     assert.equal(box.xmax, document.frameSize.width);
   }
+});
+
+
+test('speaker measurements preserve detections and count both model calls', async () => {
+  const { scoreSpeakerWindow, newSpeakerState } = require('../lib/speaker-window.cjs');
+  const { StageTimings } = require('../lib/stage-timings.cjs');
+  const ort = { Tensor: class { constructor(type, data, dims) { this.data=data; this.dims=dims; } dispose() {} } };
+  const yunet = { inputNames: ['input'], run: async () => Object.fromEntries(Object.entries(ONE_FACE).map(([k,data])=>[k,{data,dispose(){}}])) };
+  const model = { run: async ({video}) => ({ scores: { data: new Float32Array(video.dims[1]).fill(.5), dispose(){} } }) };
+  const context = { ort, yunet, model, video:{width:64,height:36}, width:64, height:36,
+    rgb:Buffer.alloc(25*64*36*3), pcm:new Float64Array(16000),
+    start:0,duration:1,rangeStart:0,signal:new AbortController().signal };
+  const plain = await scoreSpeakerWindow({...context,state:newSpeakerState()});
+  const timings = new StageTimings();
+  const timed = await scoreSpeakerWindow({...context,state:newSpeakerState(),timings});
+  assert.deepEqual(timed,plain);
+  const stages = timings.summary().stages;
+  assert.equal(stages.faceInference.calls,4);
+  assert.equal(stages.faceInput.calls,4);
+  assert.equal(stages.speakerInference.calls,3);
+  assert.equal(stages.faceCrops.calls,1);
 });

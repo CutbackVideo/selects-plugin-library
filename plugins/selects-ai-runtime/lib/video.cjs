@@ -43,7 +43,7 @@ function relativeTimeline(rawPts) {
 // -show_entries enables frame reads itself. Adding -show_frames also enables all
 // side-data fields (including large Dolby Vision metadata). Keep timestamp-only
 // selection and compact JSON for both range probes and full matte timelines.
-async function probeVideo(config, request, signal) {
+async function probeVideo(config, request, signal, probeMetrics) {
   const filename = request.input.source.path;
   const data = await probeJSON(config, filename, [
     '-v', 'error', '-select_streams', 'v:0', '-show_entries',
@@ -52,7 +52,7 @@ async function probeVideo(config, request, signal) {
   ], signal, data => {
     if (!data.streams?.[0]?.width || !data.streams[0].height) throw new Error('Source has no decodable video stream');
     parseTimeBase(data.streams[0].time_base);
-  });
+  }, probeMetrics);
   const stream = data.streams?.[0];
   if (!stream || !stream.width || !stream.height) throw new Error('Source has no decodable video stream');
   const sourceSampleAspectRatio = stream.sample_aspect_ratio ?? null;
@@ -80,7 +80,7 @@ async function probeVideo(config, request, signal) {
         if (!relativeTimeline((result.frames ?? []).map(frame => frame.best_effort_timestamp))) {
           throw new Error('Source frame timestamps are unavailable or not ordered');
         }
-      });
+      }, probeMetrics);
       const points = (result.frames ?? []).map(frame => frame.best_effort_timestamp);
       if (!relativeTimeline(points)) throw new Error('Source frame timestamps are unavailable or not ordered');
       return points;

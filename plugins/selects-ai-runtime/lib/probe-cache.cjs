@@ -61,7 +61,7 @@ async function write(dir, key, output) {
   }
 }
 
-async function probeJSON(config, filename, args, signal, validate = () => {}) {
+async function probeJSON(config, filename, args, signal, validate = () => {}, metrics) {
   throwIfAborted(signal);
   const dir = await directory(config.timelineCache);
   let key;
@@ -72,11 +72,16 @@ async function probeJSON(config, filename, args, signal, validate = () => {}) {
       const cached = await read(dir, key);
       throwIfAborted(signal);
       if (cached !== null) {
-        try { const parsed = JSON.parse(cached); validate(parsed); return parsed; } catch { /* Re-probe an invalid cached document. */ }
+        try { const parsed = JSON.parse(cached); validate(parsed); if (metrics) metrics.cacheHits++; return parsed; } catch { /* Re-probe an invalid cached document. */ }
       }
     }
   }
-  const output = await collectTool(config.tools.ffprobe, args, { signal });
+  const began = performance.now();
+  let output;
+  try { output = await collectTool(config.tools.ffprobe, args, { signal }); }
+  finally {
+    if (metrics) { metrics.toolCalls++; metrics.toolMilliseconds += performance.now() - began; }
+  }
   const parsed = JSON.parse(output);
   validate(parsed);
   throwIfAborted(signal);
