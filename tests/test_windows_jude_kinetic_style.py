@@ -27,5 +27,5 @@ class JudeWindowsTest(unittest.TestCase):
         manifest=json.loads((ROOT/'plugins/jude-kinetic-style/plugin.json').read_text())
         # Version syntax is checked centrally by tools/plugin_files.py; a release bump does not alter this contract.
         self.assertEqual(manifest['id'],'jude-kinetic-style')
-        self.assertEqual(manifest['compatibility']['platforms'],['macOS arm64','Windows x64'])
+        self.assertEqual(manifest['compatibility']['platforms'],['macOS arm64','Windows x64','web'])
         for old in ['engine.mjs','runtime.sh','vision-helper.js']:self.assertNotIn(old,manifest['files'])
