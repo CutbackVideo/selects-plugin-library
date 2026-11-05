@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "jude-kinetic-style",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
@@ -22,7 +22,8 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "depth-type-captions",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
@@ -18,7 +18,8 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
     "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },
