@@ -6,8 +6,8 @@ const {writeJson}=require('../lib/files.cjs');
 const {createVerifiedModelSession}=require('../lib/models.cjs');
 const descriptor=require('../runtime.json');
 const {speakerWindows,speakerAnalysisSize,scoreSpeakerWindow,newSpeakerState,speakersOutput}=require('../lib/speaker-window.cjs');
-async function bytes(executable,args,signal,limit) {
-  const p=startTool(executable,args,{signal,limit});let size=0;const chunks=[];
+async function bytes(executable,args,signal,limit,metrics,operation) {
+  const p=startTool(executable,args,{signal,limit,metrics,operation});let size=0;const chunks=[];
   try {for await(const chunk of p.child.stdout){size+=chunk.length;if(size>limit)throw new Error('Speaker decode exceeded bounded window');chunks.push(chunk);}await p.completed;return Buffer.concat(chunks);}
   finally {if(p.child.exitCode===null)p.child.kill('SIGKILL');p.child.stdout.destroy();await p.completed.catch(()=>{});}
 }
@@ -29,7 +29,7 @@ async function runSpeakers({request,config,outputDir,ort,video,emitProgress,sign
       await emitProgress({step:'decoding',completed:start-range.startSeconds,total:range.endSeconds-range.startSeconds});
       const decodeBegan=performance.now();
       // Tool walls overlap; mediaDecode is the exclusive combined wait.
-      const decode=async(kind,...args)=>{const began=performance.now();try{return await bytes(...args);}finally{decoderMetrics[kind+'DecodeMs']=(decoderMetrics[kind+'DecodeMs']??0)+performance.now()-began;}};
+      const decode=async(kind,...args)=>{const began=performance.now();try{return await bytes(...args,config.processMetrics,kind+'Decode');}finally{decoderMetrics[kind+'DecodeMs']=(decoderMetrics[kind+'DecodeMs']??0)+performance.now()-began;}};
       const [rgb,audio]=await timings.measureAsync('mediaDecode',()=>Promise.all([
         decode('video',config.tools.ffmpeg,[...common,'-an','-vf',`fps=25:start_time=0,scale=${width}:${height}`,'-pix_fmt','rgb24','-f','rawvideo','pipe:1'],signal,width*height*3*77),
         decode('audio',config.tools.ffmpeg,[...common,'-vn','-ac','1','-ar','16000','-f','s16le','pipe:1'],signal,16000*2*4),

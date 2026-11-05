@@ -117,7 +117,9 @@
     "lib/gray-png.cjs",
     "tests/rvm-conv-padding.test.cjs",
     "lib/stage-timings.cjs",
-    "tests/stage-timings.test.cjs"
+    "tests/stage-timings.test.cjs",
+    "lib/tool-timings.cjs",
+    "tests/tool-timings.test.cjs"
   ],
   "runtime": "runtime.json",
   "webRuntime": "web/runtime.mjs"
