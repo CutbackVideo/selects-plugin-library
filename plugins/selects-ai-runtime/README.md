@@ -53,7 +53,7 @@ establish active-speaker compatibility or performance.
 ## Responsibilities
 
 - The runtime owns model verification, task-specific preprocessing, inference, postprocessing and output schemas.
-- On Selects web, `web/runtime.mjs` runs `faces.detect` and `speakers.detect` with ONNX Runtime Web in a browser Worker; the web host decodes the source and verifies pinned downloads and package files. See CONTRACT.md, *Web runtime*.
+- On Selects web, `web/runtime.mjs` runs `faces.detect` and `speakers.detect` with ONNX Runtime Web in a browser Worker, and `person.matte` with ONNX Runtime Web WebGPU on a hardware adapter (PNG alpha frames only, no CPU fallback); the web host decodes the source and verifies pinned downloads and package files. See CONTRACT.md, *Web runtime*.
 - The host owns the workflow ID, process lifecycle, status persistence and tree cancellation. `scripts/job-host.cjs` demonstrates lifecycle supervision with an explicit job deadline; that deadline is a harness option, not an app inference timeout.
 - The Selects adapter resolves a Resource ID to authorized input media, adopts result files into persistent storage and forwards progress to the workflow UI. The internal CLI receives an already resolved absolute `source.path`; plugin SDK requests use Resource IDs.
 
