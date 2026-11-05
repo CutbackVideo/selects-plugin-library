@@ -329,14 +329,19 @@ test('speaker boxes touching an analysis edge stay inside the display raster', a
 // 255 once clamped) and GPU-resident recurrent tensors.
 const DERIVED_RVM_SHA256 = '424978d0ec0aada0037344adfac6d562a5f459c61843fc671c8d54fd8b906df6';
 
-async function withWebGpu({ fallback = false } = {}, body) {
-  const state = { copies: 0, destroyed: false };
+async function withWebGpu({ fallback = false, validationError = false } = {}, body) {
+  const state = { copies: 0, destroyed: false, requiredLimits: null };
+  let onUncapturedError;
   const pass = { setPipeline() {}, setBindGroup() {}, dispatchWorkgroups() {}, end() {} };
   const device = {
-    limits: { maxStorageBufferBindingSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535 },
-    addEventListener() {}, lost: new Promise(() => {}),
+    limits: { maxStorageBufferBindingSize: 2 ** 30, maxComputeWorkgroupsPerDimension: 65535, maxTextureDimension2D: 8192 },
+    addEventListener(type, listener) { if (type === 'uncapturederror') onUncapturedError = listener; }, lost: new Promise(() => {}),
     createTexture: () => ({ createView: () => ({}), destroy() {} }),
-    createBuffer: ({ size }) => ({ size, destroy() {}, async mapAsync() {}, getMappedRange: () => new ArrayBuffer(size), unmap() {} }),
+    createBuffer: ({ size }) => ({
+      size, destroy() {}, getMappedRange: () => new ArrayBuffer(size), unmap() {},
+      // The first-frame validator's flag readback is the only mapped buffer.
+      async mapAsync() { if (validationError) onUncapturedError?.({ error: new Error('stand-in validation error') }); },
+    }),
     createShaderModule: ({ code }) => ({ code }),
     createComputePipeline: () => ({ getBindGroupLayout: () => ({}) }),
     createBindGroup: () => ({}),
@@ -346,8 +351,8 @@ async function withWebGpu({ fallback = false } = {}, body) {
   };
   const adapter = {
     info: { vendor: 'apple', architecture: 'metal-3', device: '', description: '', isFallbackAdapter: fallback },
-    limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30 },
-    requestDevice: async () => device,
+    limits: { maxStorageBufferBindingSize: 2 ** 30, maxBufferSize: 2 ** 30, maxTextureDimension2D: 16384 },
+    requestDevice: async ({ requiredLimits }) => { state.requiredLimits = requiredLimits; Object.assign(device.limits, requiredLimits); return device; },
   };
   Object.assign(globalThis, {
     GPUBufferUsage: { MAP_READ: 1, COPY_SRC: 4, COPY_DST: 8, STORAGE: 128 }, GPUMapMode: { READ: 1 },
@@ -427,7 +432,14 @@ test('person.matte refuses unsupported options and hosts without hardware WebGPU
   await assert.rejects(runtime.run(noGpu.value), /requires WebGPU/);
   const software = matteContext(runtime);
   await withWebGpu({ fallback: true }, () => assert.rejects(runtime.run(software.value), /hardware WebGPU adapter/));
-  assert.deepEqual([...noGpu.state.downloads, ...software.state.downloads], []);
+  // A panorama within the host's pixel bound but wider than the adapter's 2D texture limit.
+  const panorama = matteContext(runtime, { width: 16385, height: 1, input: { source: { kind: 'image' } } });
+  const granted = await withWebGpu({}, async (state) => {
+    await assert.rejects(runtime.run(panorama.value), /WebGPU texture size limit/);
+    return state.requiredLimits;
+  });
+  assert.equal(granted.maxTextureDimension2D, 16384);
+  assert.deepEqual([...noGpu.state.downloads, ...software.state.downloads, ...panorama.state.downloads], []);
 });
 
 test('person.matte writes desktop-shaped PNG masks and manifest with recurrent GPU state', async (t) => {
@@ -494,4 +506,8 @@ test('person.matte writes desktop-shaped PNG masks and manifest with recurrent G
   assert.equal(imageManifest.sourceRange, undefined);
   assert.deepEqual(imageManifest.frames, [{ index: 0, sourceTimeSeconds: 0, file: 'alpha/000000.png' }]);
   assert.equal(image.state.runs.length, 1);
+
+  // A GPU error raised while validating the only frame fails the job.
+  const invalid = matteContext(runtime, { modelBytes, input: { source: { kind: 'image' } } });
+  await withWebGpu({ validationError: true }, () => assert.rejects(runtime.run(invalid.value), /stand-in validation error/));
 });

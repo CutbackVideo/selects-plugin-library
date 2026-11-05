@@ -344,6 +344,7 @@ async function requestHardwareDevice() {
   }
   const device = await adapter.requestDevice({ requiredLimits: {
     maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, maxBufferSize: adapter.limits.maxBufferSize,
+    maxTextureDimension2D: adapter.limits.maxTextureDimension2D,
   } });
   return { device, adapterInfo };
 }
@@ -377,6 +378,7 @@ async function runMatte(context) {
   const dispose = (tensors) => { for (const tensor of tensors ?? []) tensor?.dispose?.(); };
   try {
     if (pixels * 3 * 4 > device.limits.maxStorageBufferBindingSize) throw new Error('Source frame exceeds the WebGPU storage limit.');
+    if (Math.max(width, height) > device.limits.maxTextureDimension2D) throw new Error('Source frame exceeds the WebGPU texture size limit.');
     const [moduleBytes, wasmBytes, modelBytes] = await Promise.all([
       context.download(assets.ortWebGpuModule), context.download(assets.ortWebGpuWasm), context.download(assets.rvm),
     ]);
@@ -433,7 +435,10 @@ async function runMatte(context) {
       await device.queue.onSubmittedWorkDone();
       inferenceMilliseconds += now() - inferenceBegan;
       if (gpuError) throw gpuError;
-      if (expected === 0) await validateGpuFirstResult(device, result, width, height, false);
+      if (expected === 0) {
+        await validateGpuFirstResult(device, result, width, height, false);
+        if (gpuError) throw gpuError;
+      }
       dispose(rec);
       rec = [result.r1o, result.r2o, result.r3o, result.r4o];
       const alpha = result.pha;
