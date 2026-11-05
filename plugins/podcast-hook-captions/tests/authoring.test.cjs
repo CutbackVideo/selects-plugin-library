@@ -21,16 +21,6 @@ test('actual SDK typechecker and legacy tracking integration',{skip:!modules&&'S
    const check=typed.exports.typecheckQueryScript(script);assert.equal(check.ok,true,JSON.stringify(check));
   }
  });
- await t.test('actual host gate rejects old or unknown binaries and accepts the first shared-AI release',async()=>{
-  const compiled=await esbuild.build({entryPoints:[path.join(__dirname,'../src/pipeline/host.ts')],bundle:true,write:false,platform:'node',format:'cjs',plugins:[sdkFixturePlugin()]});
-  const host={exports:{}};new Function('require','module','exports',compiled.outputFiles[0].text)(dependency,host,host.exports);
-  const old=Object.getOwnPropertyDescriptor(globalThis,'window');let version;
-  host.exports.hostUseSdk(initializedSdk({},()=>version));
-  try{
-   for(version of ['', '2.0.537', '2.0.554', '2.0.559', '2.0.560junk'])assert.throws(()=>host.exports.requireSharedAiHost(),/Selects 2\.0\.560 or later/);
-   for(version of ['2.0.560','2.0.561','3.0.0'])assert.doesNotThrow(()=>host.exports.requireSharedAiHost());
-  }finally{if(old)Object.defineProperty(globalThis,'window',old);else delete globalThis.window;}
- });
  await t.test('late face observation cannot update a switched Project and close does not cancel host work',async()=>{
   const React=dependency('react'),{createRoot}=dependency('react-dom/client'),{JSDOM}=dependency('jsdom');
   const built=await esbuild.build({entryPoints:[path.join(__dirname,'../src/FaceStage.tsx')],bundle:true,write:false,platform:'node',format:'cjs',external:['react'],plugins:[sdkFixturePlugin(),{name:'face-stage-observation',setup(b){
@@ -101,3 +91,24 @@ test('actual SDK typechecker and legacy tracking integration',{skip:!modules&&'S
   const low=await run(shared.map(s=>({...s,faces:s.faces.map(f=>({...f,score:.79}))})));assert.equal(low.shots[0].face,null);
  });
 });
+
+test('actual host gate distinguishes web from installed binary versions',{skip:!modules&&'Set AI_PANEL_TEST_MODULES to existing Selects node_modules'},async()=>{
+ const dependency=createRequire(path.join(path.resolve(modules),'..','package.json'));
+ const esbuild=dependency('esbuild');
+  const compiled=await esbuild.build({entryPoints:[path.join(__dirname,'../src/pipeline/host.ts')],bundle:true,write:false,platform:'node',format:'cjs',plugins:[sdkFixturePlugin()]});
+  const host={exports:{}};new Function('require','module','exports',compiled.outputFiles[0].text)(dependency,host,host.exports);
+  const old=Object.getOwnPropertyDescriptor(globalThis,'window');let version;
+  host.exports.hostUseSdk(initializedSdk({},()=>version));
+  try{
+   for(version of ['', '2.0.537', '2.0.554', '2.0.559', '2.0.560junk'])assert.throws(()=>host.exports.requireSharedAiHost(),/Selects 2\.0\.560 or later/);
+   for(version of ['2.0.560','2.0.561','3.0.0'])assert.doesNotThrow(()=>host.exports.requireSharedAiHost());
+   // Web has no installed binary version, including in browsers on Mac/Windows.
+   for(const platform of ['darwin','win32','web']) {
+    const sdk=initializedSdk({},'');sdk.environment.platform=platform;
+    host.exports.hostUseSdk(sdk,'web');
+    assert.doesNotThrow(()=>host.exports.requireSharedAiHost());
+   }
+   host.exports.hostUseSdk(initializedSdk({},''),'desktop');
+   assert.throws(()=>host.exports.requireSharedAiHost(),/Selects 2\.0\.560 or later/);
+  }finally{if(old)Object.defineProperty(globalThis,'window',old);else delete globalThis.window;}
+ });

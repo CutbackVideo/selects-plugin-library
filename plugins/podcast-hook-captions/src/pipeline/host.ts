@@ -54,6 +54,8 @@ export function versionBelow(version: string, minimum: string): boolean {
 }
 
 export function requireSharedAiHost(): void {
+  // Web has no installed binary version; selects.ai checks task availability.
+  if (hostTarget === "web") return;
   const version = hostVersion();
   if (!/^\d+\.\d+\.\d+$/.test(version) || versionBelow(version, "2.0.560")) {
     throw new Error("Shared face tracking needs Selects 2.0.560 or later" + (version ? " (this is " + version + ")" : "") + ".");
@@ -170,5 +172,6 @@ export function lastJsonObject(text: string): any {
 }
 
 let hostSdk: ReturnType<typeof panelLocalClient>;
-export function hostUseSdk(sdk: Sdk) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
+let hostTarget: "desktop" | "web" = "desktop";
+export function hostUseSdk(sdk: Sdk, target: "desktop" | "web" = "desktop") { hostTarget = target; hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
 export function media(): any { return hostSdk.media; }

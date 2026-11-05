@@ -71,7 +71,16 @@ async function scoreSpeakerWindow({ort,yunet,model,video,width,height,rgb,pcm,st
     for(const {i,face} of track){face.activeSpeakerScore=scores[i];face.trackId=`window-${Math.round((start-rangeStart)*25)}:${id}`;}
   }
   state.sampleCount+=n;
-  return {frameCount:n,samples:samples.map(sample=>({...sample,faces:sample.faces.map(face=>({...face,box:Object.fromEntries(Object.entries(face.box).map(([k,v])=>[k,v/(k.includes('x')?width/video.width:height/video.height)])),landmarks:face.landmarks?.map(({x,y})=>({x:x/(width/video.width),y:y/(height/video.height)}))}))}))};
+  return {frameCount:n,samples:samples.map(sample=>({...sample,faces:sample.faces.map(face=>({
+    ...face,
+    box:Object.fromEntries(Object.entries(face.box).map(([key,value])=>{
+      const displaySize=key.includes('x')?video.width:video.height;
+      const analysisSize=key.includes('x')?width:height;
+      // Rescaling a clamped edge can round beyond the displayed raster.
+      return [key,Math.max(0,Math.min(displaySize,value/(analysisSize/displaySize)))];
+    })),
+    landmarks:face.landmarks?.map(({x,y})=>({x:x/(width/video.width),y:y/(height/video.height)})),
+  }))}))};
 }
 function newSpeakerState() {
   return {sampleCount:0,trackCount:0,letterbox:undefined,changeMilliseconds:0,faceMilliseconds:0,inferenceMilliseconds:0,faceDetections:0,denseWindows:0,sparseWindows:0,changeWindows:[]};

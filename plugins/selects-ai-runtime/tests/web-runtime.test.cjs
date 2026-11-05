@@ -214,7 +214,7 @@ test('web and desktop faces tasks write the same detections for the same frames'
 
 // Speakers: YuNet answers every detection with one face; the Light-ASD stand-in
 // scores frame i of a chunk as i, so window scores are deterministic.
-function speakerContext(runtime, { request, decodeWindow } = {}) {
+function speakerContext(runtime, { request, decodeWindow, width = 1280, height = 720, faceOutputs = ONE_FACE } = {}) {
   const yunetBytes = Uint8Array.of(9), asdBytes = Uint8Array.of(8);
   const state = { released: [], decoded: [], asdRuns: 0 };
   const ort = {
@@ -230,7 +230,7 @@ function speakerContext(runtime, { request, decodeWindow } = {}) {
             assert.deepEqual(inputs.audio.dims, [1, count * 4, 13]);
             return { scores: { data: Float32Array.from({ length: count }, (_, i) => i), dispose() {} } };
           }
-          return Object.fromEntries(Object.entries(ONE_FACE).map(([name, data]) => [name, { data, dispose() {} }]));
+          return Object.fromEntries(Object.entries(faceOutputs).map(([name, data]) => [name, { data, dispose() {} }]));
         },
         release: async () => state.released.push(model === asdBytes ? 'asd' : 'yunet'),
       }),
@@ -239,7 +239,7 @@ function speakerContext(runtime, { request, decodeWindow } = {}) {
   const value = {
     request: request ?? { contractVersion: 1, task: 'speakers.detect', input: { source: {}, sourceRange: { startSeconds: 0, endSeconds: 6 }, scoreThreshold: 0.8 } },
     source: {
-      width: 1280, height: 720,
+      width, height,
       decodeWindow: decodeWindow ?? (async (options) => {
         state.decoded.push(options);
         const frames = Math.ceil(options.durationSeconds * options.fps);
@@ -300,4 +300,22 @@ test('speakers reject images, hosts without window decoding and windows without 
   });
   await assert.rejects(runtime.run(silent.value), /No (audio samples|synchronized audio\/video samples)/);
   assert.deepEqual(silent.state.released.sort(), ['asd', 'yunet']);
+});
+
+
+test('speaker boxes touching an analysis edge stay inside the display raster', async () => {
+  const runtime = await loadWebRuntime();
+  const faceOutputs = outputs([{ index: 10 * 80 + 78, box: [0, 0, Math.log(8), Math.log(4)] }]);
+  const run = speakerContext(runtime, {
+    width: 1680, height: 1050, faceOutputs,
+    request: { contractVersion: 1, task: 'speakers.detect', input: { source: {}, sourceRange: { startSeconds: 0, endSeconds: 0.12 } } },
+  });
+  const document = (await runtime.run(run.value)).files.detections.json;
+  const faces = document.samples.flatMap(sample => sample.faces);
+  assert.ok(faces.length > 0);
+  for (const { box } of faces) {
+    assert.ok(box.xmin >= 0 && box.ymin >= 0);
+    assert.ok(box.xmax <= document.frameSize.width && box.ymax <= document.frameSize.height);
+    assert.equal(box.xmax, document.frameSize.width);
+  }
 });
