@@ -1,6 +1,6 @@
 # Install Portrait Beat Montage
 
-Experimental: macOS arm64 or Windows x64. Install this plugin and
+Experimental: macOS arm64, Windows x64 or web (hardware WebGPU). Install this plugin and
 `selects-ai-runtime` from the same library commit. Use a current Selects build
 that exposes `selects.ai`, the canonical files/media SDK and panel storage.
 

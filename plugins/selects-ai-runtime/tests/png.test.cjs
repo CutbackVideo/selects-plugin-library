@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { writeGrayPng } = require('../lib/png.cjs');
+const { encodeGrayPng } = require('../lib/gray-png.cjs');
 const { startTool } = require('../lib/process.cjs');
 
 async function fixture(t) {
@@ -57,6 +58,18 @@ test('invalid dimensions/layout are rejected before creating an output', async (
     await assert.rejects(writeGrayPng(file, width, height, pixels), /Invalid grayscale/);
   }
   await assert.rejects(fs.stat(file), { code: 'ENOENT' });
+});
+
+test('the browser encoder with CompressionStream deflate stores the desktop scanlines', async (t) => {
+  const file = await fixture(t);
+  const pixels = Uint8Array.from({ length: 31 * 7 }, (_, index) => (index * 37) % 256);
+  await writeGrayPng(file, 31, 7, pixels);
+  const deflate = async (bytes) => new Uint8Array(
+    await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const png = Buffer.from(await encodeGrayPng(31, 7, pixels, deflate));
+  const desktop = await fs.readFile(file);
+  assert.deepEqual(png.subarray(0, 33), desktop.subarray(0, 33));
+  assert.deepEqual(scanlines(png), scanlines(desktop));
 });
 
 const configFile = process.env.AI_RUNTIME_CONFIG;

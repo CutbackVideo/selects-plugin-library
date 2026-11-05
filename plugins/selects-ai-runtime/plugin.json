@@ -13,7 +13,7 @@
       "Windows x64",
       "web"
     ],
-    "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64. The web host runs faces.detect and speakers.detect through web/runtime.mjs."
+    "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64. The web host runs faces.detect and speakers.detect through web/runtime.mjs, and person.matte on a hardware WebGPU adapter."
   },
   "files": [
     ".gitignore",
@@ -110,7 +110,12 @@
     "web/runtime.source.mjs",
     "scripts/build-web-runtime.cjs",
     "tests/web-runtime.test.cjs",
-    "lib/speaker-window.cjs"
+    "lib/speaker-window.cjs",
+    "lib/onnx-wire.cjs",
+    "lib/rvm-conv-padding.cjs",
+    "lib/webgpu-rvm-session.cjs",
+    "lib/gray-png.cjs",
+    "tests/rvm-conv-padding.test.cjs"
   ],
   "runtime": "runtime.json",
   "webRuntime": "web/runtime.mjs"
