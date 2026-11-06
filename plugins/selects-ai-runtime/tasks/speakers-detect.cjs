@@ -6,10 +6,22 @@ const {writeJson}=require('../lib/files.cjs');
 const {createVerifiedModelSession}=require('../lib/models.cjs');
 const descriptor=require('../runtime.json');
 const {speakerWindows,speakerAnalysisSize,scoreSpeakerWindow,newSpeakerState,speakersOutput}=require('../lib/speaker-window.cjs');
-async function bytes(executable,args,signal,limit,metrics,operation) {
-  const p=startTool(executable,args,{signal,limit,metrics,operation});let size=0;const chunks=[];
-  try {for await(const chunk of p.child.stdout){size+=chunk.length;if(size>limit)throw new Error('Speaker decode exceeded bounded window');chunks.push(chunk);}await p.completed;return Buffer.concat(chunks);}
-  finally {if(p.child.exitCode===null)p.child.kill('SIGKILL');p.child.stdout.destroy();await p.completed.catch(()=>{});}
+async function decodeInto(executable, args, signal, buffer, metrics, operation) {
+  const process = startTool(executable, args, { signal, metrics, operation });
+  let size = 0;
+  try {
+    for await (const chunk of process.child.stdout) {
+      if (size + chunk.length > buffer.length) throw new Error('Speaker decode exceeded bounded window');
+      chunk.copy(buffer, size);
+      size += chunk.length;
+    }
+    await process.completed;
+    return buffer.subarray(0, size);
+  } finally {
+    if (process.child.exitCode === null) process.child.kill('SIGKILL');
+    process.child.stdout.destroy();
+    await process.completed.catch(() => {});
+  }
 }
 async function runSpeakers({request,config,outputDir,ort,video,emitProgress,signal,decoderMetrics={}}) {
   const started=performance.now(),range=request.input.sourceRange;
@@ -21,6 +33,9 @@ async function runSpeakers({request,config,outputDir,ort,video,emitProgress,sign
   const all=[],state=newSpeakerState();let decodeMilliseconds=0;
   try {
     model=await timings.measureAsync('modelLoad',()=>createVerifiedModelSession(ort,config.models.lightAsd,options));
+    // Scoring consumes both borrowed buffers before the next window starts.
+    const rgbBuffer = Buffer.allocUnsafe(width * height * 3 * 77);
+    const pcmBuffer = Buffer.allocUnsafe(16_000 * 2 * 4);
     for(const {start,duration} of speakerWindows(range)) {
       signal.throwIfAborted();
       // Source audio and video are decoded from the same origin. No external
@@ -29,10 +44,10 @@ async function runSpeakers({request,config,outputDir,ort,video,emitProgress,sign
       await emitProgress({step:'decoding',completed:start-range.startSeconds,total:range.endSeconds-range.startSeconds});
       const decodeBegan=performance.now();
       // Tool walls overlap; mediaDecode is the exclusive combined wait.
-      const decode=async(kind,...args)=>{const began=performance.now();try{return await bytes(...args,config.processMetrics,kind+'Decode');}finally{decoderMetrics[kind+'DecodeMs']=(decoderMetrics[kind+'DecodeMs']??0)+performance.now()-began;}};
+      const decode=async(kind,...args)=>{const began=performance.now();try{return await decodeInto(...args,config.processMetrics,kind+'Decode');}finally{decoderMetrics[kind+'DecodeMs']=(decoderMetrics[kind+'DecodeMs']??0)+performance.now()-began;}};
       const [rgb,audio]=await timings.measureAsync('mediaDecode',()=>Promise.all([
-        decode('video',config.tools.ffmpeg,[...common,'-an','-vf',`fps=25:start_time=0,scale=${width}:${height}`,'-pix_fmt','rgb24','-f','rawvideo','pipe:1'],signal,width*height*3*77),
-        decode('audio',config.tools.ffmpeg,[...common,'-vn','-ac','1','-ar','16000','-f','s16le','pipe:1'],signal,16000*2*4),
+        decode('video',config.tools.ffmpeg,[...common,'-an','-vf',`fps=25:start_time=0,scale=${width}:${height}`,'-pix_fmt','rgb24','-f','rawvideo','pipe:1'],signal,rgbBuffer),
+        decode('audio',config.tools.ffmpeg,[...common,'-vn','-ac','1','-ar','16000','-f','s16le','pipe:1'],signal,pcmBuffer),
       ]));
       decodeMilliseconds+=performance.now()-decodeBegan;
       const pcm=timings.measure('pcmInput',()=>Float64Array.from({length:audio.length/2},(_,i)=>audio.readInt16LE(i*2)));
