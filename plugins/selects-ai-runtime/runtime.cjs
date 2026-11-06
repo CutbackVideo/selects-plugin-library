@@ -14,7 +14,7 @@ const { probeVideo, decodeFrames } = require('./lib/video.cjs');
 const { probeImage, decodeImage } = require('./lib/image.cjs');
 const { verifyOutputs } = require('./lib/outputs.cjs');
 const { throwIfAborted } = require('./lib/errors.cjs');
-const { collectTool } = require('./lib/process.cjs');
+const { inspectRuntimeTool } = require('./lib/runtime-tools.cjs');
 const { faceParameters, sampleSelector } = require('./tasks/faces-detect.cjs');
 
 function argument(name) {
@@ -71,8 +71,10 @@ async function main() {
   const sourceStat = await fs.stat(request.input.source.path);
   if (!sourceStat.isFile()) throw new Error('Source is not a regular file');
   const toolVersions = await timings.measureAsync('toolVersions', () => Promise.all(['ffmpeg', 'ffprobe'].map(async name => {
-    const version = await collectTool(config.tools[name], ['-version'], { signal: controller.signal, limit: 256 * 1024, metrics: config.processMetrics, operation: 'toolVersion' });
-    return [name, version.split('\n')[0]];
+    const { version } = await inspectRuntimeTool(config.tools[name], {
+      signal: controller.signal, metrics: config.processMetrics, prepared: config.preparedTools?.[name],
+    });
+    return [name, version];
   })));
   const prepareMs = performance.now() - began;
   const probeBegan = performance.now();

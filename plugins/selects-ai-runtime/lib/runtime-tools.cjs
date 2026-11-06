@@ -1,6 +1,8 @@
 'use strict';
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { collectTool } = require('./process.cjs');
+const { throwIfAborted } = require('./errors.cjs');
 
 /** Production supplies absolute app paths; development may supply a bare media CLI. */
 async function resolveRuntimeTool(command, environment = process.env) {
@@ -15,4 +17,24 @@ async function resolveRuntimeTool(command, environment = process.env) {
   }
   throw new Error(`Media tool is unavailable: ${command}`);
 }
-module.exports = { resolveRuntimeTool };
+async function inspectRuntimeTool(executable, { signal, metrics, prepared } = {}) {
+  throwIfAborted(signal);
+  // Prepared tools have resolved absolute paths. Older/manual configs may
+  // still use a bare command, which keeps the original version probe.
+  let identity;
+  if (path.isAbsolute(executable)) {
+    const stat = await fs.stat(executable);
+    if (stat.isFile()) {
+      identity = JSON.stringify([executable, stat.dev, stat.ino, stat.size,
+        stat.mode, stat.mtimeMs, stat.ctimeMs]);
+    }
+  }
+  throwIfAborted(signal);
+  if (identity && prepared?.identity === identity && typeof prepared.version === 'string') return prepared;
+  const output = await collectTool(executable, ['-version'], {
+    signal, metrics, operation: 'toolVersion', limit: 256 * 1024,
+  });
+  return { identity, version: output.split('\n')[0] };
+}
+
+module.exports = { resolveRuntimeTool, inspectRuntimeTool };
