@@ -111,6 +111,7 @@
     "scripts/build-web-runtime.cjs",
     "tests/web-runtime.test.cjs",
     "lib/speaker-window.cjs",
+    "lib/speaker-time.cjs",
     "lib/onnx-wire.cjs",
     "lib/rvm-conv-padding.cjs",
     "lib/webgpu-rvm-session.cjs",

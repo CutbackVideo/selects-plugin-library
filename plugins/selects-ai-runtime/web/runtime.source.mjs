@@ -40,6 +40,7 @@ import yunetDecode from '../lib/yunet-decode.cjs';
 import faceSampling from '../lib/face-sampling.cjs';
 import runtimeAssets from '../lib/runtime-assets.cjs';
 import speakerWindow from '../lib/speaker-window.cjs';
+import speakerTime from '../lib/speaker-time.cjs';
 import rvmConvPadding from '../lib/rvm-conv-padding.cjs';
 import webgpuRvmSession from '../lib/webgpu-rvm-session.cjs';
 import grayPng from '../lib/gray-png.cjs';
@@ -239,7 +240,7 @@ async function runSpeakers(context) {
   const range = request.input.sourceRange;
   if (request.input.source?.kind === 'image') throw new Error('Speaker detection requires a video source');
   if (!range || !Number.isFinite(range.startSeconds) || !Number.isFinite(range.endSeconds)
-    || range.startSeconds < 0 || range.endSeconds <= range.startSeconds) {
+    || range.startSeconds < 0 || !speakerTime.isSpeakerDurationSupported(range)) {
     throw new Error('Expected nonempty sourceRange [startSeconds, endSeconds)');
   }
   if (typeof source.decodeWindow !== 'function' || typeof context.readPackageFile !== 'function') {

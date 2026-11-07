@@ -346,6 +346,32 @@ function detectFrameChanges(rgb,width,height,count){
 }
 module.exports={thumbnail,difference,detectFrameChanges};
   },
+  // --- lib/speaker-time.cjs (embedded verbatim) ---
+  "lib/speaker-time.cjs": function (module, exports, require) {
+'use strict';
+
+const MICROSECONDS_PER_SECOND = 1_000_000;
+const SPEAKER_WINDOW_MICROSECONDS = 3 * MICROSECONDS_PER_SECOND;
+const MAX_SPEAKER_MICROSECONDS = 60 * MICROSECONDS_PER_SECOND;
+
+// The decoder represents elapsed time in whole microseconds.
+function speakerDurationMicroseconds({startSeconds, endSeconds}) {
+  return Math.round((endSeconds - startSeconds) * MICROSECONDS_PER_SECOND);
+}
+
+function isSpeakerDurationSupported(range) {
+  if (!range) return false;
+  const duration = speakerDurationMicroseconds(range);
+  return duration >= 1 && duration <= MAX_SPEAKER_MICROSECONDS;
+}
+
+module.exports = {
+  MICROSECONDS_PER_SECOND,
+  SPEAKER_WINDOW_MICROSECONDS,
+  speakerDurationMicroseconds,
+  isSpeakerDurationSupported,
+};
+  },
   // --- lib/speaker-window.cjs (embedded verbatim) ---
   "lib/speaker-window.cjs": function (module, exports, require) {
 'use strict';
@@ -357,13 +383,22 @@ const {rgbToLetterboxBlob,decodeYuNet,mapFaceToDisplay}=require('./yunet-decode.
 const {mfcc}=require('./speaker-audio.cjs');
 const {trackFaces,interpolateTrack,smoothBoxes,facePixels}=require('./speaker-tracks.cjs');
 const {detectFrameChanges}=require('./frame-change.cjs');
+const {MICROSECONDS_PER_SECOND,SPEAKER_WINDOW_MICROSECONDS,speakerDurationMicroseconds}=require('./speaker-time.cjs');
 // Stable windows use ~3 fps YuNet; changed windows and Light-ASD use every frame.
 const DETECT_STRIDE=8;
 // Distribute the remainder across windows so a sub-frame tail cannot become
 // an empty decode request. Every window remains within the model's 3s scope.
 function speakerWindows(range) {
-  const length=range.endSeconds-range.startSeconds,count=Math.ceil(length/3);
-  return Array.from({length:count},(_,i)=>({start:range.startSeconds+length*i/count,duration:length/count}));
+  const length = speakerDurationMicroseconds(range);
+  const count = Math.ceil(length / SPEAKER_WINDOW_MICROSECONDS);
+  return Array.from({length: count}, (_, i) => {
+    const offset = Math.floor(length * i / count);
+    const end = Math.floor(length * (i + 1) / count);
+    return {
+      start: range.startSeconds + offset / MICROSECONDS_PER_SECOND,
+      duration: (end - offset) / MICROSECONDS_PER_SECOND,
+    };
+  });
 }
 // The analysis raster: at most 960x540, never upscaled.
 function speakerAnalysisSize(video) {
@@ -379,7 +414,7 @@ function speakerAnalysisSize(video) {
 async function scoreSpeakerWindow({ort,yunet,model,video,width,height,rgb,pcm,start,duration,rangeStart,scoreThreshold,state,onFacesDetected,signal,timings}) {
   // Web callers omit the optional desktop measurements.
   const timed=timings??{measure:(_,fn)=>fn(),measureAsync:(_,fn)=>fn()};
-  const stride=width*height*3,n=Math.min(Math.floor(rgb.length/stride),Math.floor((1+Math.ceil(Math.max(0,pcm.length-400)/160))/4),Math.ceil(duration*25));
+  const stride=width*height*3,n=Math.min(Math.floor(rgb.length/stride),Math.floor((1+Math.ceil(Math.max(0,pcm.length-400)/160))/4),Math.ceil(Math.round(duration * MICROSECONDS_PER_SECOND) / 40_000));
   if(n<1)throw new Error('No synchronized audio/video samples in speaker window');
   // Decide using every decoded frame before skipping any face detections.
   // Detect throughout changed windows so brief shots between sparse samples
@@ -936,6 +971,7 @@ const yunetDecode = requireShared("lib/yunet-decode.cjs");
 const faceSampling = requireShared("lib/face-sampling.cjs");
 const runtimeAssets = requireShared("lib/runtime-assets.cjs");
 const speakerWindow = requireShared("lib/speaker-window.cjs");
+const speakerTime = requireShared("lib/speaker-time.cjs");
 const rvmConvPadding = requireShared("lib/rvm-conv-padding.cjs");
 const webgpuRvmSession = requireShared("lib/webgpu-rvm-session.cjs");
 const grayPng = requireShared("lib/gray-png.cjs");
@@ -1135,7 +1171,7 @@ async function runSpeakers(context) {
   const range = request.input.sourceRange;
   if (request.input.source?.kind === 'image') throw new Error('Speaker detection requires a video source');
   if (!range || !Number.isFinite(range.startSeconds) || !Number.isFinite(range.endSeconds)
-    || range.startSeconds < 0 || range.endSeconds <= range.startSeconds) {
+    || range.startSeconds < 0 || !speakerTime.isSpeakerDurationSupported(range)) {
     throw new Error('Expected nonempty sourceRange [startSeconds, endSeconds)');
   }
   if (typeof source.decodeWindow !== 'function' || typeof context.readPackageFile !== 'function') {
