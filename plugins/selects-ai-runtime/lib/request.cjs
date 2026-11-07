@@ -1,5 +1,6 @@
 'use strict';
 const path = require('node:path');
+const {isSpeakerDurationSupported} = require('./speaker-time.cjs');
 const TASKS = new Set(['faces.detect', 'person.matte', 'speakers.detect']);
 function validateRequest(request) {
   if (!request || request.contractVersion !== 1 || !TASKS.has(request.task)) throw new Error('Unsupported AI request contract/task');
@@ -9,7 +10,7 @@ function validateRequest(request) {
   if (!['video', 'image'].includes(kind)) throw new Error('Unsupported source kind');
   const range = input.sourceRange;
   if (request.task === 'speakers.detect' && input.sampleEverySeconds !== undefined) throw new Error('Speaker detection uses fixed 25fps sampling');
-  if (request.task === 'speakers.detect' && (kind === 'image' || !range || range.endSeconds-range.startSeconds>60)) throw new Error('Speaker detection requires a video window of at most 60 seconds');
+  if (request.task === 'speakers.detect' && (kind === 'image' || !isSpeakerDurationSupported(range))) throw new Error('Speaker detection requires a video window of at most 60 seconds');
   if (kind === 'image') {
     if (range !== undefined || input.sampleEverySeconds !== undefined) throw new Error('Image input cannot have sourceRange or video sampling options');
     if (input.outputMode === 'foreground-video') throw new Error('Image input cannot produce foreground-video');

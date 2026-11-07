@@ -28,7 +28,7 @@ test('speaker windows cover fractional ranges without a sub-frame remainder',()=
   assert.ok(windows.every(w=>w.duration>=.04&&w.duration<=3));
   assert.equal(windows[0].start,start);
   windows.forEach((w,i)=>{if(i)assert.ok(Math.abs(w.start-windows[i-1].start-windows[i-1].duration)<1e-9);});
-  assert.ok(Math.abs(windows.at(-1).start+windows.at(-1).duration-start-length)<1e-9);
+  assert.ok(Math.abs(windows.at(-1).start+windows.at(-1).duration-start-length)<=0.5e-6);
  }
 });
 
@@ -94,4 +94,17 @@ test('a face cut away after 72% of a window is kept at either detection rate',()
  const frames=[...Array.from({length:10},(_,k)=>8*k),74];
  assert.equal(trackFaces(frames.map(i=>full[i]),8,75).length,1);
  assert.equal(trackFaces(frames.map(i=>({faces:i<46?[face()]:[]})),8,75).length,0);
+});
+
+test('speaker windows use decoder precision at the vine2 and 60-second boundaries', () => {
+ const {speakerWindows}=require('../lib/speaker-window.cjs');
+ const vine2={startSeconds:30559/30,endSeconds:31459/30};
+ assert.equal(speakerWindows(vine2).length,10);
+ assert.ok(speakerWindows(vine2).every(window=>window.duration===3));
+ assert.equal(speakerWindows({startSeconds:0,endSeconds:30.000001}).length,11);
+ const submit=(range)=>validateRequest({contractVersion:1,task:'speakers.detect',input:{source:{path:__filename},sourceRange:range}});
+ const range={startSeconds:124/30,endSeconds:1924/30};
+ assert.equal(submit(range).input.sourceRange,range);
+ assert.throws(()=>submit({...range,endSeconds:range.endSeconds+0.000001}),/60/);
+ assert.throws(()=>submit({startSeconds:1,endSeconds:1.0000001}),/video window/);
 });
