@@ -136,6 +136,11 @@ test('faces task records empty samples, actual source times, progress and releas
     assert.equal(result.metrics.emptySampleCount, 1);
     assert.deepEqual(progress.at(-1), { step: 'faces.detect', completed: 2, total: 2 });
     assert.equal(released, true);
+    const timing = result.metrics.stageTimings;
+    assert.equal(timing.stages.faceInference.calls, 2);
+    assert.equal(timing.stages.faceInput.calls, 2);
+    assert.equal(timing.stages.modelRelease.calls, 1);
+    assert.ok(timing.totalMilliseconds >= Object.values(timing.stages).reduce((sum, stage) => sum + stage.milliseconds, 0));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

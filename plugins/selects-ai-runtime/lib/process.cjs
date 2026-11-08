@@ -1,10 +1,15 @@
 'use strict';
 const { spawn } = require('node:child_process');
 const { throwIfAborted } = require('./errors.cjs');
+const { observeTool } = require('./tool-timings.cjs');
 
-function startTool(executable, args, { signal, onSpawn, stdin = false, limit = 64 * 1024 * 1024 } = {}) {
+function startTool(executable, args, { signal, onSpawn, stdin = false, limit = 64 * 1024 * 1024, metrics, operation } = {}) {
   throwIfAborted(signal);
-  const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: [stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
+  const timing = observeTool(metrics, operation, signal);
+  let child;
+  try { child = spawn(executable, args, { shell: false, windowsHide: true, stdio: [stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'] }); }
+  catch (error) { timing?.close(false); throw error; }
+  timing?.attach(child);
   onSpawn?.(child.pid);
   let stderr = '';
   child.stderr.on('data', bytes => { stderr = (stderr + bytes.toString()).slice(-8192); });

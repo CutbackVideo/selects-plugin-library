@@ -41,7 +41,7 @@ var MESSAGES = {
   checking: ["Checking it against the article\u2026", "\uC6D0\uBB38\uACFC \uB300\uC870\uD558\uACE0 \uC788\uC5B4\uC694\u2026"],
   repairing: ["Fixing problems the check found\u2026", "\uAC80\uC0AC\uC5D0\uC11C \uB098\uC628 \uBB38\uC81C\uB97C \uACE0\uCE58\uACE0 \uC788\uC5B4\uC694\u2026"],
   review: ["Review the script", "\uB300\uBCF8 \uAC80\uD1A0"],
-  reviewHint: ["Each line shows the article passage it comes from. Edit freely; numbers must match the article.", "\uBB38\uC7A5\uB9C8\uB2E4 \uADFC\uAC70\uAC00 \uB41C \uAE30\uC0AC \uC6D0\uBB38\uC744 \uD568\uAED8 \uBCF4\uC5EC \uC918\uC694. \uC790\uC720\uB86D\uAC8C \uACE0\uCE58\uB418 \uC22B\uC790\uB294 \uAE30\uC0AC\uC640 \uAC19\uC544\uC57C \uD574\uC694."],
+  reviewHint: ["Edit the whole script in one box, one sentence per line. Numbers must match the article; each sentence's article passage is listed below.", "\uB300\uBCF8 \uC804\uCCB4\uB97C \uD55C \uCE78\uC5D0\uC11C \uACE0\uCE60 \uC218 \uC788\uC5B4\uC694. \uD55C \uC904\uC5D0 \uD55C \uBB38\uC7A5\uC529 \uC368 \uC8FC\uC138\uC694. \uC22B\uC790\uB294 \uAE30\uC0AC\uC640 \uAC19\uC544\uC57C \uD558\uACE0, \uBB38\uC7A5\uBCC4 \uADFC\uAC70 \uC6D0\uBB38\uC740 \uC544\uB798\uC5D0\uC11C \uBCFC \uC218 \uC788\uC5B4\uC694."],
   headline1: ["Headline line 1", "\uD5E4\uB4DC\uB77C\uC778 1\uC904"],
   headline2: ["Headline line 2 (yellow box)", "\uD5E4\uB4DC\uB77C\uC778 2\uC904(\uB178\uB780 \uBC15\uC2A4)"],
   accent: ["Highlight in line 1 (optional)", "1\uC904 \uAC15\uC870 \uB2E8\uC5B4(\uC120\uD0DD)"],
@@ -55,7 +55,9 @@ var MESSAGES = {
   issue_register: ["Tone", "\uB9D0\uD22C"],
   rewritten: ["Rewritten by the check", "\uAC80\uC0AC\uC5D0\uC11C \uACE0\uCCD0 \uC4F4 \uBB38\uC7A5"],
   length: ["{chars} characters \xB7 about {sec} s", "{chars}\uC790 \xB7 \uC57D {sec}\uCD08"],
-  tooLong: ["Over {max} characters: the short will run past a minute.", "{max}\uC790\uB97C \uB118\uC5B4\uC694. 1\uBD84\uC744 \uB118\uAE38 \uC218 \uC788\uC5B4\uC694."],
+  tooLongHard: ["Over {max} characters. Shorten the script.", "{max}\uC790\uB97C \uB118\uC5C8\uC5B4\uC694. \uB300\uBCF8\uC744 \uC904\uC5EC \uC8FC\uC138\uC694."],
+  emptyScript: ["The script is empty.", "\uB300\uBCF8\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  sources: ["Article passage for each sentence ({n})", "\uBB38\uC7A5\uBCC4 \uADFC\uAC70 \uC6D0\uBB38 ({n})"],
   approve: ["Approve script", "\uB300\uBCF8 \uC2B9\uC778"],
   approved: ["Approved", "\uC2B9\uC778\uB428"],
   edit: ["Edit again", "\uB2E4\uC2DC \uACE0\uCE58\uAE30"],
@@ -427,7 +429,7 @@ function decodeHtml(bytes) {
 // src/pipeline/scripts.ts
 var J = (v) => JSON.stringify(v);
 var PLATE_FPS = "30000/1001";
-var PLATE_MAX_SECONDS = 90;
+var PLATE_MAX_SECONDS = 300;
 var READ_CHUNK = 49152;
 var envScript = () => ({
   summary: "Read the plug-in data folder",
@@ -691,6 +693,117 @@ async function readFileBase64(sdk, path, maxBytes) {
   let s = "";
   for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
   return btoa(s);
+}
+
+// src/prompts/text.ts
+var TTS_CHARS_PER_SEC = 6.2;
+var TARGET_CHARS = { min: 320, goal: [340, 360], max: 370 };
+var EDIT_MAX_CHARS = 1e3;
+var SENTENCE_COUNT = { min: 8, max: 14 };
+var FORMAL_END = /(\uB2C8\uB2E4|\uAE4C\uC694)[.?]$/;
+var SOFT_END = /\uB294\uB370\uC694[.?]$/;
+var HEADLINE_MAX_CHARS = 24;
+var isFormalEnding = (s) => FORMAL_END.test(s.trim()) || SOFT_END.test(s.trim());
+var isSoftEnding = (s) => SOFT_END.test(s.trim());
+var headlineMax = HEADLINE_MAX_CHARS;
+var normalizeWs = (s) => String(s ?? "").replace(/[\u2018\u2019\u201B]/g, "'").replace(/[\u201C\u201D\u201F]/g, '"').replace(/\s+/g, " ").trim();
+var eojeolCount = (s) => normalizeWs(s).split(" ").filter(Boolean).length;
+function rawNumberTokens(s) {
+  const out = String(s ?? "").match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
+  return out.map((t2) => t2.replace(/,/g, ""));
+}
+var UNIT_VALUE = { "\uCC9C": 1e3, "\uB9CC": 1e4, "\uC5B5": 1e8, "\uC870": 1e12 };
+var NUM = "\\d[\\d,]*(?:\\.\\d+)?";
+var UNIT = "[\uCC9C\uB9CC\uC5B5\uC870]";
+var AMOUNT_RE = new RegExp(`${NUM}(?:${UNIT}(?:\\s?${NUM}(?:${UNIT})?)*)?`, "g");
+function numberTokens(s) {
+  const out = [];
+  for (const m of String(s ?? "").match(AMOUNT_RE) ?? []) {
+    let total = 0;
+    for (const seg of m.matchAll(new RegExp(`(${NUM})(${UNIT})?`, "g"))) {
+      const n = parseFloat(seg[1].replace(/,/g, ""));
+      total += n * (seg[2] ? UNIT_VALUE[seg[2]] : 1);
+    }
+    out.push(String(Math.round(total * 1e6) / 1e6));
+  }
+  return out;
+}
+function estimateSeconds(sentences) {
+  const chars = sentences.map((x) => x.trim()).join(" ").length;
+  return chars / TTS_CHARS_PER_SEC;
+}
+var totalChars = (sentences) => sentences.map((x) => x.trim()).join(" ").length;
+function isObj(x) {
+  return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+// src/pipeline/script-text.ts
+var scriptBody = (sentences) => sentences.map((s) => s.text.trim()).join("\n");
+function splitScript(text) {
+  return String(text ?? "").split(/\r?\n/).flatMap((line) => line.split(/(?<=[.?!])\s+/)).map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+var core = (s) => s.trim().replace(/[.?!]+$/, "");
+var idNumber = (id) => /^s(\d+)$/.exec(id) ? Number(/^s(\d+)$/.exec(id)[1]) : 0;
+function applyScriptText(prev, text, body = "") {
+  const texts = splitScript(text);
+  const used = /* @__PURE__ */ new Set();
+  const kept = texts.map((t2) => {
+    const same = prev.findIndex((l, i) => !used.has(i) && l.text.trim() === t2);
+    if (same >= 0) used.add(same);
+    return same;
+  });
+  if (texts.length === prev.length) {
+    const free = prev.map((_, i) => i).filter((i) => !used.has(i));
+    let f = 0;
+    return texts.map((t2, k) => {
+      if (kept[k] >= 0) return prev[kept[k]];
+      const l = prev[free[f++]];
+      return { ...l, text: t2, edited: true, ...refind(l, t2, body) };
+    });
+  }
+  const contains = (l, t2) => !!core(l.text) && !!core(t2) && (l.text.includes(core(t2)) || t2.includes(core(l.text)));
+  let next = prev.reduce((m, l) => Math.max(m, idNumber(l.id)), 0) + 1;
+  return texts.map((t2, k) => {
+    if (kept[k] >= 0) return prev[kept[k]];
+    const near = prev.find((l, i) => !used.has(i) && contains(l, t2)) ?? prev.find((l) => contains(l, t2));
+    const line = { id: "s" + next++, text: t2, sourceQuote: near?.sourceQuote ?? "", issues: [], rewritten: false, edited: true };
+    if (near?.sourceQuote) return near.autoSource || pairs(t2).size < SOURCE_MIN_PAIRS ? { ...line, autoSource: true } : line;
+    return { ...line, ...refind(line, t2, body) };
+  });
+}
+function refind(l, t2, body) {
+  if (l.sourceQuote && !l.autoSource) return {};
+  const q = findSourceQuote(t2, body);
+  return { sourceQuote: q, autoSource: !!q };
+}
+var pairs = (s) => {
+  const c = [...s.replace(/[^\p{L}\p{N}]+/gu, "")];
+  const out = /* @__PURE__ */ new Set();
+  for (let i = 0; i + 1 < c.length; i++) out.add(c[i] + c[i + 1]);
+  return out;
+};
+var SOURCE_MATCH_MIN = 0.4;
+var SOURCE_MIN_PAIRS = 8;
+function findSourceQuote(text, body) {
+  const want = pairs(text);
+  if (want.size < SOURCE_MIN_PAIRS || !body) return "";
+  const nums = numberTokens(text);
+  let best = "", bestScore = 0;
+  for (const cand of normalizeWs(body).split(/(?<=[.?!]["'\u201D\u2019)]?)\s+/)) {
+    if (nums.length) {
+      const have = new Set(numberTokens(cand));
+      if (!nums.every((n) => have.has(n))) continue;
+    }
+    const got = pairs(cand);
+    let hit = 0;
+    for (const x of want) if (got.has(x)) hit++;
+    const score = hit / want.size;
+    if (score > bestScore) {
+      best = cand;
+      bestScore = score;
+    }
+  }
+  return bestScore >= SOURCE_MATCH_MIN ? best : "";
 }
 
 // src/VoicePicker.tsx
@@ -1049,10 +1162,10 @@ function Ribbon({ s, text, size = 40, bg = C.acc, fg = C.white, weight = 800 }) 
 function cardStyle(s, hero = false) {
   return { boxSizing: "border-box", background: C.card, border: (hero ? 3 : 2) * s.k + "px solid " + (hero ? C.acc : C.gold), borderRadius: 12 * s.k };
 }
-var NUM = /-?\d[\d,]*(?:\.\d+)?/g;
+var NUM2 = /-?\d[\d,]*(?:\.\d+)?/g;
 function countable(v) {
   const text = typeof v === "number" ? String(v) : String(v ?? "");
-  const hits = text.match(NUM) || [];
+  const hits = text.match(NUM2) || [];
   if (hits.length !== 1) return null;
   const raw = hits[0], at = text.indexOf(raw), dot = raw.indexOf(".");
   return { head: text.slice(0, at), tail: text.slice(at + raw.length), num: Number(raw.replace(/,/g, "")), decimals: dot < 0 ? 0 : raw.length - dot - 1, group: raw.includes(",") || Math.abs(Number(raw.replace(/,/g, ""))) >= 1e4 };
@@ -2096,47 +2209,6 @@ function creditQuote(chars) {
   return { estimated: Math.round(estimated * 100) / 100, held: Math.round(estimated * HOLD_FACTOR * 100) / 100 };
 }
 
-// src/prompts/text.ts
-var TTS_CHARS_PER_SEC = 6.2;
-var TARGET_CHARS = { min: 320, goal: [340, 360], max: 370 };
-var SENTENCE_COUNT = { min: 8, max: 14 };
-var FORMAL_END = /(\uB2C8\uB2E4|\uAE4C\uC694)[.?]$/;
-var SOFT_END = /\uB294\uB370\uC694[.?]$/;
-var HEADLINE_MAX_CHARS = 24;
-var isFormalEnding = (s) => FORMAL_END.test(s.trim()) || SOFT_END.test(s.trim());
-var isSoftEnding = (s) => SOFT_END.test(s.trim());
-var headlineMax = HEADLINE_MAX_CHARS;
-var normalizeWs = (s) => String(s ?? "").replace(/[\u2018\u2019\u201B]/g, "'").replace(/[\u201C\u201D\u201F]/g, '"').replace(/\s+/g, " ").trim();
-var eojeolCount = (s) => normalizeWs(s).split(" ").filter(Boolean).length;
-function rawNumberTokens(s) {
-  const out = String(s ?? "").match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
-  return out.map((t2) => t2.replace(/,/g, ""));
-}
-var UNIT_VALUE = { "\uCC9C": 1e3, "\uB9CC": 1e4, "\uC5B5": 1e8, "\uC870": 1e12 };
-var NUM2 = "\\d[\\d,]*(?:\\.\\d+)?";
-var UNIT = "[\uCC9C\uB9CC\uC5B5\uC870]";
-var AMOUNT_RE = new RegExp(`${NUM2}(?:${UNIT}(?:\\s?${NUM2}(?:${UNIT})?)*)?`, "g");
-function numberTokens(s) {
-  const out = [];
-  for (const m of String(s ?? "").match(AMOUNT_RE) ?? []) {
-    let total = 0;
-    for (const seg of m.matchAll(new RegExp(`(${NUM2})(${UNIT})?`, "g"))) {
-      const n = parseFloat(seg[1].replace(/,/g, ""));
-      total += n * (seg[2] ? UNIT_VALUE[seg[2]] : 1);
-    }
-    out.push(String(Math.round(total * 1e6) / 1e6));
-  }
-  return out;
-}
-function estimateSeconds(sentences) {
-  const chars = sentences.map((x) => x.trim()).join(" ").length;
-  return chars / TTS_CHARS_PER_SEC;
-}
-var totalChars = (sentences) => sentences.map((x) => x.trim()).join(" ").length;
-function isObj(x) {
-  return !!x && typeof x === "object" && !Array.isArray(x);
-}
-
 // src/prompts/script.ts
 var NIDA = "\uC2B5\uB2C8\uB2E4";
 var NEUNDEYO = "\uB294\uB370\uC694";
@@ -2269,7 +2341,7 @@ function fitProblems(type, p) {
 function result(errors, warnings, stats) {
   return { ok: errors.length === 0, errors, warnings, stats };
 }
-function checkRows(rows, headline, article, errors, warnings) {
+function checkRows(rows, headline, article, errors, warnings, countRule = true) {
   const body = normalizeWs(article.body);
   const bodyNums = new Set(numberTokens(article.body));
   for (const k of ["line1", "line2"]) {
@@ -2277,7 +2349,7 @@ function checkRows(rows, headline, article, errors, warnings) {
     if (typeof v !== "string" || !v.trim()) errors.push(`headline.${k} is missing`);
     else if (v.trim().length > headlineMax) errors.push(`headline.${k} is ${v.trim().length} chars; keep it within ${headlineMax}`);
   }
-  if (rows.length < SENTENCE_COUNT.min || rows.length > SENTENCE_COUNT.max) {
+  if (countRule && (rows.length < SENTENCE_COUNT.min || rows.length > SENTENCE_COUNT.max)) {
     errors.push(`need ${SENTENCE_COUNT.min}-${SENTENCE_COUNT.max} sentences, got ${rows.length}`);
   }
   let softCount = 0;
@@ -2315,7 +2387,7 @@ function checkLength(texts, errors) {
   }
   return chars;
 }
-function validateScript(json, article) {
+function validateScript(json, article, opts = {}) {
   const errors = [];
   const warnings = [];
   if (!isObj(json) || !isObj(json.headline) || !Array.isArray(json.sentences)) {
@@ -2324,9 +2396,9 @@ function validateScript(json, article) {
   const s = json.sentences;
   if (s.some((x) => !isObj(x))) return result(["every sentence must be an object {text, sourceQuote}"], [], {});
   const rows = s.map((x, i) => ({ label: `sentence ${i + 1}`, text: x.text, sourceQuote: x.sourceQuote }));
-  const { softCount } = checkRows(rows, json.headline, article, errors, warnings);
+  const { softCount } = checkRows(rows, json.headline, article, errors, warnings, !opts.edited);
   const texts = s.map((x) => String(x.text ?? ""));
-  const chars = checkLength(texts, errors);
+  const chars = opts.edited ? totalChars(texts) : checkLength(texts, errors);
   return result(errors, warnings, {
     sentences: s.length,
     chars,
@@ -5346,12 +5418,12 @@ async function createSubsetter(wasm) {
 // src/fonts/renameFamily.ts
 var RESERVED_FONT_NAMES = Object.freeze({ "Playfair Display": "EO Serif" });
 function renamePairs(from, to) {
-  const pairs = [[from, to]];
+  const pairs2 = [[from, to]];
   const a = from.replace(/\s+/g, ""), b = to.replace(/\s+/g, "");
-  if (a !== from) pairs.push([a, b]);
-  return pairs;
+  if (a !== from) pairs2.push([a, b]);
+  return pairs2;
 }
-function renameFamily(bytes, pairs) {
+function renameFamily(bytes, pairs2) {
   const dirs = sfntTables(bytes);
   const name = dirs.name;
   if (!name) throw new Error("The font has no name table.");
@@ -5372,7 +5444,7 @@ function renameFamily(bytes, pairs) {
       if (utf16) for (let k = 0; k + 1 < raw.length; k += 2) text += String.fromCharCode(raw[k] << 8 | raw[k + 1]);
       else text = String.fromCharCode(...raw);
       let next = text;
-      for (const [from, to] of pairs) next = next.split(from).join(to);
+      for (const [from, to] of pairs2) next = next.split(from).join(to);
       if (next !== text) {
         changed += 1;
         if (utf16) {
@@ -5608,7 +5680,7 @@ async function writeScript(sdk, article, preset, log, rec, provider) {
   return { script: { headline: draft.headline, sentences: draft.sentences.map((s) => ({ ...s, issues: [], rewritten: false })) }, errors: [...first.errors, ...fid.errors] };
 }
 function checkEdited(script, article) {
-  return validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article));
+  return validateScript({ headline: script.headline, sentences: script.sentences.map((s) => ({ text: s.text, sourceQuote: s.sourceQuote })) }, promptArticle(article), { edited: true });
 }
 var scriptText = (script) => joinScript(script.sentences.map((s) => s.text));
 var revisionOf = (script, voiceId) => ttsRevision(script.headline.line1 + "\n" + script.headline.line2 + "\n" + scriptText(script), voiceId);
@@ -6408,10 +6480,39 @@ var RULES2 = [
   [/^the opening scene should use the strongest visual/, () => "\uCCAB \uC7A5\uBA74\uC740 \uAE00\uC790 \uCE74\uB4DC\uBCF4\uB2E4 \uAC00\uC7A5 \uB208\uC5D0 \uB744\uB294 \uC0AC\uC9C4\uC774\uB098 \uADF8\uB798\uD53D\uC774 \uC88B\uC544\uC694."],
   [/^assetSummaries is missing a summary|^scenes must cover every sentence|^reply must be an object/, () => REBUILD]
 ];
+var SCRIPT_RULES = [
+  [/^sourceQuote is empty/, () => "\uAE30\uC0AC\uC5D0\uC11C \uADFC\uAC70 \uBB38\uC7A5\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^sourceQuote is not an exact substring/, () => "\uADFC\uAC70 \uBB38\uC7A5\uC774 \uAE30\uC0AC \uC6D0\uBB38\uACFC \uB611\uAC19\uC9C0 \uC54A\uC544\uC694. \uAE30\uC0AC \uB0B4\uC6A9\uACFC \uB9DE\uB294\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^number "(.+)" does not appear in the article/, (m) => "\uC22B\uC790 \u201C" + m[1] + "\u201D\uAC00 \uAE30\uC0AC\uC5D0 \uC5C6\uC5B4\uC694. \uAE30\uC0AC\uC5D0 \uB098\uC628 \uC22B\uC790\uC778\uC9C0 \uD655\uC778\uD574 \uC8FC\uC138\uC694."],
+  [/^must end with a formal polite ending/, () => "\u2018~\uB2C8\uB2E4.\u2019\uB098 \u2018~\u3139\uAE4C\uC694?\u2019\uB85C \uB05D\uB098\uB294 \uC874\uB313\uB9D0 \uBB38\uC7A5\uC73C\uB85C \uC368 \uC8FC\uC138\uC694."],
+  [/^(\d+) words is too long for one spoken sentence \(max (\d+)\)/, (m) => m[1] + "\uC5B4\uC808\uC774\uB77C \uD55C \uBC88\uC5D0 \uC77D\uAE30\uC5D4 \uAE38\uC5B4\uC694(\uCD5C\uB300 " + m[2] + "\uC5B4\uC808). \uBB38\uC7A5\uC744 \uB098\uB220 \uC8FC\uC138\uC694."],
+  [/^only (\d+) words/, (m) => m[1] + "\uC5B4\uC808\uBFD0\uC774\uC5D0\uC694."],
+  [/^empty text/, () => "\uBB38\uC7A5\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  [/^is missing/, () => "\uBE44\uC5B4 \uC788\uC5B4\uC694."],
+  [/^is (\d+) chars; keep it within (\d+)/, (m) => m[1] + "\uC790\uC608\uC694. " + m[2] + "\uC790 \uC774\uB0B4\uB85C \uC904\uC5EC \uC8FC\uC138\uC694."],
+  [/^need (\d+)-(\d+) sentences, got (\d+)/, (m) => "\uBB38\uC7A5\uC740 " + m[1] + "~" + m[2] + "\uAC1C\uC5EC\uC57C \uD574\uC694(\uC9C0\uAE08 " + m[3] + "\uAC1C)."],
+  [/^narration is (\d+) chars \(spaces included\); the hard cap is (\d+)/, (m) => "\uB098\uB808\uC774\uC158\uC774 " + m[1] + "\uC790(\uB744\uC5B4\uC4F0\uAE30 \uD3EC\uD568)\uC608\uC694. \uCD5C\uB300 " + m[2] + "\uC790\uB97C \uB118\uC5C8\uC5B4\uC694."],
+  [/^narration is only (\d+) chars; aim for (\d+)-(\d+)/, (m) => "\uB098\uB808\uC774\uC158\uC774 " + m[1] + "\uC790\uB85C \uC9E7\uC544\uC694. " + m[2] + "~" + m[3] + "\uC790\uB85C \uB298\uB824 \uC8FC\uC138\uC694."]
+];
 function issueText(lang, msg) {
   if (!String(lang || "").toLowerCase().startsWith("ko")) return msg;
   let rest = msg, scene = "", type = "", path = "";
-  let m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
+  let m = /^(?:sentence s?(\d+): |headline\.line([12]) )(.*)$/.exec(msg);
+  if (m) {
+    const what = m[1] ? m[1] + "\uBC88 \uBB38\uC7A5: " : "\uC81C\uBAA9 " + m[2] + "\uBC88\uC9F8 \uC904: ";
+    for (const [re, ko] of SCRIPT_RULES) {
+      const r = re.exec(m[3]);
+      if (r) return what + ko(r);
+    }
+    return msg;
+  }
+  if (/^(?:need \d|narration is )/.test(msg)) {
+    for (const [re, ko] of SCRIPT_RULES) {
+      const r = re.exec(msg);
+      if (r) return ko(r);
+    }
+  }
+  m = /^scene (\d+)\b:? ?(.*)$/.exec(rest);
   if (m) {
     scene = m[1] + "\uBC88 \uC7A5\uBA74: ";
     rest = m[2];
@@ -6435,7 +6536,7 @@ import { Fragment, jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
 var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 };
 var muted2 = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
-var MAX_CHARS = TARGET_CHARS.max;
+var HARD_MAX_CHARS = EDIT_MAX_CHARS;
 var warn = { color: "#d9822b", fontSize: 12 };
 var field3 = { ...muted2, display: "flex", flexDirection: "column", gap: 2 };
 var thumbBox = { width: 56, height: 100, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
@@ -6489,6 +6590,7 @@ function NewsMinutePanel({ sdk, context }) {
   const [narrationRecovery, setNarrationRecovery] = useState2(false);
   const [status, setStatus] = useState2("");
   const [lines, setLines] = useState2([]);
+  const [scriptDraft, setScriptDraft] = useState2(null);
   const [error, setError] = useState2("");
   const [providers, setProviders] = useState2(null);
   const [providerError, setProviderError] = useState2("");
@@ -6693,15 +6795,17 @@ function NewsMinutePanel({ sdk, context }) {
     }
     await update({ ...selected, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
   });
-  const setLine = (i, v) => {
+  const setScriptText = (v) => {
     if (!s.script) return;
-    const sentences = s.script.sentences.map((x, k) => k === i ? { ...x, text: v, edited: true } : x);
+    const sentences = applyScriptText(s.script.sentences, v, s.article?.body);
+    setScriptDraft({ text: v, sentences });
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
   const setHead = (k, v) => s.script && update({ ...s, script: { ...s.script, headline: { ...s.script.headline, [k]: v } }, approved: null });
   const approve = () => guard(async () => {
-    if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
-    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
+    if (chars > HARD_MAX_CHARS) throw new Error(T("tooLongHard", { max: HARD_MAX_CHARS }));
+    if (!s.script.sentences.length) throw new Error(T("emptyScript"));
+    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).map((x) => issueText(lang, x)).join("\n") })) return;
     const projectId = await ensureProject(sdk, env.current, s);
     await update({ ...s, projectId, approved: revisionOf(s.script, s.voiceId) });
     setTts(await readTts(sdk, projectId));
@@ -7097,7 +7201,7 @@ function NewsMinutePanel({ sdk, context }) {
         /* @__PURE__ */ jsxs2(Step, { done: !!plan, summary: T("scriptDone", { n: sc.sentences.length }), children: [
           /* @__PURE__ */ jsx2("strong", { children: T("review") }),
           /* @__PURE__ */ jsx2("span", { style: muted2, children: T("reviewHint") }),
-          liveErrors.length ? /* @__PURE__ */ jsx2("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx2("div", { children: "\u2022 " + x }, i)) }) : null,
+          liveErrors.length ? /* @__PURE__ */ jsx2("div", { style: { color: "#d9822b", fontSize: 12 }, children: liveErrors.map((x, i) => /* @__PURE__ */ jsx2("div", { children: "\u2022 " + issueText(lang, x) }, i)) }) : null,
           /* @__PURE__ */ jsxs2("label", { children: [
             T("headline1"),
             /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.line1, disabled: busy || approved, onChange: (e) => setHead("line1", e.target.value) })
@@ -7110,27 +7214,41 @@ function NewsMinutePanel({ sdk, context }) {
             T("accent"),
             /* @__PURE__ */ jsx2("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
           ] }),
-          sc.sentences.map((x, i) => /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-            /* @__PURE__ */ jsx2("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
-            /* @__PURE__ */ jsxs2("span", { style: muted2, children: [
-              T("source"),
-              ": ",
-              x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
-            ] }),
-            x.rewritten ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#4a90d9" }, children: T("rewritten") }) : null,
-            x.edited ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#d9822b" }, children: T("editedCheck") }) : null,
-            x.issues.length ? /* @__PURE__ */ jsxs2("span", { style: { ...muted2, color: "#d9822b" }, children: [
-              T("issues"),
-              ": ",
-              x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
-            ] }) : null
-          ] }, x.id)),
+          /* @__PURE__ */ jsx2(
+            "textarea",
+            {
+              style: input,
+              rows: Math.max(6, sc.sentences.reduce((n, x) => n + Math.ceil(([...x.text].length + 1) / 22), 0)),
+              value: scriptDraft && scriptDraft.sentences === sc.sentences ? scriptDraft.text : scriptBody(sc.sentences),
+              disabled: busy || approved,
+              onChange: (e) => setScriptText(e.target.value)
+            }
+          ),
+          /* @__PURE__ */ jsxs2("details", { open: sc.sentences.some((x) => x.edited || x.issues.length), children: [
+            /* @__PURE__ */ jsx2("summary", { style: muted2, children: T("sources", { n: sc.sentences.length }) }),
+            /* @__PURE__ */ jsx2("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }, children: sc.sentences.map((x, i) => /* @__PURE__ */ jsxs2("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
+              /* @__PURE__ */ jsxs2("span", { style: muted2, children: [
+                i + 1,
+                ". ",
+                T("source"),
+                ": ",
+                x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")
+              ] }),
+              x.rewritten ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#4a90d9" }, children: T("rewritten") }) : null,
+              x.edited ? /* @__PURE__ */ jsx2("span", { style: { ...muted2, color: "#d9822b" }, children: T("editedCheck") }) : null,
+              x.issues.length ? /* @__PURE__ */ jsxs2("span", { style: { ...muted2, color: "#d9822b" }, children: [
+                T("issues"),
+                ": ",
+                x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")
+              ] }) : null
+            ] }, x.id)) })
+          ] }),
           /* @__PURE__ */ jsx2("span", { style: muted2, children: T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) }) }),
-          chars > MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLong", { max: MAX_CHARS }) }) : null,
+          chars > HARD_MAX_CHARS ? /* @__PURE__ */ jsx2("span", { style: { color: "#d9822b", fontSize: 12 }, children: T("tooLongHard", { max: HARD_MAX_CHARS }) }) : null,
           approved ? /* @__PURE__ */ jsxs2("div", { style: { display: "flex", gap: 8, alignItems: "center" }, children: [
             /* @__PURE__ */ jsx2("span", { style: { whiteSpace: "nowrap", flex: "none" }, children: "\u2713 " + T("approved") }),
             /* @__PURE__ */ jsx2("button", { ...SECONDARY2, disabled: busy || tts?.state === "submitted" || tts?.state === "submitting", onClick: () => update({ ...s, approved: null }), children: T("edit") })
-          ] }) : /* @__PURE__ */ jsx2("button", { disabled: busy || chars > MAX_CHARS, onClick: approve, children: T("approve") })
+          ] }) : /* @__PURE__ */ jsx2("button", { disabled: busy || chars > HARD_MAX_CHARS || !sc.sentences.length, onClick: approve, children: T("approve") })
         ] })
       ),
       approved && next ? /* @__PURE__ */ jsxs2(Step, { done: !!plan && next.kind === "ready" && !narrationRecovery, summary: next.kind === "ready" ? T("narrated", { sec: next.durationSeconds.toFixed(1) }) : "", children: [

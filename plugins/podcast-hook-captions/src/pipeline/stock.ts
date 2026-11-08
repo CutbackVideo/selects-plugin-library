@@ -56,13 +56,32 @@ export async function stockClip(sdk: Sdk, queries: string[], orientation: "portr
       // only what the cards use and scales big renditions down.
       const src = out + ".src";
       const part = out + ".part.mp4";
+      let preserveSource = false;
       try {
         // The app's download has no deadline of its own.
         await Promise.race([fs().downloadFile(pick.url, src), sleep(120000).then(() => Promise.reject(new Error("The stock download took too long.")))]);
+        const probeArgs = ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,sample_aspect_ratio:stream_side_data=rotation", "-of", "json", src];
+        let source: any = {};
+        try { source = JSON.parse(await ffprobe("Probe stock source", probeArgs)).streams?.[0] || {}; }
+        catch (error: any) { if (error?.terminal || error?.preserveTemporaryFiles) throw error; }
+        // The legacy encoder auto-rotates before scaling; keep those display dimensions.
+        if ((source.side_data_list || []).some((row: any) => Math.abs(Number(row.rotation || 0)) % 180 === 90)) {
+          [source.width, source.height] = [source.height, source.width];
+        }
+        const [num, den] = String(source.avg_frame_rate).split("/").map(Number), fps = num / (den || 1);
+        const [nominalNum, nominalDen] = String(source.r_frame_rate).split("/").map(Number);
+        const nominalFps = nominalNum / (nominalDen || 1);
+        const scale = Math.max((orientation === "portrait" ? 1080 : 1920) / source.width, (orientation === "portrait" ? 1920 : 1080) / source.height);
+        const length = Number(Math.max(4, Math.min(12, seconds)).toFixed(1));
         await ffmpeg(
           "Cut stock B-roll",
           ["-v", "error", "-y", "-ss", "0.4", "-t", Math.max(4, Math.min(12, seconds)).toFixed(1), "-i", src, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", "-vf", "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2", "-f", "mp4", part],
-          150000
+          150000, false,
+          source.width > 0 && source.height > 0 && fps > 0 && Number.isFinite(fps) && (!nominalFps || Math.abs(nominalFps - fps) / fps < .001) &&
+          (source.side_data_list || []).every((row: any) => Number(row.rotation || 0) % 90 === 0) &&
+          (!source.sample_aspect_ratio || ["1:1", "0:1", "N/A"].includes(source.sample_aspect_ratio)) ? { sourcePath: src, outputPath: part, width: Math.ceil(source.width * scale / 2) * 2, height: Math.ceil(source.height * scale / 2) * 2,
+            frameRate: fps, frameCount: Math.ceil(length * fps), bitrate: 10000000,
+            sourceStartSeconds: .4, sourceEndSeconds: .4 + length, fit: "fill", endBehavior: "stop" } : undefined
         );
         // A virus scanner can hold a fresh file for a moment (Windows): try the rename a few times.
         for (let k = 0; ; k += 1) {
@@ -74,12 +93,14 @@ export async function stockClip(sdk: Sdk, queries: string[], orientation: "portr
             await sleep(200 * (k + 1));
           }
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.preserveTemporaryFiles) { preserveSource = true; throw e; }
+        if (e?.terminal) throw e;
         (await removeFile(part));
         lastErr = e;
         continue;
       } finally {
-        (await removeFile(src));
+        if (!preserveSource) (await removeFile(src));
       }
     }
     const probe = (await ffprobe("Probe stock B-roll", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", out]).catch(() => ""))

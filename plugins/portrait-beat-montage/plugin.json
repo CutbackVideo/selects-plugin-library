@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "portrait-beat-montage",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
@@ -28,9 +28,10 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
-    "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
+    "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64, Windows x64 or web (hardware WebGPU)."
   },
   "localized": {
     "de": {

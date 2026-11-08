@@ -59,13 +59,13 @@ async function hostRoots(sdk, id, marker) {
 // hold:start
 // Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
 // video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
-// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched. Full
-// source/output hashes and private source snapshots belong to the shared asset owner. Domain callbacks own
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched.
+// Sampled source/output identities and private source snapshots belong to the shared asset owner. Domain callbacks own
 // the encoding and whole-output validation. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
-const HOLD_ALGORITHM = 'photo-gallery-hold-v4-sampled-frozen-max1920-h264-crf18';
+const HOLD_ALGORITHM = 'photo-gallery-hold-v5-sampled-frozen-max1920-h264-webcodecs10m-crf18';
 function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed',publicMessage:message }); }
 // Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
 function holdPathKey(path) {
@@ -86,7 +86,8 @@ async function holdTool(kind, argv, seconds, options = {}) {
 async function holdProbe(path, countFrames = false, options = {}) {
   let result;
   try {
-    result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
+    result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []),
+      ...(countFrames === 'first-frame' ? ['-select_streams', 'v:0', '-read_intervals', '%+#1'] : []), '-show_entries',
       'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames:stream_side_data=rotation:stream_tags=rotate',
       '-of', 'json', path], 45, options);
   } catch (error) { if (error.code === 'host-missing' || error.terminal) throw error; throw holdError('Video cannot be decoded'); }
@@ -134,11 +135,17 @@ async function holdKey(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function holdEncode(source, target, frames, options = {}) {
+async function holdEncode(source, target, frames, options = {}, dimensions) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
   // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
-  const filters = 'fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6) + ',' + scale;
+  // Scale each decoded source frame once, before fps/tpad duplicate it.
+  const filters = scale + ',fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6);
+  if (dimensions && typeof options.client?.media?.runVideoTranscode === 'function') {
+    const media = options.client.media;
+    const request = { sourcePath: source, outputPath: target, width: dimensions[0], height: dimensions[1], frameRate: HOLD_FPS, frameCount: frames, bitrate: 10000000 };
+    options = { ...options, client: { ...options.client, media: { ...media, runFFmpeg: (args, quiet, signal) => media.runVideoTranscode(request, args, quiet, signal) } } };
+  }
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
@@ -149,7 +156,7 @@ async function holdConvertOne(source, identity, sourceDimensions, frames, cacheR
   const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.scheme,identity.digest,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
   const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,
-    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
+    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,'first-frame',options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options,dimensions);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
 }
@@ -169,10 +176,11 @@ async function holdVideos(request, dataDir, options = {}) {
   }
   if(typeof globalThis.crypto?.subtle?.digest!=='function')throw holdError('Update Selects to verify complete source media contents');
   const cacheRoot = files.join(dataDir, 'held-v3'),selected=new Map();
-  // Observe every requested source before generating any derived file.
+  // Admit every source with one decoded video frame; the encoder and final output
+  // validation check the remaining frames without two full source decoding passes.
   for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
     const identity=await readAssetFileIdentity(files,raw,current);
-    const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
+    const {video}=await holdProbe(raw,'first-frame',options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
   }
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
@@ -905,22 +913,29 @@ async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false,fitBu
   catch(error){error.safeNotSaved=true;throw error;}
 }
 
-async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{}}) {
+async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{},onStage=()=>{}}) {
+  onStage('verify-inputs');
   Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
+  onStage('plan');
   const plan=await planGalleryPreparation(sdk,input,isCurrent);
+  onStage('prepare-videos');
   input.media=await prepareVisuals(sdk,t,input.media,plan.preparation,input.projectId,onImportStarted,isCurrent);
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  onStage('resolve-resources');
   input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
+  onStage('preflight');
   const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
   if(preflight.isError||preflight.result?.status!=='ready')throw Object.assign(new Error(preflight.result?.message||preflight.output||t.failed),{safeNotSaved:true});
   await onDispatched();
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  onStage('create-draft');
   const response=await sdk.runScript({script:buildScript({...input,operation:'create',...runReceipt?{runReceipt}:{}}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
   if(typeof response.result?.draftId==='string'&&response.result.draftId)await onDraft(response.result.draftId);
   if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
-    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null});
+    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null,stage:result?.stage,code:result?.code});
   }
   const result=response.result;
+  onStage('verify-saved-draft');
   await verifyGallerySavedDraft(sdk,input.projectId,result);
   return {...result,verified:true,readReturned:true};
 }
@@ -1386,29 +1401,40 @@ function GalleryTemplateRun({ sdk, context }) {
     const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
     const say = text => { if (live()) setStatus(text); };
     preparing.say = say;
-    let dispatched = false, draftId = null;
+    let dispatched = false, draftId = null, phase = 'check-host';
+    const startedAt = Date.now();
+    const onStage = value => {
+      phase = value;
+      console.info('[photo-gallery-no2] template stage', JSON.stringify({phase,elapsedMs:Date.now()-startedAt}));
+    };
     (async () => {
       try {
         if (!projectId) throw templateIssue('Open a Project, then try again.');
         requireGalleryAuthoringHost(sdk);
         const app = window.parent, libraryId = templateLibrary(app, projectId, template);
         const request=galleryRunRequest(template);
+        onStage('check-readers');
         await requireGalleryRunReaders(sdk,projectId,request.music);
         const built=await executeTemplateRun(sdk,panelLocalClient(sdk).files,{pluginId:'photo-gallery-no2',libraryId,projectId,runId},request,live,async(runReceipt,onDispatch)=>{
+          onStage('resolve-selected-media');
           say('Finding your photos and videos…');
           const media=await templateTiles(sdk,app,projectId,libraryId,template?.inputs);
           if(!live())throw templateIssue('The template run ended before the Draft was made.');
           const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
+          onStage('verify-inputs');
           Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          onStage('face-focus');
           Object.assign(input,await focusGalleryPhotos(sdk,input,live));
+          onStage('plan');
           await planGalleryPreparation(sdk,input,live,false,request.music==='bundled');
           if(request.music!=='none'){
+            onStage('prepare-music');
             say('Adding the music…');
             const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,fps:input.fps,isCurrent:live,onImportStarted:()=>{}});
             input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,durationSeconds:audio.durationSeconds,startFrame:0};
           }
           say('Building the gallery…');
-          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
+          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onStage,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
         },result=>verifyGallerySavedDraft(sdk,projectId,result));
         draftId=built.draftId;
         if(!draftId||!Array.isArray(built.clips)||built.clips.length!==21)throw templateIssue('The saved Gallery could not be confirmed. Inspect the Project before starting a new run.');
@@ -1416,7 +1442,12 @@ function GalleryTemplateRun({ sdk, context }) {
         finish({ sequenceId: built.draftId });
       } catch (error) {
         if(!draftId&&typeof error?.draftId==='string'&&error.draftId)draftId=error.draftId;
-        console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), { draftId, dispatched });
+        const errors=[],seen=new Set();
+        for(let cause=error;cause&&!seen.has(cause)&&errors.length<5;cause=cause.cause){
+          seen.add(cause);
+          errors.push({message:String(cause.message||cause).slice(0,2000),code:cause.code,stage:cause.stage,safeNotSaved:cause.safeNotSaved});
+        }
+        console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), JSON.stringify({phase,elapsedMs:Date.now()-startedAt,draftId,dispatched,errors}));
         say('Stopped.');
         finish({ error: draftId ? TEMPLATE_PARTIAL+' ('+draftId+')' : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
       } finally {
@@ -1517,7 +1548,7 @@ function panelLocalPaths(platform: string) {
 
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
+async function createPanelLocalClient(sdk: any, fileObservation?: (files: any, path: string, check?: () => void, scheme?: string) => Promise<unknown>) {
   const SCRIPT_BYTES = 256 * 1024;
   const runSource = async (script: string, write = false) => {
     if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
@@ -1588,8 +1619,10 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
-    // One script owns every read and its deadline; only the compact digest returns.
-    mediaFingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
+    // Only observation consumers supply the self-contained old-host fallback.
+    ...(fileObservation ? {
+      mediaFingerprint: (path: string) => runSource("return await (" + fileObservation.toString() + ")(selects.files," + JSON.stringify(path) + ",undefined,\"cutback.media-content.v2\");"),
+    } : {}),
     readdir: (path: string) => run("files.readdir", [path]),
     // SDK-shaped requests support the same shared observation in SDK scripts and
     // the panel. Positional reads retain their existing byte/partial-EOF contract.
@@ -1683,13 +1716,31 @@ async function createPanelLocalClient(sdk: any) {
       cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
   });
   const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void, transcode?: Record<string, unknown>) => {
     if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
       signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
       onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
       throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    const legacyStart = "selects.media.start" + executable + "(" + JSON.stringify({ args }) + ")";
+    // Detect an absent interface before dispatch. Never retry an uncertain or failed job.
+    const requiredFeatures = transcode ? [
+      ...(/^https?:/i.test(String(transcode.sourcePath)) ? ["remote-source"] : []),
+      ...("sourceStartSeconds" in transcode || "sourceEndSeconds" in transcode ? ["source-range"] : []),
+      ...(transcode.inputKind === "image" ? ["image-input"] : []),
+      ...("fit" in transcode || "position" in transcode ? ["framing"] : []),
+      ...("endBehavior" in transcode ? ["end-behavior"] : []),
+    ] : [];
+    // Existing recipes may preserve a camera/photo size outside this job's bounds.
+    // Select their original argv before dispatch instead of silently resizing.
+    const withinTranscodeBounds = !transcode || (
+      [transcode.width, transcode.height].every(value => Number.isInteger(value) && Number(value) >= 2 && Number(value) <= 4096 && Number(value) % 2 === 0) &&
+      Number.isFinite(transcode.frameRate) && Number(transcode.frameRate) >= 1 && Number(transcode.frameRate) <= 120 &&
+      Number.isInteger(transcode.frameCount) && Number(transcode.frameCount) >= 1 && Number(transcode.frameCount) <= 36000 &&
+      Number.isFinite(transcode.bitrate) && Number(transcode.bitrate) >= 100000 && Number(transcode.bitrate) <= 100000000);
+    const startSource = transcode && withinTranscodeBounds
+      ? "const transcode = Reflect.get(selects.media, 'startVideoTranscode'); const discover = Reflect.get(selects.media, 'videoTranscodeFeatures'); const required = " + JSON.stringify(requiredFeatures.join(",")) + ".split(',').filter(Boolean); const features = required.length && typeof discover === 'function' ? await discover.call(selects.media) : []; return await (typeof transcode === 'function' && (!required.length || Array.isArray(features) && required.every(feature => features.includes(feature))) ? transcode.call(selects.media," + JSON.stringify(transcode) + ") : " + legacyStart + ");"
+      : "return await " + legacyStart + ";";
     if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
     let started: any;
     const starting = runSource(startSource, true);
@@ -1774,6 +1825,7 @@ async function createPanelLocalClient(sdk: any) {
     environment,
     media: {
       runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runVideoTranscode: (request: Record<string, unknown>, fallbackArgs: string[], quiet?: boolean, signal?: AbortSignal) => process("FFmpeg", fallbackArgs, quiet, signal, undefined, undefined, request),
       runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
     },
     dialogs: {
@@ -1791,7 +1843,7 @@ function panelLocalClient(sdk: any): any {
   if (!client) throw new Error("Local SDK has not initialized.");
   return client;
 }
-function withPanelLocalClient(Component: any) {
+function withPanelLocalClient(Component: any, fileObservation?: Parameters<typeof createPanelLocalClient>[1]) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
     const reported = React.useRef(new WeakMap<object, Set<string>>());
@@ -1813,7 +1865,7 @@ function withPanelLocalClient(Component: any) {
       };
       // This is a read-only bootstrap observation, not a mutation retry or cancel.
       const timer = setTimeout(() => fail(true), 30000);
-      createPanelLocalClient(props.sdk).then(value => {
+      createPanelLocalClient(props.sdk, fileObservation).then(value => {
         client = {...props.sdk, ...value};
         if (!active || settled) { value.dispose(); return; }
         settled = true; clearTimeout(timer);
@@ -1845,7 +1897,7 @@ function withPanelLocalClient(Component: any) {
   };
 }
 
-export default withPanelLocalClient(Panel);
+export default withPanelLocalClient(Panel, fingerprintTemplateFile);
 // local-sdk:end
 
 // app-update-guard:start

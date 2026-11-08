@@ -108,3 +108,28 @@ test('cache publication enforces both count and total byte budgets', async () =>
   await probeJSON(config, source, args);
   assert.equal(await calls(), 1);
 }));
+
+
+test('probe measurements distinguish cached metadata from actual tool execution', async () => fixture(async ({source,config,args}) => {
+  const metrics = { cacheHits:0,toolCalls:0,toolMilliseconds:0 };
+  const first=await probeJSON(config,source,args,undefined,undefined,metrics);
+  assert.equal(metrics.toolCalls,1);assert.equal(metrics.cacheHits,0);
+  assert.ok(metrics.toolMilliseconds>0);
+  const elapsed=metrics.toolMilliseconds;
+  assert.deepEqual(await probeJSON(config,source,args,undefined,undefined,metrics),first);
+  assert.equal(metrics.cacheHits,1);assert.equal(metrics.toolCalls,1);
+  assert.equal(metrics.toolMilliseconds,elapsed);
+}));
+
+test('metadata and frame timeline have independent hit/miss clocks and cache hits launch no process', async () => fixture(async ({source, config, args}) => {
+  const metrics = { cacheHits:0, toolCalls:0, toolMilliseconds:0 };
+  config.processMetrics = {};
+  const first = await probeJSON(config, source, args, undefined, undefined, metrics, 'metadata');
+  assert.deepEqual(await probeJSON(config, source, args, undefined, undefined, metrics, 'metadata'), first);
+  await probeJSON(config, source, [...args, 'timeline'], undefined, undefined, metrics, 'frameTimeline');
+  assert.equal(metrics.operations.metadata.calls, 2);
+  assert.equal(metrics.operations.metadata.cacheHits, 1); assert.equal(metrics.operations.metadata.cacheMisses, 1);
+  assert.equal(metrics.operations.frameTimeline.cacheMisses, 1); assert.equal(metrics.operations.frameTimeline.cacheHits, 0);
+  assert.equal(config.processMetrics.metadata.calls, 1); assert.equal(config.processMetrics.frameTimeline.calls, 1);
+  assert.ok(metrics.operations.metadata.milliseconds > 0 && metrics.operations.frameTimeline.milliseconds > 0);
+}));

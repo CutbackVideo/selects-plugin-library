@@ -167,3 +167,51 @@ Clients must check the host's `activeSpeakerSupported` before submission.
 ## Optional preparation reuse sidecar
 
 CPU face/speaker preparation writes `preparation-reuse.json` next to the requested output config. Version 1 contains absolute `paths` covering the complete native environment (including common modules and its ready marker), pinned model files and resolved media tools. A supporting host may reuse successful JSON configuration only while these dependencies, runtime source, task and child environment remain unchanged. Worker model pins and fresh session creation remain required. Runtimes with transient hardware/permission decisions omit this sidecar; shared matte preparation always does. Missing, invalid or unsupported sidecars mean ordinary per-job preparation. Old hosts ignore the file.
+
+## Web runtime (faces.detect, speakers.detect, person.matte)
+
+`plugin.json` names `webRuntime: "web/runtime.mjs"`, a single self-contained ES module that Selects' web host imports in a dedicated Worker. Web hosts admit this package, and plugins that require it, only because of that declaration; a runtime without `webRuntime` stays desktop-only. The module exports `contractVersion: 1`, `tasks: ["faces.detect", "speakers.detect", "person.matte"]`, its pinned `assets` and `run(context)`.
+
+The host passes the desktop `request.json` shape without a file path, plus:
+
+- `source` for `faces.detect`: `width`/`height` in displayed pixels (track rotation and EXIF orientation applied), `frameTimes` (ascending source seconds inside `sourceRange`, the first displayed frame being zero; `[0]` for a photo), and `frames(indices)`, an async iterable of packed RGB24 frames for those indices in order.
+- `source` for `speakers.detect`: `width`/`height` and `decodeWindow({ startSeconds, durationSeconds, fps, width, height, audioSampleRate })`, which resolves `{ rgb, pcm }`: the frames and mono signed 16-bit audio that desktop's two FFmpeg commands write for that window.
+- `source` for `person.matte`: `width`/`height`, `frameTimes` as for faces, and `canvases(indices)`, an async iterable of `{ index, sourceTimeSeconds, canvas }` in order, where `canvas` is an `OffscreenCanvas` or `ImageBitmap` of the displayed frame at `width` x `height`. For video it may add `timeline: { timeBase: { numerator, denominator }, pts, averageFrameRate: "N/D", firstIndex }`: the integer ticks of every displayed frame relative to the first and the `pts` index of `frameTimes[0]`. When these ticks verify a constant frame rate (`lib/constant-frame-rate.cjs`), the manifest records `sourceFrameRate` and the complete frame-index `sourceRange` exactly as desktop does; without `timeline` it records neither.
+- `writeOutput(relativePath, bytes)` (`person.matte`): stores one job output file, `alpha/NNNNNN.png`.
+- `download({ url, size, sha256 })`: verified network bytes. The host accepts only `https` pins and rejects any size or digest mismatch.
+- `readPackageFile({ path, size, sha256 })`: a verified file listed in this package, such as the bundled Light-ASD model. The web host stores only `web/runtime.mjs` and the Panel when it installs this package, and reads other listed files from the installed library commit on demand.
+- `importModule(bytes)`, `emitProgress(event)` and `signal`.
+
+`run` returns `{ files: { detections: { name, mediaType, json } }, metrics, diagnostics }` with `faces.json` or `speakers.json` in the desktop schema, or `{ files: { manifest: { name: "matte.json", mediaType, json } }, metrics, diagnostics }` for `person.matte`. The host validates and stores the document, then serves it through the same `selects.ai` result and `readJSON` calls as on desktop. `diagnostics.backend` is `onnxruntime-web-wasm` for faces and speakers and `onnxruntime-web-webgpu` for matte.
+
+`person.matte` on web runs the desktop WebGPU path in the browser: the same derived RVM model (`lib/rvm-conv-padding.cjs` writes the bytes of the desktop protobufjs transform without a protobuf library), session options and GPU first-frame validation (`lib/webgpu-rvm-session.cjs`), fresh recurrent state per job and one fresh-state inference for an image. Each canvas is copied to an `rgba8unorm` texture with `copyExternalImageToTexture` and a compute shader writes the planar float RGB input, so source pixels are not read back. It accepts `provider: "auto"` (the default), `alphaEncoding: "grayscale-png-8bit"` and alpha frames only; other providers, AVIF and `foreground-video` are refused. Before any frame it requires `navigator.gpu` and a hardware adapter (no fallback or software adapter, any vendor); there is no CPU or WASM fallback during a job. `matte.json` has the desktop schema; its diagnostics report `selectedProvider: "webgpu"`, the adapter, the derived model metadata and `preprocessing: "canvas-copy-external-image-rgba8-to-planar-f32"`. PNG masks have the desktop Paeth-filtered scanlines, compressed with `CompressionStream("deflate")`.
+
+Speaker scoring is `lib/speaker-window.cjs`, shared with `tasks/speakers-detect.cjs`: the same windows, analysis size, change detection, YuNet stride, tracking, MFCC and Light-ASD passes. On identical decoded input the web task writes the desktop document (boxes within 0.0002 px, scores within 1e-6). The web host decodes with WebCodecs only and fails a source it cannot decode with `AI_SOURCE_UNSUPPORTED` before `run` is called, so this module never sees an undecodable file. Browser and FFmpeg decoding differ slightly in pixels, so results from the same file are close to, not identical with, desktop.
+
+ONNX Runtime Web 1.30.0 is pinned to the single-file WebAssembly build (`ort.wasm.bundle.min.mjs` and `ort-wasm-simd-threaded.wasm`, matching the npm tarball); matte uses its WebGPU build (`ort.webgpu.bundle.min.mjs` and `ort-wasm-simd-threaded.asyncify.wasm`). The original RVM model is downloaded from Cutback's CDN copy of the GitHub release file (same size and SHA-256), because the release URL sends no CORS headers. The verified binary is passed to ONNX Runtime directly, and the runtime is single-threaded because browsers without cross-origin isolation have no shared memory.
+
+`web/runtime.mjs` is generated. Edit `web/runtime.source.mjs` or the shared libraries it imports, then run `node scripts/build-web-runtime.cjs`. The build embeds every reachable `lib/*.cjs` verbatim in a small module table and refuses any library that loads something other than a sibling `./*.cjs`, so desktop and web share one implementation. `tests/web-runtime.test.cjs` fails when the generated file is stale. With `YUNET_MODEL` set, it also checks that the web and desktop face tasks write identical detections; with `RVM_MODEL` set, it runs `person.matte` against a stand-in WebGPU device on the real derived model. `tests/rvm-conv-padding.test.cjs` checks the derived model SHA-256 against desktop's when `RVM_MODEL` is set.
+
+## Desktop analysis latency measurements
+
+Face and speaker result `metrics.stageTimings` contain exclusive cumulative
+`{ calls, milliseconds }` stages, `totalMilliseconds`, and `otherMilliseconds`.
+They separate model loading/release, RGB/PCM or tensor preparation, YuNet
+`faceInference`, Light-ASD `speakerInference`, postprocessing, and file writing.
+Only awaited model `session.run()` calls count as inference. Existing timing
+fields retain their previous (sometimes broader) meanings.
+
+For speakers, `mediaDecode` measures the combined wait for concurrent video and
+audio FFmpeg tools per window. `videoDecodeMs` and `audioDecodeMs` are overlapping
+tool wall times: do not add them together or to `mediaDecode`. For faces,
+`mediaDecodeWait` measures iterator advancement including RGB assembly; decoding
+can also progress while inference runs, so it is exposed decode wait, not full
+FFmpeg CPU time. `decoderWaitMs` measures the narrower stdout wait.
+
+`runtimeTimings` separates source probing, native module loading, model checksum,
+tool version checks, the entire task, and output validation. Its `task` includes
+all `stageTimings`; those two summaries must not be added together. `probeMetrics`
+records successful metadata cache hits, FFprobe calls and cumulative tool wall
+time. A fresh analysis request can still reuse metadata and installed models.
+No source paths, pixels, audio, transcripts or model outputs are added to these
+measurements. This instrumentation does not change sampling or inference settings.

@@ -51,7 +51,7 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/archive-vlog.json > "$RUNNER_TEMP/archive-feature-ownership.json"
       - name: Test shared host files and independent media adapters
-        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/host_files_adapter.test.mjs tests/mini_media_scope.test.mjs tests/common_async_sdk.test.mjs
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/host_files_adapter.test.mjs tests/mini_media_scope.test.mjs tests/common_async_sdk.test.mjs tests/video_transcode_recipes.test.mjs
       - name: Test shared template text and dictionary isolation
         run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_text.test.mjs
       - name: Test shared RGB color-filter rendering
@@ -82,7 +82,7 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_bootstrap.test.mjs tests/polaroid_input_paths.test.mjs
           node --test tests/local_client_sync.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/local_media_settlement.test.mjs tests/media_unconfirmed_workspace.test.mjs tests/archive_media_settlement.test.mjs
-          node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump,photo-gallery-no2,mini-vlog,archive-vlog --check
+          node tools/sync_panel_local_client.mjs --only=photo-gallery-no2,postcard-cutout-studio,multicam-generator,gongju-gallery,chris-williamson-style --check
       - name: Test Place Count
         run: |
           node --test tests/place_count_authoring.test.mjs

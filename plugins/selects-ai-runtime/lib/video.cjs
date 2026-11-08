@@ -40,7 +40,10 @@ function relativeTimeline(rawPts) {
   return sourcePts;
 }
 
-async function probeVideo(config, request, signal) {
+// -show_entries enables frame reads itself. Adding -show_frames also enables all
+// side-data fields (including large Dolby Vision metadata). Keep timestamp-only
+// selection and compact JSON for both range probes and full matte timelines.
+async function probeVideo(config, request, signal, probeMetrics) {
   const filename = request.input.source.path;
   const data = await probeJSON(config, filename, [
     '-v', 'error', '-select_streams', request.task === 'speakers.detect' ? 'v' : 'v:0', '-show_entries',
@@ -50,7 +53,7 @@ async function probeVideo(config, request, signal) {
   ], signal, data => {
     if (!data.streams?.[0]?.width || !data.streams[0].height) throw new Error('Source has no decodable video stream');
     parseTimeBase(data.streams[0].time_base);
-  });
+  }, probeMetrics, 'metadata');
   const stream = data.streams?.[0];
   if (!stream || !stream.width || !stream.height) throw new Error('Source has no decodable video stream');
   const sourceSampleAspectRatio = stream.sample_aspect_ratio ?? null;
@@ -73,12 +76,12 @@ async function probeVideo(config, request, signal) {
         // Use two decoding threads for frame timestamp probes, matching the RGB
         // decoder below. The default probe decoding is slower on long ranges.
         '-v', 'error', '-threads', '2', '-select_streams', 'v:0', '-read_intervals', interval,
-        '-show_frames', '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
+        '-show_entries', 'frame=best_effort_timestamp', '-of', 'json=compact=1', filename,
       ], signal, result => {
         if (!relativeTimeline((result.frames ?? []).map(frame => frame.best_effort_timestamp))) {
           throw new Error('Source frame timestamps are unavailable or not ordered');
         }
-      });
+      }, probeMetrics, 'frameTimeline');
       const points = (result.frames ?? []).map(frame => frame.best_effort_timestamp);
       if (!relativeTimeline(points)) throw new Error('Source frame timestamps are unavailable or not ordered');
       return points;
@@ -125,9 +128,9 @@ async function probeVideo(config, request, signal) {
   let sourcePts = cachedPts;
   if (!rawPts) {
     const timeline = JSON.parse(await collectTool(config.tools.ffprobe, [
-      '-v', 'error', '-select_streams', 'v:0', '-show_frames',
-      '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
-    ], { signal }));
+      '-v', 'error', '-select_streams', 'v:0',
+      '-show_entries', 'frame=best_effort_timestamp', '-of', 'json=compact=1', filename,
+    ], { signal, metrics: config.processMetrics, operation: 'frameTimeline' }));
     rawPts = (timeline.frames ?? []).map(frame => frame.best_effort_timestamp);
     if (!rawPts.length || rawPts.some(value => !Number.isSafeInteger(value))) throw new Error('Source frame timestamps are unavailable');
     sourcePts = relativeTimeline(rawPts);
@@ -190,7 +193,7 @@ async function* decodeFrames(config, request, video, signal, emitProgress, decod
     // trim alone continues decoding the tail. The known frame bound makes ffmpeg
     // stop after the range's last output frame instead of traversing the file.
     '-frames:v', String(outputIndices.length), '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1',
-  ], { signal, onSpawn: pid => emitProgress({ step: 'decoding', decoderPid: pid }) });
+  ], { signal, metrics: config.processMetrics, operation: 'videoDecode', onSpawn: pid => emitProgress({ step: 'decoding', decoderPid: pid }) });
   const size = video.width * video.height * 3;
   let frame = Buffer.allocUnsafe(size);
   let filled = 0;

@@ -4097,6 +4097,12 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const jobsRevision = React.useRef(0);
   const [exported, setExported] = React.useState<string[]>([]);
   const [phase, setPhase] = React.useState<number | null>(null);
+  const planning = React.useRef<any>(null);
+  React.useEffect(() => () => {
+    const run = planning.current;
+    if (run) { run.controller.abort(); planning.current = null; setBusy(false); setPhase(null); setStatus(""); setJob(null); setExported([]); void sdk.cancelAI?.().catch(() => {}); }
+  }, [projectId]);
+
   const linkedRequest = React.useRef<string | null>(null);
   const [linkedFailure, setLinkedFailure] = React.useState<any>(null);
   const [linkedUpdate, setLinkedUpdate] = React.useState<any>(null);
@@ -4255,13 +4261,15 @@ function ProjectPanel({ sdk, context, ui }: any) {
   };
 
   // ---- Step 1: plan the cards with the template's instructions ----
-  async function readTranscriptText(resourceId: string, resourceName: string) {
+  async function readTranscriptText(resourceId: string, resourceName: string, signal?: AbortSignal) {
     const lines: string[] = [];
     for (let off = 0; off < 4000; off += 250) {
+      signal?.throwIfAborted();
       const r = await script(
         SCRIPT_TRANSCRIPT.replace("const P: any = __P__;", "const P: any = " + JSON.stringify({ projectId, resourceId, resourceName, offset: off, limit: 250 }) + ";"),
         "Read the transcript"
       );
+      signal?.throwIfAborted();
       lines.push(...r.lines.map((l: any) => `[${l[0]}s] ${l[2]}`));
       if (off + 250 >= r.total) break;
     }
@@ -4294,32 +4302,51 @@ function ProjectPanel({ sdk, context, ui }: any) {
     setOwnPhotos(!!j.source?.ownPhotos); setPhotos(j.source?.photos || []); setNote(j.note || "");
     const t = templates.find((x: any) => x.id === j.templateId); if (t) void selectTemplate(t);
   }
+  async function stopPlanning() {
+    const run = planning.current;
+    if (!run || run.controller.signal.aborted) return;
+    run.controller.abort(); setStatus(S.working);
+    try { await sdk.cancelAI(); }
+    catch (e: any) { setError(String(e?.message || e)); }
+    finally {
+      if (planning.current === run) {
+        planning.current = null; setJob(run.previous); setExported(run.exported);
+        setBusy(false); setPhase(null); setStatus("");
+      }
+    }
+  }
   async function plan() {
-    setError(""); setExported([]);
+    setError("");
     if (!projectId) return setError(S.noProject);
     if (mode === "link" && !/^https?:\/\//.test(url.trim())) return setError(S.needUrl);
     if (mode === "text" && text.trim().length < 40) return setError(S.needText);
     if (mode === "video" && !pick) return setError(S.needPick);
     const selectedPhotos = mode === "link" && ownPhotos ? photos : [];
     const t = tplOf(tplId); if (!t) return;
+    const run = { controller: new AbortController(), previous: job, exported };
+    planning.current = run;
+    const check = () => { run.controller.signal.throwIfAborted(); if (planning.current !== run) throw new DOMException("Cancelled", "AbortError"); };
+    setExported([]);
+
     setBusy(true); setPhase(0); setStatus(mode === "link" ? S.readingArticle : S.working);
     const started = Date.now();
     let j: any = { id: Date.now().toString(36), projectId, created: new Date().toISOString(), templateId: t.id, templateSnapshot: clone(t), source: { mode, url: url.trim(), text: mode === "text" ? text : "", articleText: mode === "link" && articleFallback ? articleText : "", pick, pickName: resources.find((r) => r.id === pick)?.name || "", ownPhotos: !!selectedPhotos.length, photos: selectedPhotos }, countMode, count, note, timings: { aiCalls: 0, repairs: 0 } };
     try {
-      j = await saveJob(j);
+      j = await saveJob(j); check();
       const K = PLAN_TEXT[cardLangOf(t)];
       let material = "", article: any = null;
       const articleStarted = Date.now();
       if (mode === "link") {
         setStatus(S.readingArticle);
-        try { article = articleFallback && articleText.trim() ? CardSupport.articleFromText(articleText) : await CardSupport.readArticle(store.fs, url.trim()); }
-        catch (e) { setArticleFallback(true); throw new Error("The article could not be read. Paste its text below the link, then generate again."); }
+        try { article = articleFallback && articleText.trim() ? CardSupport.articleFromText(articleText) : await CardSupport.readArticle(store.fs, url.trim()); check(); }
+        catch (e) { check(); setArticleFallback(true); throw new Error("The article could not be read. Paste its text below the link, then generate again."); }
         if (article.body.length < CardSupport.ARTICLE_MIN_CHARS) { setArticleFallback(true); throw new Error("Not enough article text. Paste the article text below the link, then generate again."); }
       } else if (mode === "text") material = K.text(text.slice(0, 40000));
       else {
         const r = resources.find((x) => x.id === pick); if (!r?.analyzed) throw new Error(S.notAnalyzed);
-        material = K.video(r.name, (await readTranscriptText(r.id, r.name)).slice(0, 60000));
+        material = K.video(r.name, (await readTranscriptText(r.id, r.name, run.controller.signal)).slice(0, 60000));
       }
+      check();
       j.timings.articleMs = Date.now() - articleStarted;
       const preparationStarted = Date.now();
       const choices: any[] = selectedPhotos.map((photo) => ({ ...photo, kind: "file" }));
@@ -4331,20 +4358,22 @@ function ProjectPanel({ sdk, context, ui }: any) {
         for (let offset = 0; offset < previews.length; offset += 3) {
           await Promise.all(previews.slice(offset, offset + 3).map(async (index: number) => {
             try { article.images[index] = await prepareArticlePhoto(article.images[index], index, j.id); } catch {}
-          }));
+          })); check();
         }
         candidates.forEach((_: any, index: number) => choices.push({ ...article.images[index], kind: "article", index }));
         material = `Source article URL (citation only): ${j.source.url}\nArticle title: ${article.title}\nArticle text (only source of facts):\n${article.body}`;
       }
       if (article) {
         if (!choices.length) throw new Error(S.noArticlePhotos);
-        j = await saveJob({ ...j, countMode: "photos", count: choices.length });
+        check(); j = await saveJob({ ...j, countMode: "photos", count: choices.length }); check();
       }
       const states = typeof sdk.aiProviders === "function" ? await sdk.aiProviders() : null;
+      check();
       const provider = ["chatgpt", "claude"].find((p) => states?.[p] === "connected");
       if (!provider) throw new Error("Connect ChatGPT or Claude in Selects to generate cards. Existing cards can still be edited and exported.");
       const sheetStarted = Date.now();
       const sheet = choices.some((photo) => photo.path) ? await CardSupport.contactSheet(choices.map((photo) => photo.path ? { photo: { ...photo, width: photo.w, height: photo.h } } : {}), templateSize(t), store.fs).catch(() => null) : null;
+      check();
       j.timings.sheetMs = Date.now() - sheetStarted;
       j.timings.photosMs = sheetStarted - preparationStarted;
       const planningTemplate = mode === "link" ? { ...t, images: { ...t.images, source: "article" } } : t;
@@ -4355,6 +4384,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
       for (let attempt = 0; attempt < 2; attempt++) {
         j.timings.aiCalls++; j.timings.repairs = attempt;
         const reply = await sdk.askAI({ prompt: prompt + repair, provider, timeoutMs: 600000, ...(sheet ? { images: [{ dataUrl: sheet, name: "photos.jpg" }] } : {}) });
+        check();
         try {
           const raw = extractJson(reply.text, S);
           if (article) raw.article = { ...article, publisher: article.source || "", images: article.images || [] };
@@ -4370,7 +4400,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
           await Promise.all(needed.slice(offset, offset + 3).map(async (index) => {
             try { article.images[index] = await prepareArticlePhoto(article.images[index], index, j.id); }
             catch { article.images[index] = { ...article.images[index], unavailable: true }; }
-          }));
+          })); check();
         }
         result.article = { ...result.article, ...article, publisher: article.source || result.article.publisher || "", images: article.images || [] };
         result.cards = result.cards.map((card: any) => {
@@ -4383,9 +4413,9 @@ function ProjectPanel({ sdk, context, ui }: any) {
       result.cards = result.cards.map((card: any) => ({ ...card, id: crypto.randomUUID() }));
       j.timings.editableMs = Date.now() - started;
       result.photoChoices = choices.map((photo) => photo.kind === "article" ? { ...photo, ...article.images[photo.index] } : photo);
-      j = await saveJob({ ...j, plan: result }); setStatus(""); loadJobs();
-    } catch (e: any) { setStatus(""); setError(String(e?.message || e) + " " + S.retryGenerate); }
-    finally { setBusy(false); setPhase(null); }
+      check(); j = await saveJob({ ...j, plan: result }); check(); setStatus(""); loadJobs();
+    } catch (e: any) { if (!run.controller.signal.aborted && planning.current === run) { setStatus(""); setError(String(e?.message || e) + " " + S.retryGenerate); } }
+    finally { if (planning.current === run && !run.controller.signal.aborted) { planning.current = null; setBusy(false); setPhase(null); } }
   }
 
   async function prepareArticlePhoto(image: any, index: number, jid: string, original = false) {
@@ -5028,6 +5058,9 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       {working ? (
         <ui.Section title={phase === 0 ? S.generate : S.working}>
           <ui.Progress label={status || S.working} busy />
+          {planning.current && typeof sdk.cancelAI === "function" && <ui.Actions>
+            <ui.Button variant="secondary" onClick={stopPlanning} disabled={planning.current.controller.signal.aborted}>{S.cancel}</ui.Button>
+          </ui.Actions>}
         </ui.Section>
       ) : orphan ? (
         <ui.Stack gap={8}>

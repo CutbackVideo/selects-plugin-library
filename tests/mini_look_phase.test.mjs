@@ -80,3 +80,18 @@ test('Mini standalone: assembly handoff cannot acknowledge the workflow before d
  ui.box.openAssemblyContinuations=()=>f.open();ui.box.decorate=async()=>{observed=await(await f.open()).read();};
  await ui.box.api.build(2);assert.notEqual(observed,'not reached');assert.ok(observed,'the durable workflow must still be discoverable at decoration handoff');assert.equal(observed.scope.runId,'original');
 });
+
+test('Mini workflow: host-generated chapters between phases preserve title completion', async t => {
+ const f = await fixture(t);
+ f.hooks.reply = (input, result) => {
+  if (input.summary !== 'Assemble template with owned receipt') return;
+  const state = f.saved.get(result.assembly.sequenceId);
+  for (const [index, trackKind] of ['chapter', 'subchapter'].entries())
+   state.clips.push({clipId:900 + index, trackId:trackKind, trackKind, resourceId:null,
+    startFrame:0, endFrame:30, text:'Automatically generated navigation'});
+ };
+ const result = await (await f.open()).workflow(f.root, f.prepare);
+ assert.equal(result.decorationConfirmed, true);
+ assert.equal(f.commits(), 2);
+ assert.ok(f.saved.get(result.sequenceId).clips.some(row => row._graphic));
+});

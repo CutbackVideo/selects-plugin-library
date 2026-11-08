@@ -7,13 +7,14 @@ import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
 import { openDraftScript } from "./pipeline/scripts.ts";
+import { applyScriptText, scriptBody } from "./pipeline/script-text.ts";
 import { VoicePicker } from "./VoicePicker.tsx";
 import { renameDraft, spaceClickGuard } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
 import { reviseGraphics } from "./pipeline/visual-editor.ts";
 import { feedbackRoute, revisePlanPreview } from "./pipeline/feedback.ts";
-import { LAYOUT_ERROR, SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
+import { EDIT_MAX_CHARS, LAYOUT_ERROR, SCENE_TYPES, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 import type { PlanScene } from "./prompts/types.ts";
 import { retypeScene } from "./pipeline/plan.ts";
 import { issueText } from "./issues.ts";
@@ -24,7 +25,8 @@ type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: 
 const box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 } as const;
 const muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 } as const;
 const input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" } as const;
-const MAX_CHARS = TARGET_CHARS.max;
+// The user sets the length: the video simply runs longer. Only a script past EDIT_MAX_CHARS cannot be approved.
+const HARD_MAX_CHARS = EDIT_MAX_CHARS;
 const warn = { color: "#d9822b", fontSize: 12 } as const;
 // Review fields stack the label over its control at any panel width.
 const field = { ...muted, display: "flex", flexDirection: "column", gap: 2 } as const;
@@ -92,6 +94,9 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [narrationRecovery, setNarrationRecovery] = useState(false);
   const [status, setStatus] = useState("");
   const [lines, setLines] = useState<string[]>([]);
+  // The script box text while it is being edited, and the sentences it produced. The box shows this text
+  // (not the re-joined sentences) so splitting never moves the cursor; a script replaced elsewhere resets it.
+  const [scriptDraft, setScriptDraft] = useState<{ text: string; sentences: F.Line[] } | null>(null);
   const [error, setError] = useState("");
   const [providers, setProviders] = useState<AiProviders | null>(null);
   const [providerError, setProviderError] = useState("");
@@ -271,16 +276,18 @@ function NewsMinutePanel({ sdk, context }: Props) {
     await update({ ...selected, article, script: r.script, scriptErrors: r.errors, approved: null, draftId: null });
   });
 
-  const setLine = (i: number, v: string) => {
+  const setScriptText = (v: string) => {
     if (!s.script) return;
-    const sentences = s.script.sentences.map((x, k) => (k === i ? { ...x, text: v, edited: true } : x));
+    const sentences = applyScriptText(s.script.sentences, v, s.article?.body);
+    setScriptDraft({ text: v, sentences });
     update({ ...s, script: { ...s.script, sentences }, approved: null });
   };
   const setHead = (k: "line1" | "line2" | "accent", v: string) => s.script && update({ ...s, script: { ...s.script, headline: { ...s.script.headline, [k]: v } }, approved: null });
 
   const approve = () => guard(async () => {
-    if (chars > MAX_CHARS) throw new Error(T("tooLong", { max: MAX_CHARS }));
-    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).join("\n") })) return;
+    if (chars > HARD_MAX_CHARS) throw new Error(T("tooLongHard", { max: HARD_MAX_CHARS }));
+    if (!s.script!.sentences.length) throw new Error(T("emptyScript"));
+    if (liveErrors.length && !await sdk.confirm({ title: T("approveAnyway"), message: liveErrors.slice(0, 8).map((x) => issueText(lang, x)).join("\n") })) return;
     const projectId = await F.ensureProject(sdk, env.current!, s);
     await update({ ...s, projectId, approved: F.revisionOf(s.script!, s.voiceId) });
     setTts(await F.readTts(sdk, projectId));
@@ -664,28 +671,36 @@ function NewsMinutePanel({ sdk, context }: Props) {
         <Step done={!!plan} summary={T("scriptDone", { n: sc.sentences.length })}>
           <strong>{T("review")}</strong>
           <span style={muted}>{T("reviewHint")}</span>
-          {liveErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{liveErrors.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
+          {liveErrors.length ? <div style={{ color: "#d9822b", fontSize: 12 }}>{liveErrors.map((x, i) => <div key={i}>{"\u2022 " + issueText(lang, x)}</div>)}</div> : null}
           <label>{T("headline1")}<input style={input} value={sc.headline.line1} disabled={busy || approved} onChange={(e) => setHead("line1", e.target.value)} /></label>
           <label>{T("headline2")}<input style={input} value={sc.headline.line2} disabled={busy || approved} onChange={(e) => setHead("line2", e.target.value)} /></label>
           <label>{T("accent")}<input style={input} value={sc.headline.accent ?? ""} disabled={busy || approved} onChange={(e) => setHead("accent", e.target.value)} /></label>
-          {sc.sentences.map((x, i) => (
-            <div key={x.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <textarea style={input} rows={Math.max(2, Math.ceil([...x.text].length / 11))} value={x.text} disabled={busy || approved} onChange={(e) => setLine(i, e.target.value)} />
-              <span style={muted}>{T("source")}: {x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")}</span>
-              {x.rewritten ? <span style={{ ...muted, color: "#4a90d9" }}>{T("rewritten")}</span> : null}
-              {x.edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedCheck")}</span> : null}
-              {x.issues.length ? <span style={{ ...muted, color: "#d9822b" }}>{T("issues")}: {x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")}</span> : null}
+          <textarea style={input} rows={Math.max(6, sc.sentences.reduce((n, x) => n + Math.ceil(([...x.text].length + 1) / 22), 0))}
+            value={scriptDraft && scriptDraft.sentences === sc.sentences ? scriptDraft.text : scriptBody(sc.sentences)}
+            disabled={busy || approved} onChange={(e) => setScriptText(e.target.value)} />
+          {/* Per-sentence source passages and flags, numbered in script order. */}
+          <details open={sc.sentences.some((x) => x.edited || x.issues.length)}>
+            <summary style={muted}>{T("sources", { n: sc.sentences.length })}</summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+              {sc.sentences.map((x, i) => (
+                <div key={x.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={muted}>{i + 1}. {T("source")}: {x.sourceQuote ? "\u201C" + x.sourceQuote + "\u201D" : T("noSource")}</span>
+                  {x.rewritten ? <span style={{ ...muted, color: "#4a90d9" }}>{T("rewritten")}</span> : null}
+                  {x.edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedCheck")}</span> : null}
+                  {x.issues.length ? <span style={{ ...muted, color: "#d9822b" }}>{T("issues")}: {x.issues.map((v) => (MESSAGES["issue_" + v.kind] ? T("issue_" + v.kind) : v.kind) + (v.note ? " \u2013 " + v.note : "")).join("; ")}</span> : null}
+                </div>
+              ))}
             </div>
-          ))}
+          </details>
           <span style={muted}>{T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) })}</span>
-          {chars > MAX_CHARS ? <span style={{ color: "#d9822b", fontSize: 12 }}>{T("tooLong", { max: MAX_CHARS })}</span> : null}
+          {chars > HARD_MAX_CHARS ? <span style={{ color: "#d9822b", fontSize: 12 }}>{T("tooLongHard", { max: HARD_MAX_CHARS })}</span> : null}
           {approved ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span style={{ whiteSpace: "nowrap", flex: "none" }}>{"\u2713 " + T("approved")}</span>
               <button {...SECONDARY} disabled={busy || tts?.state === "submitted" || tts?.state === "submitting"} onClick={() => update({ ...s, approved: null })}>{T("edit")}</button>
             </div>
           ) : (
-            <button disabled={busy || chars > MAX_CHARS} onClick={approve}>{T("approve")}</button>
+            <button disabled={busy || chars > HARD_MAX_CHARS || !sc.sentences.length} onClick={approve}>{T("approve")}</button>
           )}
         </Step>
       )}

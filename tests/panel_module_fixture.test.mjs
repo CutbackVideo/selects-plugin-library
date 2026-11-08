@@ -36,10 +36,17 @@ test('the real Depth helper can gain another dependency without a fixture depend
 });
 
 test('generated module comments can disappear without losing any real local-client dependency', async () => {
-  const source = fs.readFileSync(new URL('../plugins/a16z-style-captions/panel.tsx', import.meta.url), 'utf8');
-  assert.ok(source.split('// shared/local-client.ts').length > 2, 'regression input has interleaved module sections');
+  // Keep the original interleaving regression independent of which production
+  // panel currently needs the optional sampler. Use both real source modules.
+  const clientSource = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8');
+  const observationSource = fs.readFileSync(new URL('../shared/file-observation.js', import.meta.url), 'utf8');
+  const split = clientSource.indexOf('async function createPanelLocalClient(');
+  assert.ok(split > 0);
+  const source = '// shared/local-client.ts\n' + clientSource.slice(0, split) +
+    '\n// shared/file-observation.js\n' + observationSource +
+    '\n// shared/local-client.ts\n' + clientSource.slice(split);
   const withoutBanners = source.replace(/^\/\/ (?:shared|plugins)\/.*$/gm, '');
-  const {createPanelLocalClient} = loadPanelModule(withoutBanners, {names:['createPanelLocalClient']});
+  const {createPanelLocalClient, fingerprintTemplateFile} = loadPanelModule(withoutBanners, {names:['createPanelLocalClient','fingerprintTemplateFile']});
   const calls = [];
   const files = {
     environment: async () => ({platform:'darwin', homedir:'/test', tempDirectory:'/tmp'}),
@@ -50,7 +57,7 @@ test('generated module comments can disappear without losing any real local-clie
     calls.push(input);
     return {result:await new Function('selects', 'return (async()=>{' + input.script + '})()')({files})};
   }};
-  const client = await createPanelLocalClient(sdk);
+  const client = await createPanelLocalClient(sdk, fingerprintTemplateFile);
   try {
     const actual = await client.files.mediaFingerprint('/test/original');
     assert.deepEqual(JSON.parse(JSON.stringify(actual)),mediaFingerprint(Buffer.from([1,2,3,4])));

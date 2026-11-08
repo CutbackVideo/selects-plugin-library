@@ -301,8 +301,19 @@ async function galleryVerifySourceGuard(selects,projectId,guard) {
   await galleryCheckSourceMetadata(selects,projectId,guard);
 }
 
+// New Drafts use V1/A1 as the transcript lanes. Keep the Gallery on outer
+// lanes so SDK storyline projection cannot relabel a tile or its music as main.
+// Older hosts without addTrack still place overlays above their legacy Main.
+async function galleryPlaceTiles(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement) {
+  if ('addTrack' in draft && typeof draft.addTrack === 'function') {
+    await draft.addTrack({kind:'video'});
+    if(plan.music)await draft.addTrack({kind:'audio'});
+  }
+  return placeWorkingCopyImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement);
+}
+
 async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programs) {
-  let commitStarted=false,savedId=null;
+  let commitStarted=false,savedId=null,stage='read-tiles';
   try {
     const {plan,projectId}=config,project=selects.project(projectId),expectedTransforms=[],expectedPrograms=[];
     const controls=[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:.5,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:.5,min:0,max:1,step:.01}];
@@ -312,29 +323,36 @@ async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,i
       if(!clip)throw Error('A Gallery tile disappeared before styling');
       const geometry=galleryGeometry(tile,config.sources[index],plan.colorFrame);
       const name=`Gallery ${tile.slotKey} color-${plan.colorFrame}`;
+      stage='style-tile-'+(index+1);
       await draft.addVideoEffect({clip,label:name,tsxCode:TILE_EFFECT,parameters:geometry.effect,editableParameters:controls});
       const fresh=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===clip.clipId&&row.trackId===clip.trackId);
       if(!fresh)throw Error('A Gallery tile disappeared during styling');
+      stage='transform-tile-'+(index+1);
       await draft.setClipTransform({clip:fresh,position:geometry.transform.position,scale:geometry.transform.scale});
       expectedTransforms.push({clipId:clip.clipId,trackId:clip.trackId,transform:{position:geometry.transform.position,scale:geometry.transform.scale}});
       expectedPrograms.push({clipId:clip.clipId,trackId:clip.trackId,effects:[{name,tsxCode:TILE_EFFECT,parameters:geometry.effect,editableParameters:controls}],graphic:null});
     }
+    stage='place-music';
     if(plan.music)await draft.overlayResource({resource:project.resource(plan.music.resourceId),over:await draft.rangeAtFrames(0,plan.durationFrames),sourceStartSeconds:plan.music.startSeconds});
     const rows=await draft.clips({trackScope:'all'});
     if(rows.some(row=>row.trackKind==='main'&&row.resourceId)||rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==21)throw Error('The complete Gallery does not contain exactly 21 visual tiles');
+    stage='verify-working-copy';
     const graphics=[];await inspectGraphics(draft,graphics);
     const transforms=await inspectTransforms(draft,expectedTransforms),audioRows=rows.filter(row=>row.trackKind==='audio');
     const wantedAudio=plan.music?[{clipId:audioRows[0]?.clipId,trackId:audioRows[0]?.trackId,trackKind:'audio',resourceId:plan.music.resourceId,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:plan.music.startSeconds,endSeconds:plan.music.startSeconds+plan.durationFrames/plan.fps}}]:[];
     const audio=await inspectAudio(draft,wantedAudio,project),programSnapshot=await programs.inspect(draft,expectedPrograms);
     const receipts={graphics,transforms,audio,programs:programSnapshot,sourceGuard:config.sourceReceipt??config.sourceGuard};programs.confirm(config.runReceipt?receipts:{graphics,transforms,audio,programs:programSnapshot});
+    stage='verify-source-files';
     await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);
     config.onCommitStarted();commitStarted=true;
+    stage='commit-draft';
     const saved=await draft.commitAll('Create complete Photo Gallery Draft');
     if(!saved?.createdDraftId)throw Error('Gallery save outcome is unknown; inspect the Project before retrying');
     savedId=saved.createdDraftId;
+    stage='verify-saved-sources';
     await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);
     return {status:'saved',draftId:saved.createdDraftId,...receipts};
-  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',...savedId?{draftId:savedId}:{},message:savedId?'The Gallery was saved, but its source files changed or could not be confirmed. Inspect the saved Draft before retrying.':String(error?.message||error)};}
+  }catch(error){return {stage,code:error?.code,status:commitStarted?'outcomeUnknown':'notSaved',...savedId?{draftId:savedId}:{},message:savedId?'The Gallery was saved, but its source files changed or could not be confirmed. Inspect the saved Draft before retrying.':String(error?.message||error)};}
 }
 
 async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
@@ -359,7 +377,7 @@ async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
     sourceReceipt={version:2,...await templateStateFile(selects,path,templateStateJSON(sourceGuard),templateRunBase64,null,fingerprintTemplateFile)};
   }
   const config={sourceReceipt,projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,sourceGuard,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
-  const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON,bindMediaPlacement);
+  const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,galleryPlaceTiles,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON,bindMediaPlacement);
   return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;
 }
 

@@ -61,32 +61,44 @@ async function write(dir, key, output) {
   }
 }
 
-async function probeJSON(config, filename, args, signal, validate = () => {}) {
+async function probeJSON(config, filename, args, signal, validate = () => {}, metrics, operation = 'metadata') {
   throwIfAborted(signal);
-  const dir = await directory(config.timelineCache);
-  let key;
-  const fingerprint = async () => hash(JSON.stringify([await identity(filename), await identity(config.tools.ffprobe), args]));
-  if (dir) {
-    try { key = await fingerprint(); } catch { /* Probe errors retain their usual path. */ }
-    if (key) {
-      const cached = await read(dir, key);
-      throwIfAborted(signal);
-      if (cached !== null) {
-        try { const parsed = JSON.parse(cached); validate(parsed); return parsed; } catch { /* Re-probe an invalid cached document. */ }
+  const row = metrics && ['metadata', 'frameTimeline'].includes(operation)
+    ? (metrics.operations ??= {})[operation] ??= { cacheHits: 0, cacheMisses: 0, calls: 0, milliseconds: 0 } : undefined;
+  const beganQuery = performance.now();
+  if (row) row.calls++;
+  try {
+    const dir = await directory(config.timelineCache);
+    let key;
+    const fingerprint = async () => hash(JSON.stringify([await identity(filename), await identity(config.tools.ffprobe), args]));
+    if (dir) {
+      try { key = await fingerprint(); } catch { /* Probe errors retain their usual path. */ }
+      if (key) {
+        const cached = await read(dir, key);
+        throwIfAborted(signal);
+        if (cached !== null) {
+          try { const parsed = JSON.parse(cached); validate(parsed); if (metrics) metrics.cacheHits++; if (row) row.cacheHits++; return parsed; } catch { /* Re-probe an invalid cached document. */ }
+        }
       }
     }
-  }
-  const output = await collectTool(config.tools.ffprobe, args, { signal });
-  const parsed = JSON.parse(output);
-  validate(parsed);
-  throwIfAborted(signal);
-  if (key) {
-    try {
-      if (key === await fingerprint()) await write(dir, key, output);
-    } catch { /* Optional cache failures must not fail analysis. */ }
-  }
-  throwIfAborted(signal);
-  return parsed;
+    if (row) row.cacheMisses++;
+    const began = performance.now();
+    let output;
+    try { output = await collectTool(config.tools.ffprobe, args, { signal, metrics: config.processMetrics, operation }); }
+    finally {
+      if (metrics) { metrics.toolCalls++; metrics.toolMilliseconds += performance.now() - began; }
+    }
+    const parsed = JSON.parse(output);
+    validate(parsed);
+    throwIfAborted(signal);
+    if (key) {
+      try {
+        if (key === await fingerprint()) await write(dir, key, output);
+      } catch { /* Optional cache failures must not fail analysis. */ }
+    }
+    throwIfAborted(signal);
+    return parsed;
+  } finally { if (row) row.milliseconds += performance.now() - beganQuery; }
 }
 
 module.exports = { probeJSON, MAX_BYTES, MAX_TOTAL_BYTES, MAX_ENTRIES };

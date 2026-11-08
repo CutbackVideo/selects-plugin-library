@@ -32,7 +32,7 @@ const frames = (file, extra = []) => md5(execFileSync('ffmpeg', ['-nostdin', '-v
 const streams = file => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_tag_string', '-of', 'json', file], { encoding: 'utf8' })).streams;
 
 // The host as the panel sees it. `platform` sets Runtime.getPlatform; `home` FileSystem.homedir.
-function host({ platform = 'darwin', home, calls = [], stderrInResult = true, downloads = {} } = {}) {
+function host({ platform = 'darwin', home, calls = [], stderrInResult = true, downloads = {}, transcodes } = {}) {
   const other = vm.runInNewContext('({bytes:b=>{const u=new Uint8Array(b.length);u.set(b);return u}})');
   const run = bin => (args, _quiet, signal, _onStdout, onStderr) => new Promise((resolve, reject) => {
     calls.push([bin, ...args]);
@@ -52,7 +52,7 @@ function host({ platform = 'darwin', home, calls = [], stderrInResult = true, do
     pathToLocalURL: async p => 'selects-file://' + encodeURI(p.split(path.sep).join('/')) + '/',
     downloadFile: async (url, dest) => { calls.push(['download', url, dest]); fs.writeFileSync(dest, downloads[url] ?? Buffer.alloc(0)); },
   };
-  return { files: FileSystem, media: { runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe') }, dialogs: {}, environment: {platform, version:'2.0.520'} };
+  return { files: FileSystem, media: { runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe'), ...(transcodes ? {runVideoTranscode: async (request, args, quiet, signal) => {transcodes.push({request:JSON.parse(JSON.stringify(request)),args:[...args]});return run('ffmpeg')(args,quiet,signal);}} : {}) }, dialogs: {}, environment: {platform, version:'2.0.520'} };
 }
 function load(di) {
   const ctx = vm.createContext({ sdk: di, panelLocalClient: s => s, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
@@ -336,4 +336,17 @@ test('on Windows helper() runs the port, never the shell; an old Selects gets on
   await assert.rejects(mac.ctx.helper(mac.sdk, 'load', {}), /shell reached/, 'macOS keeps pipeline.py');
   assert.equal(win.ctx.samePath('C:\\Users\\A\\Clip.MP4', 'c:/users/a/clip.mp4'), true);
   assert.equal(mac.ctx.samePath('/Volumes/A/Clip.MP4', '/Volumes/a/clip.mp4'), false);
+});
+
+// Runs the real hold producer; the boundary records the new request and executes
+// its legacy command so this test also catches recipe/argument drift.
+test('postcard still holds request upright image frames and preserve legacy args', {skip}, async()=>{
+ const {f}=media(),transcodes=[],p=port(tmp(),{transcodes});
+ await p.hold({path:f('still.png'),target:2.1});
+ const {request,args}=transcodes[0];
+ assert.deepEqual([request.inputKind,request.frameRate,request.frameCount,request.fit,request.endBehavior],['image',30,63,'fill','hold']);
+ assert.equal(request.sourcePath,f('still.png'));
+ assert.deepEqual(args.slice(0,7),['-v','error','-y','-loop','1','-i',f('still.png')]);
+ assert.equal(args[args.indexOf('-t')+1],'2.1');
+ assert.equal(args.at(-1),request.outputPath);
 });

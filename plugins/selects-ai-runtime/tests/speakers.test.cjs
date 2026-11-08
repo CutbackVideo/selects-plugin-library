@@ -28,7 +28,7 @@ test('speaker windows cover fractional ranges without a sub-frame remainder',()=
   assert.ok(windows.every(w=>w.duration>=.04&&w.duration<=3));
   assert.equal(windows[0].start,start);
   windows.forEach((w,i)=>{if(i)assert.ok(Math.abs(w.start-windows[i-1].start-windows[i-1].duration)<1e-9);});
-  assert.ok(Math.abs(windows.at(-1).start+windows.at(-1).duration-start-length)<1e-9);
+  assert.ok(Math.abs(windows.at(-1).start+windows.at(-1).duration-start-length)<=0.5e-6);
  }
 });
 
@@ -66,7 +66,8 @@ test('speaker probe reads only the timestamp origin, not the range frames',async
  require('../lib/process.cjs');
  require.cache[processPath]={...original,exports:{...original.exports,collectTool:async(tool,args)=>{
   calls.push(args);
-  if(args.includes('-show_frames'))return JSON.stringify({frames:Array.from({length:64},(_,i)=>({best_effort_timestamp:1000+i*1001}))});
+  assert.ok(!args.includes('-show_frames'), 'Do not enable all frame side data (Dolby Vision can exceed the output bound)');
+  if(args.includes('frame=best_effort_timestamp'))return JSON.stringify({frames:Array.from({length:64},(_,i)=>({best_effort_timestamp:1000+i*1001}))});
   return JSON.stringify({streams:[{width:1920,height:1080,time_base:'1/30000',avg_frame_rate:'30000/1001'}],format:{start_time:'0.033'}});
  }}};
  delete require.cache[videoPath];
@@ -74,14 +75,14 @@ test('speaker probe reads only the timestamp origin, not the range frames',async
   const {probeVideo}=require('../lib/video.cjs');
   const request=task=>({task,input:{source:{path:'/x.mp4'},sourceRange:{startSeconds:.5,endSeconds:1.5}}});
   const video=await probeVideo({tools:{ffprobe:'ffprobe'}},request('speakers.detect'));
-  const frameReads=calls.filter(a=>a.includes('-show_frames'));
+  const frameReads=calls.filter(a=>a.includes('frame=best_effort_timestamp'));
   assert.deepEqual(frameReads.map(a=>a[a.indexOf('-read_intervals')+1]),['%+#64']);
   assert.ok(frameReads.every(a=>a[a.indexOf('-threads')+1]==='2'));
   assert.equal(video.width,1920);assert.equal(video.height,1080);
   assert.ok(Math.abs(video.timestampOriginSeconds-1000/30000)<1e-12);assert.equal(video.formatStartTime,.033);
   calls.length=0;await probeVideo({tools:{ffprobe:'ffprobe'}},request('faces.detect'));
-  assert.equal(calls.filter(a=>a.includes('-show_frames')).length,2);
-  assert.ok(calls.filter(a=>a.includes('-show_frames')).every(a=>a[a.indexOf('-threads')+1]==='2'));
+  assert.equal(calls.filter(a=>a.includes('frame=best_effort_timestamp')).length,2);
+  assert.ok(calls.filter(a=>a.includes('frame=best_effort_timestamp')).every(a=>a[a.indexOf('-threads')+1]==='2'));
  } finally {require.cache[processPath]=original;delete require.cache[videoPath];}
 });
 
@@ -93,4 +94,17 @@ test('a face cut away after 72% of a window is kept at either detection rate',()
  const frames=[...Array.from({length:10},(_,k)=>8*k),74];
  assert.equal(trackFaces(frames.map(i=>full[i]),8,75).length,1);
  assert.equal(trackFaces(frames.map(i=>({faces:i<46?[face()]:[]})),8,75).length,0);
+});
+
+test('speaker windows use decoder precision at the vine2 and 60-second boundaries', () => {
+ const {speakerWindows}=require('../lib/speaker-window.cjs');
+ const vine2={startSeconds:30559/30,endSeconds:31459/30};
+ assert.equal(speakerWindows(vine2).length,10);
+ assert.ok(speakerWindows(vine2).every(window=>window.duration===3));
+ assert.equal(speakerWindows({startSeconds:0,endSeconds:30.000001}).length,11);
+ const submit=(range)=>validateRequest({contractVersion:1,task:'speakers.detect',input:{source:{path:__filename},sourceRange:range}});
+ const range={startSeconds:124/30,endSeconds:1924/30};
+ assert.equal(submit(range).input.sourceRange,range);
+ assert.throws(()=>submit({...range,endSeconds:range.endSeconds+0.000001}),/60/);
+ assert.throws(()=>submit({startSeconds:1,endSeconds:1.0000001}),/video window/);
 });

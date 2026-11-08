@@ -43,6 +43,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Card News Maker](plugins/card-news-maker) — editable 4:5 card news from a news article, or from your own photos and an article on a layout template your team imports | Experimental |
 | [Medical Explainer](plugins/medical-explainer) — 9:16 health explainer shorts from a topic, text or link: the script picks zoom, myth or fact, timeline or steps, with a matching art style and layout | Experimental |
 | [News in One Minute](plugins/news-minute) — one-minute vertical news shorts from an article: script checked against the source, editor review, narration, article photos and data cards, timed captions (Chosun Ilbo preset) | Experimental |
+| [Chart Maker](plugins/chart-maker): paste spreadsheet cells or load a CSV and add an animated, editable bar, line, pie or donut chart to your Draft, with optional AI design from reference images | Experimental |
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
 | [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |

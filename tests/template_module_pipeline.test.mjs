@@ -13,7 +13,7 @@ function fixture(t) {
   t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
   for (const folder of ['shared', 'tools']) fs.cpSync(path.join(root, folder), path.join(directory, folder), {recursive: true});
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'shared/panel-modules.json')));
-  const ids = new Set(['gongju-gallery']);
+  const ids = new Set(['gongju-gallery', 'postcard-cutout-studio', 'multicam-generator']);
   for (const module of registry.modules) for (const key of ['targets', 'buildTimeTargets', 'fileTargets', 'compatibilityTargets']) {
     for (const target of module[key] || []) ids.add(target.split('/')[1]);
   }
@@ -52,8 +52,12 @@ test('one command rebuilds all managed delivery paths, is repeatable, and leaves
   // Drift inside a managed block must be repaired along with downstream artifacts.
   const recap = file('plugins/recap-2026/panel.tsx');
   fs.writeFileSync(recap, fs.readFileSync(recap, 'utf8').replace('// cover-focus:start\n', '// cover-focus:start\n// stale shared copy\n'));
+  const retainedIds = ['archive-vlog', 'mini-vlog', 'camera-shutter-dump', 'four-photo-stop-motion', 'no14-still-video', 'polaroid-photo-dump'];
+  const retainedPanels = retainedIds.map(id => file('plugins/' + id + '/panel.tsx'));
+  const before = retainedPanels.map(panel => fs.readFileSync(panel, 'utf8'));
   const first = f.run();
   assert.equal(first.status, 0, first.stdout + first.stderr);
+  retainedPanels.forEach((panel, index) => assert.equal(fs.readFileSync(panel, 'utf8'), before[index], 'unmigrated panel must remain unchanged: ' + panel));
   const prepared = f.contents();
   const check = f.run('--check');
   assert.equal(check.status, 0, check.stdout + check.stderr);
@@ -71,7 +75,7 @@ test('check rejects missed generation at each boundary without rewriting the che
   const cases = [
     ['shared block', 'plugins/recap-2026/panel.tsx', source => source.replace('// cover-focus:start\n', '// cover-focus:start\n// missed sync\n')],
     ['duration block', 'plugins/gongju-gallery/panel.tsx', source => source.replace('// media-duration:start\n', '// media-duration:start\n// missed sync\n')],
-    ['private Panel adapter', 'plugins/camera-shutter-dump/panel.tsx', source => source.replace('// local-sdk:start\n', '// local-sdk:start\n// missed adapter sync\n')],
+    ['private Panel adapter', 'plugins/multicam-generator/panel.tsx', source => source.replace('// local-sdk:start\n', '// local-sdk:start\n// missed adapter sync\n')],
     ['Gallery helper', 'plugins/photo-gallery-no2/input-facts.generated.mjs', source => source + '\n// stale helper\n'],
     ['Gallery authoring helper', 'plugins/photo-gallery-no2/authoring.generated.mjs', source => source + '\n// stale helper\n'],
     ['Gallery panel', 'plugins/photo-gallery-no2/panel.tsx', source => source + '\n// stale panel\n'],

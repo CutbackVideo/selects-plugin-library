@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "selects-ai-runtime",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.8",
   "name": "Selects AI Runtime PoC",
   "summary": "Shared external YuNet, RVM and experimental Light-ASD runtime with verified native dependencies.",
   "status": "experimental",
@@ -10,9 +10,10 @@
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "Windows x64"
+      "Windows x64",
+      "web"
     ],
-    "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64."
+    "selects": "Requires Selects host 2.0.560 or newer; validated embedded runtime Electron 43.2.0 on macOS arm64 and Windows x64. The web host runs faces.detect and speakers.detect through web/runtime.mjs, and person.matte on a hardware WebGPU adapter."
   },
   "files": [
     ".gitignore",
@@ -104,7 +105,24 @@
     "tests/speakers.test.cjs",
     "tests/fixtures/speaker-mfcc-reference.json",
     "lib/frame-change.cjs",
-    "tests/frame-change.test.cjs"
+    "tests/frame-change.test.cjs",
+    "lib/face-sampling.cjs",
+    "web/runtime.mjs",
+    "web/runtime.source.mjs",
+    "scripts/build-web-runtime.cjs",
+    "tests/web-runtime.test.cjs",
+    "lib/speaker-window.cjs",
+    "lib/speaker-time.cjs",
+    "lib/onnx-wire.cjs",
+    "lib/rvm-conv-padding.cjs",
+    "lib/webgpu-rvm-session.cjs",
+    "lib/gray-png.cjs",
+    "tests/rvm-conv-padding.test.cjs",
+    "lib/stage-timings.cjs",
+    "tests/stage-timings.test.cjs",
+    "lib/tool-timings.cjs",
+    "tests/tool-timings.test.cjs"
   ],
-  "runtime": "runtime.json"
+  "runtime": "runtime.json",
+  "webRuntime": "web/runtime.mjs"
 }

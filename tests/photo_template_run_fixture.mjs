@@ -9,7 +9,7 @@ const esbuild=require(process.env.SELECTS_ESBUILD||(process.env.SBS_PANEL_TEST_M
 const compiled=new Map();
 export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}){
  options.canonicalAuthoring??=process.env.PHOTO_CANONICAL_AUTHORING==='1';
- const f=id==='photo-gallery-no2'?galleryFixture({fps:60,...options}):fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
+ const f=id==='photo-gallery-no2'?galleryFixture({fps:60,...options}):fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[],warnings=[];
  const watchers=new Set(),notify=()=>{for(const watcher of watchers)watcher();};
  const plugin='/user/.selects/skills/'+id,data='/user/.selects/plugin-data/'+id;
  if(id==='camera-shutter-dump'){
@@ -72,7 +72,7 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
   const module={exports:{}};
   const fault=capabilities.cryptoFault??cryptoFault;
   const crypto=fault==='absent crypto'?undefined:fault==='missing digest'?{subtle:{},randomUUID:()=>webcrypto.randomUUID()}:fault==='missing UUID'?{subtle:webcrypto.subtle}:fault==='noncallable UUID'?{subtle:webcrypto.subtle,randomUUID:{}}:webcrypto;
-  vm.runInNewContext(compiled.get(key),{module,exports:module.exports,require:name=>name==='react'?React:{jsx:()=>null},console,crypto,TextEncoder:fault==='missing encoder'?undefined:TextEncoder,TextDecoder:fault==='missing decoder'?undefined:TextDecoder,Uint8Array,setTimeout,clearTimeout,atob,btoa,window:{parent:{}}});
+  vm.runInNewContext(compiled.get(key),{module,exports:module.exports,require:name=>name==='react'?React:{jsx:()=>null},console:{...console,warn:(...args)=>warnings.push(args)},crypto,TextEncoder:fault==='missing encoder'?undefined:TextEncoder,TextDecoder:fault==='missing decoder'?undefined:TextDecoder,Uint8Array,setTimeout,clearTimeout,atob,btoa,window:{parent:{}}});
   module.exports.__bind(f.sdk,local);
   const ownCells=[],ownContext={...context,...changes};cells=ownCells;cursor=0;
   effects=[];cleanups=[];module.exports.__mount({sdk:f.sdk,context:ownContext});
@@ -89,5 +89,5 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
   const timer=setTimeout(()=>finish(reject,Error('Template did not settle: '+JSON.stringify(finishes))),3000);
   watchers.add(check);check();
  });
- return {...f,files,local,finishes,hooks,requests,context,mount,until};
+ return {...f,files,local,finishes,hooks,requests,warnings,context,mount,until};
 }

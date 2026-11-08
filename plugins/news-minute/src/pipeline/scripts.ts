@@ -5,7 +5,8 @@ export type ScriptCall = { summary: string; script: string; allowCommit?: boolea
 const J = (v: unknown) => JSON.stringify(v);
 
 export const PLATE_FPS = "30000/1001";
-export const PLATE_MAX_SECONDS = 90;
+// Room for an EDIT_MAX_CHARS script read by a slow voice (1000 chars at about 4 chars/s).
+export const PLATE_MAX_SECONDS = 300;
 export const READ_CHUNK = 49152;
 
 export const envScript = (): ScriptCall => ({

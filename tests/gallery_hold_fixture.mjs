@@ -1,3 +1,4 @@
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
@@ -9,8 +10,8 @@ import {createRequire} from 'node:module';
 import {webcrypto,createHash} from 'node:crypto';
 const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild');
 const compiled=new Map();
-// Bundle the local client's real shared dependencies too: a stub require would
-// erase its file observer and stop callers before their controlled media gate.
+// The fixture bypasses the Panel wrapper, so inject its observation dependency
+// explicitly when creating the private client, just as the production wrapper does.
 const localCode=esbuild.buildSync({entryPoints:[fileURLToPath(new URL('../shared/local-client.ts',import.meta.url))],bundle:true,external:['react'],platform:'node',format:'cjs',target:'es2022',write:false}).outputFiles[0].text;
 export const hash=p=>createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 export function picture(file,color='red'){
@@ -58,7 +59,7 @@ export async function holdFixture(t,{minify=false,sourceName='source.mp4'}={}){
  };
  const mount=async()=>{
   const module={exports:{}};vm.runInNewContext(localCode,{module,exports:module.exports,require:()=>({}),crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,btoa,atob,setTimeout,clearTimeout});
-  const local=await module.exports.createPanelLocalClient(sdk);local.media={runFFmpeg:run('ffmpeg'),runFFprobe:run('ffprobe')};
+  const local=await module.exports.createPanelLocalClient(sdk,fingerprintTemplateFile);local.media={runFFmpeg:run('ffmpeg'),runFFprobe:run('ffprobe')};
   const key=String(minify);
   if(!compiled.has(key)){
    const source=fs.readFileSync(process.env.GALLERY_HOLD_PANEL||new URL('../plugins/photo-gallery-no2/panel.tsx',import.meta.url),'utf8');

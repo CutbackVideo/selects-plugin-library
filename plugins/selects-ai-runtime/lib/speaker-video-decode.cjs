@@ -8,7 +8,7 @@ function frameCount(duration) {
   return Math.ceil(Math.round(duration * 1_000_000) / 40_000);
 }
 
-function startSpeakerVideo({ executable, source, windows, seek, width, height, signal }) {
+function startSpeakerVideo({ executable, source, windows, seek, width, height, signal, metrics }) {
   const start = seek(windows[0].start);
   const firstUs = Math.round(start * 1_000_000);
   const inputs = windows.map((_, i) => `[in${i}]`);
@@ -29,7 +29,7 @@ function startSpeakerVideo({ executable, source, windows, seek, width, height, s
     '-v', 'error', '-ss', String(start), '-i', source,
     '-filter_complex', graph, '-map', '[out]', '-an', '-fps_mode', 'passthrough',
     '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1',
-  ], { signal });
+  ], { signal, metrics, operation: 'videoDecode' });
   const chunks = child.stdout[Symbol.asyncIterator]();
   let pending = Buffer.alloc(0);
 

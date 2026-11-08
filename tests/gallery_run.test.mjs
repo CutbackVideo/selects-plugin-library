@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {galleryFixture} from './gallery_authoring_fixture.mjs';
 import {templateFixture} from './photo_template_run_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 const fixture=options=>templateFixture('photo-gallery-no2',options);
@@ -161,4 +162,26 @@ test('Gallery durable sources retain long Unicode paths outside the small receip
  assert.equal(journal.result.sourceGuard.version,2);assert.ok(f.files.get(journal.result.sourceGuard.path).length>49152);assert.ok(f.files.get(records(f)[0]).length<49152);
  const before=Buffer.from(f.files.get(journal.result.sourceGuard.path));await f.mount();await settle(f,2);success(f);assert.equal(f.commits.length,1);assert.deepEqual(f.files.get(journal.result.sourceGuard.path),before);
  f.files.set(journal.result.sourceGuard.path,Buffer.alloc(before.length,32));await f.mount();await settle(f,3);assert.ok(f.finishes[2].error);assert.equal(f.commits.length,1);
+});
+
+test('Gallery failure diagnostics retain the effect error and exact tile before saving',async()=>{
+ const f=fixture({failEffect:true});await f.mount();await settle(f);
+ assert.equal(f.commits.length,0);
+ const log=f.warnings.find(args=>args[0]==='[photo-gallery-no2] template run failed:');
+ assert.ok(log);
+ const diagnostic=JSON.parse(log[2]);
+ assert.equal(diagnostic.phase,'create-draft');
+ assert.ok(diagnostic.errors.some(error=>error.message==='effect compiler failed'&&error.stage==='style-tile-1'));
+ assert.equal(diagnostic.draftId,null);
+});
+
+// Web report: V1 over blank A1 is returned as a synthetic main row.
+// Gallery must place its tiles/music on outer lanes, leaving V1/A1 blank.
+test('Gallery run keeps visual tiles and music outside transcript lanes', async()=>{
+ const f=galleryFixture({transcriptLanes:true});await f.create();
+ assert.equal(f.commits.length,1);
+ const saved=[...f.saved.values()][0];
+ assert.equal(saved.clips.filter(row=>row.trackKind==='video').length,21);
+ assert.equal(saved.clips.filter(row=>row.trackKind==='audio').length,1);
+ assert.equal(saved.clips.filter(row=>row.trackKind==='main').length,0);
 });
