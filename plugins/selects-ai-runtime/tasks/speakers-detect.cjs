@@ -2,6 +2,7 @@
 const path=require('node:path');
 const {StageTimings}=require('../lib/stage-timings.cjs');
 const {startTool}=require('../lib/process.cjs');
+const {decodeSpeakerAudio}=require('../lib/speaker-audio-decode.cjs');
 const {startSpeakerVideo,SpeakerVideoDecodeError}=require('../lib/speaker-video-decode.cjs');
 const {writeJson}=require('../lib/files.cjs');
 const {createVerifiedModelSession}=require('../lib/models.cjs');
@@ -44,7 +45,9 @@ async function analyzeWindows({request,config,outputDir,ort,video,emitProgress,s
     const seek=start=>start+(video.timestampOriginSeconds??0)-(video.formatStartTime??0);
     if(useStream && windows.length>1 && seek(windows[0].start)>=0)
       stream=startSpeakerVideo({executable:config.tools.ffmpeg,source:request.input.source.path,windows,seek,width,height,signal,metrics:config.processMetrics});
-    for(const {start,duration} of windows) {
+    let audioWindows;
+    let audioDecodeMode='per-window';
+    for(const [index,{start,duration}] of windows.entries()) {
       signal.throwIfAborted();
       // Source audio and video are decoded from the same origin. No external
       // recorder offsets or per-camera identities are guessed here.
@@ -55,7 +58,21 @@ async function analyzeWindows({request,config,outputDir,ort,video,emitProgress,s
       const decode=async(kind,...args)=>{const began=performance.now();try{return await bytes(...args,config.processMetrics,kind+'Decode');}finally{decoderMetrics[kind+'DecodeMs']=(decoderMetrics[kind+'DecodeMs']??0)+performance.now()-began;}};
       const [rgb,audio]=await timings.measureAsync('mediaDecode',()=>Promise.all([
         stream ? stream.read(duration) : decode('video',config.tools.ffmpeg,[...common,'-an','-vf',`fps=25:start_time=0,scale=${width}:${height}`,'-pix_fmt','rgb24','-f','rawvideo','pipe:1'],signal,width*height*3*77),
-        decode('audio',config.tools.ffmpeg,[...common,'-vn','-ac','1','-ar','16000','-f','s16le','pipe:1'],signal,16000*2*4),
+        (async()=>{
+          if(stream && index===0) {
+            const audioBegan=performance.now();
+            try {
+              audioWindows=await decodeSpeakerAudio({executable:config.tools.ffmpeg,source:request.input.source.path,windows,seek,signal,metrics:config.processMetrics});
+              audioDecodeMode='continuous';
+            } catch {
+              signal.throwIfAborted();
+              audioDecodeMode='per-window-fallback';
+            } finally {
+              decoderMetrics.audioDecodeMs=(decoderMetrics.audioDecodeMs??0)+performance.now()-audioBegan;
+            }
+          }
+          return audioWindows?.[index] ?? decode('audio',config.tools.ffmpeg,[...common,'-vn','-ac','1','-ar','16000','-f','s16le','pipe:1'],signal,16000*2*4);
+        })(),
       ]));
       decodeMilliseconds+=performance.now()-decodeBegan;
       const pcm=timings.measure('pcmInput',()=>Float64Array.from({length:audio.length/2},(_,i)=>audio.readInt16LE(i*2)));
@@ -71,7 +88,7 @@ async function analyzeWindows({request,config,outputDir,ort,video,emitProgress,s
     }
     const output=speakersOutput({video,range,model:{id:descriptor.tasks['speakers.detect'].model,sha256:descriptor.tasks['speakers.detect'].sha256},samples:all,state,decodeMilliseconds,elapsedMilliseconds:performance.now()-started});
     await timings.measureAsync('outputWrite',()=>writeJson(path.join(outputDir,'speakers.json'),output.document));
-    result={files:{detections:'speakers.json'},metrics:output.metrics,diagnostics:{...output.diagnostics,videoDecode:stream?"streaming":"per-window"}};
+    result={files:{detections:'speakers.json'},metrics:output.metrics,diagnostics:{...output.diagnostics,videoDecode:stream?"streaming":"per-window",audioDecode:audioDecodeMode}};
   } finally {await timings.measureAsync('modelRelease',async()=>{try{await stream?.close();}finally{await model?.release();await yunet.release();}});}
   result.metrics.stageTimings=timings.summary();
   return result;

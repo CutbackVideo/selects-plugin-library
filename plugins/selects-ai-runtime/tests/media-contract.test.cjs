@@ -307,3 +307,38 @@ test('speaker video stream aborts a live decoder between windows', { skip: !conf
     await stream.close();
   }
 });
+
+test('speaker audio decodes once and keeps sample positions across model windows', { skip: !configPath }, async () => {
+  const { decodeSpeakerAudio } = require('../lib/speaker-audio-decode.cjs');
+  const { speakerWindows } = require('../tasks/speakers-detect.cjs');
+  const source = path.join(directory, 'speaker-audio.wav');
+  await ffmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000:duration=7', '-c:a', 'pcm_s16le', source]);
+  const windows = speakerWindows({ startSeconds: 0.125, endSeconds: 6.125 });
+  const metrics = {};
+  const decoded = await decodeSpeakerAudio({ executable: config.tools.ffmpeg, source, windows,
+    seek: time => time, signal: new AbortController().signal, metrics });
+  assert.equal(metrics.audioDecode.spawned, 1);
+  for (const [i, { start, duration }] of windows.entries()) {
+    const { stdout } = await ffmpeg(['-ss', String(start), '-i', source, '-t', String(duration),
+      '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1']);
+    assert.equal(decoded[i].length, 96_000);
+    assert.deepEqual(decoded[i], stdout);
+  }
+});
+
+test('speaker audio refuses delayed and discontinuous audio timelines', { skip: !configPath }, async () => {
+  const { decodeSpeakerAudio } = require('../lib/speaker-audio-decode.cjs');
+  const { speakerWindows } = require('../tasks/speakers-detect.cjs');
+  const windows = speakerWindows({ startSeconds: 0, endSeconds: 6 });
+  for (const [name, args] of [
+    ['late', ['-itsoffset', '0.25']],
+    ['gap', []],
+  ]) {
+    const source = path.join(directory, `speaker-audio-${name}.mkv`);
+    await ffmpeg(['-i', base, ...args, '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000:duration=7',
+      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'pcm_s16le',
+      ...(name === 'gap' ? ['-af', 'aselect=not(between(t\\,2\\,2.4))'] : []), source]);
+    await assert.rejects(decodeSpeakerAudio({ executable: config.tools.ffmpeg, source, windows,
+      seek: time => time, signal: new AbortController().signal }), /continuous sample timeline/);
+  }
+});
