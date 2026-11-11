@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "talk-audio-cleanup",
+  "version": "0.1.0-alpha.1",
+  "name": "Talk Audio Cleanup",
+  "summary": "Clean the sound of a talking Draft the way a broadcast editing guide asks: cut clicks out of the pauses, lower breaths, mute one-frame ticks between words and fade every cut by one frame, on a copy of the Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx",
+    "engine/analyze.py",
+    "engine/features.py"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel support with sdk.runScript, sdk.runShell, bundled FFmpeg jobs and local file reads (sdk.local-files-and-media-jobs.v1). The analysis is a Python program run through the shell, so Windows and web are not supported. The trained model is not part of this package and is installed separately. 30 fps Drafts only."
+  },
+  "localized": {
+    "ko": {
+      "name": "\ud1a0\ud06c \uc624\ub514\uc624 \uc815\ub9ac",
+      "summary": "\ubc29\uc1a1 \ud3b8\uc9d1 \uac00\uc774\ub4dc\ub300\ub85c \ub9d0\ud558\ub294 \uc601\uc0c1\uc758 \uc18c\ub9ac\ub97c \uc815\ub9ac\ud569\ub2c8\ub2e4. \ud2c8 \uc0ac\uc774 \ub538\uae4d\uc744 \uc798\ub77c\ub0b4\uace0, \uc228\uc18c\ub9ac\ub97c \ub0ae\ucd94\uace0, \ub9d0 \uc0ac\uc774 1\ud504\ub808\uc784 \uc7a1\uc74c\uc744 \uc74c\ub7c9 0\uc73c\ub85c \ud558\uace0, \uc790\ub978 \uc790\ub9ac\ub9c8\ub2e4 1\ud504\ub808\uc784 Fade\ub97c \ub123\uc5b4 Draft \uc0ac\ubcf8\uc744 \ub9cc\ub4ed\ub2c8\ub2e4."
+    }
+  }
+}
