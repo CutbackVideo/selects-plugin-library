@@ -168,6 +168,23 @@ Clients must check the host's `activeSpeakerSupported` before submission.
 
 CPU face/speaker preparation writes `preparation-reuse.json` next to the requested output config. Version 1 contains absolute `paths` covering the complete native environment (including common modules and its ready marker), pinned model files and resolved media tools. A supporting host may reuse successful JSON configuration only while these dependencies, runtime source, task and child environment remain unchanged. Worker model pins and fresh session creation remain required. Runtimes with transient hardware/permission decisions omit this sidecar; shared matte preparation always does. Missing, invalid or unsupported sidecars mean ordinary per-job preparation. Old hosts ignore the file.
 
+Desktop speaker preparation selects eight CPU inference threads on Apple Silicon
+with at least 12 available logical CPUs; other hosts and tasks retain four.
+A cooperating host may add private `hostConcurrency: 2` to its per-job config
+when admitting two speaker workers. The runtime caps each worker at four model
+threads in that case. This budget is not public task input and does not alter
+model weights, source sampling, tensors, or score averaging. Hosts without this
+contract keep ordinary serial admission. Exact duplicate inference spans within
+one face track reuse their scores, preserving all three averaging contributions
+in their original floating-point order. No result is shared between tracks/jobs.
+
+Speaker video decoder reuse is restricted to a single MP4 video stream with a
+`1/N` time base and integral-second input seeks and window durations. Fractional
+effective seeks/durations (including origin/start-time offsets), and unknown clocks retain independent
+per-window FFmpeg seeks: fractional `trim`/`setpts` rebasing can select a different
+25 fps frame. Stream failures still retry the entire request per window before
+publishing output.
+
 ## Web runtime (faces.detect, speakers.detect, person.matte)
 
 `plugin.json` names `webRuntime: "web/runtime.mjs"`, a single self-contained ES module that Selects' web host imports in a dedicated Worker. Web hosts admit this package, and plugins that require it, only because of that declaration; a runtime without `webRuntime` stays desktop-only. The module exports `contractVersion: 1`, `tasks: ["faces.detect", "speakers.detect", "person.matte"]`, its pinned `assets` and `run(context)`.
