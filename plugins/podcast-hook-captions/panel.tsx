@@ -164,7 +164,7 @@ return {contractVersion:d.contractVersion,task:d.task,frameSize:d.frameSize,coor
           if (Array.isArray(row.children)) visit(row.children);
         }
       };
-      for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === "Main") visit(track.children);
+      for (const track of core.sequenceJson?.tracks?.children || []) if (["Main", "Video", "Audio"].includes(track.kind)) visit(track.children);
       return clips;
     }
     function assertAttached(signal) {

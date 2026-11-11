@@ -601,7 +601,10 @@ const sharedAiResources=(()=>{const module={exports:{}};
 // Private joins between short run_script ids and persistent Project Resource ids.
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const fingerprint = rows => JSON.stringify(rows.map(r => [r.resourceId, r.name, r.type]));
-function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main'] } = {}) {
+// Selects 2.1 Drafts may have no Main track. The panel view joins identical V1/A1 pairs
+// into Main but leaves J/L tails and unlinked pieces on Video/Audio, where clips() still
+// reports them as "main" rows. Walk all three kinds so those clip ids stay bound.
+function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main', 'Video', 'Audio'] } = {}) {
   if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error('The Draft belongs to another Project.');
   const bindings = new Map();
   function walk(rows) {

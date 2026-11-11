@@ -591,7 +591,7 @@ return {title:${JSON.stringify(MUSIC.title)},artist:${JSON.stringify(MUSIC.artis
 }
 
 export async function readDraft(env: Env, projectId: string, sequenceId: string) {
- const before=canonicalResourceBindings(await env.sdk.call('getDraftCore',sequenceId),{projectId,draftId:sequenceId,trackKinds:['Main']});
+ const before=canonicalResourceBindings(await env.sdk.call('getDraftCore',sequenceId),{projectId,draftId:sequenceId});
  const result=await env.runScript(`
 const project:any=selects.project(${JSON.stringify(projectId)}), d:any=selects.draft(${JSON.stringify(sequenceId)});
 const persistentSources:Record<number,string>=${JSON.stringify(Object.fromEntries(before))};
@@ -614,7 +614,7 @@ const walk=(rows:any[])=>{for(const n of rows||[])if(n.type==='dir')walk(n.child
 const tree:any=await project.sourceFiles();
 if(tree.fileTree)walk(tree.fileTree);else for(const f of tree.folders||[]){const sub:any=await project.sourceFiles({folder:f.name});walk(sub.fileTree);}
 return {projectId:${JSON.stringify(projectId)},name:meta.name,fps:meta.fps,frameSize:meta.frameSize,endFrame:mains.reduce((a:number,m:any)=>Math.max(a,m.endFrame),0),words,mains,files};`,'Read the talking-head Draft');
- const after=canonicalResourceBindings(await env.sdk.call('getDraftCore',sequenceId),{projectId,draftId:sequenceId,trackKinds:['Main']});
+ const after=canonicalResourceBindings(await env.sdk.call('getDraftCore',sequenceId),{projectId,draftId:sequenceId});
  if(JSON.stringify([...before])!==JSON.stringify([...after]))throw new Error('The Main sources changed while reading this Draft. Try again.');
  if(result.mains.some((m:any)=>!m.aiResourceId))throw new Error('A persistent source Resource is unavailable.');
  return result;
@@ -1392,7 +1392,7 @@ const sharedAiResources=(()=>{const module={exports:{}};
 // Private joins between short run_script ids and persistent Project Resource ids.
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const fingerprint = rows => JSON.stringify(rows.map(r => [r.resourceId, r.name, r.type]));
-function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main'] } = {}) {
+function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main', 'Video', 'Audio'] } = {}) {
   if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error('The Draft belongs to another Project.');
   const bindings = new Map();
   function walk(rows) {

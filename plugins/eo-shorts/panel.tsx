@@ -288,7 +288,7 @@ var require_ai_resources = __commonJS({
   "../../shared/ai-resources.cjs"(exports, module) {
     var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
     var fingerprint = (rows) => JSON.stringify(rows.map((r5) => [r5.resourceId, r5.name, r5.type]));
-    function canonicalResourceBindings2(core, { projectId, draftId, trackKinds = ["Main"] } = {}) {
+    function canonicalResourceBindings2(core, { projectId, draftId, trackKinds = ["Main", "Video", "Audio"] } = {}) {
       if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error("The Draft belongs to another Project.");
       const bindings = /* @__PURE__ */ new Map();
       function walk(rows) {

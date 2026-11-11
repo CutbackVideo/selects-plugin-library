@@ -121,7 +121,8 @@ function rawResources(core, projectId, draftId) {
     if (Number.isSafeInteger(row.id) && typeof id === 'string') clips.set(row.id, id);
     if (Array.isArray(row.children)) visit(row.children);
   }};
-  for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === 'Main') visit(track.children);
+  // Main-less Drafts keep J/L tails and unlinked pieces on Video/Audio (see shared/ai-resources.cjs).
+  for (const track of core.sequenceJson?.tracks?.children || []) if (['Main', 'Video', 'Audio'].includes(track.kind)) visit(track.children);
   return clips;
 }
 function assertAttached(signal) {
