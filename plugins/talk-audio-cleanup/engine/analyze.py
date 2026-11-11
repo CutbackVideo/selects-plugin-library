@@ -1,4 +1,4 @@
-"""Audio cleanup decisions for one recording, following the Syuka World editing guide.
+"""Audio cleanup decisions for one recording, following a broadcast editing guide.
 48 kHz stereo WAV in, an edit decision list out: which stretches to cut, lower or mute, and why.
 
   python analyze.py --wav in.wav --model model.joblib --out edl.json [--source-start 0.0]
@@ -15,7 +15,7 @@ FPS = 30
 TOUCH = 0.25        # touch a frame when P(keep) falls below 1 - TOUCH
 SURE_CUT = 0.30     # a cut the model is less sure of than this becomes a volume change (no picture cut)
 STICKS_OUT = 12.0   # dB over the >2 kHz floor; a proposal with nothing above this is dropped
-LOWER_DB = -11.0    # the editor's typical clip-volume drop for breaths
+BLOCK, MARGIN = 3600, 300   # frames: 2-minute blocks with 10 s of context on each side, so memory does not grow with the recording
 SNIFF_FLATNESS, SNIFF_LEVEL = 0.40, -46.0   # a breath-like stretch this hissy and this loud is muted, not lowered
 
 def decide(P, dirt, quiet):
@@ -29,20 +29,28 @@ def decide(P, dirt, quiet):
         if P[s:e, 1].max() < SURE_CUT: p[s:e] = 2 if e - s <= 2 else 3
     return p
 
-def build(pcm, model, columns, source_start=0.0, offset=0):
-    F, n = ft.extract(pcm, offset); X = ft.matrix(F, columns)
-    P = np.zeros((n, 4), np.float32); P[:, model.classes_] = model.predict_proba(X)
-    dirt, quiet = F["high_max@0"], F["full_mean_abs"] < -40
-    p = decide(P, dirt, quiet); items = []
+def measure(pcm, model, columns):
+    """Per-frame class probabilities and the three measures the rules read, block by block.
+    ponytail: a pause longer than MARGIN that crosses a block edge is measured shorter than it is; widen MARGIN if that matters."""
+    n = len(pcm) // ft.FR; P = np.zeros((n, 4), np.float32); dirt = np.zeros(n, np.float32); level = dirt.copy(); flat = dirt.copy()
+    for s in range(0, n, BLOCK):
+        a, e = max(0, s - MARGIN), min(n, s + BLOCK); b = min(n, e + MARGIN)
+        F, _ = ft.extract(np.asarray(pcm[a * ft.FR: b * ft.FR]), 0); k = slice(s - a, e - a)
+        P[s:e, model.classes_] = model.predict_proba(ft.matrix(F, columns)[k])
+        dirt[s:e], level[s:e], flat[s:e] = F["high_max@0"][k], F["full_mean_abs"][k], F["flatness@0"][k]
+    return P, dirt, level, flat
+
+def build(pcm, model, columns, source_start=0.0):
+    P, dirt, level, flat = measure(pcm, model, columns)
+    p = decide(P, dirt, level < -40); items = []
     for kind, action in ((1, "delete"), (2, "mute"), (3, "lower")):
         for s, e in ft.runs(p == kind):
             rule = {"delete": "blemish", "mute": "click", "lower": "breath"}[action]; act = action
-            if action == "lower" and np.median(F["flatness@0"][s:e]) >= SNIFF_FLATNESS and F["full_mean_abs"][s:e].max() >= SNIFF_LEVEL: act, rule = "mute", "sniff"
+            if action == "lower" and np.median(flat[s:e]) >= SNIFF_FLATNESS and level[s:e].max() >= SNIFF_LEVEL: act, rule = "mute", "sniff"
             items.append(dict(start=round(source_start + s / FPS, 4), end=round(source_start + e / FPS, 4), frames=int(e - s), action=act, rule=rule,
-                              gainDb=None if act == "delete" else (LOWER_DB if act == "lower" else -60.0),
-                              confidence=round(float(P[s:e, kind].max()), 3), sticksOutDb=round(float(dirt[s:e].max()), 1)))
+                              confidence=round(float(P[s:e, kind].max()), 3)))
     items.sort(key=lambda it: it["start"])
-    return dict(version=1, fps=FPS, sourceStart=source_start, frames=int(n), items=items,
+    return dict(fps=FPS, sourceStart=source_start, items=items,
                 counts={k: sum(it["rule"] == k for it in items) for k in ("blemish", "breath", "sniff", "click")},
                 secondsCut=round(sum(it["frames"] for it in items if it["action"] == "delete") / FPS, 2))
 
@@ -60,7 +68,7 @@ if __name__ == "__main__":
     ap.add_argument("--self-check", action="store_true"); a = ap.parse_args()
     if a.self_check: self_check(); print("ok"); sys.exit(0)
     import joblib
-    sr, pcm = wavfile.read(a.wav)
+    sr, pcm = wavfile.read(a.wav, mmap=True)
     if sr != 48000 or pcm.ndim != 2 or pcm.shape[1] != 2 or pcm.dtype != np.int16: sys.exit("expected 48 kHz stereo 16-bit PCM")
     pack = joblib.load(a.model); edl = build(pcm, pack["model"], pack["columns"], a.source_start)
     with open(a.out, "w") as f: json.dump(edl, f); print(json.dumps(dict(items=len(edl["items"]), counts=edl["counts"], secondsCut=edl["secondsCut"])))

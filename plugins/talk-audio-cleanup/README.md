@@ -21,6 +21,7 @@ It works on a copy of the open Draft. The original Draft is not changed.
 2. **Analyze** decodes the Main clips' audio with the app's FFmpeg and runs
    `engine/analyze.py` on this computer. Nothing is uploaded and no credits are
    used.
+   The first run sets up the Python it needs (a download of a few minutes).
 3. Each kind of sound is listed with how many places were found and where.
    Turn a kind off, raise **Only cut when this sure** to cut less (the less
    certain cuts become volume changes), or change how far breaths are lowered.
@@ -46,8 +47,9 @@ each frame: keep, cut, mute or lower. Then:
 
 ## Limitations
 
-- The model is not in this package; see [INSTALL.md](INSTALL.md). Without it
-  the Panel reports that the analysis failed.
+- The model is not in this package and is not publicly distributed; see
+  [INSTALL.md](INSTALL.md). Without it the Panel says the model is not
+  installed.
 - macOS only: the analysis is a Python program run through the shell.
 - 30 fps Drafts only. Clips at another speed are left out, and so are clips
   that play a Synced Timeline.
@@ -55,6 +57,8 @@ each frame: keep, cut, mute or lower. Then:
   first.
 - Trained on one recording setup. On other voices, rooms or microphones it
   will find less and may find the wrong things; check the list.
-- Words are never cut on purpose, but the model can be wrong. A clip's own
-  first and last frame are never touched.
+- Words are never cut on purpose, but the model can be wrong.
+- A sound that crosses a cut already in the Draft is left alone, and so is a
+  clip whose volume is keyframed.
+- A source file without an audio stream is left out.
 - It does not remove filler words or shorten pauses.

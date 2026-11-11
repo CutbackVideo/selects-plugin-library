@@ -17,7 +17,7 @@ def geometry(mask):
     L = np.zeros(len(mask), np.float32); a_ = L.copy(); b_ = L.copy()
     for a, b in runs(mask): L[a:b] = b - a; a_[a:b] = np.arange(b - a); b_[a:b] = np.arange(b - a)[::-1]
     return L, a_, b_
-def extract(pcm, off=1024):
+def extract(pcm, off=0):
     """pcm: int16 [samples, 2] at 48 kHz. Returns (dict name -> per-frame array, n_frames)."""
     x = pcm.astype(np.float32).mean(axis=1) / 32768.0; hp = sosfilt(butter(4, 2000, "hp", fs=SR, output="sos"), x).astype(np.float32)
     n = (len(x) - off) // FR; F = {}
@@ -32,10 +32,10 @@ def extract(pcm, off=1024):
     for nm, m in (("abs40", F["full_mean_abs"] < -40), ("abs50", F["full_mean_abs"] < -50), ("rel10", base["full_max"] < 10), ("rel20", base["full_max"] < 20)):
         for s, g in zip(("len", "from_start", "to_end"), geometry(m)): F[f"pause_{nm}_{s}"] = g
     xs = x[off: off + n * FR]
-    win = sliding_window_view(np.pad(xs, (FR // 2, FR // 2 + FR)), 2 * FR)[::FR][:n] * np.hanning(2 * FR).astype(np.float32)
+    win = sliding_window_view(np.pad(xs, (FR // 2, FR // 2 + FR)), 2 * FR)[::FR][:n]; hann2 = np.hanning(2 * FR).astype(np.float32)   # a view: windowed per chunk below
     flat = np.empty(n, np.float32); pitch = np.empty(n, np.float32); lo, hi = int(300 * 4096 / SR), int(4000 * 4096 / SR)
     for i in range(0, n, 4096):
-        P = np.abs(np.fft.rfft(win[i:i + 4096], 4096, axis=1)) ** 2 + 1e-14; b = P[:, lo:hi]; flat[i:i + 4096] = np.exp(np.log(b).mean(axis=1)) / b.mean(axis=1)
+        P = np.abs(np.fft.rfft(win[i:i + 4096] * hann2, 4096, axis=1)) ** 2 + 1e-14; b = P[:, lo:hi]; flat[i:i + 4096] = np.exp(np.log(b).mean(axis=1)) / b.mean(axis=1)
         ac = np.fft.irfft(P, axis=1); ac = ac / ac[:, :1]; pitch[i:i + 4096] = ac[:, SR // 350: SR // 70].max(axis=1)
     for nm, v in (("flatness", flat), ("pitch_strength", pitch)):
         for o in (-4, -2, -1, 0, 1, 2, 4): F[f"{nm}@{o}"] = shift(v, o)
