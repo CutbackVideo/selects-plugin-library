@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "travel-beat-vlog",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
