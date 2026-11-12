@@ -263,6 +263,12 @@ jobs:
           node --test tests/vox_explainer_engine.test.mjs
       - name: Test Medical Explainer
         run: node --test tests/medical_explainer.test.mjs
+      - name: Test Talk Audio Cleanup
+        run: |
+          node --test tests/talk_audio_cleanup_panel.test.mjs
+          python3 -m venv "$RUNNER_TEMP/talk-audio-cleanup"
+          "$RUNNER_TEMP/talk-audio-cleanup/bin/pip" install --quiet -r plugins/talk-audio-cleanup/engine/requirements.txt
+          TALK_AUDIO_CLEANUP_STRICT=1 "$RUNNER_TEMP/talk-audio-cleanup/bin/python" -m unittest tests.test_talk_audio_cleanup
       - name: Test Card News Maker photo cards
         run: node --test tests/card_news_maker_photos.test.mjs tests/card_news_maker_link_ui.test.mjs tests/card_news_maker_hotfix.test.mjs tests/card_news_article_images.test.mjs
       - name: Test A16z Style Captions
