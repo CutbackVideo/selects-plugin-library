@@ -18,7 +18,10 @@ const STRINGS = {
     noDraft: "Open the Draft you want to clean.",
     reading: "Reading the Draft…",
     draft: "Draft",
-    clips: (n, s) => `${n} clip${n === 1 ? "" : "s"} on Main, ${s} of source audio`,
+    title: "Clean up talk audio",
+    intro: "Finds the small noises between words and fixes them on a copy of this Draft. Your Draft is not changed.",
+    looksFor: "What it looks for",
+    clips: (n, s) => `${s} of talk${n === 1 ? "" : ` in ${n} clips`}`,
     skippedSpeed: (n) => `${n} left out (not at 1× speed)`,
     skippedSilent: (n) => `${n} source file${n === 1 ? "" : "s"} without sound left out`,
     unsupported: {
@@ -26,42 +29,51 @@ const STRINGS = {
       none: "No Main clip with its own source file was found in this Draft.",
       web: "The analysis runs a local program, so it needs the desktop app.",
     },
-    analyze: "Analyze",
+    analyze: "Find what to clean",
     analyzing: "Analyzing…",
-    analyzeNote: "Runs on this computer. Nothing is uploaded and no credits are used.",
+    analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
     steps: { prepare: "Prepare (first run downloads Python, a few minutes)", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
     noModel: "The trained model is not installed. Put it at ~/.selects/plugin-data/talk-audio-cleanup/model.joblib (see INSTALL.md).",
     setupFailed: "Could not set up the analysis program. Check the internet connection, then try again.",
     nothing: "Nothing to clean was found in this Draft.",
     partial: (name) => `It stopped partway: the copy “${name}” has only some of the edits. Delete it before trying again.`,
     found: "What was found",
+    summary: (n, c, v, s) => `${n} place${n === 1 ? "" : "s"} to clean: ${c} cut${c === 1 ? "" : "s"} (${s} shorter) and ${v} volume change${v === 1 ? "" : "s"}.`,
+    jumpHint: "Click a time to jump there in the timeline and listen.",
+    showAll: (n) => `Show all ${n}`,
+    showFewer: "Show fewer",
+    options: "Options",
+    include: "Include",
+    doneTitle: "Cleaned copy saved",
     rule: {
-      blemish: ["Cut clicks and blemishes", "Remove the blemish, keep the pause"],
-      breath: ["Lower breaths", "Bring the clip volume down, not the gain"],
-      sniff: ["Mute loud sniffs", "A breath that is loud and hissy is muted instead of lowered"],
-      click: ["Mute ticks between words", "One or two frames, muted in place so the picture is not cut"],
-      opener: ["Cut a lone opening \u201c\uc790\u201d", "Only where the transcript has it and the waveform shows it standing apart from the next word"],
+      blemish: ["Cut blemishes", "Clicks and mouth noises in a pause are cut out. The pause stays."],
+      breath: ["Lower breaths", "The clip volume is brought down there. Nothing is cut."],
+      sniff: ["Mute loud sniffs", "A breath that is loud and hissy is muted instead of lowered."],
+      click: ["Mute ticks", "A one- or two-frame tick between words is muted in place, so the picture is not cut."],
+      opener: ["Cut lone \u201c\uc790\u201d", "An opening \u201c\uc790\u201d is cut only when it stands apart from the words after it."],
     },
     count: (n, s) => `${n} place${n === 1 ? "" : "s"}, ${s}`,
-    cutLine: "Only cut when this sure",
+    cutLine: "Cut confidence",
     cutLineNote: (n) => `${n} less certain cut${n === 1 ? "" : "s"} become${n === 1 ? "s" : ""} a volume change instead, so the picture is not cut there.`,
     lowerBy: "Lower breaths by",
     fade: "One-frame fade after each cut",
     fadeNote: "So a cut does not tick",
     apply: "Make a cleaned copy",
     applying: "Applying…",
-    applyNote: (c, v, s, name) => `${c} cut${c === 1 ? "" : "s"} (${s} shorter) and ${v} volume change${v === 1 ? "" : "s"}, on a copy named “${name}”.`,
+    applyNote: (name) => `The copy will be a new Draft named “${name}”.`,
     done: (n, d) => `Saved “${n}”: ${d.delete} cut, ${d.lower} lowered, ${d.mute} muted, ${d.fades} fades${d.skipped ? `, ${d.skipped} skipped` : ""}.`,
     listen: "Play a few of them before you export. They were found by measuring, not by listening.",
     again: "Analyze again",
-    more: (n) => `and ${n} more`,
     copySuffix: "cleaned",
   },
   ko: {
     noDraft: "\uc815\ub9ac\ud560 Draft\ub97c \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
     reading: "Draft\ub97c \uc77d\ub294 \uc911…",
     draft: "Draft",
-    clips: (n, s) => `Main \ud074\ub9bd ${n}\uac1c, \uc6d0\ubcf8 \uc624\ub514\uc624 ${s}`,
+    title: "\ub9d0\uc18c\ub9ac \uc815\ub9ac",
+    intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc774 Draft\uc758 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc6d0\ub798 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    looksFor: "\ucc3e\ub294 \uac83",
+    clips: (n, s) => `\ub9d0\uc18c\ub9ac ${s}${n === 1 ? "" : ` (\ud074\ub9bd ${n}\uac1c)`}`,
     skippedSpeed: (n) => `1\ubc30\uc18d\uc774 \uc544\ub2cc ${n}\uac1c \uc81c\uc678`,
     skippedSilent: (n) => `\uc18c\ub9ac \uc5c6\ub294 \uc6d0\ubcf8 ${n}\uac1c \uc81c\uc678`,
     unsupported: {
@@ -69,35 +81,41 @@ const STRINGS = {
       none: "\uc774 Draft\uc758 Main\uc5d0\uc11c \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc788\ub294 \ud074\ub9bd\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
       web: "\ubd84\uc11d\uc740 \uc774 \ucef4\ud4e8\ud130\uc758 \ud504\ub85c\uadf8\ub7a8\uc744 \uc2e4\ud589\ud558\ubbc0\ub85c \ub370\uc2a4\ud06c\ud1b1 \uc571\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
     },
-    analyze: "\ubd84\uc11d",
+    analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
     analyzing: "\ubd84\uc11d \uc911…",
-    analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub429\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     steps: { prepare: "\uc900\ube44 (\ucc98\uc74c \ud55c \ubc88\uc740 Python\uc744 \ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4)", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
     noModel: "\ud559\uc2b5\ub41c \ubaa8\ub378\uc774 \uc124\uce58\ub418\uc5b4 \uc788\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. ~/.selects/plugin-data/talk-audio-cleanup/model.joblib \uc5d0 \ub123\uc5b4 \uc8fc\uc138\uc694 (INSTALL.md \ucc38\uace0).",
     setupFailed: "\ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc778\ud130\ub137 \uc5f0\uacb0\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     nothing: "\uc774 Draft\uc5d0\uc11c \uc815\ub9ac\ud560 \uacf3\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     partial: (name) => `\uc911\uac04\uc5d0 \uba48\ucdc4\uc2b5\ub2c8\ub2e4. “${name}” \uc0ac\ubcf8\uc5d0\ub294 \uc77c\ubd80\ub9cc \uc801\uc6a9\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uae30 \uc804\uc5d0 \uc9c0\uc6cc \uc8fc\uc138\uc694.`,
     found: "\ucc3e\uc740 \uac83",
+    summary: (n, c, v, s) => `\uc815\ub9ac\ud560 \uacf3 ${n}\uacf3: \ucef7 ${c}\uacf3(${s} \uc9e7\uc544\uc9d0), \uc74c\ub7c9 \uc870\uc808 ${v}\uacf3.`,
+    jumpHint: "\uc2dc\uac01\uc744 \ub204\ub974\uba74 \ud0c0\uc784\ub77c\uc778\uc758 \uadf8 \uc790\ub9ac\ub85c \uc774\ub3d9\ud569\ub2c8\ub2e4. \ub4e4\uc5b4 \ubcf4\uc138\uc694.",
+    showAll: (n) => `${n}\uacf3 \ubaa8\ub450 \ubcf4\uae30`,
+    showFewer: "\uc811\uae30",
+    options: "\uc635\uc158",
+    include: "\uc801\uc6a9",
+    doneTitle: "\uc815\ub9ac\ub41c \uc0ac\ubcf8\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4",
     rule: {
-      blemish: ["\uc7a1\ud2f0 \uc798\ub77c\ub0b4\uae30", "\ub9c8\ub294 \ub0a8\uae30\uace0 \uc7a1\ud2f0\ub9cc \uc81c\uac70"],
-      breath: ["\uc501·\ud558~ \uc74c\ub7c9 \ub0ae\ucd94\uae30", "\uac8c\uc778\uc774 \uc544\ub2c8\ub77c \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0b4\ub9bc"],
-      sniff: ["\ud070 \ucf54\uba39\uc74c \uc74c\ub7c9 0", "\ud06c\uace0 \uc26c\uc775\uac70\ub9ac\ub294 \uc228\uc18c\ub9ac\ub294 \ub0ae\ucd94\uc9c0 \uc54a\uace0 0\uc73c\ub85c"],
-      click: ["\ub9d0 \uc0ac\uc774 \ub538\uae4d \uc74c\ub7c9 0", "1~2\ud504\ub808\uc784\uc744 \uc81c\uc790\ub9ac\uc5d0\uc11c \uc74c\ub7c9 0\uc73c\ub85c. \ud654\uba74\uc740 \uc790\ub974\uc9c0 \uc54a\uc74c"],
-      opener: ["\ub530\ub85c \ub5a8\uc5b4\uc9c4 \uc2dc\uc791 \u2018\uc790\u2019 \uc0ad\uc81c", "\uc804\uc0ac\uc5d0 \uc788\uace0, \ud30c\ud615\uc5d0\uc11c \ub4b7\ub9d0\uacfc \ub5a8\uc5b4\uc838 \uc788\uc744 \ub54c\ub9cc"],
+      blemish: ["\uc7a1\ud2f0 \uc798\ub77c\ub0b4\uae30", "\ub9d0 \uc0ac\uc774\uc758 \ub538\uae4d·\uc785\uc18c\ub9ac\ub97c \uc798\ub77c\ub0c5\ub2c8\ub2e4. \uc26c\ub294 \ud2c8\uc740 \ub0a8\uae41\ub2c8\ub2e4."],
+      breath: ["\uc228\uc18c\ub9ac \ub0ae\ucd94\uae30", "\uadf8 \uc790\ub9ac\uc758 \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0b4\ub9bd\ub2c8\ub2e4. \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
+      sniff: ["\ud070 \ucf54\uba39\uc74c \uc74c\ub7c9 0", "\ud06c\uace0 \uc26c\uc775\uac70\ub9ac\ub294 \uc228\uc18c\ub9ac\ub294 \ub0ae\ucd94\uc9c0 \uc54a\uace0 0\uc73c\ub85c \ud569\ub2c8\ub2e4."],
+      click: ["\ub538\uae4d \uc74c\ub7c9 0", "\ub9d0 \uc0ac\uc774 1~2\ud504\ub808\uc784 \ub538\uae4d\uc740 \uc81c\uc790\ub9ac\uc5d0\uc11c \uc74c\ub7c9 0\uc73c\ub85c \ud569\ub2c8\ub2e4. \ud654\uba74\uc740 \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
+      opener: ["\ub530\ub85c \uc120 ‘\uc790’ \uc0ad\uc81c", "\uc2dc\uc791 ‘\uc790’\uac00 \ub4b7\ub9d0\uacfc \ub5a8\uc5b4\uc838 \uc788\uc744 \ub54c\ub9cc \uc790\ub985\ub2c8\ub2e4."],
     },
     count: (n, s) => `${n}\uacf3, ${s}`,
-    cutLine: "\uc774\ub9cc\ud07c \ud655\uc2e4\ud560 \ub54c\ub9cc \uc790\ub974\uae30",
+    cutLine: "\uc790\ub974\uae30 \ud655\uc2e0\ub3c4",
     cutLineNote: (n) => `\ub35c \ud655\uc2e4\ud55c \ucef7 ${n}\uacf3\uc740 \uc790\ub974\uc9c0 \uc54a\uace0 \uc74c\ub7c9\ub9cc \uc870\uc808\ud569\ub2c8\ub2e4. \uadf8 \uc790\ub9ac\uc758 \ud654\uba74\uc740 \ub04a\uae30\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.`,
     lowerBy: "\uc228\uc18c\ub9ac\ub97c \ub0ae\ucd94\ub294 \uc591",
     fade: "\uc790\ub978 \uc790\ub9ac\ub9c8\ub2e4 1\ud504\ub808\uc784 Fade",
     fadeNote: "\uc790\ub978 \uc790\ub9ac\uc5d0\uc11c \ud2f1 \uc18c\ub9ac\uac00 \ub098\uc9c0 \uc54a\uac8c",
     apply: "\uc815\ub9ac\ub41c \uc0ac\ubcf8 \ub9cc\ub4e4\uae30",
     applying: "\uc801\uc6a9 \uc911…",
-    applyNote: (c, v, s, name) => `\ucef7 ${c}\uacf3(${s} \uc9e7\uc544\uc9d0), \uc74c\ub7c9 \uc870\uc808 ${v}\uacf3\uc744 “${name}” \uc0ac\ubcf8\uc5d0 \uc801\uc6a9\ud569\ub2c8\ub2e4.`,
+    applyNote: (name) => `“${name}”\uc774\ub77c\ub294 \uc0c8 Draft\ub85c \uc800\uc7a5\ub429\ub2c8\ub2e4.`,
     done: (n, d) => `“${n}” \uc800\uc7a5\ub428: \ucef7 ${d.delete}, \uc74c\ub7c9 \ub0ae\ucda4 ${d.lower}, \uc74c\ub7c9 0 ${d.mute}, Fade ${d.fades}${d.skipped ? `, \uac74\ub108\ub700 ${d.skipped}` : ""}.`,
     listen: "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \uba87 \uacf3\uc744 \uc9c1\uc811 \ub4e4\uc5b4 \ubcf4\uc138\uc694. \uce21\uc815\uc73c\ub85c \ucc3e\uc740 \uac83\uc774\uace0, \ub4e4\uc5b4\uc11c \ucc3e\uc740 \uac83\uc774 \uc544\ub2d9\ub2c8\ub2e4.",
     again: "\ub2e4\uc2dc \ubd84\uc11d",
-    more: (n) => `\uc678 ${n}\uacf3`,
     copySuffix: "\uc815\ub9ac\ubcf8",
   },
 };
@@ -226,6 +244,7 @@ export default function Panel({ sdk, context, ui }) {
   const [lowerDb, setLowerDb] = useState(11);
   const [fade, setFade] = useState(true);
   const [silent, setSilent] = useState(0);
+  const [open, setOpen] = useState({}); // which kinds show every place
   const token = useRef(0); // bumped when the Draft changes or the panel closes; a run that sees another value stops
   const { projectId, sequenceId } = context;
 
@@ -333,6 +352,14 @@ export default function Panel({ sdk, context, ui }) {
   const softened = chosen.filter((i) => i.softened).length;
   const copyName = `${info?.name || t.draft} (${t.copySuffix})`;
 
+  // Put the playhead half a second before a found place, so pressing play lets you hear it.
+  function jump(it) {
+    const c = info.clips.find((x) => x.resourceId === it.resourceId && it.start >= x.sourceStart - 1e-6 && it.start < x.sourceStart + x.frames / FPS);
+    if (!c) return;
+    const frame = Math.max(c.startFrame, c.startFrame + Math.round((it.start - c.sourceStart) * FPS) - 15);
+    run("Jump to the place", `await selects.editor.seekDraftFrame({ projectId: ${q(projectId)}, draftSequenceId: ${q(sequenceId)}, resolvedFrame: ${frame} }); return true;`).catch(() => {});
+  }
+
   async function apply() {
     const mine = token.current, live = () => mine === token.current;
     setBusy("apply"); setError(null); applying.current = true;
@@ -357,25 +384,30 @@ export default function Panel({ sdk, context, ui }) {
   }
 
   if (!projectId || !sequenceId) return <ui.Message>{t.noDraft}</ui.Message>;
+  const applyButton = <ui.Button variant="primary" busy={busy === "apply"} busyLabel={t.applying} disabled={chosen.length === 0} onClick={apply}>{t.apply}</ui.Button>;
   return (
-    <ui.Stack>
-      <ui.Section title={t.draft}>
-        {busy === "read" && <ui.Progress />}
-        {info && <p>{info.name ? `${info.name} · ` : ""}{t.clips(info.clips.length, span(sourceSeconds, ko))}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
+    <ui.Stack gap={16}>
+      <ui.Section title={t.title}>
+        {busy === "read" && <ui.Skeleton width="60%" />}
+        {info && <p><strong>{info.name || t.draft}</strong> · {t.clips(info.clips.length, span(sourceSeconds, ko))}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
         {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
-        {info && !blocked && !items && (
+        {info && !blocked && !items && busy !== "analyze" && (
           <>
+            <p>{t.intro}</p>
             <ui.Actions>
-              <ui.Button variant="primary" busy={busy === "analyze"} busyLabel={t.analyzing} onClick={analyze}>{t.analyze}</ui.Button>
+              <ui.Button variant="primary" onClick={analyze}>{t.analyze}</ui.Button>
             </ui.Actions>
-            {busy === "analyze" ? (
-              <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage} />
-            ) : (
-              <p>{t.analyzeNote}</p>
-            )}
+            <ui.Message tone="muted">{t.analyzeNote}</ui.Message>
           </>
         )}
+        {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage} />}
       </ui.Section>
+
+      {info && !blocked && !items && busy !== "analyze" && (
+        <ui.Section title={t.looksFor}>
+          {RULES.map((rule) => <p key={rule}><strong>{t.rule[rule][0]}</strong><br />{t.rule[rule][1]}</p>)}
+        </ui.Section>
+      )}
 
       {items && items.length === 0 && (
         <ui.Section title={t.found}>
@@ -388,21 +420,28 @@ export default function Panel({ sdk, context, ui }) {
       )}
 
       {items && items.length > 0 && !result && (
-        <ui.Section title={t.found}>
-          {silent > 0 && <p>{t.skippedSilent(silent)}</p>}
+        <>
+          <ui.Section title={t.found}>
+            <p><strong>{t.summary(chosen.length, cuts.length, chosen.length - cuts.length, span(cutSeconds, ko))}</strong></p>
+            <p>{t.applyNote(copyName)}</p>
+            {silent > 0 && <p>{t.skippedSilent(silent)}</p>}
+            <ui.Actions>{applyButton}</ui.Actions>
+            <ui.Message tone="muted">{t.jumpHint}</ui.Message>
+          </ui.Section>
           {RULES.map((rule) => {
             const mine = chosen.filter((i) => i.rule === rule), every = items.filter((i) => i.rule === rule);
             if (every.length === 0) return null;
             const seconds = (on[rule] ? mine : every).reduce((s, i) => s + i.frames / FPS, 0);
+            const list = open[rule] ? mine : mine.slice(0, 6);
             return (
-              <ui.Stack key={rule}>
-                <ui.Toggle label={t.rule[rule][0]} value={on[rule]} onChange={(v) => setOn({ ...on, [rule]: v })} />
-                <p>{t.rule[rule][1]} · {t.count(every.length, span(seconds, ko))}</p>
-                {on[rule] && (
-                  <p>
-                    {mine.slice(0, 8).map((i) => clock(i.start)).join("  ")}
-                    {mine.length > 8 ? `  ${t.more(mine.length - 8)}` : ""}
-                  </p>
+              <ui.Section key={rule} title={`${t.rule[rule][0]} · ${on[rule] ? mine.length : every.length}`}>
+                <ui.Toggle label={t.include} value={on[rule]} onChange={(v) => setOn({ ...on, [rule]: v })} />
+                <p>{t.rule[rule][1]}<br />{t.count(on[rule] ? mine.length : every.length, span(seconds, ko))}</p>
+                {on[rule] && mine.length > 0 && (
+                  <ui.Row gap={4}>
+                    {list.map((i) => <ui.Button key={`${i.resourceId}:${i.start}`} variant="ghost" onClick={() => jump(i)}>{clock(i.start)}</ui.Button>)}
+                    {mine.length > 6 && <ui.Button variant="ghost" onClick={() => setOpen({ ...open, [rule]: !open[rule] })}>{open[rule] ? t.showFewer : t.showAll(mine.length)}</ui.Button>}
+                  </ui.Row>
                 )}
                 {rule === "blemish" && on.blemish && (
                   <>
@@ -411,21 +450,23 @@ export default function Panel({ sdk, context, ui }) {
                   </>
                 )}
                 {rule === "breath" && on.breath && <ui.Slider label={t.lowerBy} unit="dB" min={6} max={20} value={lowerDb} onChange={setLowerDb} />}
-              </ui.Stack>
+              </ui.Section>
             );
           })}
-          <ui.Toggle label={t.fade} value={fade} onChange={setFade} />
-          <p>{t.fadeNote}</p>
-          <ui.Actions>
-            <ui.Button variant="primary" busy={busy === "apply"} busyLabel={t.applying} disabled={chosen.length === 0} onClick={apply}>{t.apply}</ui.Button>
-          </ui.Actions>
-          <p>{t.applyNote(cuts.length, chosen.length - cuts.length, span(cutSeconds, ko), copyName)}</p>
-        </ui.Section>
+          <ui.Section title={t.options}>
+            <ui.Toggle label={t.fade} value={fade} onChange={setFade} />
+            <p>{t.fadeNote}</p>
+            <ui.Actions>
+              <ui.Button variant="secondary" onClick={() => setItems(null)}>{t.again}</ui.Button>
+              {applyButton}
+            </ui.Actions>
+          </ui.Section>
+        </>
       )}
 
       {result && (
-        <ui.Section title={t.found}>
-          <ui.Message>{t.done(result.name, result.done)}</ui.Message>
+        <ui.Section title={t.doneTitle}>
+          <ui.Message tone="success">{t.done(result.name, result.done)}</ui.Message>
           <p>{t.listen}</p>
           <ui.Actions>
             <ui.Button variant="secondary" onClick={() => { setItems(null); setResult(null); }}>{t.again}</ui.Button>
