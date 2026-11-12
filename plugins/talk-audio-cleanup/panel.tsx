@@ -32,7 +32,8 @@ const STRINGS = {
     analyze: "Find what to clean",
     analyzing: "Analyzing…",
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
-    steps: { prepare: "Prepare (first run downloads Python, a few minutes)", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
+    firstRun: "First run: setting up the analysis program. This downloads Python and takes a few minutes, once.",
+    steps: { prepare: "Prepare", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
     noModel: "The trained model is not installed. Put it at ~/.selects/plugin-data/talk-audio-cleanup/model.joblib (see INSTALL.md).",
     setupFailed: "Could not set up the analysis program. Check the internet connection, then try again.",
     nothing: "Nothing to clean was found in this Draft.",
@@ -84,7 +85,8 @@ const STRINGS = {
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
     analyzing: "\ubd84\uc11d \uc911…",
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
-    steps: { prepare: "\uc900\ube44 (\ucc98\uc74c \ud55c \ubc88\uc740 Python\uc744 \ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4)", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
+    firstRun: "\ucc98\uc74c \ud55c \ubc88: \ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud569\ub2c8\ub2e4. Python\uc744 \ub0b4\ub824\ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4.",
+    steps: { prepare: "\uc900\ube44", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
     noModel: "\ud559\uc2b5\ub41c \ubaa8\ub378\uc774 \uc124\uce58\ub418\uc5b4 \uc788\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. ~/.selects/plugin-data/talk-audio-cleanup/model.joblib \uc5d0 \ub123\uc5b4 \uc8fc\uc138\uc694 (INSTALL.md \ucc38\uace0).",
     setupFailed: "\ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc778\ud130\ub137 \uc5f0\uacb0\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     nothing: "\uc774 Draft\uc5d0\uc11c \uc815\ub9ac\ud560 \uacf3\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
@@ -244,6 +246,7 @@ export default function Panel({ sdk, context, ui }) {
   const [lowerDb, setLowerDb] = useState(11);
   const [fade, setFade] = useState(true);
   const [silent, setSilent] = useState(0);
+  const [firstRun, setFirstRun] = useState(false);
   const [open, setOpen] = useState({}); // which kinds show every place
   const token = useRef(0); // bumped when the Draft changes or the panel closes; a run that sees another value stops
   const { projectId, sequenceId } = context;
@@ -277,11 +280,13 @@ export default function Panel({ sdk, context, ui }) {
     const state = String(check.stdout || "").trim().split("\n").pop();
     if (state === "ready") return;
     if (state === "nomodel") throw Error(t.noModel);
+    setFirstRun(true);
     const py = await sdk.runShell({ summary: "Prepare Python (first run only)", command: `sh "${PKG}/runtime.sh" python`, timeoutMs: 290000 });
     const python = String(py.stdout || "").trim().split("\n").filter(Boolean).pop();
     if (py.isError || py.exitCode !== 0 || !/^\//.test(python || "")) throw Error(t.setupFailed);
     const setup = await sdk.runShell({ summary: "Set up the analysis program", command: runtimeSetup(python), timeoutMs: 290000 });
     if (setup.isError || setup.exitCode !== 0) throw Error(t.setupFailed);
+    setFirstRun(false);
   }
 
   async function analyze() {
@@ -400,6 +405,7 @@ export default function Panel({ sdk, context, ui }) {
             <ui.Message tone="muted">{t.analyzeNote}</ui.Message>
           </>
         )}
+        {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
         {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage} />}
       </ui.Section>
 
