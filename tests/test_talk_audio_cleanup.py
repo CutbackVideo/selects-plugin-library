@@ -142,6 +142,7 @@ class DecisionRulesTest(unittest.TestCase):
         tone(4.00, 4.12, 6000); tone(4.12, 5.0, 12000)     # the same word running straight into speech
         cuts = self.analyze.openers(pcm, [(1.0, 1.25, 0.0), (4.0, 4.12, 3.0)], 0.0)
         self.assertEqual([c['rule'] for c in cuts], ['opener'])
+        self.assertLess(abs(cuts[0]['end'] * 30 - round(cuts[0]['end'] * 30)), 1e-4)                    # on a frame boundary to well under a frame, so the panel finds its clip
         self.assertLessEqual(cuts[0]['start'], 1.0); self.assertTrue(1.12 <= cuts[0]['end'] <= 1.25)
         shifted = self.analyze.openers(pcm[48000 // 2:], [(1.0, 1.25, 0.0)], 0.5)                       # source time, not file time
         self.assertEqual((shifted[0]['start'], shifted[0]['end']), (cuts[0]['start'], cuts[0]['end']))

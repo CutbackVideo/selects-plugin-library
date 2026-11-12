@@ -50,7 +50,7 @@ def openers(pcm, triples, source_start=0.0):
         s = pk
         while s > 0 and env[s] > .25 * env[pk]: s -= 1
         f0 = max(0, (a + s * K) * FPS // 48000 - 2); f1 = int(round((a + v * K) * FPS / 48000))   # two frames of lead-in, ends at the valley
-        if f1 > f0: out.append(dict(start=round(source_start + f0 / FPS, 4), end=round(source_start + f1 / FPS, 4), frames=int(f1 - f0), action="delete", rule="opener", confidence=1.0))
+        if f1 > f0: out.append(dict(start=round(source_start + f0 / FPS, 6), end=round(source_start + f1 / FPS, 6), frames=int(f1 - f0), action="delete", rule="opener", confidence=1.0))
     return out
 
 def measure(pcm, model, columns):
@@ -71,7 +71,7 @@ def build(pcm, model, columns, source_start=0.0, triples=()):
         for s, e in ft.runs(p == kind):
             rule = {"delete": "blemish", "mute": "click", "lower": "breath"}[action]; act = action
             if action == "lower" and np.median(flat[s:e]) >= SNIFF_FLATNESS and level[s:e].max() >= SNIFF_LEVEL: act, rule = "mute", "sniff"
-            items.append(dict(start=round(source_start + s / FPS, 4), end=round(source_start + e / FPS, 4), frames=int(e - s), action=act, rule=rule,
+            items.append(dict(start=round(source_start + s / FPS, 6), end=round(source_start + e / FPS, 6), frames=int(e - s), action=act, rule=rule,
                               confidence=round(float(P[s:e, kind].max()), 3)))
     for op in openers(pcm, triples, source_start):          # an opener cut swallows the cuts it touches and replaces volume changes under it
         hit = [it for it in items if it["start"] <= op["end"] and it["end"] >= op["start"]]

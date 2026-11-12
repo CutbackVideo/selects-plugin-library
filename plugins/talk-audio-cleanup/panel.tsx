@@ -137,17 +137,17 @@ for (const r of await d.clips()) {
   const f = files.find((x) => x.resourceId === r.resourceId);
   if (!f?.path || f.type === "sequence") continue;
   if (r.playbackSpeed && r.playbackSpeed.numerator !== r.playbackSpeed.denominator) { skipped++; continue; }
-  clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, frames: r.endFrame - r.startFrame });
+  clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, startFrame: r.startFrame, frames: r.endFrame - r.startFrame });
 }
-// A lone opening word: where the transcript puts it, the next word and the previous one (source seconds).
-// ponytail: assumes word source frames count at the Draft's frame rate.
+// A lone opening word: where it, the next word and the previous one sit in the source (seconds), read through the clip that plays them.
 const openers = [];
-const ws = await d.words().catch(() => []);
+const ws = (await d.words().catch(() => [])).filter((w) => !w.nonSpeech && (w.text ?? "").trim()); // pauses are rows too; neighbours here are spoken words
+const at = (frame) => { const c = clips.find((x) => frame >= x.startFrame && frame < x.startFrame + x.frames); return c ? { c, t: c.sourceStart + (frame - c.startFrame) / meta.fps } : null; };
 ws.forEach((w, i) => {
-  const nx = ws[i + 1], pv = ws[i - 1];
-  if (!/^\\uc790[.,!?~]*$/.test((w.text ?? "").trim()) || w.sourceStartFrame == null || nx?.sourceResourceId !== w.sourceResourceId || !(nx.sourceStartFrame > w.sourceStartFrame)) return;
-  const joined = pv?.sourceResourceId === w.sourceResourceId && pv.sourceEndFrame != null && pv.sourceEndFrame <= w.sourceStartFrame;
-  openers.push({ resourceId: w.sourceResourceId, start: w.sourceStartFrame / meta.fps, next: nx.sourceStartFrame / meta.fps, prevEnd: (joined ? pv.sourceEndFrame : w.sourceStartFrame - meta.fps) / meta.fps });
+  if (!/^\\uc790[.,!?~]*$/.test(w.text.trim())) return;
+  const me = at(w.startFrame), nx = ws[i + 1] && at(ws[i + 1].startFrame), pv = ws[i - 1] && at(ws[i - 1].endFrame - 1);
+  if (!me || nx?.c !== me.c) return;
+  openers.push({ resourceId: me.c.resourceId, start: me.t, next: nx.t, prevEnd: pv?.c === me.c ? pv.t + 1 / meta.fps : me.t - 1 });
 });
 return { fps: meta.fps, name: meta.name ?? null, clips, skipped, openers, env: await selects.files.environment() };`;
 
@@ -235,7 +235,10 @@ export default function Panel({ sdk, context, ui }) {
     return r.result;
   };
 
+  const applying = useRef(false), shown = useRef(sequenceId);
+  shown.current = sequenceId;
   useEffect(() => {
+    if (applying.current) return; // the host opens the copy while it is being made; that is the same job, not a new Draft to start over on
     const mine = ++token.current, live = () => mine === token.current;
     setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null);
     if (!projectId || !sequenceId) return;
@@ -244,7 +247,7 @@ export default function Panel({ sdk, context, ui }) {
       .then((r) => live() && setInfo(r))
       .catch((e) => live() && setError(String(e.message || e)))
       .finally(() => live() && setBusy(null));
-    return () => { token.current++; };
+    return () => { if (!applying.current) token.current++; };
   }, [projectId, sequenceId]);
 
   const blocked = !info ? null : context.platform === "web" ? t.unsupported.web : Math.abs(info.fps - FPS) > 1e-6 ? t.unsupported.fps : info.clips.length === 0 ? t.unsupported.none : null;
@@ -332,7 +335,7 @@ export default function Panel({ sdk, context, ui }) {
 
   async function apply() {
     const mine = token.current, live = () => mine === token.current;
-    setBusy("apply"); setError(null);
+    setBusy("apply"); setError(null); applying.current = true;
     let target = null;
     try {
       const total = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
@@ -346,7 +349,10 @@ export default function Panel({ sdk, context, ui }) {
     } catch (e) {
       if (live()) setError(`${target ? `${t.partial(copyName)} ` : ""}${String(e.message || e)}`);
     } finally {
+      applying.current = false;
       if (live()) setBusy(null);
+      // The Draft on screen is now the copy: show its clips, keep the result message.
+      if (live() && shown.current && shown.current !== sequenceId) run("Read the Draft's Main clips", READ(projectId, shown.current)).then((r) => live() && setInfo(r)).catch(() => {});
     }
   }
 

@@ -167,17 +167,18 @@ test('reading the Draft keeps 1x Main clips that have a source file', async () =
     files: { environment: async () => ({ tempDirectory: '/tmp' }) },
     draft: () => ({
       meta: async () => ({ fps: 30, name: 'Talk' }),
-      words: async () => [
-        { text: 'so', sourceResourceId: 'deep', sourceStartFrame: 100, sourceEndFrame: 118 },
-        { text: '\uc790,', sourceResourceId: 'deep', sourceStartFrame: 120, sourceEndFrame: 124 },
-        { text: 'next', sourceResourceId: 'deep', sourceStartFrame: 124, sourceEndFrame: 140 },
-        { text: 'later', sourceResourceId: 'deep', sourceStartFrame: 900, sourceEndFrame: 910 },
-        { text: '\uc790', sourceResourceId: 'deep', sourceStartFrame: 300, sourceEndFrame: 303 },   // the Draft cut what came before it
-        { text: 'then', sourceResourceId: 'deep', sourceStartFrame: 303, sourceEndFrame: 320 },
-        { text: '\uc790', sourceResourceId: 'deep', sourceStartFrame: 400, sourceEndFrame: 403 },   // next word is another file
-        { text: 'other', sourceResourceId: 'r0', sourceStartFrame: 0, sourceEndFrame: 9 },
-        { text: '\uc790\ub3d9', sourceResourceId: 'deep', sourceStartFrame: 500, sourceEndFrame: 510 },  // a longer word that starts the same
-        { text: 'x', sourceResourceId: 'deep', sourceStartFrame: 510, sourceEndFrame: 520 },
+      words: async () => [   // Draft frames; the kept clip plays source 4 s from Draft frame 300 to 390
+        { text: 'so', startFrame: 300, endFrame: 318 },
+        { text: '', nonSpeech: true, startFrame: 318, endFrame: 320 },   // the pause before it is a row of its own
+        { text: '\uc790,', startFrame: 320, endFrame: 324 },
+        { text: 'next', startFrame: 324, endFrame: 340 },
+        { text: 'elsewhere', startFrame: 10, endFrame: 20 },
+        { text: '\uc790', startFrame: 350, endFrame: 353 },             // what came before it is not in this clip
+        { text: 'then', startFrame: 353, endFrame: 360 },
+        { text: '\uc790', startFrame: 388, endFrame: 390 },             // the next word is past the clip
+        { text: 'after', startFrame: 390, endFrame: 400 },
+        { text: '\uc790\ub3d9', startFrame: 370, endFrame: 375 },       // a longer word that starts the same
+        { text: 'x', startFrame: 375, endFrame: 380 },
       ],
       clips: async () => [row({}), row({ trackKind: 'video' }), row({ playbackSpeed: { numerator: 2, denominator: 1 } }), row({ resourceId: 'seq' }), row({ resourceId: 'deep', sourceStartSeconds: 4, startFrame: 300, endFrame: 390 }), row({ resourceId: null })],
     }),
@@ -186,7 +187,7 @@ test('reading the Draft keeps 1x Main clips that have a source file', async () =
     }),
   };
   const r = await script(READ('p', 'd'), selects);
-  assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, frames: 90 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4, next: 124 / 30, prevEnd: 118 / 30 }, { resourceId: 'deep', start: 10, next: 10.1, prevEnd: 9 }], env: { tempDirectory: '/tmp' } });
+  assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, startFrame: 300, frames: 90 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4 + 20 / 30, next: 4 + 24 / 30, prevEnd: 4 + 18 / 30 }, { resourceId: 'deep', start: 4 + 50 / 30, next: 4 + 53 / 30, prevEnd: 4 + 50 / 30 - 1 }], env: { tempDirectory: '/tmp' } });
   selects.project = () => ({ sourceFiles: async () => ({ fileTree: [{ type: 'video', resourceId: 'r0', path: '/m/r0.mp4' }, { type: 'sequence', resourceId: 'seq', path: '/m/seq' }] }) });
   const flat = await script(READ('p', 'd'), selects);
   assert.deepEqual([flat.clips.map((c) => c.resourceId), flat.skipped], [['r0'], 1]);
