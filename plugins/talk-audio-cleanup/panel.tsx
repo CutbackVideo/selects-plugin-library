@@ -39,7 +39,7 @@ const STRINGS = {
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
     firstRun: "First run: setting up the analysis program. This downloads Python and takes a few minutes, once.",
     steps: { prepare: "Prepare", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
-    noModel: "The trained model is not installed. Put it at ~/.selects/plugin-data/talk-audio-cleanup/model.joblib (see INSTALL.md).",
+    noModel: "The plugin's model file is missing. Install the plugin again.",
     setupFailed: "Could not set up the analysis program. Check the internet connection, then try again.",
     previewFailed: "Could not load the sound of that place.",
     nothing: "Nothing to clean was found in this Draft.",
@@ -112,7 +112,7 @@ const STRINGS = {
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     firstRun: "\ucc98\uc74c \ud55c \ubc88: \ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud569\ub2c8\ub2e4. Python\uc744 \ub0b4\ub824\ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4.",
     steps: { prepare: "\uc900\ube44", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
-    noModel: "\ud559\uc2b5\ub41c \ubaa8\ub378\uc774 \uc124\uce58\ub418\uc5b4 \uc788\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. ~/.selects/plugin-data/talk-audio-cleanup/model.joblib \uc5d0 \ub123\uc5b4 \uc8fc\uc138\uc694 (INSTALL.md \ucc38\uace0).",
+    noModel: "\ud50c\ub7ec\uadf8\uc778\uc758 \ubaa8\ub378 \ud30c\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud574 \uc8fc\uc138\uc694.",
     setupFailed: "\ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc778\ud130\ub137 \uc5f0\uacb0\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     previewFailed: "\uadf8 \uc790\ub9ac\uc758 \uc18c\ub9ac\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     nothing: "\uc774 Draft\uc5d0\uc11c \uc815\ub9ac\ud560 \uacf3\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
@@ -333,7 +333,9 @@ return { done, draftId: ${targetDraftId ? q(targetDraftId) : "saved.createdDraft
 // engine/requirements.txt, built on the pinned CPython that runtime.sh fetches (a stock Mac has no Python).
 const DATA = "$HOME/.selects/plugin-data/talk-audio-cleanup", PKG = "$SELECTS_USER_SKILLS_ROOT/talk-audio-cleanup";
 const PY = `"${DATA}/venv/bin/python"`, IMPORTS = `-c "import numpy, scipy, sklearn, joblib"`;
-const RUNTIME_CHECK = `if [ ! -s "${DATA}/model.joblib" ]; then echo nomodel; elif ${PY} ${IMPORTS} 2>/dev/null; then echo ready; else echo missing; fi`;
+// The trained model ships with the package, next to the program that reads it.
+const MODEL = `${PKG}/engine/model.joblib`;
+const RUNTIME_CHECK = `if [ ! -s "${MODEL}" ]; then echo nomodel; elif ${PY} ${IMPORTS} 2>/dev/null; then echo ready; else echo missing; fi`;
 const shellQuote = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 const runtimeSetup = (python) => `set -e; mkdir -p "${DATA}"; ${shellQuote(python)} -m venv --clear "${DATA}/venv"; ${PY} -m pip install --quiet --disable-pip-version-check -r "${PKG}/engine/requirements.txt"; ${PY} ${IMPORTS}`;
 
@@ -606,7 +608,7 @@ export default function Panel({ sdk, context, ui }) {
         const lone = (info.openers ?? []).filter((o) => o.resourceId === s.resourceId && o.start >= s.t0 && o.next <= s.to).map((o) => [o.start, o.next, o.prevEnd]);
         const sh = await sdk.runShell({
           summary: "Find what to clean",
-          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${DATA}/model.joblib" --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))} --previews ${shellQuote(clips)}`,
+          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${MODEL}" --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))} --previews ${shellQuote(clips)}`,
           cwd: work,
           timeoutMs: 300000,
         });
