@@ -1,7 +1,7 @@
 """Audio cleanup decisions for one recording, following a broadcast editing guide.
 48 kHz stereo WAV in, an edit decision list out: which stretches to cut, lower or mute, and why.
 
-  python analyze.py --wav in.wav --model model.joblib --out edl.json [--source-start 0.0] [--openers '[[start, next, prevEnd], ...]']
+  python analyze.py --wav in.wav --model model.joblib --out edl.json [--source-start 0.0] [--openers '[[start, next, prevEnd], ...]'] [--previews clips.pcm]
 
 `--openers` lists standalone opener words from the transcript (source seconds: its start, the next word's start, the previous
 word's end). One is cut when the waveform shows it standing alone: short, apart from the previous word, the level closing after it.
@@ -83,6 +83,23 @@ def build(pcm, model, columns, source_start=0.0, triples=()):
                 counts={k: sum(it["rule"] == k for it in items) for k in ("blemish", "breath", "sniff", "click", "opener")},
                 secondsCut=round(sum(it["frames"] for it in items if it["action"] == "delete") / FPS, 2))
 
+PREVIEW_RATE, PREVIEW_PAD, SHAPE_POINTS = 22050, 1.0, 64   # what the Panel plays and draws for one item: a second either side, mono
+
+def previews(pcm, items, source_start, path):
+    """One short mono clip per item, back to back in `path` (16-bit, PREVIEW_RATE), and a level curve to draw.
+    Each item gets `snip` = [byte offset, samples, item start sample, item end sample] and `shape` = SHAPE_POINTS levels 0-100."""
+    from scipy.signal import resample_poly
+    at = 0
+    with open(path, "wb") as f:
+        for it in items:
+            a = max(0, int(round((it["start"] - PREVIEW_PAD - source_start) * 48000))); b = min(len(pcm), int(round((it["end"] + PREVIEW_PAD - source_start) * 48000)))
+            x = resample_poly(np.asarray(pcm[a:b], np.float32).mean(axis=1), 147, 320)            # 48000 -> 22050
+            lo = int(round((it["start"] - source_start - a / 48000) * PREVIEW_RATE)); hi = min(len(x), lo + int(round(it["frames"] / FPS * PREVIEW_RATE)))
+            f.write(np.clip(x, -32768, 32767).astype("<i2").tobytes()); it["snip"] = [at, len(x), max(0, lo), hi]; at += len(x) * 2
+            edges = np.linspace(0, len(x), SHAPE_POINTS + 1).astype(int)
+            db = [20 * np.log10(max(1.0, float(np.abs(x[i:j]).max()) if j > i else 1.0) / 32768) for i, j in zip(edges, edges[1:])]
+            it["shape"] = [int(round(min(100, max(0, (d + 60) / 60 * 100)))) for d in db]         # -60 dBFS .. 0 dBFS
+
 def self_check():
     P = np.zeros((14, 4), np.float32); P[:, 0] = 1; P[3:6] = [0.1, 0.8, 0.05, 0.05]; P[10] = [0.6, 0.28, 0.06, 0.06]
     dirt = np.full(14, 20.0); dirt[10] = 3.0; quiet = np.ones(14, bool)
@@ -93,11 +110,12 @@ def self_check():
     assert decide(P, dirt, quiet)[6] == 1                                        # proposals one quiet frame apart are joined
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--wav"); ap.add_argument("--model"); ap.add_argument("--out"); ap.add_argument("--source-start", type=float, default=0.0); ap.add_argument("--openers", default="[]")
+    ap = argparse.ArgumentParser(); ap.add_argument("--wav"); ap.add_argument("--model"); ap.add_argument("--out"); ap.add_argument("--source-start", type=float, default=0.0); ap.add_argument("--openers", default="[]"); ap.add_argument("--previews")
     ap.add_argument("--self-check", action="store_true"); a = ap.parse_args()
     if a.self_check: self_check(); print("ok"); sys.exit(0)
     import joblib
     sr, pcm = wavfile.read(a.wav, mmap=True)
     if sr != 48000 or pcm.ndim != 2 or pcm.shape[1] != 2 or pcm.dtype != np.int16: sys.exit("expected 48 kHz stereo 16-bit PCM")
     pack = joblib.load(a.model); edl = build(pcm, pack["model"], pack["columns"], a.source_start, json.loads(a.openers))
+    if a.previews: previews(pcm, edl["items"], a.source_start, a.previews)
     with open(a.out, "w") as f: json.dump(edl, f); print(json.dumps(dict(items=len(edl["items"]), counts=edl["counts"], secondsCut=edl["secondsCut"])))

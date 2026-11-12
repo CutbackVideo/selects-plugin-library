@@ -149,6 +149,22 @@ class DecisionRulesTest(unittest.TestCase):
         self.assertEqual(self.analyze.openers(pcm, [(1.0, 1.25, 1.0)], 0.0), [])                         # glued to the previous word
         self.assertEqual(self.analyze.openers(pcm, [(1.0, 1.4, 0.0)], 0.0), [])                          # too long to be a lone opener
 
+    def test_previews_are_one_clip_per_item_with_the_item_marked(self):
+        import tempfile
+        pcm = np.zeros((48000 * 4, 2), np.int16); pcm[48000 * 2: 48000 * 2 + 4800] = 20000          # a loud tenth of a second at 2.0 s
+        items = [dict(start=12.0, end=12.1, frames=3), dict(start=10.2, end=10.3, frames=3)]        # source time; the file starts at 10 s
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, 'clips.pcm'); self.analyze.previews(pcm, items, 10.0, path)
+            raw = np.fromfile(path, '<i2')
+        first, second = items
+        self.assertEqual(first['snip'][0], 0); self.assertEqual(second['snip'][0], first['snip'][1] * 2)   # back to back, in bytes
+        self.assertEqual(len(raw), first['snip'][1] + second['snip'][1])
+        off, n, lo, hi = first['snip']; clip = raw[off // 2: off // 2 + n]
+        self.assertAlmostEqual(n / 22050, 2.1, delta=0.01); self.assertAlmostEqual(lo / 22050, 1.0, delta=0.01); self.assertAlmostEqual((hi - lo) / 22050, 0.1, delta=0.01)
+        self.assertGreater(np.abs(clip[lo + 50: hi - 50]).min(), 15000); self.assertLess(np.abs(clip[: lo - 200]).max(), 500)   # the loud part is where it says
+        self.assertEqual(second['snip'][2], round(0.2 * 22050))                                      # near the start of the file the lead-in is shorter
+        self.assertEqual(len(first['shape']), 64); self.assertGreater(max(first['shape']), 90); self.assertEqual(min(first['shape']), 0)
+
     def test_frame_helpers(self):
         ft = self.features
         self.assertEqual(ft.shift(np.array([1., 2, 3, 4]), 1).tolist(), [2, 3, 4, 4])

@@ -15,13 +15,10 @@ const RULES = ["blemish", "breath", "sniff", "click", "opener"];
 
 const STRINGS = {
   en: {
+    title: "Talk Audio Cleanup",
     noDraft: "Open the Draft you want to clean.",
-    reading: "Reading the Draft…",
     draft: "Draft",
-    title: "Clean up talk audio",
-    intro: "Finds the small noises between words and fixes them on a copy of this Draft. Your Draft is not changed.",
-    looksFor: "What it looks for",
-    clips: (n, s) => `${s} of talk${n === 1 ? "" : ` in ${n} clips`}`,
+    duration: (s, n) => `${s} of talk${n === 1 ? "" : ` in ${n} clips`}`,
     skippedSpeed: (n) => `${n} left out (not at 1× speed)`,
     skippedSilent: (n) => `${n} source file${n === 1 ? "" : "s"} without sound left out`,
     unsupported: {
@@ -29,52 +26,60 @@ const STRINGS = {
       none: "No Main clip with its own source file was found in this Draft.",
       web: "The analysis runs a local program, so it needs the desktop app.",
     },
+    intro: "Finds the small noises between words and fixes them on a copy. This Draft is not changed.",
+    pick: "What to clean",
+    pickOne: "Turn on at least one.",
     analyze: "Find what to clean",
-    analyzing: "Analyzing…",
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
     firstRun: "First run: setting up the analysis program. This downloads Python and takes a few minutes, once.",
     steps: { prepare: "Prepare", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
     noModel: "The trained model is not installed. Put it at ~/.selects/plugin-data/talk-audio-cleanup/model.joblib (see INSTALL.md).",
     setupFailed: "Could not set up the analysis program. Check the internet connection, then try again.",
+    previewFailed: "Could not load the sound of that place.",
     nothing: "Nothing to clean was found in this Draft.",
     partial: (name) => `It stopped partway: the copy “${name}” has only some of the edits. Delete it before trying again.`,
-    found: "What was found",
-    summary: (n, c, v, s) => `${n} place${n === 1 ? "" : "s"} to clean: ${c} cut${c === 1 ? "" : "s"} (${s} shorter) and ${v} volume change${v === 1 ? "" : "s"}.`,
-    jumpHint: "Click a time to jump there in the timeline and listen.",
-    showAll: (n) => `Show all ${n}`,
-    showFewer: "Show fewer",
-    options: "Options",
-    include: "Include",
-    doneTitle: "Cleaned copy saved",
-    rule: {
-      blemish: ["Cut blemishes", "Clicks and mouth noises in a pause are cut out. The pause stays."],
-      breath: ["Lower breaths", "The clip volume is brought down there. Nothing is cut."],
-      sniff: ["Mute loud sniffs", "A breath that is loud and hissy is muted instead of lowered."],
-      click: ["Mute ticks", "A one- or two-frame tick between words is muted in place, so the picture is not cut."],
-      opener: ["Cut lone \u201c\uc790\u201d", "An opening \u201c\uc790\u201d is cut only when it stands apart from the words after it."],
+    kind: {
+      blemish: ["Blemishes", "Clicks and mouth noises in a pause are cut out. The pause stays."],
+      breath: ["Breaths", "The clip volume is lowered there. Nothing is cut."],
+      sniff: ["Loud sniffs", "A loud, hissy breath is muted instead of lowered."],
+      click: ["Ticks", "A one- or two-frame tick between words is muted in place."],
+      opener: ["Lone “\uc790”", "An opening “\uc790” is cut when it stands apart from the words after it."],
     },
-    count: (n, s) => `${n} place${n === 1 ? "" : "s"}, ${s}`,
-    cutLine: "Cut confidence",
-    cutLineNote: (n) => `${n} less certain cut${n === 1 ? "" : "s"} become${n === 1 ? "s" : ""} a volume change instead, so the picture is not cut there.`,
+    places: (n) => `${n} place${n === 1 ? "" : "s"}`,
+    shorter: (s) => `${s} shorter`,
+    cutsVols: (c, v) => `${c} cut${c === 1 ? "" : "s"}, ${v} volume change${v === 1 ? "" : "s"}`,
+    map: "What was found",
+    each: "Check each place",
+    mapHint: "Pick a place to hear it before and after.",
+    act: { delete: "Cut", lower: (db) => `−${db} dB`, mute: "Muted" },
+    softened: "Not sure enough to cut, so the volume is changed instead.",
+    original: "Original",
+    cleaned: "Cleaned",
+    stop: "Stop",
+    exclude: "Leave this one",
+    include: "Clean this one",
+    excluded: "left as is",
+    more: (n) => `Show ${n} more`,
+    settings: "Fine-tune",
+    cutLine: "Only cut when this sure",
+    cutLineNote: (n) => `${n} less certain cut${n === 1 ? "" : "s"} become${n === 1 ? "s" : ""} a volume change, so the picture is not cut there.`,
     lowerBy: "Lower breaths by",
     fade: "One-frame fade after each cut",
-    fadeNote: "So a cut does not tick",
+    fadeNote: "So a cut does not tick.",
     apply: "Make a cleaned copy",
-    applying: "Applying…",
-    applyNote: (name) => `The copy will be a new Draft named “${name}”.`,
-    done: (n, d) => `Saved “${n}”: ${d.delete} cut, ${d.lower} lowered, ${d.mute} muted, ${d.fades} fades${d.skipped ? `, ${d.skipped} skipped` : ""}.`,
-    listen: "Play a few of them before you export. They were found by measuring, not by listening.",
+    applying: (a, b) => `Applying ${a} of ${b}`,
+    applyNote: (name) => `Saved as a new Draft, “${name}”.`,
+    doneTitle: "Cleaned copy saved",
+    done: (d) => `${d.delete} cut, ${d.lower} lowered, ${d.mute} muted, ${d.fades} fades${d.skipped ? `, ${d.skipped} skipped` : ""}`,
+    listen: "Check a few before you export. They were found by measuring, not by listening.",
     again: "Analyze again",
     copySuffix: "cleaned",
   },
   ko: {
+    title: "\ud1a0\ud06c \uc624\ub514\uc624 \uc815\ub9ac",
     noDraft: "\uc815\ub9ac\ud560 Draft\ub97c \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
-    reading: "Draft\ub97c \uc77d\ub294 \uc911…",
     draft: "Draft",
-    title: "\ub9d0\uc18c\ub9ac \uc815\ub9ac",
-    intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc774 Draft\uc758 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc6d0\ub798 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
-    looksFor: "\ucc3e\ub294 \uac83",
-    clips: (n, s) => `\ub9d0\uc18c\ub9ac ${s}${n === 1 ? "" : ` (\ud074\ub9bd ${n}\uac1c)`}`,
+    duration: (s, n) => `\ub9d0\uc18c\ub9ac ${s}${n === 1 ? "" : ` · \ud074\ub9bd ${n}\uac1c`}`,
     skippedSpeed: (n) => `1\ubc30\uc18d\uc774 \uc544\ub2cc ${n}\uac1c \uc81c\uc678`,
     skippedSilent: (n) => `\uc18c\ub9ac \uc5c6\ub294 \uc6d0\ubcf8 ${n}\uac1c \uc81c\uc678`,
     unsupported: {
@@ -82,41 +87,52 @@ const STRINGS = {
       none: "\uc774 Draft\uc758 Main\uc5d0\uc11c \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc788\ub294 \ud074\ub9bd\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
       web: "\ubd84\uc11d\uc740 \uc774 \ucef4\ud4e8\ud130\uc758 \ud504\ub85c\uadf8\ub7a8\uc744 \uc2e4\ud589\ud558\ubbc0\ub85c \ub370\uc2a4\ud06c\ud1b1 \uc571\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
     },
+    intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc774 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    pick: "\uc815\ub9ac\ud560 \uac83",
+    pickOne: "\ud558\ub098 \uc774\uc0c1 \ucf1c \uc8fc\uc138\uc694.",
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
-    analyzing: "\ubd84\uc11d \uc911…",
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     firstRun: "\ucc98\uc74c \ud55c \ubc88: \ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud569\ub2c8\ub2e4. Python\uc744 \ub0b4\ub824\ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4.",
     steps: { prepare: "\uc900\ube44", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
     noModel: "\ud559\uc2b5\ub41c \ubaa8\ub378\uc774 \uc124\uce58\ub418\uc5b4 \uc788\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. ~/.selects/plugin-data/talk-audio-cleanup/model.joblib \uc5d0 \ub123\uc5b4 \uc8fc\uc138\uc694 (INSTALL.md \ucc38\uace0).",
     setupFailed: "\ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc778\ud130\ub137 \uc5f0\uacb0\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
+    previewFailed: "\uadf8 \uc790\ub9ac\uc758 \uc18c\ub9ac\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     nothing: "\uc774 Draft\uc5d0\uc11c \uc815\ub9ac\ud560 \uacf3\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     partial: (name) => `\uc911\uac04\uc5d0 \uba48\ucdc4\uc2b5\ub2c8\ub2e4. “${name}” \uc0ac\ubcf8\uc5d0\ub294 \uc77c\ubd80\ub9cc \uc801\uc6a9\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uae30 \uc804\uc5d0 \uc9c0\uc6cc \uc8fc\uc138\uc694.`,
-    found: "\ucc3e\uc740 \uac83",
-    summary: (n, c, v, s) => `\uc815\ub9ac\ud560 \uacf3 ${n}\uacf3: \ucef7 ${c}\uacf3(${s} \uc9e7\uc544\uc9d0), \uc74c\ub7c9 \uc870\uc808 ${v}\uacf3.`,
-    jumpHint: "\uc2dc\uac01\uc744 \ub204\ub974\uba74 \ud0c0\uc784\ub77c\uc778\uc758 \uadf8 \uc790\ub9ac\ub85c \uc774\ub3d9\ud569\ub2c8\ub2e4. \ub4e4\uc5b4 \ubcf4\uc138\uc694.",
-    showAll: (n) => `${n}\uacf3 \ubaa8\ub450 \ubcf4\uae30`,
-    showFewer: "\uc811\uae30",
-    options: "\uc635\uc158",
-    include: "\uc801\uc6a9",
-    doneTitle: "\uc815\ub9ac\ub41c \uc0ac\ubcf8\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4",
-    rule: {
-      blemish: ["\uc7a1\ud2f0 \uc798\ub77c\ub0b4\uae30", "\ub9d0 \uc0ac\uc774\uc758 \ub538\uae4d·\uc785\uc18c\ub9ac\ub97c \uc798\ub77c\ub0c5\ub2c8\ub2e4. \uc26c\ub294 \ud2c8\uc740 \ub0a8\uae41\ub2c8\ub2e4."],
-      breath: ["\uc228\uc18c\ub9ac \ub0ae\ucd94\uae30", "\uadf8 \uc790\ub9ac\uc758 \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0b4\ub9bd\ub2c8\ub2e4. \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
-      sniff: ["\ud070 \ucf54\uba39\uc74c \uc74c\ub7c9 0", "\ud06c\uace0 \uc26c\uc775\uac70\ub9ac\ub294 \uc228\uc18c\ub9ac\ub294 \ub0ae\ucd94\uc9c0 \uc54a\uace0 0\uc73c\ub85c \ud569\ub2c8\ub2e4."],
-      click: ["\ub538\uae4d \uc74c\ub7c9 0", "\ub9d0 \uc0ac\uc774 1~2\ud504\ub808\uc784 \ub538\uae4d\uc740 \uc81c\uc790\ub9ac\uc5d0\uc11c \uc74c\ub7c9 0\uc73c\ub85c \ud569\ub2c8\ub2e4. \ud654\uba74\uc740 \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
-      opener: ["\ub530\ub85c \uc120 ‘\uc790’ \uc0ad\uc81c", "\uc2dc\uc791 ‘\uc790’\uac00 \ub4b7\ub9d0\uacfc \ub5a8\uc5b4\uc838 \uc788\uc744 \ub54c\ub9cc \uc790\ub985\ub2c8\ub2e4."],
+    kind: {
+      blemish: ["\uc7a1\ud2f0", "\ub9d0 \uc0ac\uc774\uc758 \ub538\uae4d·\uc785\uc18c\ub9ac\ub97c \uc798\ub77c\ub0c5\ub2c8\ub2e4. \uc26c\ub294 \ud2c8\uc740 \ub0a8\uae41\ub2c8\ub2e4."],
+      breath: ["\uc228\uc18c\ub9ac", "\uadf8 \uc790\ub9ac\uc758 \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0ae\ucda5\ub2c8\ub2e4. \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
+      sniff: ["\ud070 \ucf54\uba39\uc74c", "\ud06c\uace0 \uc26c\uc775\uac70\ub9ac\ub294 \uc228\uc18c\ub9ac\ub294 \ub0ae\ucd94\uc9c0 \uc54a\uace0 \uc74c\ub7c9 0\uc73c\ub85c \ud569\ub2c8\ub2e4."],
+      click: ["\ub538\uae4d", "\ub9d0 \uc0ac\uc774 1~2\ud504\ub808\uc784 \ub538\uae4d\uc744 \uc81c\uc790\ub9ac\uc5d0\uc11c \uc74c\ub7c9 0\uc73c\ub85c \ud569\ub2c8\ub2e4."],
+      opener: ["\ub530\ub85c \uc120 ‘\uc790’", "\uc2dc\uc791 ‘\uc790’\uac00 \ub4b7\ub9d0\uacfc \ub5a8\uc5b4\uc838 \uc788\uc73c\uba74 \uc790\ub985\ub2c8\ub2e4."],
     },
-    count: (n, s) => `${n}\uacf3, ${s}`,
-    cutLine: "\uc790\ub974\uae30 \ud655\uc2e0\ub3c4",
+    places: (n) => `${n}\uacf3`,
+    shorter: (s) => `${s} \uc9e7\uc544\uc9d0`,
+    cutsVols: (c, v) => `\ucef7 ${c}\uacf3, \uc74c\ub7c9 \uc870\uc808 ${v}\uacf3`,
+    map: "\ucc3e\uc740 \uacf3",
+    each: "\ud558\ub098\uc529 \ud655\uc778",
+    mapHint: "\ud55c \uacf3\uc744 \uace0\ub974\uba74 \uc815\ub9ac \uc804\uacfc \ud6c4\ub97c \ub4e4\uc5b4\ubcfc \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    act: { delete: "\ucef7", lower: (db) => `−${db} dB`, mute: "\uc74c\ub7c9 0" },
+    softened: "\uc790\ub97c \ub9cc\ud07c \ud655\uc2e4\ud558\uc9c0 \uc54a\uc544 \uc74c\ub7c9\ub9cc \uc870\uc808\ud569\ub2c8\ub2e4.",
+    original: "\uc6d0\ubcf8",
+    cleaned: "\uc815\ub9ac \ud6c4",
+    stop: "\uba48\ucda4",
+    exclude: "\uc774 \uacf3\uc740 \uadf8\ub300\ub85c \ub450\uae30",
+    include: "\uc774 \uacf3\ub3c4 \uc815\ub9ac\ud558\uae30",
+    excluded: "\uadf8\ub300\ub85c \ub460",
+    more: (n) => `${n}\uacf3 \ub354 \ubcf4\uae30`,
+    settings: "\uc138\ubd80 \uc870\uc815",
+    cutLine: "\uc774\ub9cc\ud07c \ud655\uc2e4\ud560 \ub54c\ub9cc \uc790\ub974\uae30",
     cutLineNote: (n) => `\ub35c \ud655\uc2e4\ud55c \ucef7 ${n}\uacf3\uc740 \uc790\ub974\uc9c0 \uc54a\uace0 \uc74c\ub7c9\ub9cc \uc870\uc808\ud569\ub2c8\ub2e4. \uadf8 \uc790\ub9ac\uc758 \ud654\uba74\uc740 \ub04a\uae30\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.`,
     lowerBy: "\uc228\uc18c\ub9ac\ub97c \ub0ae\ucd94\ub294 \uc591",
     fade: "\uc790\ub978 \uc790\ub9ac\ub9c8\ub2e4 1\ud504\ub808\uc784 Fade",
-    fadeNote: "\uc790\ub978 \uc790\ub9ac\uc5d0\uc11c \ud2f1 \uc18c\ub9ac\uac00 \ub098\uc9c0 \uc54a\uac8c",
+    fadeNote: "\uc790\ub978 \uc790\ub9ac\uc5d0\uc11c \ud2f1 \uc18c\ub9ac\uac00 \ub098\uc9c0 \uc54a\uac8c \ud569\ub2c8\ub2e4.",
     apply: "\uc815\ub9ac\ub41c \uc0ac\ubcf8 \ub9cc\ub4e4\uae30",
-    applying: "\uc801\uc6a9 \uc911…",
+    applying: (a, b) => `\uc801\uc6a9 \uc911 ${a}/${b}`,
     applyNote: (name) => `“${name}”\uc774\ub77c\ub294 \uc0c8 Draft\ub85c \uc800\uc7a5\ub429\ub2c8\ub2e4.`,
-    done: (n, d) => `“${n}” \uc800\uc7a5\ub428: \ucef7 ${d.delete}, \uc74c\ub7c9 \ub0ae\ucda4 ${d.lower}, \uc74c\ub7c9 0 ${d.mute}, Fade ${d.fades}${d.skipped ? `, \uac74\ub108\ub700 ${d.skipped}` : ""}.`,
-    listen: "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \uba87 \uacf3\uc744 \uc9c1\uc811 \ub4e4\uc5b4 \ubcf4\uc138\uc694. \uce21\uc815\uc73c\ub85c \ucc3e\uc740 \uac83\uc774\uace0, \ub4e4\uc5b4\uc11c \ucc3e\uc740 \uac83\uc774 \uc544\ub2d9\ub2c8\ub2e4.",
+    doneTitle: "\uc815\ub9ac\ub41c \uc0ac\ubcf8\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4",
+    done: (d) => `\ucef7 ${d.delete}, \uc74c\ub7c9 \ub0ae\ucda4 ${d.lower}, \uc74c\ub7c9 0 ${d.mute}, Fade ${d.fades}${d.skipped ? `, \uac74\ub108\ub700 ${d.skipped}` : ""}`,
+    listen: "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \uba87 \uacf3\uc744 \ud655\uc778\ud574 \ubcf4\uc138\uc694. \uce21\uc815\uc73c\ub85c \ucc3e\uc740 \uac83\uc774\uace0, \ub4e4\uc5b4\uc11c \ucc3e\uc740 \uac83\uc774 \uc544\ub2d9\ub2c8\ub2e4.",
     again: "\ub2e4\uc2dc \ubd84\uc11d",
     copySuffix: "\uc815\ub9ac\ubcf8",
   },
@@ -232,6 +248,90 @@ const RUNTIME_CHECK = `if [ ! -s "${DATA}/model.joblib" ]; then echo nomodel; el
 const shellQuote = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 const runtimeSetup = (python) => `set -e; mkdir -p "${DATA}"; ${shellQuote(python)} -m venv --clear "${DATA}/venv"; ${PY} -m pip install --quiet --disable-pip-version-check -r "${PKG}/engine/requirements.txt"; ${PY} ${IMPORTS}`;
 
+// What the Panel plays for one place: the engine's short mono clip, and the same clip as it will sound after the edit.
+const PREVIEW_RATE = 22050;
+function decodePcm(parts) {
+  const bytes = parts.flatMap((b64) => Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
+  const out = new Float32Array(bytes.length >> 1);
+  for (let i = 0; i < out.length; i++) { const v = bytes[2 * i] | (bytes[2 * i + 1] << 8); out[i] = (v >= 32768 ? v - 65536 : v) / 32768; }
+  return out;
+}
+function cleaned(pcm, lo, hi, action, lowerDb) {
+  if (action === "delete") {
+    const out = new Float32Array(pcm.length - (hi - lo));
+    out.set(pcm.subarray(0, lo)); out.set(pcm.subarray(hi), lo);
+    const fade = Math.min(Math.round(PREVIEW_RATE / FPS), out.length - lo); // the one-frame fade the copy gets after a cut
+    for (let i = 0; i < fade; i++) out[lo + i] *= i / fade;
+    return out;
+  }
+  const out = Float32Array.from(pcm), gain = action === "mute" ? 0 : Math.pow(10, -lowerDb / 20);
+  for (let i = lo; i < hi; i++) out[i] *= gain;
+  return out;
+}
+// Where each place sits in the cleaned copy: every cut before it moves it earlier.
+function inCopy(rows) {
+  let cut = 0;
+  return [...rows].sort((a, b) => a.frame - b.frame).map((r) => { const row = { ...r, copyFrame: r.frame - cut }; if (r.action === "delete") cut += r.frames; return row; });
+}
+// The Draft frame where a place starts, through the clip that plays it.
+function draftFrame(it, clips) {
+  const c = clips.find((x) => x.resourceId === it.resourceId && it.start >= x.sourceStart - 1e-6 && it.start < x.sourceStart + x.frames / FPS);
+  return c ? c.startFrame + Math.round((it.start - c.sourceStart) * FPS) : null;
+}
+
+// The Panel's own parts, on the app's panel colours. Each kind has one colour, used for its switch, its marks on the map and its rows.
+const STYLE = `
+.tac { --k-blemish: #b45309; --k-breath: #0369a1; --k-sniff: #6d28d9; --k-click: #be123c; --k-opener: #4d7c0f; color: var(--panel-fg); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 12px; }
+:root.dark .tac { --k-blemish: #f5a524; --k-breath: #56b6f7; --k-sniff: #a78bfa; --k-click: #fb7185; --k-opener: #a3e635; }
+.tac p { margin: 0; }
+.tac button { height: auto; min-height: 0; width: auto; margin: 0; line-height: inherit; flex: none; appearance: none; }
+.tac .tac-kind, .tac .tac-row { border-radius: 0; }
+.tac-sub { color: var(--panel-muted-fg); }
+.tac-sub strong { color: var(--panel-fg); font-weight: 600; }
+.tac-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--k); flex: none; }
+.tac-kinds { display: flex; flex-direction: column; border: 1px solid var(--panel-border); border-radius: var(--panel-radius); }
+.tac-kind { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 10px 12px; border: 0; border-top: 1px solid var(--panel-border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tac-kind:first-child { border-top: 0; }
+.tac-kind:focus-visible, .tac-row:focus-visible, .tac-chip:focus-visible, .tac-btn:focus-visible, .tac-map:focus-visible { outline: 2px solid var(--panel-ring); outline-offset: -2px; }
+.tac-kind b { font-weight: 600; }
+.tac-kind small { grid-column: 2; color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
+.tac-kind[aria-checked="false"] b, .tac-kind[aria-checked="false"] small { opacity: .5; }
+.tac-kind[aria-checked="false"] .tac-dot { background: var(--panel-muted-fg); opacity: .5; }
+.tac-sw { width: 30px; height: 18px; border-radius: 9px; background: var(--panel-accent); position: relative; flex: none; transition: background .12s; }
+.tac-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel-fg); transition: transform .12s; }
+[aria-checked="true"] > .tac-sw { background: var(--k); }
+[aria-checked="true"] > .tac-sw::after { transform: translateX(12px); background: var(--panel-primary-fg); }
+.tac-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.tac-big { font-size: 26px; line-height: 1.1; font-weight: 600; letter-spacing: -.01em; }
+.tac-map { display: block; width: 100%; height: 44px; border-radius: var(--panel-radius); background: var(--panel-muted); cursor: pointer; }
+.tac-axis { display: flex; justify-content: space-between; color: var(--panel-muted-fg); font-size: 11px; }
+.tac-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tac .tac-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--panel-border); background: none; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.tac-chip[aria-pressed="false"] { color: var(--panel-muted-fg); }
+.tac-chip[aria-pressed="false"] .tac-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--panel-muted-fg); }
+.tac-chip i { font-style: normal; color: var(--panel-muted-fg); }
+.tac-list { display: flex; flex-direction: column; border: 1px solid var(--panel-border); border-radius: var(--panel-radius); overflow: hidden; }
+.tac .tac-row { display: grid; grid-template-columns: auto 50px minmax(0, 1fr) 52px; gap: 8px; align-items: center; min-height: var(--panel-row-height); padding: 4px 10px; border: 0; border-top: 1px solid var(--panel-border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tac-row:first-child { border-top: 0; }
+.tac-row:hover { background: var(--panel-muted); }
+.tac-row[aria-expanded="true"] { background: var(--panel-muted); }
+.tac-row.off { color: var(--panel-muted-fg); }
+.tac-row.off .tac-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--panel-muted-fg); }
+.tac-row.off .tac-time { text-decoration: line-through; }
+.tac-what { color: var(--panel-muted-fg); font-size: 12px; white-space: nowrap; text-align: right; }
+.tac-curve { display: block; width: 100%; height: 20px; }
+.tac-detail { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--panel-muted); border-top: 1px solid var(--panel-border); }
+.tac-detail .tac-curve { height: 56px; }
+.tac-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.tac .tac-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--panel-button-radius); border: 1px solid var(--panel-border); background: var(--panel-accent); color: var(--panel-fg); font: inherit; font-size: 12px; cursor: pointer; }
+.tac .tac-btn.quiet { background: none; color: var(--panel-muted-fg); }
+.tac .tac-btn[aria-pressed="true"] { background: var(--panel-fg); color: var(--panel-primary-fg); border-color: transparent; }
+.tac-tri { width: 0; height: 0; border-left: 7px solid currentColor; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+.tac-sq { width: 8px; height: 8px; background: currentColor; }
+.tac-note { color: var(--panel-muted-fg); font-size: 12px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .tac-sw, .tac-sw::after { transition: none; } }
+`;
+
 export default function Panel({ sdk, context, ui }) {
   const ko = context.language === "ko";
   const t = ko ? STRINGS.ko : STRINGS.en;
@@ -240,15 +340,22 @@ export default function Panel({ sdk, context, ui }) {
   const [busy, setBusy] = useState(null); // null | "read" | "analyze" | "apply"
   const [stage, setStage] = useState(0);
   const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null); // { name, done, rows } once the copy is saved
   const [on, setOn] = useState({ blemish: true, breath: true, sniff: true, click: true, opener: true });
+  const [left, setLeft] = useState(() => new Set()); // places the user chose to leave as they are
   const [cutLine, setCutLine] = useState(30);
   const [lowerDb, setLowerDb] = useState(11);
   const [fade, setFade] = useState(true);
   const [silent, setSilent] = useState(0);
   const [firstRun, setFirstRun] = useState(false);
-  const [open, setOpen] = useState({}); // which kinds show every place
+  const [picked, setPicked] = useState(null); // the place whose detail is open
+  const [limit, setLimit] = useState(40);
+  const [tune, setTune] = useState(false);
+  const [progress, setProgress] = useState(null); // { at, of } while the copy is being made
+  const [playing, setPlaying] = useState(null); // { id, mode }
   const token = useRef(0); // bumped when the Draft changes or the panel closes; a run that sees another value stops
+  const workRef = useRef(null); // the folder that holds the preview clips of the last analysis
+  const sound = useRef({ ctx: null, src: null, clips: new Map() });
   const { projectId, sequenceId } = context;
 
   const run = async (summary, script, allowCommit = false) => {
@@ -256,13 +363,24 @@ export default function Panel({ sdk, context, ui }) {
     if (r.isError) throw Error(r.output || summary);
     return r.result;
   };
+  const dropWork = () => {
+    const work = workRef.current;
+    workRef.current = null; sound.current.clips.clear();
+    if (work) run("Remove the work folder", `await selects.files.remove(${q(work)}, { recursive: true, force: true }); return true;`, true).catch(() => {});
+  };
+  const hush = () => {
+    const s = sound.current;
+    if (s.src) { s.src.onended = null; try { s.src.stop(); } catch {} s.src = null; }
+    setPlaying(null);
+  };
 
   const applying = useRef(false), shown = useRef(sequenceId);
   shown.current = sequenceId;
   useEffect(() => {
     if (applying.current) return; // the host opens the copy while it is being made; that is the same job, not a new Draft to start over on
     const mine = ++token.current, live = () => mine === token.current;
-    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null);
+    hush(); dropWork();
+    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null); setPicked(null); setLeft(new Set()); setLimit(40);
     if (!projectId || !sequenceId) return;
     setBusy("read");
     run("Read the Draft's Main clips", READ(projectId, sequenceId))
@@ -271,6 +389,7 @@ export default function Panel({ sdk, context, ui }) {
       .finally(() => live() && setBusy(null));
     return () => { if (!applying.current) token.current++; };
   }, [projectId, sequenceId]);
+  useEffect(() => () => { hush(); dropWork(); }, []);
 
   const blocked = !info ? null : context.platform === "web" ? t.unsupported.web : Math.abs(info.fps - FPS) > 1e-6 ? t.unsupported.fps : info.clips.length === 0 ? t.unsupported.none : null;
   const sourceSeconds = info ? info.clips.reduce((s, c) => s + c.frames / FPS, 0) : 0;
@@ -291,8 +410,9 @@ export default function Panel({ sdk, context, ui }) {
 
   async function analyze() {
     const mine = token.current, live = () => mine === token.current;
-    setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0);
-    let work = null;
+    hush(); dropWork();
+    setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0); setPicked(null); setLeft(new Set()); setLimit(40);
+    let work = null, kept = false;
     try {
       await ensureRuntime();
       if (!live()) return;
@@ -302,7 +422,7 @@ export default function Panel({ sdk, context, ui }) {
       let n = 0;
       for (const s of segments(info.clips)) {
         n++;
-        const wav = `${work}/in-${n}.wav`, out = `${work}/edl-${n}.json`;
+        const wav = `${work}/in-${n}.wav`, out = `${work}/edl-${n}.json`, clips = `${work}/clips-${n}.pcm`;
         setStage(1);
         const peek = await run("Read where the picture starts in the file", `const m = await selects.media.measureAudioPeaks({ path: ${q(s.path)}, startSeconds: 0, endSeconds: 1 }); return { status: m.status, videoStartSeconds: m.videoStartSeconds };`);
         if (peek?.status === "absent") { noSound.add(s.resourceId); continue; }
@@ -320,11 +440,12 @@ export default function Panel({ sdk, context, ui }) {
         const lone = (info.openers ?? []).filter((o) => o.resourceId === s.resourceId && o.start >= s.t0 && o.next <= s.to).map((o) => [o.start, o.next, o.prevEnd]);
         const sh = await sdk.runShell({
           summary: "Find what to clean",
-          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${DATA}/model.joblib" --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))}`,
+          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${DATA}/model.joblib" --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))} --previews ${shellQuote(clips)}`,
           cwd: work,
           timeoutMs: 300000,
         });
         if (sh.isError || sh.exitCode !== 0) throw Error(sh.stderr || sh.output || "analysis failed");
+        await run("Remove the decoded audio", `await selects.files.remove(${q(wav)}, { force: true }); return true;`, true).catch(() => {});
         if (!live()) return;
         setStage(3);
         let text = "";
@@ -336,87 +457,219 @@ export default function Panel({ sdk, context, ui }) {
           if (part.bytesRead < 49152) break;
         }
         for (const it of JSON.parse(text).items) {
-          const item = { ...it, resourceId: s.resourceId };
+          const item = { ...it, resourceId: s.resourceId, clips };
           if (inClips(item, info.clips)) all.push(item);
         }
       }
       if (!live()) return;
+      workRef.current = work; kept = true; // the preview clips stay until the next analysis or until the panel closes
       setSilent(noSound.size);
       setItems(all);
     } catch (e) {
       if (live()) setError(String(e.message || e));
     } finally {
-      if (work) await run("Remove the work folder", `await selects.files.remove(${q(work)}, { recursive: true, force: true }); return true;`, true).catch(() => {});
+      if (work && !kept) await run("Remove the work folder", `await selects.files.remove(${q(work)}, { recursive: true, force: true }); return true;`, true).catch(() => {});
       if (live()) setBusy(null);
     }
   }
 
-  const chosen = useMemo(() => (items ? resolve(items, on, cutLine / 100, lowerDb) : []), [items, on, cutLine, lowerDb]);
+  // Every place of the kinds that are on, as it will be treated, with where it sits in the Draft.
+  const rows = useMemo(() => {
+    if (!items || !info) return [];
+    return resolve(items, on, cutLine / 100, lowerDb)
+      .map((it) => ({ ...it, id: `${it.resourceId}:${it.start}`, frame: draftFrame(it, info.clips) }))
+      .filter((r) => r.frame != null)
+      .sort((a, b) => a.frame - b.frame);
+  }, [items, info, on, cutLine, lowerDb]);
+  const chosen = useMemo(() => rows.filter((r) => !left.has(r.id)), [rows, left]);
   const cuts = chosen.filter((i) => i.action === "delete");
   const cutSeconds = cuts.reduce((s, i) => s + i.frames / FPS, 0);
   const softened = chosen.filter((i) => i.softened).length;
   const copyName = `${info?.name || t.draft} (${t.copySuffix})`;
+  const anyOn = RULES.some((k) => on[k]);
 
-  // Put the playhead half a second before a found place, so pressing play lets you hear it.
-  function jump(it) {
-    const c = info.clips.find((x) => x.resourceId === it.resourceId && it.start >= x.sourceStart - 1e-6 && it.start < x.sourceStart + x.frames / FPS);
-    if (!c) return;
-    const frame = Math.max(c.startFrame, c.startFrame + Math.round((it.start - c.sourceStart) * FPS) - 15);
-    run("Jump to the place", `await selects.editor.seekDraftFrame({ projectId: ${q(projectId)}, draftSequenceId: ${q(sequenceId)}, resolvedFrame: ${frame} }); return true;`).catch(() => {});
+  // Put the playhead half a second before a place, in the Draft it belongs to (the copy once it is saved).
+  function jump(row) {
+    const frame = Math.max(0, (result ? row.copyFrame : row.frame) - 15);
+    run("Jump to the place", `await selects.editor.seekDraftFrame({ projectId: ${q(projectId)}, draftSequenceId: ${q(result ? shown.current : sequenceId)}, resolvedFrame: ${frame} }); return true;`).catch(() => {});
+  }
+  function pick(row) {
+    hush();
+    setPicked(picked === row.id ? null : row.id);
+    if (picked !== row.id) jump(row);
+  }
+
+  // Play one place: as it is, or as it will sound once cleaned.
+  async function listen(row, mode) {
+    const s = sound.current, same = playing && playing.id === row.id && playing.mode === mode;
+    hush();
+    if (same) return;
+    setPlaying({ id: row.id, mode });
+    try {
+      let pcm = s.clips.get(row.id);
+      if (!pcm) {
+        const [at, n] = row.snip, end = at + n * 2;
+        const parts = await run("Read the sound of one place", `const out = []; for (let o = ${at}; o < ${end}; o += 49152) out.push((await selects.files.readRange({ path: ${q(row.clips)}, offset: o, length: Math.min(49152, ${end} - o) })).base64); return out;`);
+        pcm = decodePcm(parts); s.clips.set(row.id, pcm);
+      }
+      const data = mode === "after" ? cleaned(pcm, row.snip[2], row.snip[3], row.action, row.lowerDb) : pcm;
+      s.ctx = s.ctx || new AudioContext();
+      if (s.ctx.state === "suspended") await s.ctx.resume();
+      const buffer = s.ctx.createBuffer(1, data.length, PREVIEW_RATE);
+      buffer.copyToChannel(data, 0);
+      const src = s.ctx.createBufferSource();
+      src.buffer = buffer; src.connect(s.ctx.destination);
+      src.onended = () => { if (s.src === src) { s.src = null; setPlaying(null); } };
+      s.src = src; src.start();
+    } catch (e) {
+      setPlaying(null); setError(t.previewFailed);
+    }
   }
 
   async function apply() {
     const mine = token.current, live = () => mine === token.current;
-    setBusy("apply"); setError(null); applying.current = true;
-    let target = null;
+    hush();
+    setBusy("apply"); setError(null); setPicked(null); applying.current = true;
+    const todo = chosen;
+    let target = null, at = 0;
+    setProgress({ at: 0, of: todo.length });
     try {
       const total = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
-      for (const batch of batches(chosen)) {
+      for (const batch of batches(todo)) {
         if (!live()) return;
         const r = await run("Apply the cleanup", APPLY(projectId, sequenceId, target, copyName, batch, fade), true);
         target = r.draftId;
         for (const k of Object.keys(total)) total[k] += r.done[k];
+        at += batch.length;
+        if (live()) setProgress({ at, of: todo.length });
       }
-      if (live()) setResult({ name: copyName, done: total });
+      if (live()) { setResult({ name: copyName, done: total, rows: inCopy(todo) }); setLimit(40); }
     } catch (e) {
       if (live()) setError(`${target ? `${t.partial(copyName)} ` : ""}${String(e.message || e)}`);
     } finally {
       applying.current = false;
-      if (live()) setBusy(null);
-      // The Draft on screen is now the copy: show its clips, keep the result message.
+      if (live()) { setBusy(null); setProgress(null); }
+      // The Draft on screen is now the copy: show its clips, keep the result.
       if (live() && shown.current && shown.current !== sequenceId) run("Read the Draft's Main clips", READ(projectId, shown.current)).then((r) => live() && setInfo(r)).catch(() => {});
     }
   }
 
   if (!projectId || !sequenceId) return <ui.Message>{t.noDraft}</ui.Message>;
-  const applyButton = <ui.Button variant="primary" busy={busy === "apply"} busyLabel={t.applying} disabled={chosen.length === 0} onClick={apply}>{t.apply}</ui.Button>;
+
+  const kindStyle = (k) => ({ "--k": `var(--k-${k})` });
+  const what = (r) => (r.action === "delete" ? t.act.delete : r.action === "mute" ? t.act.mute : t.act.lower(r.lowerDb));
+  const list = result ? result.rows : rows;
+  const total = Math.max(1, ...list.map((r) => (result ? r.copyFrame : r.frame) + r.frames), info ? Math.max(0, ...info.clips.map((c) => c.startFrame + c.frames)) : 1);
+  const at = (r) => (result ? r.copyFrame : r.frame);
+
+  // The level around one place, with the stretch that changes marked in the kind's colour.
+  const curve = (r, tall) => {
+    const n = r.shape.length, h = 24, a = (r.snip[2] / r.snip[1]) * n, b = (r.snip[3] / r.snip[1]) * n;
+    const pts = r.shape.map((v, i) => `${i + 0.5},${(h - 1 - (v / 100) * (h - 3)).toFixed(1)}`).join(" ");
+    return (
+      <svg className="tac-curve" viewBox={`0 0 ${n} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+        <rect x={a} y="0" width={Math.max(0.8, b - a)} height={h} fill="var(--k)" opacity={left.has(r.id) && !result ? 0.12 : tall ? 0.35 : 0.3} />
+        <polygon points={`0,${h} ${pts} ${n},${h}`} fill="var(--panel-muted-fg)" opacity="0.35" />
+        <polyline points={pts} fill="none" stroke="var(--panel-fg)" strokeWidth="1" vectorEffect="non-scaling-stroke" opacity="0.8" />
+      </svg>
+    );
+  };
+
+  const map = (
+    <>
+      <svg className="tac-map" viewBox="0 0 1000 44" preserveAspectRatio="none" role="img" aria-label={t.map} tabIndex={0}
+        onClick={(e) => {
+          const box = e.currentTarget.getBoundingClientRect(), f = ((e.clientX - box.left) / box.width) * total;
+          const near = list.reduce((best, r) => (best == null || Math.abs(at(r) - f) < Math.abs(at(best) - f) ? r : best), null);
+          if (near) { hush(); setPicked(near.id); jump(near); setLimit((n) => Math.max(n, list.indexOf(near) + 1)); }
+        }}>
+        {list.map((r) => (
+          <rect key={r.id} x={(at(r) / total) * 1000} y={r.id === picked ? 0 : 8} width={Math.max(2.5, (r.frames / total) * 1000)} height={r.id === picked ? 44 : 28}
+            fill={`var(--k-${r.rule})`} opacity={!result && left.has(r.id) ? 0.2 : 0.9} />
+        ))}
+      </svg>
+      <div className="tac-axis"><span>0:00</span><span>{clock(total / FPS / 2).slice(0, -2)}</span><span>{clock(total / FPS).slice(0, -2)}</span></div>
+    </>
+  );
+
+  const places = (
+    <div className="tac-list">
+      {list.slice(0, limit).map((r) => {
+        const off = !result && left.has(r.id), open = picked === r.id;
+        return (
+          <React.Fragment key={r.id}>
+            <button type="button" className={`tac-row${off ? " off" : ""}`} style={kindStyle(r.rule)} aria-expanded={open} onClick={() => pick(r)}>
+              <span className="tac-dot" />
+              <span className="tac-time">{clock(at(r) / FPS)}</span>
+              {curve(r, false)}
+              <span className="tac-what">{off ? t.excluded : what(r)}</span>
+            </button>
+            {open && (
+              <div className="tac-detail" style={kindStyle(r.rule)}>
+                {curve(r, true)}
+                <p className="tac-note"><strong style={{ color: "var(--panel-fg)" }}>{t.kind[r.rule][0]}</strong> · {what(r)} · {span(r.frames / FPS, ko)}{r.softened ? ` · ${t.softened}` : ""}</p>
+                <div className="tac-btns">
+                  {["before", "after"].map((mode) => {
+                    const live = playing && playing.id === r.id && playing.mode === mode;
+                    return (
+                      <button key={mode} type="button" className="tac-btn" aria-pressed={!!live} onClick={() => listen(r, mode)}>
+                        <span className={live ? "tac-sq" : "tac-tri"} />{mode === "before" ? t.original : t.cleaned}
+                      </button>
+                    );
+                  })}
+                  {!result && (
+                    <button type="button" className="tac-btn quiet" onClick={() => { const next = new Set(left); if (off) next.delete(r.id); else next.add(r.id); setLeft(next); }}>
+                      {off ? t.include : t.exclude}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+  const more = list.length > limit && (
+    <ui.Actions><ui.Button variant="ghost" onClick={() => setLimit(limit + 80)}>{t.more(Math.min(80, list.length - limit))}</ui.Button></ui.Actions>
+  );
+
   return (
     <ui.Stack gap={16}>
+      <style>{STYLE}</style>
       <ui.Section title={t.title}>
-        {busy === "read" && <ui.Skeleton width="60%" />}
-        {info && <p><strong>{info.name || t.draft}</strong> · {t.clips(info.clips.length, span(sourceSeconds, ko))}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
-        {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
-        {info && !blocked && !items && busy !== "analyze" && (
-          <>
-            <p>{t.intro}</p>
-            <ui.Actions>
-              <ui.Button variant="primary" onClick={analyze}>{t.analyze}</ui.Button>
-            </ui.Actions>
-            <ui.Message tone="muted">{t.analyzeNote}</ui.Message>
-          </>
-        )}
-        {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
-        {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage} />}
+        <div className="tac">
+          {busy === "read" && <ui.Skeleton width="60%" />}
+          {info && <p className="tac-sub"><strong>{info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
+          {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
+          {info && !blocked && !items && busy !== "analyze" && <p>{t.intro}</p>}
+          {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
+          {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage} />}
+        </div>
       </ui.Section>
 
       {info && !blocked && !items && busy !== "analyze" && (
-        <ui.Section title={t.looksFor}>
-          {RULES.map((rule) => <p key={rule}><strong>{t.rule[rule][0]}</strong><br />{t.rule[rule][1]}</p>)}
+        <ui.Section title={t.pick}>
+          <div className="tac">
+            <div className="tac-kinds">
+              {RULES.map((k) => (
+                <button key={k} type="button" role="switch" aria-checked={on[k]} className="tac-kind" style={kindStyle(k)} onClick={() => setOn({ ...on, [k]: !on[k] })}>
+                  <span className="tac-dot" /><b>{t.kind[k][0]}</b><span className="tac-sw" />
+                  <small>{t.kind[k][1]}</small>
+                </button>
+              ))}
+            </div>
+            {!anyOn && <p className="tac-note">{t.pickOne}</p>}
+          </div>
+          <ui.Actions>
+            <ui.Button variant="primary" disabled={!anyOn} onClick={analyze}>{t.analyze}</ui.Button>
+          </ui.Actions>
+          <p className="tac-note">{t.analyzeNote}</p>
         </ui.Section>
       )}
 
       {items && items.length === 0 && (
-        <ui.Section title={t.found}>
+        <ui.Section title={t.places(0)}>
           <ui.Message>{t.nothing}</ui.Message>
           {silent > 0 && <p>{t.skippedSilent(silent)}</p>}
           <ui.Actions>
@@ -427,57 +680,76 @@ export default function Panel({ sdk, context, ui }) {
 
       {items && items.length > 0 && !result && (
         <>
-          <ui.Section title={t.found}>
-            <p><strong>{t.summary(chosen.length, cuts.length, chosen.length - cuts.length, span(cutSeconds, ko))}</strong></p>
-            <p>{t.applyNote(copyName)}</p>
-            {silent > 0 && <p>{t.skippedSilent(silent)}</p>}
-            <ui.Actions>{applyButton}</ui.Actions>
-            <ui.Message tone="muted">{t.jumpHint}</ui.Message>
+          <ui.Section title={t.map}>
+            <div className="tac">
+              <div className="tac-head">
+                <span className="tac-big">{t.places(chosen.length)}</span>
+                <span className="tac-sub">{t.shorter(span(cutSeconds, ko))} · {t.cutsVols(cuts.length, chosen.length - cuts.length)}</span>
+              </div>
+              {map}
+              <div className="tac-chips">
+                {RULES.filter((k) => items.some((i) => i.rule === k)).map((k) => (
+                  <button key={k} type="button" className="tac-chip" style={kindStyle(k)} aria-pressed={on[k]} onClick={() => setOn({ ...on, [k]: !on[k] })}>
+                    <span className="tac-dot" />{t.kind[k][0]}<i>{items.filter((i) => i.rule === k).length}</i>
+                  </button>
+                ))}
+              </div>
+              {silent > 0 && <p className="tac-note">{t.skippedSilent(silent)}</p>}
+            </div>
+            {busy === "apply" && progress ? (
+              <ui.Progress value={progress.of ? progress.at / progress.of : 0} label={t.applying(progress.at, progress.of)} />
+            ) : (
+              <ui.Actions>
+                <ui.Button variant="primary" disabled={chosen.length === 0} onClick={apply}>{t.apply}</ui.Button>
+              </ui.Actions>
+            )}
+            <p className="tac-note">{t.applyNote(copyName)}</p>
           </ui.Section>
-          {RULES.map((rule) => {
-            const mine = chosen.filter((i) => i.rule === rule), every = items.filter((i) => i.rule === rule);
-            if (every.length === 0) return null;
-            const seconds = (on[rule] ? mine : every).reduce((s, i) => s + i.frames / FPS, 0);
-            const list = open[rule] ? mine : mine.slice(0, 6);
-            return (
-              <ui.Section key={rule} title={`${t.rule[rule][0]} · ${on[rule] ? mine.length : every.length}`}>
-                <ui.Toggle label={t.include} value={on[rule]} onChange={(v) => setOn({ ...on, [rule]: v })} />
-                <p>{t.rule[rule][1]}<br />{t.count(on[rule] ? mine.length : every.length, span(seconds, ko))}</p>
-                {on[rule] && mine.length > 0 && (
-                  <ui.Row gap={4}>
-                    {list.map((i) => <ui.Button key={`${i.resourceId}:${i.start}`} variant="ghost" onClick={() => jump(i)}>{clock(i.start)}</ui.Button>)}
-                    {mine.length > 6 && <ui.Button variant="ghost" onClick={() => setOpen({ ...open, [rule]: !open[rule] })}>{open[rule] ? t.showFewer : t.showAll(mine.length)}</ui.Button>}
-                  </ui.Row>
-                )}
-                {rule === "blemish" && on.blemish && (
-                  <>
-                    <ui.Slider label={t.cutLine} unit="%" min={30} max={90} value={cutLine} onChange={setCutLine} />
-                    {softened > 0 && <p>{t.cutLineNote(softened)}</p>}
-                  </>
-                )}
-                {rule === "breath" && on.breath && <ui.Slider label={t.lowerBy} unit="dB" min={6} max={20} value={lowerDb} onChange={setLowerDb} />}
-              </ui.Section>
-            );
-          })}
-          <ui.Section title={t.options}>
-            <ui.Toggle label={t.fade} value={fade} onChange={setFade} />
-            <p>{t.fadeNote}</p>
-            <ui.Actions>
-              <ui.Button variant="secondary" onClick={() => setItems(null)}>{t.again}</ui.Button>
-              {applyButton}
-            </ui.Actions>
+
+          {rows.length > 0 && (
+            <ui.Section title={t.each}>
+              <div className="tac">
+                <p className="tac-note">{t.mapHint}</p>
+                {places}
+              </div>
+              {more}
+            </ui.Section>
+          )}
+
+          <ui.Section title={t.settings} actions={<ui.IconButton icon={tune ? "chevron-down" : "chevron-right"} label={t.settings} onClick={() => setTune(!tune)} />}>
+            {tune && (
+              <>
+                <ui.Slider label={t.cutLine} unit="%" min={30} max={90} value={cutLine} onChange={setCutLine} />
+                {softened > 0 && <p className="tac-note">{t.cutLineNote(softened)}</p>}
+                <ui.Slider label={t.lowerBy} unit="dB" min={6} max={20} value={lowerDb} onChange={setLowerDb} />
+                <ui.Toggle label={t.fade} value={fade} onChange={setFade} />
+                <p className="tac-note">{t.fadeNote}</p>
+              </>
+            )}
           </ui.Section>
         </>
       )}
 
       {result && (
-        <ui.Section title={t.doneTitle}>
-          <ui.Message tone="success">{t.done(result.name, result.done)}</ui.Message>
-          <p>{t.listen}</p>
-          <ui.Actions>
-            <ui.Button variant="secondary" onClick={() => { setItems(null); setResult(null); }}>{t.again}</ui.Button>
-          </ui.Actions>
-        </ui.Section>
+        <>
+          <ui.Section title={t.doneTitle}>
+            <div className="tac">
+              <div className="tac-head">
+                <span className="tac-big">{t.places(result.rows.length)}</span>
+                <span className="tac-sub">{t.done(result.done)}</span>
+              </div>
+              {map}
+              <p className="tac-note">{t.listen}</p>
+            </div>
+            <ui.Actions>
+              <ui.Button variant="secondary" onClick={() => { hush(); setItems(null); setResult(null); setPicked(null); }}>{t.again}</ui.Button>
+            </ui.Actions>
+          </ui.Section>
+          <ui.Section title={result.name}>
+            <div className="tac">{places}</div>
+            {more}
+          </ui.Section>
+        </>
       )}
       {error && <ui.Message tone="error">{error}</ui.Message>}
     </ui.Stack>

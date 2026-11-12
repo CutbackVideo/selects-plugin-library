@@ -18,15 +18,21 @@ It works on a copy of the open Draft. The original Draft is not changed.
 
 1. Open a 30 fps Draft whose Main clips come from the talking footage and open
    **Talk Audio Cleanup**.
-2. **Analyze** decodes the Main clips' audio with the app's FFmpeg and runs
+2. Pick what to clean (each kind has a switch) and press **Find what to
+   clean**. It decodes the Main clips' audio with the app's FFmpeg and runs
    `engine/analyze.py` on this computer. Nothing is uploaded and no credits are
-   used.
-   The first run sets up the Python it needs (a download of a few minutes).
-3. Each kind of sound is listed with how many places were found and where.
-   Turn a kind off, raise **Only cut when this sure** to cut less (the less
-   certain cuts become volume changes), or change how far breaths are lowered.
+   used. The first run sets up the Python it needs (a download of a few
+   minutes).
+3. The result shows how many places were found, how much shorter the copy will
+   be, and a strip of where they are, one colour per kind. Each place is a row
+   with its level drawn and the stretch that changes marked. Pick a row to move
+   the playhead there and to hear it as it is (**Original**) and as it will be
+   (**Cleaned**), or to leave that one place as it is. **Fine-tune** raises how
+   sure a cut must be (the less certain cuts become volume changes) and changes
+   how far breaths are lowered.
 4. **Make a cleaned copy** duplicates the Draft and applies the cuts, volume
-   changes and fades to the copy.
+   changes and fades to the copy. The list stays, now pointing into the copy,
+   so the places can be checked there.
 
 The sounds are found by measuring, not by listening. Play a few before you
 export.
