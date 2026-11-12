@@ -7,11 +7,9 @@ Experimental: macOS, with a Selects build that has Panel support,
    `SELECTS_USER_SKILLS_ROOT`, and `panel.tsx` in `talk-audio-cleanup` beneath
    `SELECTS_USER_PANELS_ROOT`, as in the library's
    [installation layout](../../PUBLISHING.md#installation-layout).
-2. Put the trained model at
-   `$HOME/.selects/plugin-data/talk-audio-cleanup/model.joblib`. The model is
-   not part of this repository and is not publicly distributed; without it the
-   Panel stops at **Analyze** and says so. It was saved with scikit-learn 1.9,
-   which is why `engine/requirements.txt` pins that version.
+2. The trained model is part of the package (`engine/model.joblib`). It was
+   saved with scikit-learn 1.9, which is why `engine/requirements.txt` pins
+   that version.
 3. Nothing else to install by hand. On the first **Analyze** the Panel sets up
    the analysis program's Python in
    `$HOME/.selects/plugin-data/talk-audio-cleanup/venv`: a virtual environment

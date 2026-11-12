@@ -59,9 +59,6 @@ each frame: keep, cut, mute or lower. Then:
 
 ## Limitations
 
-- The model is not in this package and is not publicly distributed; see
-  [INSTALL.md](INSTALL.md). Without it the Panel says the model is not
-  installed.
 - macOS only: the analysis is a Python program run through the shell.
 - The sound is measured in 1/30 s steps. A Draft at another frame rate is
   edited on its own frames, so an edge can land up to half a frame from where
