@@ -20,7 +20,7 @@ const ONE = { numerator: 1, denominator: 1 };
 // A Draft with the edits the Panel uses, behaving as the host's does: removeClips refuses Main clips,
 // remove(span, { tracks: "main" }) cuts the span out and closes the gap, splitAt cuts a clip in two.
 // Default: one Main clip of 100 s whose source starts at 5 s.
-function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 3000 }]) {
+function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 3000 }], rate = FPS) {
   let nextId = 1, at = 0;
   let clips = rows.map((r) => {
     const c = { clipId: nextId++, trackKind: r.trackKind ?? 'main', resourceId: r.resourceId, sourceStartSeconds: r.sourceStartSeconds, startFrame: at, endFrame: at + r.frames, playbackSpeed: r.playbackSpeed ?? ONE, volumeDb: 'volumeDb' in r ? r.volumeDb : 0 };
@@ -33,7 +33,7 @@ function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 30
   const splitAt = async ({ frame }) => {
     const c = clips.find((x) => x.trackKind === 'main' && x.startFrame < frame && x.endFrame > frame);
     if (!c) throw Error(`no clip to split at ${frame}`);
-    clips.push({ ...c, clipId: nextId++, startFrame: frame, sourceStartSeconds: c.sourceStartSeconds + (frame - c.startFrame) / FPS });
+    clips.push({ ...c, clipId: nextId++, startFrame: frame, sourceStartSeconds: c.sourceStartSeconds + (frame - c.startFrame) / rate });
     c.endFrame = frame;
     clips.sort((a, b) => a.startFrame - b.startFrame);
   };
@@ -57,7 +57,16 @@ function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 30
     },
     commitAll: async () => { commits++; return { createdDraftId: 'copy' }; },
   };
-  const selects = { project: () => ({ duplicateDraft: async () => draft }), draft: (id) => { assert.equal(id, 'copy'); return draft; } };
+  // A new Draft starts empty; insertResource appends that stretch of the source to Main.
+  draft.insertResource = async ({ resourceId, sourceRange: { startSeconds, endSeconds } }) => {
+    const start = clips.reduce((m, c) => Math.max(m, c.endFrame), 0);
+    clips.push({ clipId: nextId++, trackKind: 'main', resourceId, sourceStartSeconds: startSeconds, startFrame: start, endFrame: start + Math.round((endSeconds - startSeconds) * rate), playbackSpeed: ONE, volumeDb: 0 });
+    log.push(`insert ${resourceId} ${startSeconds}-${endSeconds}`);
+  };
+  const selects = {
+    project: () => ({ duplicateDraft: async () => draft, createDraft: async () => { clips = []; log.push('create'); return draft; } }),
+    draft: (id) => { assert.equal(id, 'copy'); return draft; },
+  };
   return { selects, log, frames: () => clips.reduce((s, c) => s + c.endFrame - c.startFrame, 0), commits: () => commits };
 }
 const applyAll = async (selects, items, fade = true) => {
@@ -183,14 +192,16 @@ test('reading the Draft keeps 1x Main clips that have a source file', async () =
       clips: async () => [row({}), row({ trackKind: 'video' }), row({ playbackSpeed: { numerator: 2, denominator: 1 } }), row({ resourceId: 'seq' }), row({ resourceId: 'deep', sourceStartSeconds: 4, startFrame: 300, endFrame: 390 }), row({ resourceId: null })],
     }),
     project: () => ({
+      meta: async () => ({ draftIds: ['d'] }),
       sourceFiles: async (o) => (o ? { fileTree: [{ type: 'dir', children: [{ type: 'video', resourceId: 'deep', path: '/m/deep.mp4' }] }] } : { folders: [{ name: 'A' }] }),
     }),
   };
   const r = await script(READ('p', 'd'), selects);
-  assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, startFrame: 300, frames: 90 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4 + 20 / 30, next: 4 + 24 / 30, prevEnd: 4 + 18 / 30 }, { resourceId: 'deep', start: 4 + 50 / 30, next: 4 + 53 / 30, prevEnd: 4 + 50 / 30 - 1 }], env: { tempDirectory: '/tmp' } });
-  selects.project = () => ({ sourceFiles: async () => ({ fileTree: [{ type: 'video', resourceId: 'r0', path: '/m/r0.mp4' }, { type: 'sequence', resourceId: 'seq', path: '/m/seq' }] }) });
+  assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, startFrame: 300, frames: 90, seconds: 3 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4 + 20 / 30, next: 4 + 24 / 30, prevEnd: 4 + 18 / 30 }, { resourceId: 'deep', start: 4 + 50 / 30, next: 4 + 53 / 30, prevEnd: 4 + 50 / 30 - 1 }], isDraft: true, env: { tempDirectory: '/tmp' } });
+  selects.project = () => ({ meta: async () => ({ draftIds: ['other'] }), sourceFiles: async () => ({ fileTree: [{ type: 'video', resourceId: 'r0', path: '/m/r0.mp4' }, { type: 'sequence', resourceId: 'seq', path: '/m/seq' }] }) });
   const flat = await script(READ('p', 'd'), selects);
   assert.deepEqual([flat.clips.map((c) => c.resourceId), flat.skipped], [['r0'], 1]);
+  assert.equal(flat.isDraft, false);   // a source timeline is not one of the project's Drafts, so no copy can be made of it
 });
 
 test('the Korean and English strings have the same keys', () => {
@@ -245,4 +256,29 @@ test('the timeline zooms about the pointer, stays inside the Draft and keeps a f
   assert.deepEqual(zoomView({ t0: total, span: 60 * FPS }, total, 1, 0), { t0: total - 60 * FPS, span: 60 * FPS });   // a move past the end stops at it
   assert.deepEqual(zoomView({ t0: 0, span: 60 * FPS }, 20 * FPS, 1, 0), { t0: 0, span: 20 * FPS });                   // a Draft shorter than the window
   assert.deepEqual([10, 60, 120, 600, 3600].map(gridStep), [2, 10, 30, 300, 600]);
+});
+
+test('a Draft at another frame rate is edited on its own frames', async () => {
+  // 25 fps: a cut of 0.2 s that starts 2 s into the clip is frames 50 to 55; a breath of 0.4 s at 4 s is frames 100 to 110.
+  const { selects, log, frames } = fakeDraft([{ resourceId: 'r0', sourceStartSeconds: 5, frames: 2500 }], 25);
+  const at = (start, seconds, action) => ({ resourceId: 'r0', start, end: start + seconds, frames: Math.round(seconds * 25), action, lowerDb: action === 'lower' ? 11 : null });
+  const r = await script(APPLY('p', 'd', null, 'name', [at(9, 0.4, 'lower'), at(7, 0.2, 'delete')], true, 25), selects);
+  assert.deepEqual(r.done, { delete: 1, lower: 1, mute: 0, fades: 1, skipped: 0 });
+  assert.deepEqual(log, ['volume 100-110 -11', 'cut 50-55', 'fade 50']);
+  assert.equal(frames(), 2495);
+  const clips = [{ resourceId: 'r0', sourceStart: 5, startFrame: 0, frames: 2500, seconds: 100 }];
+  assert.deepEqual([draftFrame({ resourceId: 'r0', start: 7 }, clips, 25), inClips({ resourceId: 'r0', start: 104.5, end: 105 }, clips), inClips({ resourceId: 'r0', start: 104.9, end: 105.1 }, clips)], [50, true, false]);
+  assert.deepEqual(segments(clips).map((x) => [x.from, x.to]), [[5, 105]]);
+});
+
+test('from source material a new Draft is built first, then edited the same way', async () => {
+  const { selects, log } = fakeDraft();
+  const fresh = [{ resourceId: 'r0', start: 5, end: 105 }];
+  const r = await script(APPLY('p', 'source', null, 'name', [item(12, 3, 'delete', 'blemish', 0.9)], true, FPS, fresh), selects);
+  assert.deepEqual([r.draftId, r.done.delete, r.done.fades], ['copy', 1, 1]);
+  assert.deepEqual(log, ['create', 'insert r0 5-105', 'cut 210-213', 'fade 210']);
+  // the next batch goes to the Draft that was made, and makes nothing new
+  const { selects: again, log: log2 } = fakeDraft();
+  await script(APPLY('p', 'source', 'copy', 'name', [item(20, 3, 'delete', 'blemish', 0.9)], true, FPS, fresh), again);
+  assert.deepEqual(log2, ['cut 450-453', 'fade 450']);
 });

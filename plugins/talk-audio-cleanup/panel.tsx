@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const ID = "talk-audio-cleanup";
-const FPS = 30; // the analysis works on 30 fps frames; other Drafts are refused
+const FPS = 30; // the analysis measures the sound in 1/30 s steps, whatever the Draft's own frame rate is
 const BATCH = 30; // edits per script run, so one run stays well inside the script budget
 const RULES = ["blemish", "breath", "sniff", "click", "opener"];
 
@@ -22,11 +22,12 @@ const STRINGS = {
     skippedSpeed: (n) => `${n} left out (not at 1× speed)`,
     skippedSilent: (n) => `${n} source file${n === 1 ? "" : "s"} without sound left out`,
     unsupported: {
-      fps: "This Draft is not 30 fps. The analysis works on 30 fps frames.",
       none: "No Main clip with its own source file was found in this Draft.",
       web: "The analysis runs a local program, so it needs the desktop app.",
     },
     intro: "Finds the small noises between words and fixes them on a copy. This Draft is not changed.",
+    introSource: "Finds the small noises between words and makes a new, cleaned Draft from this source. The source is not changed.",
+    applyNew: "Make a cleaned Draft",
     pick: "What to clean",
     pickOne: "Turn on at least one.",
     analyze: "Find what to clean",
@@ -89,11 +90,12 @@ const STRINGS = {
     skippedSpeed: (n) => `1\ubc30\uc18d\uc774 \uc544\ub2cc ${n}\uac1c \uc81c\uc678`,
     skippedSilent: (n) => `\uc18c\ub9ac \uc5c6\ub294 \uc6d0\ubcf8 ${n}\uac1c \uc81c\uc678`,
     unsupported: {
-      fps: "\uc774 Draft\ub294 30fps\uac00 \uc544\ub2d9\ub2c8\ub2e4. \ubd84\uc11d\uc740 30fps \ud504\ub808\uc784 \ub2e8\uc704\ub85c \ub3d9\uc791\ud569\ub2c8\ub2e4.",
       none: "\uc774 Draft\uc758 Main\uc5d0\uc11c \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc788\ub294 \ud074\ub9bd\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
       web: "\ubd84\uc11d\uc740 \uc774 \ucef4\ud4e8\ud130\uc758 \ud504\ub85c\uadf8\ub7a8\uc744 \uc2e4\ud589\ud558\ubbc0\ub85c \ub370\uc2a4\ud06c\ud1b1 \uc571\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
     },
     intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc774 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    introSource: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544, \uc774 \uc6d0\ubcf8\uc73c\ub85c \uc815\ub9ac\ub41c \uc0c8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc6d0\ubcf8\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    applyNew: "\uc815\ub9ac\ub41c Draft \ub9cc\ub4e4\uae30",
     pick: "\uc815\ub9ac\ud560 \uac83",
     pickOne: "\ud558\ub098 \uc774\uc0c1 \ucf1c \uc8fc\uc138\uc694.",
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
@@ -158,6 +160,8 @@ const clock = (s) => {
 };
 const span = (s, ko) => (s >= 60 ? `${Math.floor(s / 60)}${ko ? "\ubd84 " : "m "}${Math.round(s % 60)}${ko ? "\ucd08" : "s"}` : `${s.toFixed(1)}${ko ? "\ucd08" : "s"}`);
 const q = (v) => JSON.stringify(v);
+// A clip's length in seconds. Its frames are counted at the Draft's own rate, which READ turns into seconds.
+const secs = (c) => c.seconds ?? c.frames / FPS;
 
 // What each item becomes with the current settings. A cut the model is less sure of
 // than `cutLine` is turned into a volume change, so the picture is not cut there.
@@ -187,7 +191,7 @@ for (const r of await d.clips()) {
   const f = files.find((x) => x.resourceId === r.resourceId);
   if (!f?.path || f.type === "sequence") continue;
   if (r.playbackSpeed && r.playbackSpeed.numerator !== r.playbackSpeed.denominator) { skipped++; continue; }
-  clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, startFrame: r.startFrame, frames: r.endFrame - r.startFrame });
+  clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, startFrame: r.startFrame, frames: r.endFrame - r.startFrame, seconds: (r.endFrame - r.startFrame) / meta.fps });
 }
 // A lone opening word: where it, the next word and the previous one sit in the source (seconds), read through the clip that plays them.
 const openers = [];
@@ -199,7 +203,9 @@ ws.forEach((w, i) => {
   if (!me || nx?.c !== me.c) return;
   openers.push({ resourceId: me.c.resourceId, start: me.t, next: nx.t, prevEnd: pv?.c === me.c ? pv.t + 1 / meta.fps : me.t - 1 });
 });
-return { fps: meta.fps, name: meta.name ?? null, clips, skipped, openers, env: await selects.files.environment() };`;
+// The copy is made by duplicating what is open, and only a project Draft can be duplicated (a stringout or a synced timeline cannot).
+const isDraft = ((await p.meta()).draftIds ?? []).includes(${q(draftId)});
+return { fps: meta.fps, name: meta.name ?? null, clips, skipped, openers, isDraft, env: await selects.files.environment() };`;
 
 // The stretches of source audio to analyze: each source's clips, joined when they sit within 10 s of each
 // other, so a Draft that uses two far-apart parts of a long recording does not decode what lies between.
@@ -208,7 +214,7 @@ function segments(clips) {
   const out = [];
   const sorted = [...clips].sort((a, b) => (a.resourceId === b.resourceId ? a.sourceStart - b.sourceStart : a.resourceId < b.resourceId ? -1 : 1));
   for (const c of sorted) {
-    const to = c.sourceStart + c.frames / FPS, last = out[out.length - 1];
+    const to = c.sourceStart + secs(c), last = out[out.length - 1];
     if (last && last.resourceId === c.resourceId && c.sourceStart - last.to <= 10) last.to = Math.max(last.to, to);
     else out.push({ resourceId: c.resourceId, path: c.path, from: c.sourceStart, to });
   }
@@ -216,7 +222,7 @@ function segments(clips) {
   return out.map((s) => ({ ...s, t0: s.from - Math.min(150, Math.floor(s.from * FPS)) / FPS }));
 }
 // Only what lies wholly inside a clip the Draft plays can be applied (the lead-in and gaps between clips cannot).
-const inClips = (it, clips) => clips.some((c) => c.resourceId === it.resourceId && it.start >= c.sourceStart - 1e-6 && it.end <= c.sourceStart + c.frames / FPS + 1e-6);
+const inClips = (it, clips) => clips.some((c) => c.resourceId === it.resourceId && it.start >= c.sourceStart - 1e-6 && it.end <= c.sourceStart + secs(c) + 1e-6);
 // Latest first, so a cut never moves an item that is still to be placed; BATCH items per script run.
 function batches(chosen) {
   const order = [...chosen].sort((a, b) => b.start - a.start).map(({ resourceId, start, end, frames, action, lowerDb }) => ({ resourceId, start, end, frames, action, lowerDb }));
@@ -225,15 +231,23 @@ function batches(chosen) {
 
 // Applies one batch. Each item is placed from the Draft's rows as they are at that moment, by source time,
 // so an earlier cut never shifts a later item onto the wrong frames.
-const APPLY = (projectId, sourceDraftId, targetDraftId, name, batch, fade) => `
-const ITEMS = ${q(batch)}, FPS = ${FPS}, FADE = ${q(fade)};
-const d = ${targetDraftId ? `selects.draft(${q(targetDraftId)})` : `await selects.project(${q(projectId)}).duplicateDraft({ sourceDraftId: ${q(sourceDraftId)}, name: ${q(name)} })`};
+// `fps` is the Draft's frame rate. `fresh` lists the source stretches to build a new Draft from, when what is open
+// is source material (a stringout, a synced timeline) that cannot be duplicated.
+const APPLY = (projectId, sourceDraftId, targetDraftId, name, batch, fade, fps = FPS, fresh = null) => `
+const ITEMS = ${q(batch)}, FPS = ${q(fps)}, FADE = ${q(fade)}, FRESH = ${q(targetDraftId ? null : fresh)};
+let d;
+if (${q(!!targetDraftId)}) d = selects.draft(${q(targetDraftId)});
+else if (FRESH) {
+  d = await selects.project(${q(projectId)}).createDraft({ name: ${q(name)} });
+  for (const c of FRESH) await d.insertResource({ resourceId: c.resourceId, sourceRange: { startSeconds: c.start, endSeconds: c.end } });
+} else d = await selects.project(${q(projectId)}).duplicateDraft({ sourceDraftId: ${q(sourceDraftId)}, name: ${q(name)} });
 const main = async () => (await d.clips()).filter((r) => r.trackKind === "main");
 const done = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
 for (const it of ITEMS) {
+  const mid = (it.start + it.end) / 2; // the clip that plays the item's middle; at a rate other than 30 fps its edges fall between Draft frames
   const row = (await main()).find((r) => r.resourceId === it.resourceId && r.sourceStartSeconds != null &&
     (!r.playbackSpeed || r.playbackSpeed.numerator === r.playbackSpeed.denominator) &&
-    it.start >= r.sourceStartSeconds - 1e-6 && it.end <= r.sourceStartSeconds + (r.endFrame - r.startFrame) / FPS + 1e-6);
+    mid >= r.sourceStartSeconds && mid < r.sourceStartSeconds + (r.endFrame - r.startFrame) / FPS);
   if (!row) { done.skipped++; continue; }
   const a = Math.max(row.startFrame, row.startFrame + Math.round((it.start - row.sourceStartSeconds) * FPS)), b = Math.min(row.endFrame, a + it.frames);
   if (b <= a) { done.skipped++; continue; }
@@ -289,9 +303,9 @@ function inCopy(rows) {
   return [...rows].sort((a, b) => a.frame - b.frame).map((r) => { const row = { ...r, copyFrame: r.frame - cut }; if (r.action === "delete") cut += r.frames; return row; });
 }
 // The Draft frame where a place starts, through the clip that plays it.
-function draftFrame(it, clips) {
-  const c = clips.find((x) => x.resourceId === it.resourceId && it.start >= x.sourceStart - 1e-6 && it.start < x.sourceStart + x.frames / FPS);
-  return c ? c.startFrame + Math.round((it.start - c.sourceStart) * FPS) : null;
+function draftFrame(it, clips, fps = FPS) {
+  const c = clips.find((x) => x.resourceId === it.resourceId && it.start >= x.sourceStart - 1e-6 && it.start < x.sourceStart + secs(x));
+  return c ? c.startFrame + Math.round((it.start - c.sourceStart) * fps) : null;
 }
 
 // The waveform as an editor's timeline draws it: peaks rising from the bottom, on one scale for every place.
@@ -443,7 +457,7 @@ export default function Panel({ sdk, context, ui }) {
     if (s.src) { s.src.onended = null; try { s.src.stop(); } catch {} s.src = null; }
     setPlaying(null);
   };
-  const fresh = () => { setPicked(null); setMenu(null); setChoice(new Map()); setFilter("all"); setFirst(0); setName(null); setView(null); };
+  const reset = () => { setPicked(null); setMenu(null); setChoice(new Map()); setFilter("all"); setFirst(0); setName(null); setView(null); };
 
   const applying = useRef(false), shown = useRef(sequenceId);
   shown.current = sequenceId;
@@ -451,7 +465,7 @@ export default function Panel({ sdk, context, ui }) {
     if (applying.current) return; // the host opens the copy while it is being made; that is the same job, not a new Draft to start over on
     const mine = ++token.current, live = () => mine === token.current;
     hush(); dropWork();
-    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null); fresh();
+    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null); reset();
     if (!projectId || !sequenceId) return;
     setBusy("read");
     run("Read the Draft's Main clips", READ(projectId, sequenceId))
@@ -462,8 +476,11 @@ export default function Panel({ sdk, context, ui }) {
   }, [projectId, sequenceId]);
   useEffect(() => () => { hush(); dropWork(); }, []);
 
-  const blocked = !info ? null : context.platform === "web" ? t.unsupported.web : Math.abs(info.fps - FPS) > 1e-6 ? t.unsupported.fps : info.clips.length === 0 ? t.unsupported.none : null;
-  const sourceSeconds = info ? info.clips.reduce((s, c) => s + c.frames / FPS, 0) : 0;
+  const blocked = !info ? null : context.platform === "web" ? t.unsupported.web : info.clips.length === 0 ? t.unsupported.none : null;
+  const fps = info?.fps ?? FPS; // the Draft's own frame rate: every Draft frame below is counted at it
+  // Source material cannot be duplicated, so a new Draft is built from the same stretches of the source.
+  const fresh = info && info.isDraft === false ? [...info.clips].sort((a, b) => a.startFrame - b.startFrame).map((c) => ({ resourceId: c.resourceId, start: c.sourceStart, end: c.sourceStart + secs(c) })) : null;
+  const sourceSeconds = info ? info.clips.reduce((s, c) => s + secs(c), 0) : 0;
 
   async function ensureRuntime() {
     const check = await sdk.runShell({ summary: "Check the analysis program", command: RUNTIME_CHECK, timeoutMs: 60000 });
@@ -482,7 +499,7 @@ export default function Panel({ sdk, context, ui }) {
   async function analyze() {
     const mine = token.current, live = () => mine === token.current;
     hush(); dropWork();
-    setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0); fresh();
+    setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0); reset();
     let work = null, kept = false;
     try {
       await ensureRuntime();
@@ -553,7 +570,7 @@ export default function Panel({ sdk, context, ui }) {
     return [...sure, ...maybe]
       .map((it) => {
         const id = `${it.resourceId}:${it.start}`, proposed = it.action, act = choice.get(id) ?? (it.tier === "maybe" ? "leave" : proposed);
-        return { ...it, id, proposed, act, action: act === "leave" ? proposed : act, lowerDb: act === "lower" ? LOWER_DB : null, frame: draftFrame(it, info.clips) };
+        return { ...it, id, proposed, act, action: act === "leave" ? proposed : act, lowerDb: act === "lower" ? LOWER_DB : null, frame: draftFrame(it, info.clips, info.fps), frames: Math.max(1, Math.round((it.end - it.start) * info.fps)) };
       })
       .filter((r) => r.frame != null)
       .sort((a, b) => a.frame - b.frame);
@@ -562,7 +579,7 @@ export default function Panel({ sdk, context, ui }) {
   const hints = rows.filter((r) => r.tier === "maybe");
   const leftOut = rows.filter((r) => r.tier !== "maybe" && r.act === "leave");
   const cuts = chosen.filter((i) => i.action === "delete");
-  const cutSeconds = cuts.reduce((s, i) => s + i.frames / FPS, 0);
+  const cutSeconds = cuts.reduce((s, i) => s + (i.end - i.start), 0);
   const copyName = name ?? `${info?.name || t.draft} (${t.copySuffix})`;
   const anyOn = RULES.some((k) => on[k]);
   // One scale for every waveform, set by the loud speech around the places.
@@ -577,7 +594,7 @@ export default function Panel({ sdk, context, ui }) {
   const total = Math.max(1, ...base.map((r) => at(r) + r.frames), info ? Math.max(0, ...info.clips.map((c) => c.startFrame + c.frames)) : 1);
   const page = list.slice(first, first + PAGE);
   // The window the timeline shows: a minute to start with (two for a long Draft), always inside the Draft.
-  const win = zoomView(view ?? { t0: 0, span: (total > 600 * FPS ? 120 : 60) * FPS }, total, 1, 0);
+  const win = zoomView(view ?? { t0: 0, span: Math.round((total > 600 * fps ? 120 : 60) * fps) }, total, 1, 0);
   geo.current = { win, total, list };
   const pageTo = (frame) => { const i = list.findIndex((r) => at(r) + r.frames >= frame); setFirst(Math.max(0, Math.min(i < 0 ? list.length - 1 : i, Math.max(0, list.length - PAGE)))); };
   const lookAt = (frame) => setView(zoomView({ t0: frame - win.span / 2, span: win.span }, total, 1, 0));
@@ -621,7 +638,7 @@ export default function Panel({ sdk, context, ui }) {
 
   // Put the playhead half a second before a place, in the Draft it belongs to (the copy once it is saved).
   function jump(row) {
-    const frame = Math.max(0, at(row) - 15);
+    const frame = Math.max(0, at(row) - Math.round(fps / 2));
     run("Jump to the place", `await selects.editor.seekDraftFrame({ projectId: ${q(projectId)}, draftSequenceId: ${q(result ? shown.current : sequenceId)}, resolvedFrame: ${frame} }); return true;`).catch(() => {});
   }
   function pick(row) {
@@ -680,7 +697,7 @@ export default function Panel({ sdk, context, ui }) {
       const sum = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
       for (const batch of batches(todo)) {
         if (!live()) return;
-        const r = await run("Apply the cleanup", APPLY(projectId, sequenceId, target, copyName, batch, true), true);
+        const r = await run("Apply the cleanup", APPLY(projectId, sequenceId, target, copyName, batch, true, fps, fresh), true);
         target = r.draftId;
         for (const k of Object.keys(sum)) sum[k] += r.done[k];
         done += batch.length;
@@ -701,7 +718,7 @@ export default function Panel({ sdk, context, ui }) {
   if (!projectId || !sequenceId) return <ui.Message>{t.noDraft}</ui.Message>;
 
   const label = (act) => (act === "delete" ? t.act.delete : act === "mute" ? t.act.mute : act === "lower" ? t.act.lower(LOWER_DB) : t.act.leave);
-  const mmss = (frames) => { const s = Math.floor(frames / FPS); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  const mmss = (frames) => { const s = Math.floor(frames / fps); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
   // The waveform around one place, as the app's own audio clip draws it, with the stretch that changes marked.
   const wave = (r) => {
@@ -724,7 +741,7 @@ export default function Panel({ sdk, context, ui }) {
   );
 
   // Two rows: the whole Draft with the window drawn on it, and the window itself with every place in it.
-  const step = gridStep(win.span / FPS) * FPS, marks = [];
+  const step = Math.round(gridStep(win.span / fps) * fps), marks = [];
   for (let f = Math.ceil(win.t0 / step) * step; f <= win.t0 + win.span; f += step) marks.push(f);
   const timeline = (
     <div className="tac-tl">
@@ -762,7 +779,7 @@ export default function Panel({ sdk, context, ui }) {
             <React.Fragment key={r.id}>
               <div role="button" tabIndex={0} className={`tac-row${!result && r.act === "leave" ? " leave" : ""}`} aria-expanded={open} onClick={() => pick(r)}
                 onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(r); } }}>
-                <span className="tac-when"><span>{clock(at(r) / FPS)}</span><small>{t.kind[r.rule][0]}</small></span>
+                <span className="tac-when"><span>{clock(at(r) / fps)}</span><small>{t.kind[r.rule][0]}</small></span>
                 {wave(r)}
                 {result ? <span className="tac-fixed">{label(r.action)}</span> : (
                   <button type="button" className={`tac-act${hint ? " rec" : r.act === "leave" ? " leave" : ""}`} aria-label={t.change} aria-expanded={menu === r.id}
@@ -815,7 +832,7 @@ export default function Panel({ sdk, context, ui }) {
       <div className="tac-stage">
         <div className="tac-stat"><b>{show + 1}</b><span className="tac-sub">/ {t.places(order.current.length)}</span></div>
         <div className="tac-cut" key={now.id}>{part(0, a, "")}{part(a, b, `band ${now.action}`)}{part(b, n, "")}</div>
-        <p className="tac-note"><strong style={{ color: "var(--panel-fg)", fontWeight: 500 }}>{clock(now.frame / FPS)}</strong> · {t.kind[now.rule][0]} · {label(now.action)}</p>
+        <p className="tac-note"><strong style={{ color: "var(--panel-fg)", fontWeight: 500 }}>{clock(now.frame / fps)}</strong> · {t.kind[now.rule][0]} · {label(now.action)}</p>
         <div className="tac-tally">
           <span><b>{sofar.filter((r) => r.action === "delete").length}</b> {t.act.delete}</span>
           <span><b>{sofar.filter((r) => r.action === "lower").length}</b> {t.act.lower(LOWER_DB)}</span>
@@ -837,7 +854,7 @@ export default function Panel({ sdk, context, ui }) {
           {busy === "read" && <ui.Skeleton width="60%" />}
           {info && <p className="tac-sub"><strong>{result ? result.name : info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
           {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
-          {start && <p className="tac-note">{t.intro}</p>}
+          {start && <p className="tac-note">{fresh ? t.introSource : t.intro}</p>}
           {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
           {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage0} />}
         </div>
@@ -938,10 +955,10 @@ export default function Panel({ sdk, context, ui }) {
           {found && (
             <>
               <div className="tac-stat"><b>{t.toClean(chosen.length)}</b><span className="tac-sub">{t.shorter(span(cutSeconds, ko))} · {t.cutsVols(cuts.length, chosen.length - cuts.length)}</span></div>
-              <button type="button" className="tac-primary" disabled={chosen.length === 0 || !copyName.trim()} onClick={apply}>{t.apply}</button>
+              <button type="button" className="tac-primary" disabled={chosen.length === 0 || !copyName.trim()} onClick={apply}>{fresh ? t.applyNew : t.apply}</button>
             </>
           )}
-          {result && <button type="button" className="tac-btn" style={{ height: 36 }} onClick={() => { hush(); setItems(null); setResult(null); fresh(); }}>{t.again}</button>}
+          {result && <button type="button" className="tac-btn" style={{ height: 36 }} onClick={() => { hush(); setItems(null); setResult(null); reset(); }}>{t.again}</button>}
         </div>
       )}
     </ui.Stack>

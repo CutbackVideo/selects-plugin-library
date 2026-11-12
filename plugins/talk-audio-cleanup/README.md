@@ -16,8 +16,10 @@ It works on a copy of the open Draft. The original Draft is not changed.
 
 ## How it works
 
-1. Open a 30 fps Draft whose Main clips come from the talking footage and open
-   **Talk Audio Cleanup**.
+1. Open what you want cleaned and open **Talk Audio Cleanup**: a Draft, or the
+   source itself (its own timeline). From a Draft it makes a cleaned copy;
+   from a source it makes a new, cleaned Draft, since source material cannot
+   be copied.
 2. Pick what to clean (each kind has a switch) and press **Find what to
    clean**. It decodes the Main clips' audio with the app's FFmpeg and runs
    `engine/analyze.py` on this computer. Nothing is uploaded and no credits are
@@ -58,8 +60,11 @@ each frame: keep, cut, mute or lower. Then:
   [INSTALL.md](INSTALL.md). Without it the Panel says the model is not
   installed.
 - macOS only: the analysis is a Python program run through the shell.
-- 30 fps Drafts only. Clips at another speed are left out, and so are clips
-  that play a Synced Timeline.
+- The sound is measured in 1/30 s steps. A Draft at another frame rate is
+  edited on its own frames, so an edge can land up to half a frame from where
+  it was measured; this has been checked in tests, not yet by ear.
+- Clips at another speed are left out, and so are clips that play a Synced
+  Timeline.
 - A source moment that appears twice on Main is cleaned only where it appears
   first.
 - Trained on one recording setup. On other voices, rooms or microphones it
