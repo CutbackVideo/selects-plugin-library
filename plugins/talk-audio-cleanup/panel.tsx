@@ -191,7 +191,7 @@ const overview = await p.sourceFiles();
 const trees = "fileTree" in overview ? [overview.fileTree] : await Promise.all(
   overview.folders.map(async (f) => { const r = await p.sourceFiles({ folder: f.name }); return "fileTree" in r ? r.fileTree : []; }));
 const files = walk(trees.flat());
-const sources = files.filter((x) => x.path && x.resourceId && (x.type === "video" || x.type === "audio")).map((x) => ({ resourceId: x.resourceId, name: x.name ?? x.path.split("/").pop(), seconds: x.durationSeconds ?? null }));
+const sources = files.filter((x) => x.path && x.resourceId && (x.type === "video" || x.type === "audio") && !/\\.(jpe?g|png|gif|webp|heic|bmp|tiff?)$/i.test(x.path)).map((x) => ({ resourceId: x.resourceId, name: x.name ?? x.path.split("/").pop(), seconds: x.durationSeconds ?? null }));
 const env = await selects.files.environment();
 if (!PICK && !OPEN) return { fps: ${FPS}, name: null, clips: [], skipped: 0, openers: [], isDraft: false, sources, env };
 const src = PICK ? p.resource(PICK) : null, d = PICK ? null : selects.draft(OPEN);
