@@ -10,7 +10,10 @@ and leaves the edit otherwise as it is:
 - **Mute loud sniffs** instead of lowering them.
 - **Mute one- and two-frame ticks between words** in place, so the picture is
   not cut there.
-- **Fade every cut by one frame**, so a cut does not tick.
+- **Fade every cut by one frame**, so a cut does not tick. Where the app can
+  place a one-frame audio crossfade that starts at the cut, the fade is that
+  transition on the timeline; in an older app it is the next clip's own
+  one-frame fade-in.
 
 It works on a copy of the open Draft. The original Draft is not changed.
 

@@ -261,29 +261,66 @@ else if (FRESH) {
   d = await selects.project(${q(projectId)}).createDraft({ name: ${q(name)} });
   for (const c of FRESH) await d.insertResource({ resourceId: c.resourceId, sourceRange: { startSeconds: c.start, endSeconds: c.end } });
 } else d = await selects.project(${q(projectId)}).duplicateDraft({ sourceDraftId: ${q(sourceDraftId)}, name: ${q(name)} });
-const main = async () => (await d.clips()).filter((r) => r.trackKind === "main");
+const isMain = (r) => r.trackKind === "main";
 const done = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
+// The Draft's clips are read once, and every cut and split is replayed on this list, so each item is placed
+// without asking the Draft again. Sound changes wait until the end, when one more read gives the clips to set them on.
+let rows = (await d.clips()).filter(isMain).map((r) => ({ s: r.startFrame, e: r.endFrame, res: r.resourceId, src: r.sourceStartSeconds,
+  ok: r.sourceStartSeconds != null && (!r.playbackSpeed || r.playbackSpeed.numerator === r.playbackSpeed.denominator) }));
+const cutAt = (f) => {
+  const i = rows.findIndex((r) => r.s < f && r.e > f);
+  if (i < 0) return false;
+  const r = rows[i];
+  rows.splice(i, 1, { ...r, e: f }, { ...r, s: f, src: r.src == null ? null : r.src + (f - r.s) / FPS });
+  return true;
+};
+const fades = [], vols = []; // where sound changes go, in the Draft's frames as they are now
 for (const it of ITEMS) {
   const mid = (it.start + it.end) / 2; // the clip that plays the item's middle; at a rate other than 30 fps its edges fall between Draft frames
-  const row = (await main()).find((r) => r.resourceId === it.resourceId && r.sourceStartSeconds != null &&
-    (!r.playbackSpeed || r.playbackSpeed.numerator === r.playbackSpeed.denominator) &&
-    mid >= r.sourceStartSeconds && mid < r.sourceStartSeconds + (r.endFrame - r.startFrame) / FPS);
+  const row = rows.find((r) => r.ok && r.res === it.resourceId && mid >= r.src && mid < r.src + (r.e - r.s) / FPS);
   if (!row) { done.skipped++; continue; }
-  const a = Math.max(row.startFrame, row.startFrame + Math.round((it.start - row.sourceStartSeconds) * FPS)), b = Math.min(row.endFrame, a + it.frames);
+  const a = Math.max(row.s, row.s + Math.round((it.start - row.src) * FPS)), b = Math.min(row.e, a + it.frames);
   if (b <= a) { done.skipped++; continue; }
   if (it.action === "delete") {
     await d.remove(await d.rangeAtFrames(a, b), { tracks: "main" }); done.delete++;
-    const next = FADE ? (await main()).find((r) => r.startFrame === a) : null;
-    if (next) { await d.setClipAudio({ clip: next, fadeInSeconds: 1 / FPS }); done.fades++; }
+    cutAt(a); cutAt(b);
+    rows = rows.filter((r) => !(r.s >= a && r.e <= b));
+    const left = (x) => (x >= b ? x - (b - a) : x); // everything after the cut moves earlier by its length
+    for (const r of rows) if (r.s >= b) { r.s -= b - a; r.e -= b - a; }
+    for (const f of fades) f.at = left(f.at);
+    for (const v of vols) { v.a = left(v.a); v.b = left(v.b); }
+    if (FADE && rows.some((r) => r.s === a)) fades.push({ at: a });
     continue;
   }
-  for (const frame of [a, b]) if (!(await main()).some((r) => r.startFrame === frame || r.endFrame === frame)) await d.splitAt({ frame });
-  const piece = (await main()).find((r) => r.startFrame === a && r.endFrame === b);
+  for (const f of [a, b]) if (cutAt(f)) await d.splitAt({ frame: f });
+  vols.push({ a, b, it });
+}
+// A clip read from the Draft is good only until the next change, so the clips are read again before each sound change.
+const read = async () => (await d.clips()).filter(isMain);
+// If the Draft joined two pieces this list kept apart, cut them again before setting the sound.
+for (const f of [...new Set(vols.flatMap((v) => [v.a, v.b]))]) if ((await read()).some((r) => r.startFrame < f && r.endFrame > f)) await d.splitAt({ frame: f });
+// The fade goes on the cut as a one-frame crossfade that starts at the cut, the way an editor places it, when this
+// app can do that; an app that cannot gets the next clip's own one-frame fade-in instead.
+let cross = true;
+for (const f of fades) {
+  const now = await read(), next = now.find((r) => r.startFrame === f.at), prev = now.find((r) => r.endFrame === f.at);
+  if (!next) continue;
+  if (cross && prev) {
+    try {
+      await /** @type {any} */ (d).applyTransitionPreset({ after: prev, presetId: "constant-gain", durationSeconds: 1 / FPS, placement: "after-cut" });
+      done.fades++;
+      continue;
+    } catch { cross = false; }
+  }
+  await d.setClipAudio({ clip: next, fadeInSeconds: 1 / FPS }); done.fades++;
+}
+for (const v of vols) {
+  const piece = (await read()).find((r) => r.startFrame === v.a && r.endFrame === v.b);
   if (!piece) { done.skipped++; continue; }
-  const now = await d.clipAudio(piece);
-  if (now.volumeDb == null) { done.skipped++; continue; }                       // a keyed volume line is left alone
-  await d.setClipAudio({ clip: piece, volumeDb: it.action === "mute" ? -60 : Math.max(-60, now.volumeDb - it.lowerDb) });
-  done[it.action]++;
+  const cur = await d.clipAudio(piece);
+  if (cur.volumeDb == null) { done.skipped++; continue; }                       // a keyed volume line is left alone
+  await d.setClipAudio({ clip: piece, volumeDb: v.it.action === "mute" ? -60 : Math.max(-60, cur.volumeDb - v.it.lowerDb) });
+  done[v.it.action]++;
 }
 const saved = await d.commitAll("Talk audio cleanup");
 return { done, draftId: ${targetDraftId ? q(targetDraftId) : "saved.createdDraftId"} };`;

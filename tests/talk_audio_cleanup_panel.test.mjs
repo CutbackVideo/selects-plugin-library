@@ -20,7 +20,7 @@ const ONE = { numerator: 1, denominator: 1 };
 // A Draft with the edits the Panel uses, behaving as the host's does: removeClips refuses Main clips,
 // remove(span, { tracks: "main" }) cuts the span out and closes the gap, splitAt cuts a clip in two.
 // Default: one Main clip of 100 s whose source starts at 5 s.
-function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 3000 }], rate = FPS) {
+function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 3000 }], rate = FPS, crossfades = false) {
   let nextId = 1, at = 0;
   let clips = rows.map((r) => {
     const c = { clipId: nextId++, trackKind: r.trackKind ?? 'main', resourceId: r.resourceId, sourceStartSeconds: r.sourceStartSeconds, startFrame: at, endFrame: at + r.frames, playbackSpeed: r.playbackSpeed ?? ONE, volumeDb: 'volumeDb' in r ? r.volumeDb : 0 };
@@ -28,17 +28,18 @@ function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 30
     return c;
   });
   const log = [];
-  let commits = 0;
-  const live = (row) => clips.find((c) => c.clipId === row.clipId);
+  let commits = 0, rev = 0; // a clip read from the Draft is refused once the Draft has changed, as the host does
+  const live = (row) => { if (row.rev !== rev) throw Error('stale_clip_target: the draft changed after clips() was read; read clips() again'); return clips.find((c) => c.clipId === row.clipId); };
   const splitAt = async ({ frame }) => {
     const c = clips.find((x) => x.trackKind === 'main' && x.startFrame < frame && x.endFrame > frame);
     if (!c) throw Error(`no clip to split at ${frame}`);
     clips.push({ ...c, clipId: nextId++, startFrame: frame, sourceStartSeconds: c.sourceStartSeconds + (frame - c.startFrame) / rate });
     c.endFrame = frame;
     clips.sort((a, b) => a.startFrame - b.startFrame);
+    rev++;
   };
   const draft = {
-    clips: async () => clips.map(({ volumeDb, ...c }) => ({ ...c })),
+    clips: async () => clips.map(({ volumeDb, ...c }) => ({ ...c, rev })),
     splitAt,
     rangeAtFrames: async (startFrame, endFrame) => ({ startFrame, endFrame }),
     remove: async (range, options) => {
@@ -48,12 +49,23 @@ function fakeDraft(rows = [{ resourceId: 'r0', sourceStartSeconds: 5, frames: 30
       clips = clips.filter((c) => !(c.startFrame >= range.startFrame && c.endFrame <= range.endFrame));
       for (const c of clips) if (c.startFrame >= range.endFrame) { c.startFrame -= length; c.endFrame -= length; }
       log.push(`cut ${range.startFrame}-${range.endFrame}`);
+      rev++;
     },
     removeClips: async (row) => { if (row.trackKind === 'main') throw Error('unsupported_clip_target: removeClips only accepts whole clips on separate Video/Audio tracks'); },
     clipAudio: async (row) => ({ volumeDb: live(row).volumeDb }),
     setClipAudio: async (o) => {
-      if (o.volumeDb != null) live(o.clip).volumeDb = o.volumeDb;
+      const c = live(o.clip);
+      if (o.volumeDb != null) c.volumeDb = o.volumeDb;
+      rev++;
       log.push(o.fadeInSeconds ? `fade ${o.clip.startFrame}` : `volume ${o.clip.startFrame}-${o.clip.endFrame} ${o.volumeDb}`);
+    },
+    // An app without one-frame crossfades refuses the length, as the released app does.
+    applyTransitionPreset: async (o) => {
+      if (!crossfades) throw Error('applyTransitionPreset: durationSeconds must be 0.1 to 5 seconds');
+      assert.deepEqual([o.presetId, o.placement, Math.round(o.durationSeconds * rate)], ['constant-gain', 'after-cut', 1]);
+      live(o.after);
+      log.push(`crossfade ${o.after.endFrame}`);
+      rev++;
     },
     commitAll: async () => { commits++; return { createdDraftId: 'copy' }; },
   };
@@ -96,7 +108,7 @@ test('every edit lands on its own frames, latest first', async () => {
   const done = await applyAll(selects, resolve(ITEMS, ALL, 0.5, 11));
   assert.deepEqual(done, { delete: 1, lower: 2, mute: 1, fades: 1, skipped: 0 });
   // source 12 s on a clip whose source starts at 5 s is frame 210
-  assert.deepEqual(log, ['volume 1050-1056 -11', 'volume 750-759 -11', 'volume 450-451 -60', 'cut 210-213', 'fade 210']);
+  assert.deepEqual(log, ['cut 210-213', 'fade 210', 'volume 1047-1053 -11', 'volume 747-756 -11', 'volume 447-448 -60']);
   assert.equal(frames(), 2997);
 });
 
@@ -117,7 +129,7 @@ test('an edit may use a clip\'s own first or last frame', async () => {
   const { selects, log } = fakeDraft();
   const r = await script(APPLY('p', 'd', null, 'name', [item(5, 2, 'mute', 'click', 0.9), item(105 - 3 / FPS, 3, 'delete', 'blemish', 0.9)], true), selects);
   assert.deepEqual(r.done, { delete: 1, lower: 0, mute: 1, fades: 0, skipped: 0 });   // nothing follows the last cut, so no fade
-  assert.deepEqual(log, ['volume 0-2 -60', 'cut 2997-3000']);
+  assert.deepEqual(log, ['cut 2997-3000', 'volume 0-2 -60']);
 });
 
 test('more than one batch continues on the same copy and adds up', async () => {
@@ -264,7 +276,7 @@ test('a Draft at another frame rate is edited on its own frames', async () => {
   const at = (start, seconds, action) => ({ resourceId: 'r0', start, end: start + seconds, frames: Math.round(seconds * 25), action, lowerDb: action === 'lower' ? 11 : null });
   const r = await script(APPLY('p', 'd', null, 'name', [at(9, 0.4, 'lower'), at(7, 0.2, 'delete')], true, 25), selects);
   assert.deepEqual(r.done, { delete: 1, lower: 1, mute: 0, fades: 1, skipped: 0 });
-  assert.deepEqual(log, ['volume 100-110 -11', 'cut 50-55', 'fade 50']);
+  assert.deepEqual(log, ['cut 50-55', 'fade 50', 'volume 95-105 -11']);
   assert.equal(frames(), 2495);
   const clips = [{ resourceId: 'r0', sourceStart: 5, startFrame: 0, frames: 2500, seconds: 100 }];
   assert.deepEqual([draftFrame({ resourceId: 'r0', start: 7 }, clips, 25), inClips({ resourceId: 'r0', start: 104.5, end: 105 }, clips), inClips({ resourceId: 'r0', start: 104.9, end: 105.1 }, clips)], [50, true, false]);
@@ -303,4 +315,14 @@ test('a source picked in the Panel is read as one clip that plays the whole file
   // nothing open and nothing picked: only the list of sources comes back
   const none = await script(READ('p', null), selects);
   assert.deepEqual([none.clips, none.sources.length], [[], 1]);
+});
+
+test('the fade is a one-frame crossfade on the cut where the app can place one, and the clip\'s own fade-in where it cannot', async () => {
+  const cuts = [item(20, 3, 'delete', 'blemish', 0.9), item(12, 3, 'delete', 'blemish', 0.9)];
+  const able = fakeDraft(undefined, FPS, true);
+  assert.equal((await script(APPLY('p', 'd', null, 'name', cuts, true), able.selects)).done.fades, 2);
+  assert.deepEqual(able.log, ['cut 450-453', 'cut 210-213', 'crossfade 447', 'crossfade 210']);
+  const old = fakeDraft();
+  assert.equal((await script(APPLY('p', 'd', null, 'name', cuts, true), old.selects)).done.fades, 2);
+  assert.deepEqual(old.log, ['cut 450-453', 'cut 210-213', 'fade 447', 'fade 210']);
 });
