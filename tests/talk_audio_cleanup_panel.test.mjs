@@ -6,8 +6,8 @@ import test from 'node:test';
 const source = fs.readFileSync(new URL('../plugins/talk-audio-cleanup/panel.tsx', import.meta.url), 'utf8');
 // Everything between the imports and the component is plain JavaScript.
 const body = source.slice(source.indexOf('const ID ='), source.indexOf('export default function Panel'));
-const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, density } = await import(
-  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, density };')
+const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep } = await import(
+  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep };')
 );
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const script = (text, selects) => new AsyncFunction('selects', text)(selects);
@@ -229,10 +229,20 @@ test('a place is found in the Draft through the clip that plays it, and in the c
   assert.deepEqual(inCopy(rows).map((r) => [r.id, r.copyFrame]), [[1, 100], [2, 294], [3, 484], [4, 884]]);
 });
 
-test('the waveform rises from the bottom on one scale, and the overview counts places per slice by kind', () => {
+test('the waveform rises from the bottom on one scale', () => {
   // heights for 0, a quarter of the reference, the reference and over it: 0, half (square root), full, full
   assert.equal(wavePoints([0, 25, 100, 400], 100, 0, 4, 21), '0,21 0.5,21.0 1.5,11.0 2.5,1.0 3.5,1.0 4,21');
   assert.equal(wavePoints([0, 25, 100, 400], 100, 1, 3, 21), '0,21 0.5,11.0 1.5,1.0 2,21');           // one slice of it
-  const rows = [{ at: 0, rule: 'blemish' }, { at: 10, rule: 'blemish' }, { at: 30, rule: 'breath' }, { at: 99, rule: 'click' }];
-  assert.deepEqual(density(rows, 100, 4), [{ blemish: 2 }, { breath: 1 }, {}, { click: 1 }]);
+});
+
+test('the timeline zooms about the pointer, stays inside the Draft and keeps a few time marks in view', () => {
+  const total = 3600 * FPS, view = { t0: 600 * FPS, span: 120 * FPS };
+  const closer = zoomView(view, total, 0.5, 0.25);                       // the frame under the pointer stays under it
+  assert.deepEqual(closer, { t0: 615 * FPS, span: 60 * FPS });
+  assert.equal(closer.t0 + 0.25 * closer.span, view.t0 + 0.25 * view.span);
+  assert.deepEqual(zoomView(view, total, 1000, 0.5), { t0: 0, span: total });            // never wider than the Draft
+  assert.equal(zoomView(view, total, 0.0001, 0.5).span, 10 * FPS);                       // never closer than ten seconds
+  assert.deepEqual(zoomView({ t0: total, span: 60 * FPS }, total, 1, 0), { t0: total - 60 * FPS, span: 60 * FPS });   // a move past the end stops at it
+  assert.deepEqual(zoomView({ t0: 0, span: 60 * FPS }, 20 * FPS, 1, 0), { t0: 0, span: 20 * FPS });                   // a Draft shorter than the window
+  assert.deepEqual([10, 60, 120, 600, 3600].map(gridStep), [2, 10, 30, 300, 600]);
 });

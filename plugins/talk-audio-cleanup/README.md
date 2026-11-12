@@ -23,13 +23,14 @@ It works on a copy of the open Draft. The original Draft is not changed.
    `engine/analyze.py` on this computer. Nothing is uploaded and no credits are
    used. The first run sets up the Python it needs (a download of a few
    minutes).
-3. The result shows how many places were found, how much shorter the copy will
-   be, and a strip of where they are, one colour per kind. Each place is a row
-   with its level drawn and the stretch that changes marked. Pick a row to move
-   the playhead there and to hear it as it is (**Original**) and as it will be
-   (**Cleaned**), or to leave that one place as it is. **Fine-tune** raises how
-   sure a cut must be (the less certain cuts become volume changes) and changes
-   how far breaths are lowered.
+3. The result lists every place found, with a two-row timeline above it: the
+   whole Draft, and the part in view (scroll to move along it, pinch or
+   ⌘-scroll to zoom, drag to pull it sideways). Each place is a row with its
+   waveform and the stretch that changes marked. Pick a row to hear it as it
+   is (**Original**) and as it will be (**Cleaned**), and to show it in the
+   timeline. The control on the right of a row changes what is done there:
+   cut, lower, mute, or leave as is. Less certain places are listed as
+   **Suggested** and are left alone until you choose a treatment for them.
 4. **Make a cleaned copy** duplicates the Draft and applies the cuts, volume
    changes and fades to the copy. The list stays, now pointing into the copy,
    so the places can be checked there.

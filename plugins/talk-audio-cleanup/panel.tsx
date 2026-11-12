@@ -58,28 +58,23 @@ const STRINGS = {
     tag: "Suggested",
     filter: { all: "All", maybe: "Suggested", left: "Left as is" },
     show: "Show in timeline",
-    add: "Clean this too",
-    prev: (n) => `Previous ${n}`,
-    next: (n) => `Next ${n}`,
+    prev: "Previous",
+    next: "Next",
     range: (a, b, n) => `${a}\u2013${b} of ${n}`,
     working: "Cleaning",
     empty: "Nothing here.",
-    act: { delete: "Cut", lower: (db) => `−${db} dB`, mute: "Muted" },
-    softened: "Not sure enough to cut, so the volume is changed instead.",
+    act: { delete: "Cut", lower: (db) => `−${db} dB`, mute: "Muted", leave: "Leave" },
+    leave: "Leave as is",
+    change: "Change what is done here",
+    toClean: (n) => `Clean ${n} place${n === 1 ? "" : "s"}`,
+    whole: "The whole Draft",
+    zoomed: "The part in view",
+    zoomHint: "Scroll to move · pinch or ⌘-scroll to zoom",
+    finishing: "Finishing",
+    finishingNote: "Writing the edits to the timeline.",
     original: "Original",
     cleaned: "Cleaned",
-    stop: "Stop",
-    exclude: "Leave this one",
-    include: "Clean this one",
-    excluded: "left as is",
-    settings: "Fine-tune",
-    cutLine: "Only cut when this sure",
-    cutLineNote: (n) => `${n} less certain cut${n === 1 ? "" : "s"} become${n === 1 ? "s" : ""} a volume change, so the picture is not cut there.`,
-    lowerBy: "Lower breaths by",
-    fade: "One-frame fade after each cut",
-    fadeNote: "So a cut does not tick.",
     apply: "Make a cleaned copy",
-    applying: (a, b) => `Applying ${a} of ${b}`,
     doneTitle: "Cleaned copy saved",
     done: (d) => `${d.delete} cut, ${d.lower} lowered, ${d.mute} muted, ${d.fades} fades${d.skipped ? `, ${d.skipped} skipped` : ""}`,
     listen: "Check a few before you export. They were found by measuring, not by listening.",
@@ -130,28 +125,23 @@ const STRINGS = {
     tag: "\ucd94\ucc9c",
     filter: { all: "\uc804\uccb4", maybe: "\ucd94\ucc9c", left: "\uadf8\ub300\ub85c \ub460" },
     show: "\ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \ubcf4\uae30",
-    add: "\uc774 \uacf3\ub3c4 \uc815\ub9ac\ud558\uae30",
-    prev: (n) => `\uc55e ${n}\uacf3`,
-    next: (n) => `\ub2e4\uc74c ${n}\uacf3`,
+    prev: "\uc774\uc804",
+    next: "\ub2e4\uc74c",
     range: (a, b, n) => `${n}\uacf3 \uc911 ${a}\u2013${b}`,
     working: "\uc815\ub9ac\ud558\ub294 \uc911",
     empty: "\uc5ec\uae30\uc5d0\ub294 \uc5c6\uc2b5\ub2c8\ub2e4.",
-    act: { delete: "\ucef7", lower: (db) => `−${db} dB`, mute: "\uc74c\ub7c9 0" },
-    softened: "\uc790\ub97c \ub9cc\ud07c \ud655\uc2e4\ud558\uc9c0 \uc54a\uc544 \uc74c\ub7c9\ub9cc \uc870\uc808\ud569\ub2c8\ub2e4.",
+    act: { delete: "\ucef7", lower: (db) => `−${db} dB`, mute: "\uc74c\ub7c9 0", leave: "\uadf8\ub300\ub85c" },
+    leave: "\uadf8\ub300\ub85c \ub450\uae30",
+    change: "\ucc98\ub9ac \ubc14\uafb8\uae30",
+    toClean: (n) => `${n}\uacf3 \uc815\ub9ac`,
+    whole: "\uc804\uccb4 \ud0c0\uc784\ub77c\uc778",
+    zoomed: "\ud655\ub300\ud55c \ud0c0\uc784\ub77c\uc778",
+    zoomHint: "\uc2a4\ud06c\ub864\ub85c \uc774\ub3d9 · \ud540\uce58 \ub610\ub294 ⌘+\uc2a4\ud06c\ub864\ub85c \ud655\ub300",
+    finishing: "\ub9c8\ubb34\ub9ac \uc911",
+    finishingNote: "\ud0c0\uc784\ub77c\uc778\uc5d0 \uc801\uc6a9\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.",
     original: "\uc6d0\ubcf8",
     cleaned: "\uc815\ub9ac \ud6c4",
-    stop: "\uba48\ucda4",
-    exclude: "\uc774 \uacf3\uc740 \uadf8\ub300\ub85c \ub450\uae30",
-    include: "\uc774 \uacf3\ub3c4 \uc815\ub9ac\ud558\uae30",
-    excluded: "\uadf8\ub300\ub85c \ub460",
-    settings: "\uc138\ubd80 \uc870\uc815",
-    cutLine: "\uc774\ub9cc\ud07c \ud655\uc2e4\ud560 \ub54c\ub9cc \uc790\ub974\uae30",
-    cutLineNote: (n) => `\ub35c \ud655\uc2e4\ud55c \ucef7 ${n}\uacf3\uc740 \uc790\ub974\uc9c0 \uc54a\uace0 \uc74c\ub7c9\ub9cc \uc870\uc808\ud569\ub2c8\ub2e4. \uadf8 \uc790\ub9ac\uc758 \ud654\uba74\uc740 \ub04a\uae30\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.`,
-    lowerBy: "\uc228\uc18c\ub9ac\ub97c \ub0ae\ucd94\ub294 \uc591",
-    fade: "\uc790\ub978 \uc790\ub9ac\ub9c8\ub2e4 1\ud504\ub808\uc784 Fade",
-    fadeNote: "\uc790\ub978 \uc790\ub9ac\uc5d0\uc11c \ud2f1 \uc18c\ub9ac\uac00 \ub098\uc9c0 \uc54a\uac8c \ud569\ub2c8\ub2e4.",
     apply: "\uc815\ub9ac\ub41c \uc0ac\ubcf8 \ub9cc\ub4e4\uae30",
-    applying: (a, b) => `\uc801\uc6a9 \uc911 ${a}/${b}`,
     doneTitle: "\uc815\ub9ac\ub41c \uc0ac\ubcf8\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4",
     done: (d) => `\ucef7 ${d.delete}, \uc74c\ub7c9 \ub0ae\ucda4 ${d.lower}, \uc74c\ub7c9 0 ${d.mute}, Fade ${d.fades}${d.skipped ? `, \uac74\ub108\ub700 ${d.skipped}` : ""}`,
     listen: "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \uba87 \uacf3\uc744 \ud655\uc778\ud574 \ubcf4\uc138\uc694. \uce21\uc815\uc73c\ub85c \ucc3e\uc740 \uac83\uc774\uace0, \ub4e4\uc5b4\uc11c \ucc3e\uc740 \uac83\uc774 \uc544\ub2d9\ub2c8\ub2e4.",
@@ -311,85 +301,101 @@ function wavePoints(shape, ref, from, to, h) {
   for (let i = from; i < to; i++) pts.push(`${i - from + 0.5},${(h - Math.sqrt(Math.min(1, shape[i] / ref)) * (h - 1)).toFixed(1)}`);
   return `0,${h} ${pts.join(" ")} ${to - from},${h}`;
 }
-// How many places of each kind fall in each slice of the Draft, for the overview.
-function density(rows, total, bins) {
-  const out = Array.from({ length: bins }, () => ({}));
-  for (const r of rows) { const b = out[Math.min(bins - 1, Math.floor((r.at / total) * bins))]; b[r.rule] = (b[r.rule] || 0) + 1; }
-  return out;
+// How sure a cut must be, how far a breath is lowered, and the closest the timeline zooms in (frames).
+const CUT_LINE = 0.3, LOWER_DB = 11, MIN_VIEW = 10 * FPS;
+// The timeline's window after a zoom about one point (0 to 1 across it), kept inside the Draft.
+function zoomView(view, total, factor, anchor) {
+  const span = Math.max(Math.min(MIN_VIEW, total), Math.min(total, view.span * factor));
+  return { t0: Math.max(0, Math.min(total - span, view.t0 + anchor * (view.span - span))), span };
 }
+// Seconds between the time marks, so a handful are in view at any zoom.
+const gridStep = (seconds) => [1, 2, 5, 10, 30, 60, 300, 600].find((s) => seconds / s <= 7) ?? 1800;
 
-// The Panel's own parts, on the app's panel colours. Each kind has one colour, used for its switch, its marks and its rows.
+// The Panel's own parts, on the app's panel colours: greys and the one key colour. Kinds are told apart by name.
 const STYLE = `
-.tac { --k-blemish: #b45309; --k-breath: #0369a1; --k-sniff: #6d28d9; --k-click: #be123c; --k-opener: #4d7c0f; color: var(--panel-fg); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 12px; }
-:root.dark .tac { --k-blemish: #f5a524; --k-breath: #56b6f7; --k-sniff: #a78bfa; --k-click: #fb7185; --k-opener: #a3e635; }
+.tac { --key: var(--panel-key, #a3e635); --clip: #1f3f5f; --peak: #9cc3e8; color: var(--panel-fg); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 10px; }
 .tac p { margin: 0; }
-.tac button { height: auto; min-height: 0; width: auto; margin: 0; line-height: inherit; flex: none; appearance: none; }
-.tac .tac-kind, .tac .tac-row { border-radius: 0; }
-.tac button:focus-visible, .tac-over:focus-visible { outline: 2px solid var(--panel-ring); outline-offset: -2px; }
+.tac button { height: auto; min-height: 0; width: auto; margin: 0; line-height: inherit; flex: none; appearance: none; font: inherit; color: inherit; cursor: pointer; }
+.tac button:focus-visible, .tac [tabindex]:focus-visible { outline: 2px solid var(--panel-ring); outline-offset: -2px; }
 .tac-sub { color: var(--panel-muted-fg); }
-.tac-sub strong { color: var(--panel-fg); font-weight: 600; }
-.tac-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--k); flex: none; }
-.tac-kinds, .tac-list { display: flex; flex-direction: column; border: 1px solid var(--panel-border); border-radius: var(--panel-radius); overflow: hidden; }
-.tac-kind { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 10px 12px; border: 0; border-top: 1px solid var(--panel-border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.tac-kind:first-child { border-top: 0; }
-.tac-kind b { font-weight: 600; }
-.tac-kind small { grid-column: 2; color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
-.tac-kind[aria-checked="false"] b, .tac-kind[aria-checked="false"] small { opacity: .5; }
-.tac-kind[aria-checked="false"] .tac-dot { background: var(--panel-muted-fg); opacity: .5; }
-.tac-sw { width: 30px; height: 18px; border-radius: 9px; background: var(--panel-accent); position: relative; flex: none; transition: background .12s; }
-.tac-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel-fg); transition: transform .12s; }
-[aria-checked="true"] > .tac-sw { background: var(--k); }
-[aria-checked="true"] > .tac-sw::after { transform: translateX(12px); background: var(--panel-primary-fg); }
-.tac-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.tac-big { font-size: 26px; line-height: 1.1; font-weight: 600; letter-spacing: -.01em; }
-.tac-over { display: block; width: 100%; height: 34px; cursor: pointer; }
-.tac-axis { display: flex; justify-content: space-between; color: var(--panel-muted-fg); font-size: 11px; margin-top: -6px; }
-.tac-chips, .tac-btns { display: flex; flex-wrap: wrap; gap: 6px; }
-.tac .tac-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid var(--panel-border); background: none; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
-.tac-chip[aria-pressed="false"] { color: var(--panel-muted-fg); }
-.tac-chip[aria-pressed="false"] .tac-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--panel-muted-fg); }
-.tac-chip i { font-style: normal; color: var(--panel-muted-fg); }
-.tac-tip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; padding: 12px; border: 1px dashed var(--panel-ring); border-radius: var(--panel-radius); }
-.tac-tip b { font-weight: 600; }
-.tac-tip small { grid-column: 2; color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
-.tac-tip .tac-btns { grid-column: 2; margin-top: 4px; }
-.tac-tabs { display: flex; gap: 2px; padding: 2px; border-radius: var(--panel-button-radius); background: var(--panel-muted); }
-.tac .tac-tab { flex: 1 1 0; height: 26px; padding: 0 6px; border: 0; border-radius: calc(var(--panel-button-radius) - 2px); background: none; color: var(--panel-muted-fg); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-.tac .tac-tab[aria-pressed="true"] { background: var(--panel-accent); color: var(--panel-fg); }
-.tac .tac-row { display: grid; grid-template-columns: auto 50px minmax(0, 1fr) 52px; gap: 8px; align-items: center; min-height: var(--panel-row-height); padding: 4px 10px; border: 0; border-top: 1px solid var(--panel-border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.tac-row:first-child { border-top: 0; }
-.tac-row:hover, .tac-row[aria-expanded="true"] { background: var(--panel-muted); }
-.tac-row.off { color: var(--panel-muted-fg); }
-.tac-row.off .tac-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--panel-muted-fg); }
-.tac-row.off .tac-time { text-decoration: line-through; }
-.tac-row.maybe .tac-dot { background: none; box-shadow: inset 0 0 0 1.5px var(--k); }
-.tac-what { color: var(--panel-muted-fg); font-size: 12px; white-space: nowrap; text-align: right; }
-.tac-row.maybe .tac-what { color: var(--panel-fg); }
-.tac-wave { display: block; width: 100%; height: 22px; }
-.tac-detail { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--panel-muted); border-top: 1px solid var(--panel-border); }
-.tac-detail .tac-wave { height: 64px; }
-.tac .tac-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--panel-button-radius); border: 1px solid var(--panel-border); background: var(--panel-accent); color: var(--panel-fg); font: inherit; font-size: 12px; cursor: pointer; }
-.tac .tac-btn:disabled { opacity: .4; cursor: default; }
-.tac .tac-btn.quiet { background: none; color: var(--panel-muted-fg); }
-.tac .tac-btn[aria-pressed="true"] { background: var(--panel-fg); color: var(--panel-primary-fg); border-color: transparent; }
-.tac-tri { width: 0; height: 0; border-left: 7px solid currentColor; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
-.tac-sq { width: 8px; height: 8px; background: currentColor; }
+.tac-sub strong { color: var(--panel-fg); font-weight: 500; }
 .tac-note { color: var(--panel-muted-fg); font-size: 12px; line-height: 1.5; }
+.tac-kinds, .tac-list { display: flex; flex-direction: column; background: var(--panel-muted); border-radius: var(--panel-radius); overflow: hidden; }
+.tac-list { container-type: inline-size; }
+@container (max-width: 230px) { .tac-row { grid-template-columns: minmax(0, 1fr) auto; } .tac-row > .tac-wave { display: none; } }
+.tac .tac-kind { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px; align-items: center; padding: 9px 12px; border: 0; border-top: 1px solid var(--panel-border); border-radius: 0; background: none; text-align: left; }
+.tac .tac-kind:first-child { border-top: 0; }
+.tac-kind b { font-weight: 500; }
+.tac-kind small { color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
+.tac-kind .tac-sw { grid-row: 1 / span 2; grid-column: 2; }
+.tac-kind[aria-checked="false"] b, .tac-kind[aria-checked="false"] small { opacity: .5; }
+.tac-sw { width: 32px; height: 18px; border-radius: 9px; background: var(--panel-accent); position: relative; transition: background .12s; }
+.tac-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel-bg, #171717); transition: transform .12s; }
+[aria-checked="true"] > .tac-sw { background: var(--key); }
+[aria-checked="true"] > .tac-sw::after { transform: translateX(14px); }
+.tac-stat { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.tac-stat b { font-size: 18px; font-weight: 600; }
+.tac-chips, .tac-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.tac .tac-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--panel-button-radius); border: 0; background: var(--panel-muted); font-size: 12px; }
+.tac-chip i { font-style: normal; color: var(--panel-muted-fg); }
+.tac .tac-chip[aria-pressed="false"] { background: none; box-shadow: inset 0 0 0 1px var(--panel-border); color: var(--panel-muted-fg); text-decoration: line-through; }
+.tac-tip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; padding: 12px; background: var(--panel-muted); border-radius: var(--panel-radius); }
+.tac-tip b { font-weight: 500; }
+.tac-tip small { grid-column: 2; color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
+.tac-tip .tac-btns { grid-column: 2; margin-top: 6px; }
+.tac .tac-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: var(--panel-button-radius); border: 0; background: var(--panel-accent); font-size: 12px; white-space: nowrap; }
+.tac .tac-btn.quiet { background: none; color: var(--panel-muted-fg); }
+.tac .tac-btn:disabled { opacity: .35; cursor: default; }
+.tac .tac-btn[aria-pressed="true"] { background: var(--panel-fg); color: var(--panel-bg, #171717); }
+.tac .tac-primary { min-height: 36px; width: 100%; padding: 6px 14px; border-radius: var(--panel-radius); border: 0; background: var(--panel-fg); color: var(--panel-bg, #171717); font-weight: 600; }
+.tac .tac-primary:disabled { opacity: .4; cursor: default; }
+.tac-tl { display: flex; flex-direction: column; gap: 4px; }
+.tac-over { display: block; width: 100%; height: 14px; border-radius: 3px; cursor: pointer; touch-action: none; }
+.tac-lane { position: relative; height: 46px; border-radius: 6px; background: var(--panel-muted); overflow: hidden; cursor: grab; touch-action: none; }
+.tac-lane:active { cursor: grabbing; }
+.tac-lane svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tac-lane span { position: absolute; top: 2px; padding-left: 3px; border-left: 1px solid var(--panel-border); height: 100%; color: var(--panel-muted-fg); font-size: 10px; pointer-events: none; }
+.tac-tlbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; color: var(--panel-muted-fg); font-size: 11px; }
+.tac-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: var(--panel-radius); background: var(--panel-muted); }
+.tac .tac-tab { flex: 1 1 auto; height: 26px; padding: 0 6px; border: 0; border-radius: var(--panel-button-radius); background: none; color: var(--panel-muted-fg); font-size: 12px; white-space: nowrap; }
+.tac .tac-tab[aria-pressed="true"] { background: var(--panel-accent); color: var(--panel-fg); }
+.tac-row { display: grid; grid-template-columns: 50px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px 6px 12px; border-top: 1px solid var(--panel-border); cursor: pointer; }
+.tac-row:first-child { border-top: 0; }
+.tac-row:hover, .tac-row[aria-expanded="true"], .tac-detail { background: color-mix(in srgb, var(--panel-fg) 7%, var(--panel-muted)); }
+.tac-when { display: flex; flex-direction: column; }
+.tac-when small { color: var(--panel-muted-fg); font-size: 11px; }
+.tac-row.leave .tac-when > span { color: var(--panel-muted-fg); }
+.tac-wave { display: block; width: 100%; height: 28px; border-radius: 3px; }
+.tac .tac-act { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 68px; height: 26px; padding: 0 7px 0 9px; border-radius: var(--panel-button-radius); border: 0; background: var(--panel-accent); font-size: 12px; }
+.tac .tac-act::after { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); opacity: .7; }
+.tac .tac-act.leave { background: none; box-shadow: inset 0 0 0 1px var(--panel-border); color: var(--panel-muted-fg); }
+.tac .tac-act.rec { background: none; box-shadow: inset 0 0 0 1px var(--key); color: var(--key); }
+.tac-fixed { min-width: 68px; color: var(--panel-muted-fg); font-size: 12px; text-align: right; }
+.tac-detail { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--panel-border); }
+.tac-detail .tac-wave { height: 84px; border-radius: 4px; }
+.tac-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 2px; padding: 2px; border-radius: var(--panel-radius); background: var(--panel-bg, #171717); }
+.tac .tac-seg button { height: 28px; padding: 0 2px; border: 0; border-radius: var(--panel-button-radius); background: none; color: var(--panel-muted-fg); font-size: 12px; white-space: nowrap; }
+.tac .tac-seg button[aria-pressed="true"] { background: var(--panel-accent); color: var(--panel-fg); font-weight: 500; }
+.tac-tri { width: 0; height: 0; border-left: 7px solid currentColor; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; display: inline-block; margin-right: 6px; }
+.tac-sq { width: 8px; height: 8px; background: currentColor; display: inline-block; margin-right: 6px; }
 .tac-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--panel-muted-fg); font-size: 12px; }
-.tac-stage { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--panel-border); border-radius: var(--panel-radius); background: var(--panel-muted); }
-.tac-cut { display: flex; align-items: flex-end; height: 72px; overflow: hidden; }
+.tac-foot { position: sticky; bottom: 0; z-index: 2; margin: 0 -2px; padding: 12px 2px; border-top: 1px solid var(--panel-border); background: var(--panel-bg, #171717); }
+.tac-stage { display: flex; flex-direction: column; gap: 10px; }
+.tac-cut { display: flex; align-items: flex-end; height: 110px; border-radius: 6px; overflow: hidden; background: var(--clip); }
 .tac-cut svg { display: block; height: 100%; width: 100%; }
 .tac-cut > div { height: 100%; min-width: 0; }
-.tac-cut .band { background: color-mix(in srgb, var(--k) 35%, transparent); transform-origin: bottom; }
-.tac-cut .band.delete { animation: tac-close .14s .03s ease-in forwards; }
-.tac-cut .band.lower { animation: tac-lower .14s .03s ease-out forwards; }
-.tac-cut .band.mute { animation: tac-mute .14s .03s ease-out forwards; }
+.tac-cut .band { background: color-mix(in srgb, var(--key) 30%, transparent); box-shadow: inset 0 2px 0 var(--key); transform-origin: bottom; }
+.tac-cut .band.delete { animation: tac-close .09s ease-in forwards; }
+.tac-cut .band.lower svg { animation: tac-lower .09s ease-out forwards; transform-origin: bottom; }
+.tac-cut .band.mute svg { animation: tac-mute .09s ease-out forwards; transform-origin: bottom; }
 @keyframes tac-close { to { width: 0; } }
-@keyframes tac-lower { to { transform: scaleY(.3); } }
-@keyframes tac-mute { to { transform: scaleY(.03); } }
+@keyframes tac-lower { to { transform: scaleY(.28); } }
+@keyframes tac-mute { to { transform: scaleY(.02); } }
 .tac-tally { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--panel-muted-fg); font-size: 12px; }
-.tac-tally b { color: var(--panel-fg); font-weight: 600; }
-@media (prefers-reduced-motion: reduce) { .tac-sw, .tac-sw::after { transition: none; } .tac-cut .band { animation-duration: 1ms; animation-delay: 0s; } }
+.tac-tally b { color: var(--panel-fg); font-weight: 500; }
+.tac-bar { height: 4px; border-radius: 2px; background: var(--panel-accent); overflow: hidden; }
+.tac-bar i { display: block; height: 100%; background: var(--panel-fg); }
+@media (prefers-reduced-motion: reduce) { .tac-sw, .tac-sw::after { transition: none; } .tac-cut .band, .tac-cut .band svg { animation-duration: 1ms; } }
 `;
 
 export default function Panel({ sdk, context, ui }) {
@@ -402,25 +408,24 @@ export default function Panel({ sdk, context, ui }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null); // { name, done, rows } once the copy is saved
   const [on, setOn] = useState({ blemish: true, breath: true, sniff: true, click: true, opener: true });
-  const [left, setLeft] = useState(() => new Set()); // places the user chose to leave as they are
-  const [added, setAdded] = useState(() => new Set()); // suggestions the user chose to clean too
+  const [choice, setChoice] = useState(() => new Map()); // place id -> the treatment the user picked for it
   const [filter, setFilter] = useState("all"); // "all" | "maybe" | "left"
   const [first, setFirst] = useState(0); // the list shows PAGE places from here
   const [name, setName] = useState(null); // the copy's name, once the user typed one
+  const [view, setView] = useState(null); // the stretch of the Draft the timeline shows, in frames
   const [show, setShow] = useState(null); // while the copy is made: which place is on the stage
-  const order = useRef([]), cap = useRef(0);
-  const [cutLine, setCutLine] = useState(30);
-  const [lowerDb, setLowerDb] = useState(11);
-  const [fade, setFade] = useState(true);
+  const [finishing, setFinishing] = useState(false); // the show is over and the edits are still being written
+  const order = useRef([]);
   const [silent, setSilent] = useState(0);
   const [firstRun, setFirstRun] = useState(false);
   const [picked, setPicked] = useState(null); // the place whose detail is open
-  const [tune, setTune] = useState(false);
+  const [menu, setMenu] = useState(null); // the place whose treatment choices are open in the list
   const [progress, setProgress] = useState(null); // { at, of } while the copy is being made
   const [playing, setPlaying] = useState(null); // { id, mode }
   const token = useRef(0); // bumped when the Draft changes or the panel closes; a run that sees another value stops
   const workRef = useRef(null); // the folder that holds the preview clips of the last analysis
   const sound = useRef({ ctx: null, src: null, clips: new Map() });
+  const lane = useRef(null), geo = useRef(null), drag = useRef(null);
   const { projectId, sequenceId } = context;
 
   const run = async (summary, script, allowCommit = false) => {
@@ -438,6 +443,7 @@ export default function Panel({ sdk, context, ui }) {
     if (s.src) { s.src.onended = null; try { s.src.stop(); } catch {} s.src = null; }
     setPlaying(null);
   };
+  const fresh = () => { setPicked(null); setMenu(null); setChoice(new Map()); setFilter("all"); setFirst(0); setName(null); setView(null); };
 
   const applying = useRef(false), shown = useRef(sequenceId);
   shown.current = sequenceId;
@@ -445,7 +451,7 @@ export default function Panel({ sdk, context, ui }) {
     if (applying.current) return; // the host opens the copy while it is being made; that is the same job, not a new Draft to start over on
     const mine = ++token.current, live = () => mine === token.current;
     hush(); dropWork();
-    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null); setPicked(null); setLeft(new Set()); setAdded(new Set()); setFilter("all"); setFirst(0); setName(null);
+    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null); fresh();
     if (!projectId || !sequenceId) return;
     setBusy("read");
     run("Read the Draft's Main clips", READ(projectId, sequenceId))
@@ -476,7 +482,7 @@ export default function Panel({ sdk, context, ui }) {
   async function analyze() {
     const mine = token.current, live = () => mine === token.current;
     hush(); dropWork();
-    setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0); setPicked(null); setLeft(new Set()); setAdded(new Set()); setFilter("all"); setFirst(0); setName(null);
+    setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0); fresh();
     let work = null, kept = false;
     try {
       await ensureRuntime();
@@ -538,23 +544,25 @@ export default function Panel({ sdk, context, ui }) {
     }
   }
 
-  // Every place of the kinds that are on, as it will be treated, with where it sits in the Draft.
-  // What the model is sure of is cleaned unless the user leaves it; a suggestion is cleaned only when the user adds it.
+  // Every place of the kinds that are on, with the treatment it will get and where it sits in the Draft.
+  // What the model is sure of is cleaned as proposed; a suggestion is left as it is. The user can change either.
   const rows = useMemo(() => {
     if (!items || !info) return [];
-    const sure = resolve(items.filter((i) => i.tier !== "maybe"), on, cutLine / 100, lowerDb);
-    const maybe = items.filter((i) => i.tier === "maybe" && on[i.rule]).map((i) => ({ ...i, lowerDb: i.action === "lower" ? lowerDb : null, softened: false }));
+    const sure = resolve(items.filter((i) => i.tier !== "maybe"), on, CUT_LINE, LOWER_DB);
+    const maybe = items.filter((i) => i.tier === "maybe" && on[i.rule]);
     return [...sure, ...maybe]
-      .map((it) => ({ ...it, id: `${it.resourceId}:${it.start}`, frame: draftFrame(it, info.clips) }))
+      .map((it) => {
+        const id = `${it.resourceId}:${it.start}`, proposed = it.action, act = choice.get(id) ?? (it.tier === "maybe" ? "leave" : proposed);
+        return { ...it, id, proposed, act, action: act === "leave" ? proposed : act, lowerDb: act === "lower" ? LOWER_DB : null, frame: draftFrame(it, info.clips) };
+      })
       .filter((r) => r.frame != null)
       .sort((a, b) => a.frame - b.frame);
-  }, [items, info, on, cutLine, lowerDb]);
-  const isOn = (r) => (r.tier === "maybe" ? added.has(r.id) : !left.has(r.id));
-  const chosen = useMemo(() => rows.filter(isOn), [rows, left, added]);
+  }, [items, info, on, choice]);
+  const chosen = useMemo(() => rows.filter((r) => r.act !== "leave"), [rows]);
   const hints = rows.filter((r) => r.tier === "maybe");
+  const leftOut = rows.filter((r) => r.tier !== "maybe" && r.act === "leave");
   const cuts = chosen.filter((i) => i.action === "delete");
   const cutSeconds = cuts.reduce((s, i) => s + i.frames / FPS, 0);
-  const softened = chosen.filter((i) => i.softened).length;
   const copyName = name ?? `${info?.name || t.draft} (${t.copySuffix})`;
   const anyOn = RULES.some((k) => on[k]);
   // One scale for every waveform, set by the loud speech around the places.
@@ -563,14 +571,64 @@ export default function Panel({ sdk, context, ui }) {
     return Math.max(20, peaks[Math.floor(peaks.length * 0.9)] || 20);
   }, [items]);
 
+  const at = (r) => (result ? r.copyFrame : r.frame);
+  const base = result ? result.rows : rows;
+  const list = result || filter === "all" ? base : filter === "maybe" ? hints : leftOut;
+  const total = Math.max(1, ...base.map((r) => at(r) + r.frames), info ? Math.max(0, ...info.clips.map((c) => c.startFrame + c.frames)) : 1);
+  const page = list.slice(first, first + PAGE);
+  // The window the timeline shows: a minute to start with (two for a long Draft), always inside the Draft.
+  const win = zoomView(view ?? { t0: 0, span: (total > 600 * FPS ? 120 : 60) * FPS }, total, 1, 0);
+  geo.current = { win, total, list };
+  const pageTo = (frame) => { const i = list.findIndex((r) => at(r) + r.frames >= frame); setFirst(Math.max(0, Math.min(i < 0 ? list.length - 1 : i, Math.max(0, list.length - PAGE)))); };
+  const lookAt = (frame) => setView(zoomView({ t0: frame - win.span / 2, span: win.span }, total, 1, 0));
+  const setAct = (r, act) => { const next = new Map(choice); next.set(r.id, act); setChoice(next); setMenu(null); hush(); };
+
+  // The lane moves as an editor's timeline does: scroll to move along it, pinch or hold a modifier and scroll to zoom
+  // about the pointer, drag to pull it sideways. A press that does not move opens the place under it.
+  useEffect(() => {
+    const el = lane.current;
+    if (!el) return;
+    const wheel = (e) => {
+      e.preventDefault();
+      const { win, total } = geo.current, box = el.getBoundingClientRect();
+      if (e.ctrlKey || e.metaKey || e.altKey) setView(zoomView(win, total, Math.exp(e.deltaY * 0.004), (e.clientX - box.left) / box.width));
+      else setView(zoomView({ t0: win.t0 + ((Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / box.width) * win.span, span: win.span }, total, 1, 0));
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, [!!items, !!result, busy]);
+  const laneDown = (e) => { drag.current = { x: e.clientX, t0: win.t0, moved: false }; e.currentTarget.setPointerCapture?.(e.pointerId); };
+  const laneMove = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (Math.abs(dx) > 3) d.moved = true;
+    if (d.moved) setView(zoomView({ t0: d.t0 - (dx / e.currentTarget.getBoundingClientRect().width) * win.span, span: win.span }, total, 1, 0));
+  };
+  const laneUp = (e) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.moved) return;
+    const box = e.currentTarget.getBoundingClientRect(), f = win.t0 + ((e.clientX - box.left) / box.width) * win.span;
+    const near = list.reduce((b, r) => (b == null || Math.abs(at(r) - f) < Math.abs(at(b) - f) ? r : b), null);
+    if (!near || Math.abs(at(near) - f) > win.span * 0.03) return;
+    setFirst(Math.floor(list.indexOf(near) / PAGE) * PAGE); setMenu(null); setPicked(near.id); listen(near, "before");
+  };
+  const overAt = (e) => {
+    const box = e.currentTarget.getBoundingClientRect(), f = ((e.clientX - box.left) / box.width) * total;
+    hush(); setPicked(null); setMenu(null); lookAt(f); pageTo(Math.max(0, f - win.span / 2));
+  };
+
   // Put the playhead half a second before a place, in the Draft it belongs to (the copy once it is saved).
   function jump(row) {
-    const frame = Math.max(0, (result ? row.copyFrame : row.frame) - 15);
+    const frame = Math.max(0, at(row) - 15);
     run("Jump to the place", `await selects.editor.seekDraftFrame({ projectId: ${q(projectId)}, draftSequenceId: ${q(result ? shown.current : sequenceId)}, resolvedFrame: ${frame} }); return true;`).catch(() => {});
   }
   function pick(row) {
+    setMenu(null);
     if (picked === row.id) { hush(); setPicked(null); return; }
     setPicked(row.id);
+    if (at(row) < win.t0 || at(row) > win.t0 + win.span) lookAt(at(row));
     listen(row, "before"); // picking a place plays it; the timeline moves only when asked
   }
 
@@ -583,11 +641,11 @@ export default function Panel({ sdk, context, ui }) {
     try {
       let pcm = s.clips.get(row.id);
       if (!pcm) {
-        const [at, n] = row.snip, end = at + n * 2;
-        const parts = await run("Read the sound of one place", `const out = []; for (let o = ${at}; o < ${end}; o += 49152) out.push((await selects.files.readRange({ path: ${q(row.clips)}, offset: o, length: Math.min(49152, ${end} - o) })).base64); return out;`);
+        const [from, n] = row.snip, end = from + n * 2;
+        const parts = await run("Read the sound of one place", `const out = []; for (let o = ${from}; o < ${end}; o += 49152) out.push((await selects.files.readRange({ path: ${q(row.clips)}, offset: o, length: Math.min(49152, ${end} - o) })).base64); return out;`);
         pcm = decodePcm(parts); s.clips.set(row.id, pcm);
       }
-      const data = mode === "after" ? cleaned(pcm, row.snip[2], row.snip[3], row.action, row.lowerDb) : pcm;
+      const data = mode === "after" && row.act !== "leave" ? cleaned(pcm, row.snip[2], row.snip[3], row.action, row.lowerDb) : pcm;
       s.ctx = s.ctx || new AudioContext();
       if (s.ctx.state === "suspended") await s.ctx.resume();
       const buffer = s.ctx.createBuffer(1, data.length, PREVIEW_RATE);
@@ -604,31 +662,37 @@ export default function Panel({ sdk, context, ui }) {
   async function apply() {
     const mine = token.current, live = () => mine === token.current;
     hush();
-    setBusy("apply"); setError(null); setPicked(null); applying.current = true;
+    setBusy("apply"); setError(null); setPicked(null); setMenu(null); applying.current = true;
     const todo = chosen;
-    let target = null, at = 0;
+    let target = null, done = 0;
     setProgress({ at: 0, of: todo.length });
-    // The stage shows the places going one by one, in the order they are really applied, never ahead of the work.
-    order.current = [...todo].sort((a, b) => b.start - a.start); cap.current = Math.min(order.current.length, BATCH);
-    setShow(0);
-    const tick = setInterval(() => setShow((i) => (i == null ? i : Math.min(i + 1, cap.current - 1))), 140);
+    // The stage runs through the places in at most eight seconds whatever their number; the edits themselves
+    // may take longer, and the bar under it follows the real work.
+    order.current = [...todo].sort((a, b) => b.start - a.start);
+    const n = order.current.length, T = Math.min(8000, n * 150), slots = Math.max(1, Math.round(T / 110)), began = performance.now();
+    setShow(0); setFinishing(false);
+    const tick = setInterval(() => {
+      const u = Math.min(1, (performance.now() - began) / T), slot = Math.min(slots - 1, Math.floor(u * slots));
+      setShow(Math.max(0, Math.min(n - 1, Math.floor(((slot + 1) / slots) * n) - 1)));
+      if (u >= 1) setFinishing(true);
+    }, 110);
     try {
-      const total = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
+      const sum = { delete: 0, lower: 0, mute: 0, fades: 0, skipped: 0 };
       for (const batch of batches(todo)) {
         if (!live()) return;
-        const r = await run("Apply the cleanup", APPLY(projectId, sequenceId, target, copyName, batch, fade), true);
+        const r = await run("Apply the cleanup", APPLY(projectId, sequenceId, target, copyName, batch, true), true);
         target = r.draftId;
-        for (const k of Object.keys(total)) total[k] += r.done[k];
-        at += batch.length; cap.current = Math.min(order.current.length, at + BATCH);
-        if (live()) { setProgress({ at, of: todo.length }); setShow((i) => (i == null ? i : Math.max(i, at - 8))); }
+        for (const k of Object.keys(sum)) sum[k] += r.done[k];
+        done += batch.length;
+        if (live()) setProgress({ at: done, of: todo.length });
       }
-      if (live()) { setResult({ name: copyName, done: total, rows: inCopy(todo) }); setFirst(0); setFilter("all"); }
+      if (live()) { setResult({ name: copyName, done: sum, rows: inCopy(todo) }); setFirst(0); setFilter("all"); setView(null); }
     } catch (e) {
       if (live()) setError(`${target ? `${t.partial(copyName)} ` : ""}${String(e.message || e)}`);
     } finally {
       clearInterval(tick);
       applying.current = false;
-      if (live()) { setBusy(null); setProgress(null); setShow(null); }
+      if (live()) { setBusy(null); setProgress(null); setShow(null); setFinishing(false); }
       // The Draft on screen is now the copy: show its clips, keep the result.
       if (live() && shown.current && shown.current !== sequenceId) run("Read the Draft's Main clips", READ(projectId, shown.current)).then((r) => live() && setInfo(r)).catch(() => {});
     }
@@ -636,45 +700,56 @@ export default function Panel({ sdk, context, ui }) {
 
   if (!projectId || !sequenceId) return <ui.Message>{t.noDraft}</ui.Message>;
 
-  const kindStyle = (k) => ({ "--k": `var(--k-${k})` });
-  const what = (r) => (r.action === "delete" ? t.act.delete : r.action === "mute" ? t.act.mute : t.act.lower(r.lowerDb));
-  const at = (r) => (result ? r.copyFrame : r.frame);
-  const base = result ? result.rows : rows;
-  const list = result || filter === "all" ? base : filter === "maybe" ? base.filter((r) => r.tier === "maybe") : base.filter((r) => r.tier !== "maybe" && left.has(r.id));
-  const total = Math.max(1, ...base.map((r) => at(r) + r.frames), info ? Math.max(0, ...info.clips.map((c) => c.startFrame + c.frames)) : 1);
-  const page = list.slice(first, first + PAGE);
+  const label = (act) => (act === "delete" ? t.act.delete : act === "mute" ? t.act.mute : act === "lower" ? t.act.lower(LOWER_DB) : t.act.leave);
+  const mmss = (frames) => { const s = Math.floor(frames / FPS); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
-  // The waveform around one place, as a timeline draws it, with the stretch that changes in the kind's colour.
+  // The waveform around one place, as the app's own audio clip draws it, with the stretch that changes marked.
   const wave = (r) => {
-    const n = r.shape.length, h = 24, a = (r.snip[2] / r.snip[1]) * n, b = (r.snip[3] / r.snip[1]) * n;
+    const n = r.shape.length, h = 24, a = (r.snip[2] / r.snip[1]) * n, b = (r.snip[3] / r.snip[1]) * n, live = result || r.act !== "leave";
     return (
       <svg className="tac-wave" viewBox={`0 0 ${n} ${h}`} preserveAspectRatio="none" aria-hidden="true">
-        <rect x={a} y="0" width={Math.max(1, b - a)} height={h} fill="var(--k)" opacity={!result && !isOn(r) ? 0.14 : 0.38} />
-        <polygon points={wavePoints(r.shape, ref, 0, n, h)} fill="var(--panel-fg)" opacity={!result && !isOn(r) ? 0.4 : 0.78} />
+        <rect width={n} height={h} fill="var(--clip)" />
+        <rect x={a} y="0" width={Math.max(1, b - a)} height={h} fill={live ? "var(--key)" : "#fff"} opacity={live ? 0.3 : 0.1} />
+        {live && <rect x={a} y="0" width={Math.max(1, b - a)} height="1.2" fill="var(--key)" />}
+        <polygon points={wavePoints(r.shape, ref, 0, n, h)} fill="var(--peak)" />
       </svg>
     );
   };
+  const seg = (r) => (
+    <div className="tac-seg">
+      {["delete", "lower", "mute", "leave"].map((a) => (
+        <button key={a} type="button" aria-pressed={r.act === a} onClick={(e) => { e.stopPropagation(); setAct(r, a); }}>{a === "leave" ? t.leave : label(a)}</button>
+      ))}
+    </div>
+  );
 
-  // Where the places are, as how many fall in each slice of the Draft. Pressing a slice brings the list there.
-  const BINS = 48, bins = density(base.map((r) => ({ at: at(r), rule: r.rule })), total, BINS), most = Math.max(1, ...bins.map((b) => Object.values(b).reduce((x, y) => x + y, 0)));
-  const span0 = page.length ? at(page[0]) / total : 0, span1 = page.length ? (at(page[page.length - 1]) + page[page.length - 1].frames) / total : 0;
-  const overview = (
-    <>
-      <svg className="tac-over" viewBox={`0 0 ${BINS} 34`} preserveAspectRatio="none" role="img" aria-label={t.found} tabIndex={0}
-        onClick={(e) => {
-          const box = e.currentTarget.getBoundingClientRect(), f = ((e.clientX - box.left) / box.width) * total;
-          const i = list.findIndex((r) => at(r) + r.frames >= f);
-          hush(); setPicked(null); setFirst(Math.max(0, Math.min(i < 0 ? list.length - 1 : i, Math.max(0, list.length - PAGE))));
-        }}>
-        <rect x={span0 * BINS} y="0" width={Math.max(0.6, (span1 - span0) * BINS)} height="34" fill="var(--panel-accent)" rx="0.4" />
-        {bins.map((b, i) => {
-          let y = 32;
-          return RULES.filter((k) => b[k]).map((k) => { const hgt = (b[k] / most) * 28; y -= hgt; return <rect key={`${i}${k}`} x={i + 0.12} y={y} width="0.76" height={hgt} fill={`var(--k-${k})`} />; });
-        })}
-        <rect x="0" y="32" width={BINS} height="0.6" fill="var(--panel-border)" />
+  // Two rows: the whole Draft with the window drawn on it, and the window itself with every place in it.
+  const step = gridStep(win.span / FPS) * FPS, marks = [];
+  for (let f = Math.ceil(win.t0 / step) * step; f <= win.t0 + win.span; f += step) marks.push(f);
+  const timeline = (
+    <div className="tac-tl">
+      <svg className="tac-over" viewBox="0 0 1000 14" preserveAspectRatio="none" role="img" aria-label={t.whole}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); overAt(e); }} onPointerMove={(e) => { if (e.buttons) overAt(e); }}>
+        <rect width="1000" height="14" fill="var(--panel-muted)" />
+        {base.map((r) => <rect key={r.id} x={(at(r) / total) * 1000} y="3" width="1.2" height="8" fill="var(--panel-muted-fg)" />)}
+        <rect x={(win.t0 / total) * 1000} y="0.5" width={Math.max(6, (win.span / total) * 1000)} height="13" fill="var(--panel-fg)" fillOpacity="0.16" stroke="var(--panel-fg)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div className="tac-axis"><span>0:00</span><span>{clock(total / FPS / 2).slice(0, -2)}</span><span>{clock(total / FPS).slice(0, -2)}</span></div>
-    </>
+      <div className="tac-lane" ref={lane} role="img" aria-label={t.zoomed} onPointerDown={laneDown} onPointerMove={laneMove} onPointerUp={laneUp} onPointerCancel={() => { drag.current = null; }}>
+        {marks.map((f) => <span key={f} style={{ left: `${((f - win.t0) / win.span) * 100}%` }}>{mmss(f)}</span>)}
+        <svg viewBox="0 0 1000 46" preserveAspectRatio="none" aria-hidden="true">
+          {base.filter((r) => at(r) + r.frames >= win.t0 && at(r) <= win.t0 + win.span).map((r) => {
+            const x = ((at(r) - win.t0) / win.span) * 1000, w = Math.max(6, (r.frames / win.span) * 1000), live = result || r.act !== "leave";
+            return (
+              <React.Fragment key={r.id}>
+                {picked === r.id && <rect x={x - 3} y="14" width={w + 6} height="32" fill="var(--panel-fg)" />}
+                <rect x={x} y="18" width={w} height="24" fill={live ? "var(--key)" : "none"} stroke={live ? "none" : r.tier === "maybe" ? "var(--key)" : "var(--panel-muted-fg)"} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+              </React.Fragment>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="tac-tlbar"><span>{mmss(win.t0)} – {mmss(Math.min(total, win.t0 + win.span))}</span><span>{t.zoomHint}</span></div>
+    </div>
   );
 
   const places = (
@@ -682,19 +757,23 @@ export default function Panel({ sdk, context, ui }) {
       <div className="tac-list">
         {page.length === 0 && <p className="tac-note" style={{ padding: 12 }}>{t.empty}</p>}
         {page.map((r) => {
-          const maybe = !result && r.tier === "maybe", active = result || isOn(r), open = picked === r.id;
+          const open = picked === r.id, hint = !result && r.tier === "maybe" && r.act === "leave";
           return (
             <React.Fragment key={r.id}>
-              <button type="button" className={`tac-row${maybe && !active ? " maybe" : !active ? " off" : ""}`} style={kindStyle(r.rule)} aria-expanded={open} onClick={() => pick(r)}>
-                <span className="tac-dot" />
-                <span className="tac-time">{clock(at(r) / FPS)}</span>
+              <div role="button" tabIndex={0} className={`tac-row${!result && r.act === "leave" ? " leave" : ""}`} aria-expanded={open} onClick={() => pick(r)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(r); } }}>
+                <span className="tac-when"><span>{clock(at(r) / FPS)}</span><small>{t.kind[r.rule][0]}</small></span>
                 {wave(r)}
-                <span className="tac-what">{maybe && !active ? t.tag : !active ? t.excluded : what(r)}</span>
-              </button>
+                {result ? <span className="tac-fixed">{label(r.action)}</span> : (
+                  <button type="button" className={`tac-act${hint ? " rec" : r.act === "leave" ? " leave" : ""}`} aria-label={t.change} aria-expanded={menu === r.id}
+                    onClick={(e) => { e.stopPropagation(); setMenu(menu === r.id ? null : r.id); }}>{hint ? t.tag : label(r.act)}</button>
+                )}
+              </div>
+              {menu === r.id && !result && !open && <div className="tac-detail" style={{ padding: "8px 12px" }}>{seg(r)}</div>}
               {open && (
-                <div className="tac-detail" style={kindStyle(r.rule)}>
+                <div className="tac-detail">
                   {wave(r)}
-                  <p className="tac-note"><strong style={{ color: "var(--panel-fg)" }}>{t.kind[r.rule][0]}</strong> · {what(r)} · {span(r.frames / FPS, ko)}{r.softened ? ` · ${t.softened}` : ""}</p>
+                  {!result && seg(r)}
                   <div className="tac-btns">
                     {["before", "after"].map((mode) => {
                       const live = playing && playing.id === r.id && playing.mode === mode;
@@ -705,15 +784,6 @@ export default function Panel({ sdk, context, ui }) {
                       );
                     })}
                     <button type="button" className="tac-btn quiet" onClick={() => jump(r)}>{t.show}</button>
-                    {!result && (
-                      <button type="button" className={`tac-btn${maybe && !active ? "" : " quiet"}`} onClick={() => {
-                        const set = new Set(maybe ? added : left);
-                        if (set.has(r.id)) set.delete(r.id); else set.add(r.id);
-                        (maybe ? setAdded : setLeft)(set);
-                      }}>
-                        {maybe ? (active ? t.exclude : t.add) : active ? t.exclude : t.include}
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
@@ -723,9 +793,9 @@ export default function Panel({ sdk, context, ui }) {
       </div>
       {list.length > PAGE && (
         <div className="tac-pager">
-          <button type="button" className="tac-btn quiet" disabled={first === 0} onClick={() => { hush(); setPicked(null); setFirst(Math.max(0, first - PAGE)); }}>{t.prev(Math.min(PAGE, first))}</button>
+          <button type="button" className="tac-btn quiet" disabled={first === 0} onClick={() => { hush(); setPicked(null); setMenu(null); const f = Math.max(0, first - PAGE); setFirst(f); lookAt(at(list[f]) + win.span * 0.45); }}>{t.prev}</button>
           <span>{t.range(first + 1, Math.min(list.length, first + PAGE), list.length)}</span>
-          <button type="button" className="tac-btn quiet" disabled={first + PAGE >= list.length} onClick={() => { hush(); setPicked(null); setFirst(first + PAGE); }}>{t.next(Math.min(PAGE, list.length - first - PAGE))}</button>
+          <button type="button" className="tac-btn quiet" disabled={first + PAGE >= list.length} onClick={() => { hush(); setPicked(null); setMenu(null); setFirst(first + PAGE); lookAt(at(list[first + PAGE]) + win.span * 0.45); }}>{t.next}</button>
         </div>
       )}
     </>
@@ -734,58 +804,57 @@ export default function Panel({ sdk, context, ui }) {
   // While the copy is made: the place being cleaned, its stretch closing up, dropping or going flat.
   const now = show != null ? order.current[show] : null;
   const stage = now && (() => {
-    const n = now.shape.length, a = Math.round((now.snip[2] / now.snip[1]) * n), b = Math.max(a + 1, Math.round((now.snip[3] / now.snip[1]) * n)), h = 72;
+    const n = now.shape.length, a = Math.round((now.snip[2] / now.snip[1]) * n), b = Math.max(a + 1, Math.round((now.snip[3] / now.snip[1]) * n)), h = 110;
     const part = (from, to, cls) => (
       <div className={cls} style={{ width: `${((to - from) / n) * 100}%`, flex: "none" }}>
-        <svg viewBox={`0 0 ${to - from} ${h}`} preserveAspectRatio="none" aria-hidden="true"><polygon points={wavePoints(now.shape, ref, from, to, h)} fill="var(--panel-fg)" opacity="0.8" /></svg>
+        <svg viewBox={`0 0 ${to - from} ${h}`} preserveAspectRatio="none" aria-hidden="true"><polygon points={wavePoints(now.shape, ref, from, to, h)} fill="var(--peak)" /></svg>
       </div>
     );
     const sofar = order.current.slice(0, show + 1);
     return (
-      <div className="tac-stage" style={kindStyle(now.rule)}>
-        <div className="tac-head"><span className="tac-big">{show + 1}</span><span className="tac-sub">/ {order.current.length} · {t.working}</span></div>
+      <div className="tac-stage">
+        <div className="tac-stat"><b>{show + 1}</b><span className="tac-sub">/ {t.places(order.current.length)}</span></div>
         <div className="tac-cut" key={now.id}>{part(0, a, "")}{part(a, b, `band ${now.action}`)}{part(b, n, "")}</div>
-        <p className="tac-note"><span className="tac-dot" style={{ display: "inline-block", marginRight: 6 }} /><strong style={{ color: "var(--panel-fg)" }}>{clock(now.frame / FPS)}</strong> · {t.kind[now.rule][0]} · {what(now)}</p>
+        <p className="tac-note"><strong style={{ color: "var(--panel-fg)", fontWeight: 500 }}>{clock(now.frame / FPS)}</strong> · {t.kind[now.rule][0]} · {label(now.action)}</p>
         <div className="tac-tally">
           <span><b>{sofar.filter((r) => r.action === "delete").length}</b> {t.act.delete}</span>
-          <span><b>{sofar.filter((r) => r.action === "lower").length}</b> {t.act.lower(lowerDb)}</span>
+          <span><b>{sofar.filter((r) => r.action === "lower").length}</b> {t.act.lower(LOWER_DB)}</span>
           <span><b>{sofar.filter((r) => r.action === "mute").length}</b> {t.act.mute}</span>
         </div>
+        <div className="tac-bar"><i style={{ width: `${progress && progress.of ? (progress.at / progress.of) * 100 : 0}%` }} /></div>
+        {finishing && <p className="tac-note">{t.finishingNote}</p>}
       </div>
     );
   })();
 
+  const start = info && !blocked && !items && busy !== "analyze";
+  const found = items && items.length > 0 && !result && busy !== "apply";
   return (
     <ui.Stack gap={16}>
       <style>{STYLE}</style>
       <ui.Section title={t.title}>
         <div className="tac">
           {busy === "read" && <ui.Skeleton width="60%" />}
-          {info && <p className="tac-sub"><strong>{info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
+          {info && <p className="tac-sub"><strong>{result ? result.name : info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
           {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
-          {info && !blocked && !items && busy !== "analyze" && <p>{t.intro}</p>}
+          {start && <p className="tac-note">{t.intro}</p>}
           {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
           {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage0} />}
         </div>
       </ui.Section>
 
-      {info && !blocked && !items && busy !== "analyze" && (
+      {start && (
         <ui.Section title={t.pick}>
           <div className="tac">
             <div className="tac-kinds">
               {RULES.map((k) => (
-                <button key={k} type="button" role="switch" aria-checked={on[k]} className="tac-kind" style={kindStyle(k)} onClick={() => setOn({ ...on, [k]: !on[k] })}>
-                  <span className="tac-dot" /><b>{t.kind[k][0]}</b><span className="tac-sw" />
-                  <small>{t.kind[k][1]}</small>
+                <button key={k} type="button" role="switch" aria-checked={on[k]} className="tac-kind" onClick={() => setOn({ ...on, [k]: !on[k] })}>
+                  <b>{t.kind[k][0]}</b><span className="tac-sw" /><small>{t.kind[k][1]}</small>
                 </button>
               ))}
             </div>
-            {!anyOn && <p className="tac-note">{t.pickOne}</p>}
+            <p className="tac-note">{anyOn ? t.analyzeNote : t.pickOne}</p>
           </div>
-          <ui.Actions>
-            <ui.Button variant="primary" disabled={!anyOn} onClick={analyze}>{t.analyze}</ui.Button>
-          </ui.Actions>
-          <ui.Message tone="muted">{t.analyzeNote}</ui.Message>
         </ui.Section>
       )}
 
@@ -800,63 +869,46 @@ export default function Panel({ sdk, context, ui }) {
       )}
 
       {items && items.length > 0 && !result && busy === "apply" && (
-        <ui.Section title={t.working}>
+        <ui.Section title={finishing ? t.finishing : t.working}>
           <div className="tac">{stage}</div>
-          {progress && <ui.Progress value={progress.of ? progress.at / progress.of : 0} />}
         </ui.Section>
       )}
 
-      {items && items.length > 0 && !result && busy !== "apply" && (
+      {found && (
         <>
           <ui.Section title={t.found}>
             <div className="tac">
-              <div className="tac-head">
-                <span className="tac-big">{t.places(chosen.length)}</span>
-                <span className="tac-sub">{t.shorter(span(cutSeconds, ko))} · {t.cutsVols(cuts.length, chosen.length - cuts.length)}</span>
-              </div>
               <div className="tac-chips">
                 {RULES.filter((k) => items.some((i) => i.rule === k && i.tier !== "maybe")).map((k) => (
-                  <button key={k} type="button" className="tac-chip" style={kindStyle(k)} aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
-                    <span className="tac-dot" />{t.kind[k][0]}<i>{items.filter((i) => i.rule === k && i.tier !== "maybe").length}</i>
+                  <button key={k} type="button" className="tac-chip" aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
+                    {t.kind[k][0]}<i>{items.filter((i) => i.rule === k && i.tier !== "maybe").length}</i>
                   </button>
                 ))}
               </div>
               {hints.length > 0 && (
                 <div className="tac-tip">
-                  <ui.Icon name="sparkles" size={16} /><b>{t.suggest(hints.length)}</b>
+                  <ui.Icon name="sparkles" size={14} /><b>{t.suggest(hints.length)}</b>
                   <small>{t.suggestNote}</small>
                   <div className="tac-btns">
-                    <button type="button" className="tac-btn" onClick={() => { hush(); setPicked(null); setFilter("maybe"); setFirst(0); }}>{t.review}</button>
-                    <button type="button" className="tac-btn quiet" onClick={() => setAdded(hints.every((r) => added.has(r.id)) ? new Set() : new Set(hints.map((r) => r.id)))}>
-                      {hints.every((r) => added.has(r.id)) ? t.removeAll : t.addAll}
-                    </button>
+                    <button type="button" className="tac-btn" onClick={() => { hush(); setPicked(null); setMenu(null); setFilter("maybe"); setFirst(0); }}>{t.review}</button>
+                    <button type="button" className="tac-btn quiet" onClick={() => {
+                      const all = hints.every((r) => r.act !== "leave"), next = new Map(choice);
+                      for (const r of hints) next.set(r.id, all ? "leave" : r.proposed);
+                      setChoice(next);
+                    }}>{hints.every((r) => r.act !== "leave") ? t.removeAll : t.addAll}</button>
                   </div>
                 </div>
               )}
               {silent > 0 && <p className="tac-note">{t.skippedSilent(silent)}</p>}
             </div>
             <ui.TextField label={t.copyName} value={copyName} onChange={setName} />
-            <ui.Actions>
-              <ui.Button variant="primary" disabled={chosen.length === 0 || !copyName.trim()} onClick={apply}>{t.apply}</ui.Button>
-            </ui.Actions>
           </ui.Section>
-
-          <ui.Section title={t.places(base.length)} actions={<ui.IconButton icon="settings" label={t.settings} onClick={() => setTune(!tune)} />}>
-            {tune && (
-              <>
-                <ui.Slider label={t.cutLine} unit="%" min={30} max={90} value={cutLine} onChange={setCutLine} />
-                {softened > 0 && <p className="tac-note">{t.cutLineNote(softened)}</p>}
-                <ui.Slider label={t.lowerBy} unit="dB" min={6} max={20} value={lowerDb} onChange={setLowerDb} />
-                <ui.Toggle label={t.fade} value={fade} onChange={setFade} />
-              </>
-            )}
+          <ui.Section title={t.places(rows.length)}>
             <div className="tac">
-              {overview}
+              {timeline}
               <div className="tac-tabs">
-                {["all", "maybe", "left"].map((f) => (
-                  <button key={f} type="button" className="tac-tab" aria-pressed={filter === f} onClick={() => { hush(); setPicked(null); setFilter(f); setFirst(0); }}>
-                    {t.filter[f]} {f === "all" ? base.length : f === "maybe" ? hints.length : base.filter((r) => r.tier !== "maybe" && left.has(r.id)).length}
-                  </button>
+                {[["all", rows.length], ["maybe", hints.length], ["left", leftOut.length]].map(([f, n]) => (
+                  <button key={f} type="button" className="tac-tab" aria-pressed={filter === f} onClick={() => { hush(); setPicked(null); setMenu(null); setFilter(f); setFirst(0); }}>{t.filter[f]} {n}</button>
                 ))}
               </div>
               {places}
@@ -869,22 +921,29 @@ export default function Panel({ sdk, context, ui }) {
         <>
           <ui.Section title={t.doneTitle}>
             <div className="tac">
-              <div className="tac-head">
-                <span className="tac-big">{t.places(result.rows.length)}</span>
-                <span className="tac-sub">{t.done(result.done)}</span>
-              </div>
+              <div className="tac-stat"><b>{t.places(result.rows.length)}</b><span className="tac-sub">{t.done(result.done)}</span></div>
+              <p className="tac-note">{t.listen}</p>
             </div>
-            <ui.Message tone="muted">{t.listen}</ui.Message>
-            <ui.Actions>
-              <ui.Button variant="secondary" onClick={() => { hush(); setItems(null); setResult(null); setPicked(null); }}>{t.again}</ui.Button>
-            </ui.Actions>
           </ui.Section>
           <ui.Section title={result.name}>
-            <div className="tac">{overview}{places}</div>
+            <div className="tac">{timeline}{places}</div>
           </ui.Section>
         </>
       )}
       {error && <ui.Message tone="error">{error}</ui.Message>}
+
+      {(start || found || result) && (
+        <div className="tac tac-foot">
+          {start && <button type="button" className="tac-primary" disabled={!anyOn} onClick={analyze}>{t.analyze}</button>}
+          {found && (
+            <>
+              <div className="tac-stat"><b>{t.toClean(chosen.length)}</b><span className="tac-sub">{t.shorter(span(cutSeconds, ko))} · {t.cutsVols(cuts.length, chosen.length - cuts.length)}</span></div>
+              <button type="button" className="tac-primary" disabled={chosen.length === 0 || !copyName.trim()} onClick={apply}>{t.apply}</button>
+            </>
+          )}
+          {result && <button type="button" className="tac-btn" style={{ height: 36 }} onClick={() => { hush(); setItems(null); setResult(null); fresh(); }}>{t.again}</button>}
+        </div>
+      )}
     </ui.Stack>
   );
 }
