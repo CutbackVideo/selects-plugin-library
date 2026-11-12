@@ -1,7 +1,10 @@
 """Audio cleanup decisions for one recording, following a broadcast editing guide.
 48 kHz stereo WAV in, an edit decision list out: which stretches to cut, lower or mute, and why.
 
-  python analyze.py --wav in.wav --model model.joblib --out edl.json [--source-start 0.0]
+  python analyze.py --wav in.wav --model model.joblib --out edl.json [--source-start 0.0] [--openers '[[start, next, prevEnd], ...]']
+
+`--openers` lists standalone opener words from the transcript (source seconds: its start, the next word's start, the previous
+word's end). One is cut when the waveform shows it standing alone: short, apart from the previous word, the level closing after it.
 
 Times in the list are source seconds (`--source-start` + frame / 30). The model is not part of this
 repository; INSTALL.md says where it goes."""
@@ -29,6 +32,27 @@ def decide(P, dirt, quiet):
         if P[s:e, 1].max() < SURE_CUT: p[s:e] = 2 if e - s <= 2 else 3
     return p
 
+OPENER_VALLEY, OPENER_MAX_SEC = 0.05, 0.25   # level after the word / loudest speech within 1.5 s; longest word that still counts as a lone opener
+
+def openers(pcm, triples, source_start=0.0):
+    """Cuts for standalone opener words. The transcript says where to look; the hump, the valley after it and the frames come from the waveform."""
+    K = 96; out = []                                        # 2 ms steps at 48 kHz
+    for ts, tn, prev_end in triples:
+        a = int(max(0.0, ts - 1.5 - source_start) * 48000); b = int((tn + 1.5 - source_start) * 48000)
+        x = np.abs(np.asarray(pcm[a:b], np.float32).mean(axis=1)) / 32768.0
+        if len(x) < K * 100 or not (ts - prev_end > 0 and 0 < tn - ts <= OPENER_MAX_SEC): continue
+        env = np.convolve(x[: len(x) // K * K].reshape(-1, K).max(axis=1), np.ones(3) / 3, "same")
+        at = lambda t: int((t - source_start) * 48000 - a) // K
+        lo = max(0, at(ts - .06)); pk = lo + int(env[lo: at(ts + .06)].argmax())
+        v = pk + int(env[pk: max(at(tn) + 10, pk + 12)].argmin())      # the valley between the word and the next one
+        ref = env[max(0, at(ts - 1.5)): at(ts + 1.5)].max()
+        if ref <= 0 or env[v] / ref > OPENER_VALLEY: continue
+        s = pk
+        while s > 0 and env[s] > .25 * env[pk]: s -= 1
+        f0 = max(0, (a + s * K) * FPS // 48000 - 2); f1 = int(round((a + v * K) * FPS / 48000))   # two frames of lead-in, ends at the valley
+        if f1 > f0: out.append(dict(start=round(source_start + f0 / FPS, 4), end=round(source_start + f1 / FPS, 4), frames=int(f1 - f0), action="delete", rule="opener", confidence=1.0))
+    return out
+
 def measure(pcm, model, columns):
     """Per-frame class probabilities and the three measures the rules read, block by block.
     ponytail: a pause longer than MARGIN that crosses a block edge is measured shorter than it is; widen MARGIN if that matters."""
@@ -40,7 +64,7 @@ def measure(pcm, model, columns):
         dirt[s:e], level[s:e], flat[s:e] = F["high_max@0"][k], F["full_mean_abs"][k], F["flatness@0"][k]
     return P, dirt, level, flat
 
-def build(pcm, model, columns, source_start=0.0):
+def build(pcm, model, columns, source_start=0.0, triples=()):
     P, dirt, level, flat = measure(pcm, model, columns)
     p = decide(P, dirt, level < -40); items = []
     for kind, action in ((1, "delete"), (2, "mute"), (3, "lower")):
@@ -49,9 +73,14 @@ def build(pcm, model, columns, source_start=0.0):
             if action == "lower" and np.median(flat[s:e]) >= SNIFF_FLATNESS and level[s:e].max() >= SNIFF_LEVEL: act, rule = "mute", "sniff"
             items.append(dict(start=round(source_start + s / FPS, 4), end=round(source_start + e / FPS, 4), frames=int(e - s), action=act, rule=rule,
                               confidence=round(float(P[s:e, kind].max()), 3)))
+    for op in openers(pcm, triples, source_start):          # an opener cut swallows the cuts it touches and replaces volume changes under it
+        hit = [it for it in items if it["start"] <= op["end"] and it["end"] >= op["start"]]
+        for it in hit:
+            if it["action"] == "delete": op["start"], op["end"] = min(op["start"], it["start"]), max(op["end"], it["end"])
+        op["frames"] = int(round((op["end"] - op["start"]) * FPS)); items = [it for it in items if it not in hit] + [op]
     items.sort(key=lambda it: it["start"])
     return dict(fps=FPS, sourceStart=source_start, items=items,
-                counts={k: sum(it["rule"] == k for it in items) for k in ("blemish", "breath", "sniff", "click")},
+                counts={k: sum(it["rule"] == k for it in items) for k in ("blemish", "breath", "sniff", "click", "opener")},
                 secondsCut=round(sum(it["frames"] for it in items if it["action"] == "delete") / FPS, 2))
 
 def self_check():
@@ -64,11 +93,11 @@ def self_check():
     assert decide(P, dirt, quiet)[6] == 1                                        # proposals one quiet frame apart are joined
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--wav"); ap.add_argument("--model"); ap.add_argument("--out"); ap.add_argument("--source-start", type=float, default=0.0)
+    ap = argparse.ArgumentParser(); ap.add_argument("--wav"); ap.add_argument("--model"); ap.add_argument("--out"); ap.add_argument("--source-start", type=float, default=0.0); ap.add_argument("--openers", default="[]")
     ap.add_argument("--self-check", action="store_true"); a = ap.parse_args()
     if a.self_check: self_check(); print("ok"); sys.exit(0)
     import joblib
     sr, pcm = wavfile.read(a.wav, mmap=True)
     if sr != 48000 or pcm.ndim != 2 or pcm.shape[1] != 2 or pcm.dtype != np.int16: sys.exit("expected 48 kHz stereo 16-bit PCM")
-    pack = joblib.load(a.model); edl = build(pcm, pack["model"], pack["columns"], a.source_start)
+    pack = joblib.load(a.model); edl = build(pcm, pack["model"], pack["columns"], a.source_start, json.loads(a.openers))
     with open(a.out, "w") as f: json.dump(edl, f); print(json.dumps(dict(items=len(edl["items"]), counts=edl["counts"], secondsCut=edl["secondsCut"])))

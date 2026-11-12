@@ -109,7 +109,7 @@ class DecisionRulesTest(unittest.TestCase):
 
         edl = with_hiss(120)   # stands out of the room noise, but stays under -46 dBFS
         self.assertEqual([(i['action'], i['rule'], i['frames']) for i in edl['items']], [('lower', 'breath', 6)])
-        self.assertEqual(edl['counts'], {'blemish': 0, 'breath': 1, 'sniff': 0, 'click': 0})
+        self.assertEqual(edl['counts'], {'blemish': 0, 'breath': 1, 'sniff': 0, 'click': 0, 'opener': 0})
         self.assertEqual([(i['action'], i['rule']) for i in with_hiss(3000)['items']], [('mute', 'sniff')])
 
     def test_a_tick_the_model_calls_a_mute_is_a_click(self):
@@ -133,6 +133,20 @@ class DecisionRulesTest(unittest.TestCase):
             self.assertEqual(self.analyze.build(self.pcm, ByLevel(), ['high_max@0']), whole)
         finally:
             self.analyze.BLOCK, self.analyze.MARGIN = 3600, 300
+
+    def test_a_lone_opener_is_cut_and_a_run_on_one_is_kept(self):
+        rng = np.random.default_rng(3); pcm = (rng.standard_normal((48000 * 6, 2)) * 8).astype(np.int16)
+        def tone(t0, t1, amp):
+            a, b = int(t0 * 48000), int(t1 * 48000); pcm[a:b] += (np.sin(np.arange(b - a) * 0.05) * amp).astype(np.int16)[:, None]
+        tone(1.00, 1.12, 6000); tone(1.25, 2.2, 12000)     # short word, 130 ms of quiet, then speech
+        tone(4.00, 4.12, 6000); tone(4.12, 5.0, 12000)     # the same word running straight into speech
+        cuts = self.analyze.openers(pcm, [(1.0, 1.25, 0.0), (4.0, 4.12, 3.0)], 0.0)
+        self.assertEqual([c['rule'] for c in cuts], ['opener'])
+        self.assertLessEqual(cuts[0]['start'], 1.0); self.assertTrue(1.12 <= cuts[0]['end'] <= 1.25)
+        shifted = self.analyze.openers(pcm[48000 // 2:], [(1.0, 1.25, 0.0)], 0.5)                       # source time, not file time
+        self.assertEqual((shifted[0]['start'], shifted[0]['end']), (cuts[0]['start'], cuts[0]['end']))
+        self.assertEqual(self.analyze.openers(pcm, [(1.0, 1.25, 1.0)], 0.0), [])                         # glued to the previous word
+        self.assertEqual(self.analyze.openers(pcm, [(1.0, 1.4, 0.0)], 0.0), [])                          # too long to be a lone opener
 
     def test_frame_helpers(self):
         ft = self.features

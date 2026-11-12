@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 const ID = "talk-audio-cleanup";
 const FPS = 30; // the analysis works on 30 fps frames; other Drafts are refused
 const BATCH = 30; // edits per script run, so one run stays well inside the script budget
-const RULES = ["blemish", "breath", "sniff", "click"];
+const RULES = ["blemish", "breath", "sniff", "click", "opener"];
 
 const STRINGS = {
   en: {
@@ -40,6 +40,7 @@ const STRINGS = {
       breath: ["Lower breaths", "Bring the clip volume down, not the gain"],
       sniff: ["Mute loud sniffs", "A breath that is loud and hissy is muted instead of lowered"],
       click: ["Mute ticks between words", "One or two frames, muted in place so the picture is not cut"],
+      opener: ["Cut a lone opening \u201c\uc790\u201d", "Only where the transcript has it and the waveform shows it standing apart from the next word"],
     },
     count: (n, s) => `${n} place${n === 1 ? "" : "s"}, ${s}`,
     cutLine: "Only cut when this sure",
@@ -82,6 +83,7 @@ const STRINGS = {
       breath: ["\uc501·\ud558~ \uc74c\ub7c9 \ub0ae\ucd94\uae30", "\uac8c\uc778\uc774 \uc544\ub2c8\ub77c \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0b4\ub9bc"],
       sniff: ["\ud070 \ucf54\uba39\uc74c \uc74c\ub7c9 0", "\ud06c\uace0 \uc26c\uc775\uac70\ub9ac\ub294 \uc228\uc18c\ub9ac\ub294 \ub0ae\ucd94\uc9c0 \uc54a\uace0 0\uc73c\ub85c"],
       click: ["\ub9d0 \uc0ac\uc774 \ub538\uae4d \uc74c\ub7c9 0", "1~2\ud504\ub808\uc784\uc744 \uc81c\uc790\ub9ac\uc5d0\uc11c \uc74c\ub7c9 0\uc73c\ub85c. \ud654\uba74\uc740 \uc790\ub974\uc9c0 \uc54a\uc74c"],
+      opener: ["\ub530\ub85c \ub5a8\uc5b4\uc9c4 \uc2dc\uc791 \u2018\uc790\u2019 \uc0ad\uc81c", "\uc804\uc0ac\uc5d0 \uc788\uace0, \ud30c\ud615\uc5d0\uc11c \ub4b7\ub9d0\uacfc \ub5a8\uc5b4\uc838 \uc788\uc744 \ub54c\ub9cc"],
     },
     count: (n, s) => `${n}\uacf3, ${s}`,
     cutLine: "\uc774\ub9cc\ud07c \ud655\uc2e4\ud560 \ub54c\ub9cc \uc790\ub974\uae30",
@@ -137,7 +139,17 @@ for (const r of await d.clips()) {
   if (r.playbackSpeed && r.playbackSpeed.numerator !== r.playbackSpeed.denominator) { skipped++; continue; }
   clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, frames: r.endFrame - r.startFrame });
 }
-return { fps: meta.fps, name: meta.name ?? null, clips, skipped, env: await selects.files.environment() };`;
+// A lone opening word: where the transcript puts it, the next word and the previous one (source seconds).
+// ponytail: assumes word source frames count at the Draft's frame rate.
+const openers = [];
+const ws = await d.words().catch(() => []);
+ws.forEach((w, i) => {
+  const nx = ws[i + 1], pv = ws[i - 1];
+  if (!/^\\uc790[.,!?~]*$/.test((w.text ?? "").trim()) || w.sourceStartFrame == null || nx?.sourceResourceId !== w.sourceResourceId || !(nx.sourceStartFrame > w.sourceStartFrame)) return;
+  const joined = pv?.sourceResourceId === w.sourceResourceId && pv.sourceEndFrame != null && pv.sourceEndFrame <= w.sourceStartFrame;
+  openers.push({ resourceId: w.sourceResourceId, start: w.sourceStartFrame / meta.fps, next: nx.sourceStartFrame / meta.fps, prevEnd: (joined ? pv.sourceEndFrame : w.sourceStartFrame - meta.fps) / meta.fps });
+});
+return { fps: meta.fps, name: meta.name ?? null, clips, skipped, openers, env: await selects.files.environment() };`;
 
 // The stretches of source audio to analyze: each source's clips, joined when they sit within 10 s of each
 // other, so a Draft that uses two far-apart parts of a long recording does not decode what lies between.
@@ -209,7 +221,7 @@ export default function Panel({ sdk, context, ui }) {
   const [stage, setStage] = useState(0);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
-  const [on, setOn] = useState({ blemish: true, breath: true, sniff: true, click: true });
+  const [on, setOn] = useState({ blemish: true, breath: true, sniff: true, click: true, opener: true });
   const [cutLine, setCutLine] = useState(30);
   const [lowerDb, setLowerDb] = useState(11);
   const [fade, setFade] = useState(true);
@@ -278,9 +290,10 @@ export default function Panel({ sdk, context, ui }) {
           await new Promise((r) => setTimeout(r, 700));
         }
         setStage(2);
+        const lone = (info.openers ?? []).filter((o) => o.resourceId === s.resourceId && o.start >= s.t0 && o.next <= s.to).map((o) => [o.start, o.next, o.prevEnd]);
         const sh = await sdk.runShell({
           summary: "Find what to clean",
-          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${DATA}/model.joblib" --out ${shellQuote(out)} --source-start ${s.t0}`,
+          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${DATA}/model.joblib" --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))}`,
           cwd: work,
           timeoutMs: 300000,
         });
