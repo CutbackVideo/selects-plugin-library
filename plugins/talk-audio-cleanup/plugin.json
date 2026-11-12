@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "talk-audio-cleanup",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Talk Audio Cleanup",
   "summary": "Clean the sound of a talking Draft the way a broadcast editing guide asks: cut clicks out of the pauses, lower breaths, mute one-frame ticks between words and fade every cut by one frame, on a copy of the Draft.",
   "status": "experimental",
