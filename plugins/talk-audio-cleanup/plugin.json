@@ -20,7 +20,7 @@
     "platforms": [
       "macOS development builds"
     ],
-    "selects": "Requires Panel SDK runScript and runShell, selects.media.startFFmpeg and measureAudioPeaks, selects.files.readRange, and Draft remove, splitAt and setClipAudio. The analysis is a Python program run through the shell, so Windows and web are not supported. The trained model is not part of this package and is installed separately. 30 fps Drafts only."
+    "selects": "Requires Panel SDK runScript and runShell, selects.media.startFFmpeg and measureAudioPeaks, selects.files.readRange, Project createDraft and duplicateDraft, and Draft insertResource, remove, splitAt and setClipAudio. Where the app accepts a one-frame audio crossfade placed after a cut (applyTransitionPreset with placement), fades are placed as that transition; otherwise as the next clip's fade-in. The analysis is a Python program run through the shell, so Windows and web are not supported. The trained model is not part of this package and is installed separately."
   },
   "localized": {
     "de": {
