@@ -6,8 +6,8 @@ import test from 'node:test';
 const source = fs.readFileSync(new URL('../plugins/talk-audio-cleanup/panel.tsx', import.meta.url), 'utf8');
 // Everything between the imports and the component is plain JavaScript.
 const body = source.slice(source.indexOf('const ID ='), source.indexOf('export default function Panel'));
-const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE } = await import(
-  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE };')
+const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, density } = await import(
+  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, density };')
 );
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const script = (text, selects) => new AsyncFunction('selects', text)(selects);
@@ -227,4 +227,12 @@ test('a place is found in the Draft through the clip that plays it, and in the c
   assert.deepEqual([draftFrame({ resourceId: 'a', start: 12 }, clips), draftFrame({ resourceId: 'b', start: 1 }, clips), draftFrame({ resourceId: 'a', start: 41 }, clips), draftFrame({ resourceId: 'a', start: 30 }, clips)], [60, 330, 630, null]);
   const rows = [{ id: 3, frame: 500, frames: 4, action: 'lower' }, { id: 1, frame: 100, frames: 6, action: 'delete' }, { id: 2, frame: 300, frames: 10, action: 'delete' }, { id: 4, frame: 900, frames: 2, action: 'mute' }];
   assert.deepEqual(inCopy(rows).map((r) => [r.id, r.copyFrame]), [[1, 100], [2, 294], [3, 484], [4, 884]]);
+});
+
+test('the waveform rises from the bottom on one scale, and the overview counts places per slice by kind', () => {
+  // heights for 0, a quarter of the reference, the reference and over it: 0, half (square root), full, full
+  assert.equal(wavePoints([0, 25, 100, 400], 100, 0, 4, 21), '0,21 0.5,21.0 1.5,11.0 2.5,1.0 3.5,1.0 4,21');
+  assert.equal(wavePoints([0, 25, 100, 400], 100, 1, 3, 21), '0,21 0.5,11.0 1.5,1.0 2,21');           // one slice of it
+  const rows = [{ at: 0, rule: 'blemish' }, { at: 10, rule: 'blemish' }, { at: 30, rule: 'breath' }, { at: 99, rule: 'click' }];
+  assert.deepEqual(density(rows, 100, 4), [{ blemish: 2 }, { breath: 1 }, {}, { click: 1 }]);
 });

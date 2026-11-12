@@ -163,7 +163,20 @@ class DecisionRulesTest(unittest.TestCase):
         self.assertAlmostEqual(n / 22050, 2.1, delta=0.01); self.assertAlmostEqual(lo / 22050, 1.0, delta=0.01); self.assertAlmostEqual((hi - lo) / 22050, 0.1, delta=0.01)
         self.assertGreater(np.abs(clip[lo + 50: hi - 50]).min(), 15000); self.assertLess(np.abs(clip[: lo - 200]).max(), 500)   # the loud part is where it says
         self.assertEqual(second['snip'][2], round(0.2 * 22050))                                      # near the start of the file the lead-in is shorter
-        self.assertEqual(len(first['shape']), 64); self.assertGreater(max(first['shape']), 90); self.assertEqual(min(first['shape']), 0)
+        self.assertEqual(len(first['shape']), 160); self.assertTrue(580 <= max(first['shape']) <= 680); self.assertEqual(min(first['shape']), 0)   # linear peaks, 1000 = full scale
+
+    def test_what_falls_short_of_the_bar_is_offered_as_a_suggestion_not_applied(self):
+        n = len(self.pcm) // 1600; P = np.zeros((n, 4), np.float32); P[:, 0] = 1
+        P[20:23] = [0.1, 0.8, 0.05, 0.05]            # a sure cut
+        P[40:42] = [0.85, 0.12, 0.02, 0.01]          # the model leans towards a cut here, below the bar
+        measure = self.analyze.measure
+        self.analyze.measure = lambda pcm, model, columns: (P, np.full(n, 20.0, np.float32), np.full(n, -50.0, np.float32), np.zeros(n, np.float32))
+        try: edl = self.analyze.build(self.pcm, None, [], 0.0)
+        finally: self.analyze.measure = measure
+        tiers = {(round(i['start'] * 30), i['tier'], i['action']) for i in edl['items']}
+        self.assertIn((20, 'sure', 'delete'), tiers); self.assertIn((40, 'maybe', 'delete'), tiers)   # a suggestion keeps the model's own action
+        self.assertEqual(edl['counts']['blemish'], 1); self.assertEqual(edl['suggestions'], sum(t == 'maybe' for _, t, _ in tiers))
+        self.assertEqual(edl['secondsCut'], 0.1)                                                       # only what is applied counts
 
     def test_frame_helpers(self):
         ft = self.features
