@@ -197,7 +197,7 @@ test('reading the Draft keeps 1x Main clips that have a source file', async () =
     }),
   };
   const r = await script(READ('p', 'd'), selects);
-  assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, startFrame: 300, frames: 90, seconds: 3 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4 + 20 / 30, next: 4 + 24 / 30, prevEnd: 4 + 18 / 30 }, { resourceId: 'deep', start: 4 + 50 / 30, next: 4 + 53 / 30, prevEnd: 4 + 50 / 30 - 1 }], isDraft: true, env: { tempDirectory: '/tmp' } });
+  assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, startFrame: 300, frames: 90, seconds: 3 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4 + 20 / 30, next: 4 + 24 / 30, prevEnd: 4 + 18 / 30 }, { resourceId: 'deep', start: 4 + 50 / 30, next: 4 + 53 / 30, prevEnd: 4 + 50 / 30 - 1 }], isDraft: true, sources: [{ resourceId: 'deep', name: 'deep.mp4', seconds: null }], env: { tempDirectory: '/tmp' } });
   selects.project = () => ({ meta: async () => ({ draftIds: ['other'] }), sourceFiles: async () => ({ fileTree: [{ type: 'video', resourceId: 'r0', path: '/m/r0.mp4' }, { type: 'sequence', resourceId: 'seq', path: '/m/seq' }] }) });
   const flat = await script(READ('p', 'd'), selects);
   assert.deepEqual([flat.clips.map((c) => c.resourceId), flat.skipped], [['r0'], 1]);
@@ -281,4 +281,26 @@ test('from source material a new Draft is built first, then edited the same way'
   const { selects: again, log: log2 } = fakeDraft();
   await script(APPLY('p', 'source', 'copy', 'name', [item(20, 3, 'delete', 'blemish', 0.9)], true, FPS, fresh), again);
   assert.deepEqual(log2, ['cut 450-453', 'fade 450']);
+});
+
+test('a source picked in the Panel is read as one clip that plays the whole file, at its own frame rate', async () => {
+  const selects = {
+    files: { environment: async () => ({ tempDirectory: '/tmp' }) },
+    draft: () => { throw Error('the open timeline is not read when a source is picked'); },
+    project: () => ({
+      meta: async () => ({ draftIds: ['d'] }),
+      sourceFiles: async () => ({ fileTree: [{ type: 'video', resourceId: 'r0', name: 'talk.mp4', path: '/m/talk.mp4', durationSeconds: 100, frameRate: 25 }, { type: 'sequence', resourceId: 'seq', path: '/m/seq' }] }),
+      resource: (id) => ({
+        meta: async () => { assert.equal(id, 'r0'); return { fps: 25, name: 'talk' }; },
+        words: async () => [{ text: 'so', startFrame: 0, endFrame: 20 }, { text: '\uc790', startFrame: 50, endFrame: 55 }, { text: 'next', startFrame: 60, endFrame: 80 }],
+      }),
+    }),
+  };
+  const r = await script(READ('p', 'd', 'r0'), selects);
+  assert.deepEqual(r.clips, [{ resourceId: 'r0', path: '/m/talk.mp4', sourceStart: 0, startFrame: 0, frames: 2500, seconds: 100 }]);
+  assert.deepEqual([r.fps, r.name, r.isDraft, r.sources], [25, 'talk.mp4', false, [{ resourceId: 'r0', name: 'talk.mp4', seconds: 100 }]]);
+  assert.deepEqual(r.openers, [{ resourceId: 'r0', start: 2, next: 2.4, prevEnd: 19 / 25 + 1 / 25 }]);
+  // nothing open and nothing picked: only the list of sources comes back
+  const none = await script(READ('p', null), selects);
+  assert.deepEqual([none.clips, none.sources.length], [[], 1]);
 });

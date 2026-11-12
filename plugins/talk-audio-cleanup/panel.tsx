@@ -29,6 +29,9 @@ const STRINGS = {
     introSource: "Finds the small noises between words and makes a new, cleaned Draft from this source. The source is not changed.",
     applyNew: "Make a cleaned Draft",
     pick: "What to clean",
+    target: "Source",
+    open: "The open timeline",
+    noTarget: "Pick a source to clean.",
     pickOne: "Turn on at least one.",
     analyze: "Find what to clean",
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
@@ -97,6 +100,9 @@ const STRINGS = {
     introSource: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544, \uc774 \uc6d0\ubcf8\uc73c\ub85c \uc815\ub9ac\ub41c \uc0c8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc6d0\ubcf8\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     applyNew: "\uc815\ub9ac\ub41c Draft \ub9cc\ub4e4\uae30",
     pick: "\uc815\ub9ac\ud560 \uac83",
+    target: "\uc18c\uc2a4",
+    open: "\uc5f4\ub824 \uc788\ub294 \ud0c0\uc784\ub77c\uc778",
+    noTarget: "\uc815\ub9ac\ud560 \uc18c\uc2a4\ub97c \uace8\ub77c \uc8fc\uc138\uc694.",
     pickOne: "\ud558\ub098 \uc774\uc0c1 \ucf1c \uc8fc\uc138\uc694.",
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
@@ -176,36 +182,50 @@ function resolve(items, on, cutLine, lowerDb) {
   return out;
 }
 
-const READ = (projectId, draftId) => `
-const d = selects.draft(${q(draftId)}), p = selects.project(${q(projectId)});
-const meta = await d.meta();
+// Reads what is to be cleaned: the timeline that is open, or one source file picked in the Panel (`pick`, its
+// resource id), which is then treated as one clip that plays the whole file. Also lists the Project's sources to pick from.
+const READ = (projectId, draftId, pick = null) => `
+const p = selects.project(${q(projectId)}), PICK = ${q(pick)}, OPEN = ${q(draftId)};
 const walk = (n) => n.flatMap((x) => (x.type === "dir" ? walk(x.children) : [x]));
 const overview = await p.sourceFiles();
 const trees = "fileTree" in overview ? [overview.fileTree] : await Promise.all(
   overview.folders.map(async (f) => { const r = await p.sourceFiles({ folder: f.name }); return "fileTree" in r ? r.fileTree : []; }));
 const files = walk(trees.flat());
+const sources = files.filter((x) => x.path && x.resourceId && (x.type === "video" || x.type === "audio")).map((x) => ({ resourceId: x.resourceId, name: x.name ?? x.path.split("/").pop(), seconds: x.durationSeconds ?? null }));
+const env = await selects.files.environment();
+if (!PICK && !OPEN) return { fps: ${FPS}, name: null, clips: [], skipped: 0, openers: [], isDraft: false, sources, env };
+const src = PICK ? p.resource(PICK) : null, d = PICK ? null : selects.draft(OPEN);
 const clips = [];
-let skipped = 0;
-for (const r of await d.clips()) {
-  if (r.trackKind !== "main" || r.resourceId == null || r.sourceStartSeconds == null) continue;
-  const f = files.find((x) => x.resourceId === r.resourceId);
-  if (!f?.path || f.type === "sequence") continue;
-  if (r.playbackSpeed && r.playbackSpeed.numerator !== r.playbackSpeed.denominator) { skipped++; continue; }
-  clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, startFrame: r.startFrame, frames: r.endFrame - r.startFrame, seconds: (r.endFrame - r.startFrame) / meta.fps });
+let skipped = 0, fps, name;
+if (src) {
+  const f = files.find((x) => x.resourceId === PICK), meta = await src.meta().catch(() => null);
+  fps = meta?.fps ?? f?.frameRate ?? ${FPS}; name = f?.name ?? meta?.name ?? null;
+  const seconds = f?.durationSeconds ?? meta?.durationSeconds ?? 0;
+  if (f?.path && seconds > 0) clips.push({ resourceId: PICK, path: f.path, sourceStart: 0, startFrame: 0, frames: Math.round(seconds * fps), seconds });
+} else if (d) {
+  const meta = await d.meta();
+  fps = meta.fps; name = meta.name ?? null;
+  for (const r of await d.clips()) {
+    if (r.trackKind !== "main" || r.resourceId == null || r.sourceStartSeconds == null) continue;
+    const f = files.find((x) => x.resourceId === r.resourceId);
+    if (!f?.path || f.type === "sequence") continue;
+    if (r.playbackSpeed && r.playbackSpeed.numerator !== r.playbackSpeed.denominator) { skipped++; continue; }
+    clips.push({ resourceId: r.resourceId, path: f.path, sourceStart: r.sourceStartSeconds, startFrame: r.startFrame, frames: r.endFrame - r.startFrame, seconds: (r.endFrame - r.startFrame) / fps });
+  }
 }
 // A lone opening word: where it, the next word and the previous one sit in the source (seconds), read through the clip that plays them.
 const openers = [];
-const ws = (await d.words().catch(() => [])).filter((w) => !w.nonSpeech && (w.text ?? "").trim()); // pauses are rows too; neighbours here are spoken words
-const at = (frame) => { const c = clips.find((x) => frame >= x.startFrame && frame < x.startFrame + x.frames); return c ? { c, t: c.sourceStart + (frame - c.startFrame) / meta.fps } : null; };
+const ws = (src ? await src.words().catch(() => []) : d ? await d.words().catch(() => []) : []).filter((w) => !w.nonSpeech && (w.text ?? "").trim()); // pauses are rows too; neighbours here are spoken words
+const at = (frame) => { const c = clips.find((x) => frame >= x.startFrame && frame < x.startFrame + x.frames); return c ? { c, t: c.sourceStart + (frame - c.startFrame) / fps } : null; };
 ws.forEach((w, i) => {
   if (!/^\\uc790[.,!?~]*$/.test(w.text.trim())) return;
   const me = at(w.startFrame), nx = ws[i + 1] && at(ws[i + 1].startFrame), pv = ws[i - 1] && at(ws[i - 1].endFrame - 1);
   if (!me || nx?.c !== me.c) return;
-  openers.push({ resourceId: me.c.resourceId, start: me.t, next: nx.t, prevEnd: pv?.c === me.c ? pv.t + 1 / meta.fps : me.t - 1 });
+  openers.push({ resourceId: me.c.resourceId, start: me.t, next: nx.t, prevEnd: pv?.c === me.c ? pv.t + 1 / fps : me.t - 1 });
 });
-// The copy is made by duplicating what is open, and only a project Draft can be duplicated (a stringout or a synced timeline cannot).
-const isDraft = ((await p.meta()).draftIds ?? []).includes(${q(draftId)});
-return { fps: meta.fps, name: meta.name ?? null, clips, skipped, openers, isDraft, env: await selects.files.environment() };`;
+// A copy is made by duplicating what is open, and only a project Draft can be duplicated; from anything else a new Draft is built.
+const isDraft = !PICK && ((await p.meta()).draftIds ?? []).includes(OPEN);
+return { fps, name, clips, skipped, openers, isDraft, sources, env };`;
 
 // The stretches of source audio to analyze: each source's clips, joined when they sit within 10 s of each
 // other, so a Draft that uses two far-apart parts of a long recording does not decode what lies between.
@@ -340,6 +360,13 @@ const STYLE = `
 .tac .tac-kind { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px; align-items: center; padding: 9px 12px; border: 0; border-top: 1px solid var(--panel-border); border-radius: 0; background: none; text-align: left; }
 .tac .tac-kind:first-child { border-top: 0; }
 .tac-kind b { font-weight: 500; }
+.tac .tac-src { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border: 0; border-top: 1px solid var(--panel-border); border-radius: 0; background: none; text-align: left; }
+.tac .tac-src:first-child { border-top: 0; }
+.tac-src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tac-src small { color: var(--panel-muted-fg); font-size: 12px; }
+.tac-src i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--panel-muted-fg); }
+.tac-src[aria-checked="true"] i { box-shadow: inset 0 0 0 4px var(--key); }
+.tac-srcs { max-height: 188px; overflow-y: auto; }
 .tac-kind small { color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
 .tac-kind .tac-sw { grid-row: 1 / span 2; grid-column: 2; }
 .tac-kind[aria-checked="false"] b, .tac-kind[aria-checked="false"] small { opacity: .5; }
@@ -441,6 +468,7 @@ export default function Panel({ sdk, context, ui }) {
   const sound = useRef({ ctx: null, src: null, clips: new Map() });
   const lane = useRef(null), geo = useRef(null), drag = useRef(null);
   const { projectId, sequenceId } = context;
+  const [target, setTarget] = useState(null); // a source file picked in the Panel (its resource id), or null for the open timeline
 
   const run = async (summary, script, allowCommit = false) => {
     const r = await sdk.runScript({ summary, script, allowCommit });
@@ -461,22 +489,27 @@ export default function Panel({ sdk, context, ui }) {
 
   const applying = useRef(false), shown = useRef(sequenceId);
   shown.current = sequenceId;
-  useEffect(() => {
-    if (applying.current) return; // the host opens the copy while it is being made; that is the same job, not a new Draft to start over on
+  // Read what is to be cleaned and start over on it: the open timeline, or a source picked here.
+  const load = (pick) => {
     const mine = ++token.current, live = () => mine === token.current;
     hush(); dropWork();
-    setInfo(null); setItems(null); setResult(null); setError(null); setBusy(null); reset();
-    if (!projectId || !sequenceId) return;
+    setInfo((old) => (old?.sources ? { fps: FPS, name: null, clips: [], skipped: 0, openers: [], isDraft: false, sources: old.sources, env: old.env, pending: true } : null));
+    setItems(null); setResult(null); setError(null); setBusy(null); reset(); setTarget(pick);
+    if (!projectId) return;
     setBusy("read");
-    run("Read the Draft's Main clips", READ(projectId, sequenceId))
+    run("Read what is to be cleaned", READ(projectId, sequenceId ?? null, pick))
       .then((r) => live() && setInfo(r))
       .catch((e) => live() && setError(String(e.message || e)))
       .finally(() => live() && setBusy(null));
+  };
+  useEffect(() => {
+    if (applying.current) return; // the host opens the copy while it is being made; that is the same job, not a new Draft to start over on
+    load(null);
     return () => { if (!applying.current) token.current++; };
   }, [projectId, sequenceId]);
   useEffect(() => () => { hush(); dropWork(); }, []);
 
-  const blocked = !info ? null : context.platform === "web" ? t.unsupported.web : info.clips.length === 0 ? t.unsupported.none : null;
+  const blocked = !info || info.pending ? null : context.platform === "web" ? t.unsupported.web : info.clips.length === 0 ? (target || sequenceId ? t.unsupported.none : t.noTarget) : null;
   const fps = info?.fps ?? FPS; // the Draft's own frame rate: every Draft frame below is counted at it
   // Source material cannot be duplicated, so a new Draft is built from the same stretches of the source.
   const fresh = info && info.isDraft === false ? [...info.clips].sort((a, b) => a.startFrame - b.startFrame).map((c) => ({ resourceId: c.resourceId, start: c.sourceStart, end: c.sourceStart + secs(c) })) : null;
@@ -711,11 +744,11 @@ export default function Panel({ sdk, context, ui }) {
       applying.current = false;
       if (live()) { setBusy(null); setProgress(null); setShow(null); setFinishing(false); }
       // The Draft on screen is now the copy: show its clips, keep the result.
-      if (live() && shown.current && shown.current !== sequenceId) run("Read the Draft's Main clips", READ(projectId, shown.current)).then((r) => live() && setInfo(r)).catch(() => {});
+      if (live() && shown.current && shown.current !== sequenceId) { setTarget(null); run("Read the Draft's Main clips", READ(projectId, shown.current)).then((r) => live() && setInfo(r)).catch(() => {}); }
     }
   }
 
-  if (!projectId || !sequenceId) return <ui.Message>{t.noDraft}</ui.Message>;
+  if (!projectId) return <ui.Message>{t.noDraft}</ui.Message>;
 
   const label = (act) => (act === "delete" ? t.act.delete : act === "mute" ? t.act.mute : act === "lower" ? t.act.lower(LOWER_DB) : t.act.leave);
   const mmss = (frames) => { const s = Math.floor(frames / fps); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -800,7 +833,7 @@ export default function Panel({ sdk, context, ui }) {
                         </button>
                       );
                     })}
-                    <button type="button" className="tac-btn quiet" onClick={() => jump(r)}>{t.show}</button>
+                    {(result || !target) && <button type="button" className="tac-btn quiet" onClick={() => jump(r)}>{t.show}</button>}
                   </div>
                 </div>
               )}
@@ -844,7 +877,9 @@ export default function Panel({ sdk, context, ui }) {
     );
   })();
 
-  const start = info && !blocked && !items && busy !== "analyze";
+  const start = info && !info.pending && !blocked && !items && busy !== "analyze";
+  const choosing = info && !items && busy !== "analyze" && busy !== "apply" && !result; // the source can be changed until the analysis starts
+  const length = (seconds) => (seconds == null ? "" : `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`);
   const found = items && items.length > 0 && !result && busy !== "apply";
   return (
     <ui.Stack gap={16}>
@@ -852,13 +887,32 @@ export default function Panel({ sdk, context, ui }) {
       <ui.Section title={t.title}>
         <div className="tac">
           {busy === "read" && <ui.Skeleton width="60%" />}
-          {info && <p className="tac-sub"><strong>{result ? result.name : info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
+          {info && !info.pending && info.clips.length > 0 && <p className="tac-sub"><strong>{result ? result.name : info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
           {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
           {start && <p className="tac-note">{fresh ? t.introSource : t.intro}</p>}
           {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
           {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage0} />}
         </div>
       </ui.Section>
+
+      {choosing && (info.sources?.length > 0 || sequenceId) && (
+        <ui.Section title={t.target}>
+          <div className="tac">
+            <div className="tac-kinds tac-srcs" role="radiogroup" aria-label={t.target}>
+              {sequenceId && (
+                <button type="button" role="radio" aria-checked={!target} className="tac-src" onClick={() => target && load(null)}>
+                  <i /><span>{t.open}</span><small />
+                </button>
+              )}
+              {(info.sources ?? []).map((f) => (
+                <button key={f.resourceId} type="button" role="radio" aria-checked={target === f.resourceId} className="tac-src" onClick={() => target !== f.resourceId && load(f.resourceId)}>
+                  <i /><span>{f.name}</span><small>{length(f.seconds)}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        </ui.Section>
+      )}
 
       {start && (
         <ui.Section title={t.pick}>

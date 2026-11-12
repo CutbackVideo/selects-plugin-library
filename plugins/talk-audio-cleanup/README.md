@@ -16,10 +16,10 @@ It works on a copy of the open Draft. The original Draft is not changed.
 
 ## How it works
 
-1. Open what you want cleaned and open **Talk Audio Cleanup**: a Draft, or the
-   source itself (its own timeline). From a Draft it makes a cleaned copy;
-   from a source it makes a new, cleaned Draft, since source material cannot
-   be copied.
+1. Open **Talk Audio Cleanup** and choose the source at the top: the timeline
+   that is open, or one of the Project's video or audio files. From a Draft it
+   makes a cleaned copy; from a source file or a source timeline it makes a
+   new, cleaned Draft, since source material cannot be copied.
 2. Pick what to clean (each kind has a switch) and press **Find what to
    clean**. It decodes the Main clips' audio with the app's FFmpeg and runs
    `engine/analyze.py` on this computer. Nothing is uploaded and no credits are
