@@ -30,9 +30,6 @@ def inspect(name, data):
     if name == 'plugins/selects-ai-runtime/models/light-asd-ava.onnx':
         valid = len(data) == 4106136 and hashlib.sha256(data).hexdigest() == 'dfc69dc7c138cdd67ad1ee9b107808b17c142a21d641e2fa06260012d294fa63'
         return [] if valid else ['Unrecognized bundled speaker model']
-    if name == 'plugins/talk-audio-cleanup/engine/model.joblib':
-        valid = len(data) == 3498895 and hashlib.sha256(data).hexdigest() == 'e103bf2db323c989918a8c5ff38c3538d150c66a8301fea46bf1874eda95aec3'
-        return [] if valid else ['Unrecognized bundled cleanup model']
     # Only canonical, bounded gallery assets are permitted as public binaries:
     # the plugin's own, or one variant's (`preview-<id>.mp4`, `poster-<id>.webp`).
     slug = r'[a-z0-9]+(?:-[a-z0-9]+)*'
