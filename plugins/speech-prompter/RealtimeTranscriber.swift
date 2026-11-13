@@ -78,13 +78,13 @@ final class Transcriber: @unchecked Sendable {
         case .notDetermined: granted=await AVCaptureDevice.requestAccess(for:.audio)
         default: granted=false
         }
-        guard granted else { throw NSError(domain:"Prompter",code:1,userInfo:[NSLocalizedDescriptionKey:"마이크 권한이 없습니다. 시스템 설정 → 개인정보 보호 및 보안 → 마이크를 확인하세요."]) }
+        guard granted else { throw NSError(domain:"Prompter",code:1,userInfo:[NSLocalizedDescriptionKey:"\u{b9c8}\u{c774}\u{d06c} \u{ad8c}\u{d55c}\u{c774} \u{c5c6}\u{c2b5}\u{b2c8}\u{b2e4}. \u{c2dc}\u{c2a4}\u{d15c} \u{c124}\u{c815} → \u{ac1c}\u{c778}\u{c815}\u{bcf4} \u{bcf4}\u{d638} \u{bc0f} \u{bcf4}\u{c548} → \u{b9c8}\u{c774}\u{d06c}\u{b97c} \u{d655}\u{c778}\u{d558}\u{c138}\u{c694}."]) }
         let node=engine.inputNode
         let input=node.outputFormat(forBus:0)
         guard input.sampleRate > 0, input.channelCount > 0,
               let output=AVAudioFormat(commonFormat:.pcmFormatFloat32,sampleRate:24000,channels:1,interleaved:false),
               let converter=AVAudioConverter(from:input,to:output) else {
-            throw NSError(domain:"Prompter",code:2,userInfo:[NSLocalizedDescriptionKey:"마이크 입력 장치를 찾지 못했습니다."])
+            throw NSError(domain:"Prompter",code:2,userInfo:[NSLocalizedDescriptionKey:"\u{b9c8}\u{c774}\u{d06c} \u{c785}\u{b825} \u{c7a5}\u{ce58}\u{b97c} \u{cc3e}\u{c9c0} \u{babb}\u{d588}\u{c2b5}\u{b2c8}\u{b2e4}."])
         }
         node.installTap(onBus:0,bufferSize:2048,format:input) { buffer,_ in
             let count=AVAudioFrameCount(ceil(Double(buffer.frameLength)*24000/input.sampleRate))+64
@@ -130,9 +130,9 @@ final class Transcriber: @unchecked Sendable {
         signalSource=DispatchSource.makeSignalSource(signal:SIGTERM,queue:.global())
         signalSource?.setEventHandler { self.finish() }; signalSource?.resume()
         state("starting")
-        DispatchQueue.global().asyncAfter(deadline:.now()+18) { if !self.ready { self.finish("OpenAI 연결 시간이 초과되었습니다.",code:1) } }
+        DispatchQueue.global().asyncAfter(deadline:.now()+18) { if !self.ready { self.finish("OpenAI \u{c5f0}\u{acb0} \u{c2dc}\u{ac04}\u{c774} \u{cd08}\u{acfc}\u{b418}\u{c5c8}\u{c2b5}\u{b2c8}\u{b2e4}.",code:1) } }
         do {
-            guard let key=ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !key.isEmpty else { finish("OPENAI_API_KEY를 찾지 못했습니다.",code:1) }
+            guard let key=ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !key.isEmpty else { finish("OPENAI_API_KEY\u{b97c} \u{cc3e}\u{c9c0} \u{babb}\u{d588}\u{c2b5}\u{b2c8}\u{b2e4}.",code:1) }
             var request=URLRequest(url:URL(string:"wss://api.openai.com/v1/realtime?intent=transcription")!)
             request.setValue("Bearer \(key)",forHTTPHeaderField:"Authorization")
             session=URLSession(configuration:.ephemeral)
@@ -146,7 +146,7 @@ final class Transcriber: @unchecked Sendable {
             if mode == "probe" { state("verified"); print("OpenAI realtime session verified"); exit(0) }
             if mode != "test" { try await setupMicrophone() }
             state("listening")
-            Task { do { while self.alive { self.handle(try await self.receive()) } } catch { self.finish("OpenAI 연결이 종료되었습니다: \(error.localizedDescription)",code:1) } }
+            Task { do { while self.alive { self.handle(try await self.receive()) } } catch { self.finish("OpenAI \u{c5f0}\u{acb0}\u{c774} \u{c885}\u{b8cc}\u{b418}\u{c5c8}\u{c2b5}\u{b2c8}\u{b2e4}: \(error.localizedDescription)",code:1) } }
             if mode == "test", let path=testPath {
                 let file=try AVAudioFile(forReading:URL(fileURLWithPath:path),commonFormat:.pcmFormatInt16,interleaved:true)
                 guard file.processingFormat.sampleRate == 24000, file.processingFormat.channelCount == 1 else { finish("Test input must be mono 24kHz PCM",code:1) }
@@ -159,17 +159,17 @@ final class Transcriber: @unchecked Sendable {
                 }
                 if sampleCount > 2400 { try await send(["type":"input_audio_buffer.commit"]) }
                 for _ in 0..<200 { if finishedTest && !heard.isEmpty { print("Transcription test passed"); finish() }; try await Task.sleep(nanoseconds:100_000_000) }
-                finish("전사 테스트 시간 초과",code:1)
+                finish("\u{c804}\u{c0ac} \u{d14c}\u{c2a4}\u{d2b8} \u{c2dc}\u{ac04} \u{cd08}\u{acfc}",code:1)
             }
             var pings=0
             while alive {
                 let bytes=drainAudio()
                 try await append(bytes)
                 pings+=1
-                if pings%200 == 0 { socket.sendPing { error in if error != nil { self.finish("OpenAI 연결이 끊겼습니다.",code:1) } } }
+                if pings%200 == 0 { socket.sendPing { error in if error != nil { self.finish("OpenAI \u{c5f0}\u{acb0}\u{c774} \u{b04a}\u{acbc}\u{c2b5}\u{b2c8}\u{b2e4}.",code:1) } } }
                 try await Task.sleep(nanoseconds:100_000_000)
             }
-            finish("네트워크가 오디오 전송 속도를 따라가지 못했습니다. 다시 시작하세요.",code:1)
+            finish("\u{b124}\u{d2b8}\u{c6cc}\u{d06c}\u{ac00} \u{c624}\u{b514}\u{c624} \u{c804}\u{c1a1} \u{c18d}\u{b3c4}\u{b97c} \u{b530}\u{b77c}\u{ac00}\u{c9c0} \u{babb}\u{d588}\u{c2b5}\u{b2c8}\u{b2e4}. \u{b2e4}\u{c2dc} \u{c2dc}\u{c791}\u{d558}\u{c138}\u{c694}.",code:1)
         } catch { finish(error.localizedDescription,code:1) }
     }
 }
