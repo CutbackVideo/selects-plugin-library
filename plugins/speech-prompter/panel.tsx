@@ -15,7 +15,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     keyHelp: "\uc774 Mac\uc5d0\ub9cc \uc800\uc7a5\ud569\ub2c8\ub2e4. \uc74c\uc131\uc740 OpenAI\ub85c \uc804\uc1a1\ub418\uba70 API \uc694\uae08\uc774 \ubc1c\uc0dd\ud569\ub2c8\ub2e4.",
     keySaved: "\ud0a4\ub97c \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4. \uc2dc\uc791 \uc2dc \uc2e4\uc81c \uc5f0\uacb0\uc744 \ud655\uc778\ud569\ub2c8\ub2e4.",
     keyRemoved: "\uc800\uc7a5\ud55c \ud0a4\ub97c \uc0ad\uc81c\ud588\uc2b5\ub2c8\ub2e4. \ud658\uacbd \ubcc0\uc218\uc758 \ud0a4\uac00 \uc788\uc73c\uba74 \uc0ac\uc6a9\ud569\ub2c8\ub2e4.",
-    keyFailed: "\ud0a4\ub97c \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. sk-\ub85c \uc2dc\uc791\ud558\ub294 \ud0a4\uc640 \uc124\uce58 \uc0c1\ud0dc\ub97c \ud655\uc778\ud558\uc138\uc694.",
+    keyFailed: "\ud0a4 \uc800\uc7a5 \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \ud328\ub110\uc744 \ub2e4\uc2dc \uc5f4\uace0 \uc2dc\ub3c4\ud558\uc138\uc694.",
     invalidKey: "\ud0a4 \ud615\uc2dd\uc744 \ud655\uc778\ud558\uc138\uc694.",
 
     script: "\uc2a4\ud06c\ub9bd\ud2b8",
@@ -59,7 +59,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     keyHelp: "Saved only on this Mac. Audio is sent to OpenAI and API charges apply.",
     keySaved: "Key saved. Start verifies the live connection.",
     keyRemoved: "Saved key removed. Environment keys remain available.",
-    keyFailed: "Could not save key. Check the sk- key and plugin installation.",
+    keyFailed: "Could not save the key. Reopen the panel and try again.",
     invalidKey: "Check key format.",
 
     script: "Script",
@@ -247,15 +247,18 @@ export default function Panel({ sdk, context, ui }: any) {
   );
 
   const saveKey = async (remove = false) => {
+    if (!remove && !/^sk-[A-Za-z0-9_-]+$/.test(apiKey.trim())) {
+      setMsg({tone: "error", text: t.invalidKey});
+      return;
+    }
     setKeyBusy(true);
     setMsg(null);
     try {
-      if (!remove && !/^sk-[A-Za-z0-9_-]+$/.test(apiKey.trim())) throw new Error(t.invalidKey);
       if (remove) await runBridge("delete-key", "Remove saved OpenAI key");
       else {
         await runBridge("prepare-key", "Prepare private credential file");
         const path = bridgeRef.current!.replace(/bridge\.py$/, "api-key");
-        const result = await sdk.runScript({summary: "Save OpenAI API key locally", script: `await selects.files.writeChunk(${JSON.stringify({path, offset: 0, base64: btoa(apiKey.trim())})}); return true;`});
+        const result = await sdk.runScript({summary: "Save OpenAI API key locally", allowCommit: true, script: `await selects.files.writeChunk(${JSON.stringify({path, offset: 0, base64: btoa(apiKey.trim())})}); return true;`});
         if (result.isError) throw new Error(t.keyFailed);
       }
       setApiKey("");
