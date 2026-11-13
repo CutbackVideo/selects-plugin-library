@@ -258,3 +258,87 @@ test('sparse face decoding preserves exact RGB, indices and times across B-frame
     }
   }
 });
+
+test('speaker video streaming preserves each independently sought RGB window', { skip: !configPath }, async () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const { speakerWindows } = require('../tasks/speakers-detect.cjs');
+  const source = path.join(directory, 'speaker-stream.mp4');
+  const variable = path.join(directory, 'speaker-stream-vfr.mp4');
+  const shifted = path.join(directory, 'speaker-stream-offset.mp4');
+  const rotated = path.join(directory, 'speaker-stream-rotated.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=64x32:r=30000/1001:d=10', '-c:v', 'libx264', '-g', '80', '-bf', '3', source]);
+  await ffmpeg(['-i', source, '-vf', 'select=not(eq(mod(n\\,7)\\,0))', '-fps_mode', 'vfr', '-c:v', 'libx264', variable]);
+  await ffmpeg(['-i', source, '-c', 'copy', '-output_ts_offset', '5', shifted]);
+  await ffmpeg(['-display_rotation', '90', '-i', source, '-c', 'copy', rotated]);
+  for (const filename of [source, variable, shifted, rotated]) {
+    const input = { ...request(filename, 0.137, 8.04), task: 'speakers.detect' };
+    const signal = new AbortController().signal;
+    const video = await probeVideo(config, input, signal);
+    assert.equal(video.singleMp4Video, true);
+    const seek = start => start + video.timestampOriginSeconds - video.formatStartTime;
+    const windows = speakerWindows(input.input.sourceRange);
+    const stream = startSpeakerVideo({ executable: config.tools.ffmpeg, source: filename, windows, seek, width: 64, height: 32, signal });
+    try {
+      for (const { start, duration } of windows) {
+        const { stdout } = await ffmpeg(['-ss', String(seek(start)), '-i', filename, '-t', String(duration), '-an',
+          '-vf', 'fps=25:start_time=0,scale=64:32', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1']);
+        assert.deepEqual(await stream.read(duration), stdout, filename);
+      }
+      await stream.finish();
+    } finally {
+      await stream.close();
+    }
+  }
+});
+
+test('speaker video stream aborts a live decoder between windows', { skip: !configPath }, async () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const source = path.join(directory, 'speaker-stream-abort.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=128x72:r=25:d=7', '-c:v', 'libx264', source]);
+  const controller = new AbortController();
+  const windows = [{ start: 0, duration: 3 }, { start: 3, duration: 3 }];
+  const stream = startSpeakerVideo({ executable: config.tools.ffmpeg, source, windows,
+    seek: start => start, width: 128, height: 72, signal: controller.signal });
+  try {
+    await stream.read(3);
+    controller.abort();
+    await assert.rejects(stream.read(3), { name: 'AbortError' });
+  } finally {
+    await stream.close();
+  }
+});
+
+test('speaker audio decodes once and keeps sample positions across model windows', { skip: !configPath }, async () => {
+  const { decodeSpeakerAudio } = require('../lib/speaker-audio-decode.cjs');
+  const { speakerWindows } = require('../tasks/speakers-detect.cjs');
+  const source = path.join(directory, 'speaker-audio.wav');
+  await ffmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000:duration=7', '-c:a', 'pcm_s16le', source]);
+  const windows = speakerWindows({ startSeconds: 0.125, endSeconds: 6.125 });
+  const metrics = {};
+  const decoded = await decodeSpeakerAudio({ executable: config.tools.ffmpeg, source, windows,
+    seek: time => time, signal: new AbortController().signal, metrics });
+  assert.equal(metrics.audioDecode.spawned, 1);
+  for (const [i, { start, duration }] of windows.entries()) {
+    const { stdout } = await ffmpeg(['-ss', String(start), '-i', source, '-t', String(duration),
+      '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1']);
+    assert.equal(decoded[i].length, 96_000);
+    assert.deepEqual(decoded[i], stdout);
+  }
+});
+
+test('speaker audio refuses delayed and discontinuous audio timelines', { skip: !configPath }, async () => {
+  const { decodeSpeakerAudio } = require('../lib/speaker-audio-decode.cjs');
+  const { speakerWindows } = require('../tasks/speakers-detect.cjs');
+  const windows = speakerWindows({ startSeconds: 0, endSeconds: 6 });
+  for (const [name, args] of [
+    ['late', ['-itsoffset', '0.25']],
+    ['gap', []],
+  ]) {
+    const source = path.join(directory, `speaker-audio-${name}.mkv`);
+    await ffmpeg(['-i', base, ...args, '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000:duration=7',
+      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'pcm_s16le',
+      ...(name === 'gap' ? ['-af', 'aselect=not(between(t\\,2\\,2.4))'] : []), source]);
+    await assert.rejects(decodeSpeakerAudio({ executable: config.tools.ffmpeg, source, windows,
+      seek: time => time, signal: new AbortController().signal }), /continuous sample timeline/);
+  }
+});

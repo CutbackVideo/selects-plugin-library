@@ -3,7 +3,7 @@ const { spawn } = require('node:child_process');
 const { throwIfAborted } = require('./errors.cjs');
 const { observeTool } = require('./tool-timings.cjs');
 
-function startTool(executable, args, { signal, onSpawn, stdin = false, limit = 64 * 1024 * 1024, metrics, operation } = {}) {
+function startTool(executable, args, { signal, onSpawn, onStderr, stdin = false, limit = 64 * 1024 * 1024, metrics, operation } = {}) {
   throwIfAborted(signal);
   const timing = observeTool(metrics, operation, signal);
   let child;
@@ -12,7 +12,10 @@ function startTool(executable, args, { signal, onSpawn, stdin = false, limit = 6
   timing?.attach(child);
   onSpawn?.(child.pid);
   let stderr = '';
-  child.stderr.on('data', bytes => { stderr = (stderr + bytes.toString()).slice(-8192); });
+  child.stderr.on('data', bytes => {
+    stderr = (stderr + bytes.toString()).slice(-8192);
+    onStderr?.(bytes);
+  });
   const abort = () => child.kill('SIGKILL');
   signal?.addEventListener('abort', abort, { once: true });
   const completed = new Promise((resolve, reject) => {
@@ -30,7 +33,7 @@ function startTool(executable, args, { signal, onSpawn, stdin = false, limit = 6
   return { child, completed, limit };
 }
 
-async function collectTool(executable, args, options) {
+async function collectToolBytes(executable, args, options) {
   const process = startTool(executable, args, options);
   let length = 0;
   const chunks = [];
@@ -41,7 +44,7 @@ async function collectTool(executable, args, options) {
       chunks.push(bytes);
     }
     await process.completed;
-    return Buffer.concat(chunks).toString('utf8');
+    return Buffer.concat(chunks);
   } finally {
     // A metadata bound/read error must finish reaping its own process before
     // returning. Close unread stdout before awaiting the ChildProcess close.
@@ -50,4 +53,8 @@ async function collectTool(executable, args, options) {
     await process.completed.catch(() => {});
   }
 }
-module.exports = { startTool, collectTool };
+async function collectTool(executable, args, options) {
+  return (await collectToolBytes(executable, args, options)).toString('utf8');
+}
+
+module.exports = { startTool, collectTool, collectToolBytes };
