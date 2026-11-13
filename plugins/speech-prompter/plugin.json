@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "speech-prompter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Voice-Following Teleprompter",
   "summary": "Follow a script with voice tracking or fixed-speed scrolling on macOS.",
   "status": "experimental",

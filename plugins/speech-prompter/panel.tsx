@@ -10,6 +10,14 @@ import React from "react";
 
 const STRINGS: Record<string, Record<string, string>> = {
   ko: {
+    saveKey: "\ud0a4 \uc800\uc7a5",
+    removeKey: "\uc800\uc7a5\ud55c \ud0a4 \uc0ad\uc81c",
+    keyHelp: "\uc774 Mac\uc5d0\ub9cc \uc800\uc7a5\ud569\ub2c8\ub2e4. \uc74c\uc131\uc740 OpenAI\ub85c \uc804\uc1a1\ub418\uba70 API \uc694\uae08\uc774 \ubc1c\uc0dd\ud569\ub2c8\ub2e4.",
+    keySaved: "\ud0a4\ub97c \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4. \uc2dc\uc791 \uc2dc \uc2e4\uc81c \uc5f0\uacb0\uc744 \ud655\uc778\ud569\ub2c8\ub2e4.",
+    keyRemoved: "\uc800\uc7a5\ud55c \ud0a4\ub97c \uc0ad\uc81c\ud588\uc2b5\ub2c8\ub2e4. \ud658\uacbd \ubcc0\uc218\uc758 \ud0a4\uac00 \uc788\uc73c\uba74 \uc0ac\uc6a9\ud569\ub2c8\ub2e4.",
+    keyFailed: "\ud0a4\ub97c \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. sk-\ub85c \uc2dc\uc791\ud558\ub294 \ud0a4\uc640 \uc124\uce58 \uc0c1\ud0dc\ub97c \ud655\uc778\ud558\uc138\uc694.",
+    invalidKey: "\ud0a4 \ud615\uc2dd\uc744 \ud655\uc778\ud558\uc138\uc694.",
+
     script: "\uc2a4\ud06c\ub9bd\ud2b8",
     placeholder: "\uc5ec\uae30\uc5d0 \uc77d\uc744 \uc2a4\ud06c\ub9bd\ud2b8\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694.",
     display: "\ud654\uba74",
@@ -39,13 +47,21 @@ const STRINGS: Record<string, Record<string, string>> = {
     privacy: "\uc2dc\uc791\ud558\uba74 \ub9c8\uc774\ud06c \uc74c\uc131\uc774 \uc678\ubd80 \uc74c\uc131 \uc778\uc2dd \uc11c\ube44\uc2a4\ub85c \uc804\uc1a1\ub429\ub2c8\ub2e4.",
     checking: "\uc74c\uc131 \uc778\uc2dd \ud655\uc778 \uc911…",
     noBinary: "\uc74c\uc131 \uc778\uc2dd \uc2e4\ud589 \ud30c\uc77c\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694.",
-    noModel: "\ub85c\uceec \uc74c\uc131 \uc778\uc2dd API \ud0a4\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694.",
+    noModel: "\uc544\ub798\uc5d0\uc11c OpenAI API \ud0a4\ub97c \uc124\uc815\ud558\uc138\uc694.",
     noBridge: "\uc74c\uc131 \uc778\uc2dd \uc5f0\uacb0 \ud30c\uc77c\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694.",
     failed: "\uc74c\uc131 \uc778\uc2dd\uc774 \uba48\ucdc4\uc5b4\uc694.",
     hint: "\ub2e8\uc5b4\ub97c \ub204\ub974\uba74 \uadf8 \uc704\uce58\ub85c \uc774\ub3d9\ud574\uc694. ↑↓ \ud0a4\ub85c \ud55c \uc904\uc529 \uc62e\uae38 \uc218 \uc788\uc5b4\uc694.",
     done: "\uc2a4\ud06c\ub9bd\ud2b8 \ub05d",
   },
   en: {
+    saveKey: "Save key",
+    removeKey: "Remove saved key",
+    keyHelp: "Saved only on this Mac. Audio is sent to OpenAI and API charges apply.",
+    keySaved: "Key saved. Start verifies the live connection.",
+    keyRemoved: "Saved key removed. Environment keys remain available.",
+    keyFailed: "Could not save key. Check the sk- key and plugin installation.",
+    invalidKey: "Check key format.",
+
     script: "Script",
     placeholder: "Paste the script you will read here.",
     display: "Display",
@@ -75,7 +91,7 @@ const STRINGS: Record<string, Record<string, string>> = {
     privacy: "Starting sends microphone audio to an external speech recognition service.",
     checking: "Checking speech recognition…",
     noBinary: "The speech recognition helper was not found.",
-    noModel: "No local speech recognition API key was found.",
+    noModel: "Enter your OpenAI API key below.",
     noBridge: "The speech recognition bridge file was not found.",
     failed: "Speech recognition stopped.",
     hint: "Click a word to jump there. Use ↑↓ to move a line.",
@@ -176,6 +192,8 @@ function shQuote(s: string) {
 export default function Panel({ sdk, context, ui }: any) {
   const t = STRINGS[context?.language] ?? STRINGS.en;
 
+  const [apiKey, setApiKey] = React.useState("");
+  const [keyBusy, setKeyBusy] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
   const [script, setScript] = React.useState("");
   const [fontSize, setFontSize] = React.useState(64);
@@ -227,6 +245,26 @@ export default function Panel({ sdk, context, ui }: any) {
     },
     [sdk, t],
   );
+
+  const saveKey = async (remove = false) => {
+    setKeyBusy(true);
+    setMsg(null);
+    try {
+      if (!remove && !/^sk-[A-Za-z0-9_-]+$/.test(apiKey.trim())) throw new Error(t.invalidKey);
+      if (remove) await runBridge("delete-key", "Remove saved OpenAI key");
+      else {
+        await runBridge("prepare-key", "Prepare private credential file");
+        const path = bridgeRef.current!.replace(/bridge\.py$/, "api-key");
+        const result = await sdk.runScript({summary: "Save OpenAI API key locally", script: `await selects.files.writeChunk(${JSON.stringify({path, offset: 0, base64: btoa(apiKey.trim())})}); return true;`});
+        if (result.isError) throw new Error(t.keyFailed);
+      }
+      setApiKey("");
+      const c = await runBridge("check", "Check speech recognition setup");
+      setEngineState(!c.binary ? "noBinary" : !c.model ? "noModel" : "ready");
+      setMsg({text: remove ? t.keyRemoved : t.keySaved});
+    } catch { setMsg({tone: "error", text: t.keyFailed}); }
+    finally { setKeyBusy(false); }
+  };
 
   // ---- Locate the recognition bridge and check it is ready ------------------------
   React.useEffect(() => {
@@ -507,6 +545,14 @@ export default function Panel({ sdk, context, ui }: any) {
             <>
               <ui.Select label={t.lang} value={lang} onChange={setLang} options={LANGS} />
               <small>{t[engineState]}</small>
+              <label>OpenAI API key
+                <input type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." disabled={keyBusy} style={{width: "100%", boxSizing: "border-box"}} />
+              </label>
+              <small>{t.keyHelp}</small>
+              <ui.Actions>
+                <ui.Button disabled={keyBusy || !bridge || !apiKey.trim()} onClick={() => saveKey()}>{t.saveKey}</ui.Button>
+                <ui.Button disabled={keyBusy || !bridge} onClick={() => saveKey(true)}>{t.removeKey}</ui.Button>
+              </ui.Actions>
             </>
           ) : (
             <ui.Slider label={t.pace} unit={t.paceUnit} min={2} max={14} step={0.5} value={pace} onChange={setPace} />

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Local lifecycle bridge for native OpenAI realtime transcription.
-Reads OPENAI_API_KEY only in this process. Never returns or stores its value.
+Reads the locally saved key or OPENAI_API_KEY. Never returns its value.
 The microphone starts only on 'start'; 'check' is local-only.
 """
 import fcntl, json, os, pathlib, re, shlex, signal, subprocess, sys, time, uuid
@@ -9,9 +9,14 @@ CONFIG = HERE / 'openai-runtime.json'
 PIDF = HERE / 'stream.pid'
 STATE = HERE / 'openai-state.json'
 LOCK = HERE / 'bridge.lock'
+KEYFILE = HERE / 'api-key'
 LANGS = {'ko','en','ja'}
 
 def key():
+    try:
+        saved = KEYFILE.read_text().strip()
+        if saved: return saved
+    except OSError: pass
     value = os.environ.get('OPENAI_API_KEY', '')
     if value: return value
     for filename in ('.zshrc','.zprofile'):
@@ -102,5 +107,13 @@ if __name__=='__main__':
         if cmd=='start': result=start(sys.argv[2] if len(sys.argv)>2 else 'ko')
         elif cmd=='stop': stop(); result={'ok':True}
         elif cmd=='read': result=read()
+        elif cmd=='prepare-key':
+            fd = os.open(KEYFILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            os.fchmod(fd, 0o600); os.close(fd)
+            result={'ok':True}
+        elif cmd=='delete-key':
+            KEYFILE.unlink(missing_ok=True)
+            result={'ok':True}
+
         else: result={'binary':bool(binary()),'model':bool(key()),'provider':'openai','modelName':'gpt-live-transcribe'}
     print(json.dumps(result,ensure_ascii=False))
