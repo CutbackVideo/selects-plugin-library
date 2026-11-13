@@ -5,6 +5,7 @@
 // signed 16-bit samples, both starting at the window's source time.
 const {rgbToLetterboxBlob,decodeYuNet,mapFaceToDisplay}=require('./yunet-decode.cjs');
 const {mfcc}=require('./speaker-audio.cjs');
+const {scoreSpeakerTrack}=require('./speaker-inference.cjs');
 const {trackFaces,interpolateTrack,smoothBoxes,facePixels}=require('./speaker-tracks.cjs');
 const {detectFrameChanges}=require('./frame-change.cjs');
 const {MICROSECONDS_PER_SECOND,SPEAKER_WINDOW_MICROSECONDS,speakerDurationMicroseconds}=require('./speaker-time.cjs');
@@ -71,17 +72,8 @@ async function scoreSpeakerWindow({ort,yunet,model,video,width,height,rgb,pcm,st
       for(const between of interpolateTrack(track)){samples[between.i].faces.push(between.face);track.push(between);}
       return {track,id,visual};
     });
-    const scores=new Float64Array(n);const began=performance.now();
-    for(const seconds of [1,2,3])for(let offset=0;offset<n;offset+=seconds*25) {
-      signal.throwIfAborted();const end=Math.min(n,offset+seconds*25),count=end-offset;
-      const {at,vt}=timed.measure('speakerInput',()=>({
-        at:new ort.Tensor('float32',audioFeatures.slice(offset*4*13,end*4*13),[1,count*4,13]),
-        vt:new ort.Tensor('float32',visual.slice(offset*112*112,end*112*112),[1,count,112,112]),
-      }));
-      const out=await timed.measureAsync('speakerInference',()=>model.run({audio:at,video:vt}));
-      try {timed.measure('speakerOutput',()=>{if(out.scores.data.length!==count)throw new Error('Speaker model output length mismatch');for(let i=0;i<count;i++){const score=out.scores.data[i];if(!Number.isFinite(score))throw new Error('Non-finite speaker score');scores[offset+i]+=score/3;}});}
-      finally{at.dispose();vt.dispose();for(const v of Object.values(out))v.dispose();}
-    }
+    const began=performance.now();
+    const scores=await scoreSpeakerTrack({ort,model,visual,audioFeatures,n,signal,timed});
     state.inferenceMilliseconds+=performance.now()-began;
     // No face is extrapolated beyond a track's detections. IDs belong to
     // this short window only; callers cannot treat them as person IDs.

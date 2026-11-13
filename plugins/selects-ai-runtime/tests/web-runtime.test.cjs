@@ -531,6 +531,7 @@ test('speaker measurements preserve detections and count both model calls', asyn
   const stages = timings.summary().stages;
   assert.equal(stages.faceInference.calls,4);
   assert.equal(stages.faceInput.calls,4);
-  assert.equal(stages.speakerInference.calls,3);
+  assert.equal(stages.speakerInference.calls,1);
+  assert.equal(stages.speakerReuse.calls,2);
   assert.equal(stages.faceCrops.calls,1);
 });

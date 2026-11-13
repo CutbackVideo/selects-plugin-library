@@ -46,8 +46,9 @@ function relativeTimeline(rawPts) {
 async function probeVideo(config, request, signal, probeMetrics) {
   const filename = request.input.source.path;
   const data = await probeJSON(config, filename, [
-    '-v', 'error', '-select_streams', 'v:0', '-show_entries',
-    'stream=width,height,sample_aspect_ratio,avg_frame_rate,time_base,duration,start_time:stream_tags=rotate:stream_side_data=rotation:format=duration,start_time',
+    '-v', 'error', '-select_streams', request.task === 'speakers.detect' ? 'v' : 'v:0', '-show_entries',
+    'stream=width,height,sample_aspect_ratio,avg_frame_rate,time_base,duration,start_time:stream_tags=rotate:stream_side_data=rotation:format=duration,start_time' +
+      (request.task === 'speakers.detect' ? ',format_name' : ''),
     '-of', 'json', filename,
   ], signal, data => {
     if (!data.streams?.[0]?.width || !data.streams[0].height) throw new Error('Source has no decodable video stream');
@@ -97,6 +98,7 @@ async function probeVideo(config, request, signal, probeMetrics) {
       timestampOriginSeconds: originSeconds, timestampOriginPts: origin,
       formatStartTime: Number(data.format?.start_time ?? 0),
       averageFrameRate: stream.avg_frame_rate, timeBase: stream.time_base, timelineCached: false,
+      singleMp4Video: data.streams.length === 1 && (data.format?.format_name ?? '').split(',').includes('mp4'),
     };
     const { startSeconds, endSeconds } = request.input.sourceRange;
     const rangeStartPts = ceilingTimeTicks(startSeconds, timeBase);

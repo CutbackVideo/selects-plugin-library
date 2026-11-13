@@ -13,6 +13,7 @@ const { collectTool } = require('./lib/process.cjs');
 const { ensureCacheDirectory } = require('./lib/runtime-cache.cjs');
 const { resolveRuntimeTool } = require('./lib/runtime-tools.cjs');
 const { createVerifiedModelSession, verifyModel } = require('./lib/models.cjs');
+const { speakerCpuThreads } = require('./lib/speaker-cpu-threads.cjs');
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -76,7 +77,8 @@ async function main() {
   }
   controller.signal.throwIfAborted();
   await writeJson(path.resolve(argument('--output')), {
-    ortModule, tools, models, provider: 'cpu', intraOpNumThreads: 4, timelineCache,
+    ortModule, tools, models, provider: 'cpu',
+    intraOpNumThreads: task === 'speakers.detect' ? speakerCpuThreads() : 4, timelineCache,
     ...(webgpu ? { webgpu } : {}),
     ...(webgpuPreparationFailure ? { webgpuPreparationFailure } : {}),
   });
