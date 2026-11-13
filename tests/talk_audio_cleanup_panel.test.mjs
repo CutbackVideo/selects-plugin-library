@@ -6,15 +6,18 @@ import test from 'node:test';
 const source = fs.readFileSync(new URL('../plugins/talk-audio-cleanup/panel.tsx', import.meta.url), 'utf8');
 // Everything between the imports and the component is plain JavaScript.
 const body = source.slice(source.indexOf('const ID ='), source.indexOf('export default function Panel'));
-const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep } = await import(
-  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep };')
+const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep, cleans, sketch, sketchPoints, DEFAULTS, KNOBS } = await import(
+  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep, cleans, sketch, sketchPoints, DEFAULTS, KNOBS };')
 );
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const script = (text, selects) => new AsyncFunction('selects', text)(selects);
 
 const item = (start, frames, action, rule, confidence, resourceId = 'r0') => ({ resourceId, start, end: start + frames / FPS, frames, action, rule, confidence });
-const ITEMS = [item(12, 3, 'delete', 'blemish', 0.9), item(20, 1, 'delete', 'blemish', 0.35), item(30, 9, 'lower', 'breath', 0.8), item(40, 6, 'delete', 'blemish', 0.4)];
-const ALL = { blemish: true, breath: true, sniff: true, click: true };
+// What the Panel applies once the settings have decided: a cut, a mute and two volume changes.
+const ITEMS = [item(12, 3, 'delete', 'blemish', 0.9), item(20, 1, 'mute', 'blemish', 0.35), { ...item(30, 9, 'lower', 'breath', 0.8), lowerDb: 11 }, { ...item(40, 6, 'lower', 'blemish', 0.4), lowerDb: 11 }];
+const ALL = { blemish: true, breath: true, opener: true };
+// A sound as the engine reports it: frames to the nearest speech, loudness and spikiness in dB, and the margin from which a word covers it.
+const sound = (start, frames, gap, loud, spiky, edge = null) => ({ resourceId: 'r0', start, end: start + frames / FPS, frames, rule: 'sound', gap, loud, spiky, edge });
 const ONE = { numerator: 1, denominator: 1 };
 
 // A Draft with the edits the Panel uses, behaving as the host's does: removeClips refuses Main clips,
@@ -92,20 +95,45 @@ const applyAll = async (selects, items, fade = true) => {
   return total;
 };
 
-test('a cut the model is unsure of becomes a volume change, by its length', () => {
-  const r = resolve(ITEMS, ALL, 0.5, 11);
-  assert.deepEqual(r.map((i) => [i.action, i.softened]), [['delete', false], ['mute', true], ['lower', false], ['lower', true]]);
-  assert.equal(r[3].lowerDb, 11);
-  assert.equal(resolve(ITEMS, ALL, 0.3, 11).filter((i) => i.action === 'delete').length, 3);
+test('away from speech a sound is cleaned by loudness; next to speech by length, shorter when no word covers it', () => {
+  const k = DEFAULTS;
+  assert.deepEqual([sound(1, 1, 5, 12, 0), sound(1, 1, 5, 11.9, 0), sound(1, 9, 2, 30, 0)].map((it) => cleans(it, k)), [true, false, true]);
+  assert.deepEqual([sound(1, 6, 0, 13, 0), sound(1, 5, 1, 40, 0), sound(1, 5, 1, 40, 0, -0.2)].map((it) => cleans(it, k)), [true, false, false]);   // 5 frames at speech: left, with or without a word over it
+  assert.deepEqual([sound(1, 2, 0, 13, 0, 0.05), sound(1, 2, 0, 13, 0, 0.049), sound(1, 1, 0, 13, 0, 0.3)].map((it) => cleans(it, k)), [true, false, false]);   // outside the word's margin from two frames
+  assert.equal(cleans(sound(1, 2, 0, 13, 0, 0.049), { ...k, margin: 0.04 }), true);
+  assert.equal(cleans(sound(1, 5, 5, 20, 0), { ...k, loud: 21 }), false);
+  assert.equal(cleans(sound(1, 4, 0, 13, 0), { ...k, attached: 4 }), true);
 });
 
-test('a kind that is switched off is left out', () => {
-  assert.deepEqual(resolve(ITEMS, { ...ALL, blemish: false }, 0.3, 11).map((i) => i.rule), ['breath']);
+test('a spiky sound is cut and a blunt one lowered; a kind that is switched off is left out; an opener passes through', () => {
+  const items = [sound(1, 3, 5, 20, 5.5), sound(2, 3, 5, 20, 5.4), sound(3, 1, 5, 11, 9), item(4, 6, 'delete', 'opener', 1)];
+  const r = resolve(items, ALL, DEFAULTS, 11);
+  assert.deepEqual(r.map((i) => [i.start, i.action, i.rule, i.lowerDb]), [[1, 'delete', 'blemish', null], [2, 'lower', 'breath', 11], [4, 'delete', 'opener', null]]);
+  assert.deepEqual(resolve(items, { ...ALL, blemish: false, opener: false }, DEFAULTS, 11).map((i) => i.rule), ['breath']);
+  assert.deepEqual(resolve(items, ALL, { ...DEFAULTS, spiky: 0 }, 11).map((i) => i.action), ['delete', 'delete', 'delete']);
+});
+
+test('each setting has a drawing whose sounds light up as the setting moves', () => {
+  const text = STRINGS.en, lit = (key, k) => sketch(key, { ...DEFAULTS, ...k }, text).hits.map((h) => h[3]);
+  assert.deepEqual(KNOBS.map(([key]) => key), Object.keys(DEFAULTS));
+  for (const [key, min, max] of KNOBS) {
+    assert.ok(DEFAULTS[key] >= min && DEFAULTS[key] <= max);
+    assert.ok(STRINGS.en.knob[key].length === 2 && STRINGS.ko.knob[key].length === 2);
+  }
+  for (const pic of ['loud', 'speech', 'spiky']) assert.match(sketchPoints(sketch(pic, DEFAULTS, text).parts, 52), /^0,52 .* 300,52$/);
+  assert.deepEqual([lit('loud', {}), lit('loud', { loud: 20 }), lit('loud', { loud: 40 })], [[true, true, true], [false, true, true], [false, false, false]]);
+  // next to speech, one drawing for three settings: 3 and 8 frames under a word, 1 and 3 frames just past a word's end
+  assert.deepEqual(lit('speech', {}), [false, true, false, true]);
+  assert.deepEqual(lit('speech', { attached: 3 }), [true, true, false, true]);
+  assert.deepEqual(lit('speech', { outside: 4 }), [false, true, false, false]);
+  assert.deepEqual(lit('speech', { margin: 0.15 }), [false, true, false, false]);
+  assert.deepEqual(lit('speech', { margin: 0.03, outside: 1 }), [false, true, true, true]);
+  assert.deepEqual([lit('spiky', {}), lit('spiky', { spiky: 12.5 })], [[false, true, true], [false, false, false]]);
 });
 
 test('every edit lands on its own frames, latest first', async () => {
   const { selects, log, frames } = fakeDraft();
-  const done = await applyAll(selects, resolve(ITEMS, ALL, 0.5, 11));
+  const done = await applyAll(selects, ITEMS);
   assert.deepEqual(done, { delete: 1, lower: 2, mute: 1, fades: 1, skipped: 0 });
   // source 12 s on a clip whose source starts at 5 s is frame 210
   assert.deepEqual(log, ['cut 210-213', 'fade 210', 'volume 1047-1053 -11', 'volume 747-756 -11', 'volume 447-448 -60']);
@@ -209,6 +237,9 @@ test('reading the Draft keeps 1x Main clips that have a source file', async () =
     }),
   };
   const r = await script(READ('p', 'd'), selects);
+  // every spoken word the kept clip plays, in source seconds; the pause row and words outside the clip are not among them
+  assert.deepEqual([r.words.length, r.words[0], r.words[1].map((v) => (typeof v === 'number' ? Math.round(v * 30) : v))], [8, ['deep', 4, 4.6], ['deep', 140, 144]]);
+  delete r.words;
   assert.deepEqual(r, { fps: 30, name: 'Talk', clips: [{ resourceId: 'deep', path: '/m/deep.mp4', sourceStart: 4, startFrame: 300, frames: 90, seconds: 3 }], skipped: 0, openers: [{ resourceId: 'deep', start: 4 + 20 / 30, next: 4 + 24 / 30, prevEnd: 4 + 18 / 30 }, { resourceId: 'deep', start: 4 + 50 / 30, next: 4 + 53 / 30, prevEnd: 4 + 50 / 30 - 1 }], isDraft: true, sources: [{ resourceId: 'deep', name: 'deep.mp4', seconds: null }], env: { tempDirectory: '/tmp' } });
   selects.project = () => ({ meta: async () => ({ draftIds: ['other'] }), sourceFiles: async () => ({ fileTree: [{ type: 'video', resourceId: 'r0', path: '/m/r0.mp4' }, { type: 'sequence', resourceId: 'seq', path: '/m/seq' }] }) });
   const flat = await script(READ('p', 'd'), selects);
@@ -226,6 +257,7 @@ test('a preview clip is read back as samples, across the chunks it was read in',
   const bytes = Buffer.from(pcm.buffer);
   const parts = [bytes.subarray(0, 4).toString('base64'), bytes.subarray(4).toString('base64')];
   assert.deepEqual(Array.from(decodePcm(parts)), [0, 0.5, -0.5, 32767 / 32768, -1, 1 / 32768]);
+  assert.deepEqual(Array.from(decodePcm(parts, 2)), [0.25, (32767 / 32768 - 0.5) / 2, (1 / 32768 - 1) / 2]);   // the decoded WAV is stereo: each pair is one sample
 });
 
 test('the cleaned preview is the clip with the edit made: a cut closes up with a one-frame fade, a breath is lowered, a tick is silent', () => {

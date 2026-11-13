@@ -7,17 +7,14 @@ Experimental: macOS, with a Selects build that has Panel support,
    `SELECTS_USER_SKILLS_ROOT`, and `panel.tsx` in `talk-audio-cleanup` beneath
    `SELECTS_USER_PANELS_ROOT`, as in the library's
    [installation layout](../../PUBLISHING.md#installation-layout).
-2. The trained model is part of the package (`engine/model.joblib`). It was
-   saved with scikit-learn 1.9, which is why `engine/requirements.txt` pins
-   that version.
-3. Nothing else to install by hand. On the first **Analyze** the Panel sets up
+2. Nothing else to install by hand. On the first **Analyze** the Panel sets up
    the analysis program's Python in
    `$HOME/.selects/plugin-data/talk-audio-cleanup/venv`: a virtual environment
    with `engine/requirements.txt`, built on a pinned CPython 3.11.13 that
    `runtime.sh` downloads (through uv, checked by SHA-256) into
    `~/.selects/plugin-data/_runtime/`, shared with other plugins. A system
    `python3` is not used. It needs a network connection that once.
-4. To check the setup afterwards:
+3. To check the setup afterwards:
 
    ```sh
    "$HOME/.selects/plugin-data/talk-audio-cleanup/venv/bin/python" \

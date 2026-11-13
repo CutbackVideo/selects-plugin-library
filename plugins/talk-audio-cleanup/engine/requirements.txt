@@ -1,4 +1,2 @@
 numpy==2.4.*
 scipy==1.17.*
-scikit-learn==1.9.*
-joblib>=1.4

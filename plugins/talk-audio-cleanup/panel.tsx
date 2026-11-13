@@ -2,16 +2,19 @@
 // @name:ko 토크 오디오 정리
 // @icon audio
 // Cleans the sound of a talking Draft the way a broadcast editing guide asks for:
-// cuts clicks out of the pauses, lowers breaths, mutes loud sniffs and one-frame ticks
-// between words, and puts a one-frame fade on every cut. It works on a copy of the
-// open Draft; the original is left as it is.
+// cuts clicks out of the pauses, lowers breaths and puts a one-frame fade on every cut.
+// What counts as a sound to clean is decided by plain rules whose thresholds the user
+// moves. It works on a copy of the open Draft; the original is left as it is.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const ID = "talk-audio-cleanup";
 const FPS = 30; // the analysis measures the sound in 1/30 s steps, whatever the Draft's own frame rate is
 const BATCH = 30; // edits per script run, so one run stays well inside the script budget
-const RULES = ["blemish", "breath", "sniff", "click", "opener"];
+const RULES = ["blemish", "breath", "opener"];
+// The settings: [key, min, max, step]. Lengths are counted in the analysis's 1/30 s frames.
+const KNOBS = [["loud", 12, 40, 1], ["attached", 1, 12, 1], ["outside", 1, 12, 1], ["margin", 0, 0.2, 0.01], ["spiky", 0, 20, 0.5]];
+const DEFAULTS = { loud: 12, attached: 6, outside: 2, margin: 0.05, spiky: 5.5 };
 
 const STRINGS = {
   en: {
@@ -28,27 +31,22 @@ const STRINGS = {
     intro: "Finds the small noises between words and fixes them on a copy. This Draft is not changed.",
     introSource: "Finds the small noises between words and makes a new, cleaned Draft from this source. The source is not changed.",
     applyNew: "Make a cleaned Draft",
-    pick: "What to clean",
     target: "Source",
     open: "The open timeline",
     noTarget: "Pick a source to clean.",
     noSources: "This Project has no video or audio file on this computer. Add one or open a timeline, then read again.",
     reload: "Read again",
-    pickOne: "Turn on at least one.",
     analyze: "Find what to clean",
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
     firstRun: "First run: setting up the analysis program. This downloads Python and takes a few minutes, once.",
     steps: { prepare: "Prepare", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
-    noModel: "The plugin's model file is missing. Install the plugin again.",
     setupFailed: "Could not set up the analysis program. Check the internet connection, then try again.",
     previewFailed: "Could not load the sound of that place.",
     nothing: "Nothing to clean was found in this Draft.",
     partial: (name) => `It stopped partway: the copy “${name}” has only some of the edits. Delete it before trying again.`,
     kind: {
-      blemish: ["Blemishes", "Clicks and mouth noises in a pause are cut out. The pause stays."],
-      breath: ["Breaths", "The clip volume is lowered there. Nothing is cut."],
-      sniff: ["Loud sniffs", "A loud, hissy breath is muted instead of lowered."],
-      click: ["Ticks", "A one- or two-frame tick between words is muted in place."],
+      blemish: ["Blemishes", "Spiky sounds in a pause (clicks, mouth noises) are cut out. The pause stays."],
+      breath: ["Breaths", "Blunt sounds in a pause are lowered with the clip volume. Nothing is cut."],
       opener: ["Lone “\uc790”", "An opening “\uc790” is cut when it stands apart from the words after it."],
     },
     places: (n) => `${n} place${n === 1 ? "" : "s"}`,
@@ -56,13 +54,20 @@ const STRINGS = {
     cutsVols: (c, v) => `${c} cut${c === 1 ? "" : "s"}, ${v} volume change${v === 1 ? "" : "s"}`,
     found: "What was found",
     copyName: "Copy name",
-    suggest: (n) => `${n} more worth a look`,
-    suggestNote: "Less certain, or a tick an editor might leave. Listen, then add the ones you want.",
-    review: "Review",
-    addAll: "Add all",
-    removeAll: "Remove all",
-    tag: "Suggested",
-    filter: { all: "All", maybe: "Suggested", left: "Left as is" },
+    filter: { all: "All", left: "Left as is" },
+    rules: "What gets cleaned",
+    rulesNote: "Move a setting and the list below follows. Each drawing shows what its setting means: the sounds that light up are cleaned.",
+    reset: "Reset to defaults",
+    noWords: "This source has no transcript, so every sound next to speech is judged by length alone.",
+    frames: (n) => `${n} frame${n === 1 ? "" : "s"}`,
+    word: "word",
+    knob: {
+      loud: ["Sounds away from speech: clean from this loudness", "How far a sound stands over the floor of the pause. Lower it to clean quieter sounds too."],
+      attached: ["Sounds next to speech: clean from this length", "A sound right at speech may be the tail of a word, so it is judged by its length. One frame is 1/30 s."],
+      outside: ["Next to speech but outside a word: clean from this length", "Outside the transcript's word a shorter sound is cleaned too. No effect when it is not below the setting above."],
+      margin: ["How far a word reaches past its ends", "This much before and after a word still counts as the word. Raise it to protect word tails."],
+      spiky: ["Where cutting ends and lowering begins", "A spiky sound (a tick) is cut; a blunt one (a breath) is lowered. At or above this it is cut."],
+    },
     show: "Show in timeline",
     prev: "Previous",
     next: "Next",
@@ -101,27 +106,22 @@ const STRINGS = {
     intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc774 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     introSource: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544, \uc774 \uc6d0\ubcf8\uc73c\ub85c \uc815\ub9ac\ub41c \uc0c8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc6d0\ubcf8\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     applyNew: "\uc815\ub9ac\ub41c Draft \ub9cc\ub4e4\uae30",
-    pick: "\uc815\ub9ac\ud560 \uac83",
     target: "\uc18c\uc2a4",
     open: "\uc5f4\ub824 \uc788\ub294 \ud0c0\uc784\ub77c\uc778",
     noTarget: "\uc815\ub9ac\ud560 \uc18c\uc2a4\ub97c \uace8\ub77c \uc8fc\uc138\uc694.",
     noSources: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc788\ub294 \uc601\uc0c1\uc774\ub098 \uc624\ub514\uc624 \ud30c\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud30c\uc77c\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud0c0\uc784\ub77c\uc778\uc744 \uc5f0 \ub4a4 \ub2e4\uc2dc \uc77d\uc5b4 \uc8fc\uc138\uc694.",
     reload: "\ub2e4\uc2dc \uc77d\uae30",
-    pickOne: "\ud558\ub098 \uc774\uc0c1 \ucf1c \uc8fc\uc138\uc694.",
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     firstRun: "\ucc98\uc74c \ud55c \ubc88: \ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud569\ub2c8\ub2e4. Python\uc744 \ub0b4\ub824\ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4.",
     steps: { prepare: "\uc900\ube44", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
-    noModel: "\ud50c\ub7ec\uadf8\uc778\uc758 \ubaa8\ub378 \ud30c\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud574 \uc8fc\uc138\uc694.",
     setupFailed: "\ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc778\ud130\ub137 \uc5f0\uacb0\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
     previewFailed: "\uadf8 \uc790\ub9ac\uc758 \uc18c\ub9ac\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     nothing: "\uc774 Draft\uc5d0\uc11c \uc815\ub9ac\ud560 \uacf3\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     partial: (name) => `\uc911\uac04\uc5d0 \uba48\ucdc4\uc2b5\ub2c8\ub2e4. “${name}” \uc0ac\ubcf8\uc5d0\ub294 \uc77c\ubd80\ub9cc \uc801\uc6a9\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uae30 \uc804\uc5d0 \uc9c0\uc6cc \uc8fc\uc138\uc694.`,
     kind: {
-      blemish: ["\uc7a1\ud2f0", "\ub9d0 \uc0ac\uc774\uc758 \ub538\uae4d·\uc785\uc18c\ub9ac\ub97c \uc798\ub77c\ub0c5\ub2c8\ub2e4. \uc26c\ub294 \ud2c8\uc740 \ub0a8\uae41\ub2c8\ub2e4."],
-      breath: ["\uc228\uc18c\ub9ac", "\uadf8 \uc790\ub9ac\uc758 \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0ae\ucda5\ub2c8\ub2e4. \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
-      sniff: ["\ud070 \ucf54\uba39\uc74c", "\ud06c\uace0 \uc26c\uc775\uac70\ub9ac\ub294 \uc228\uc18c\ub9ac\ub294 \ub0ae\ucd94\uc9c0 \uc54a\uace0 \uc74c\ub7c9 0\uc73c\ub85c \ud569\ub2c8\ub2e4."],
-      click: ["\ub538\uae4d", "\ub9d0 \uc0ac\uc774 1~2\ud504\ub808\uc784 \ub538\uae4d\uc744 \uc81c\uc790\ub9ac\uc5d0\uc11c \uc74c\ub7c9 0\uc73c\ub85c \ud569\ub2c8\ub2e4."],
+      blemish: ["\uc7a1\ud2f0", "\ud2c8 \uc548\uc758 \ubfb0\uc871\ud55c \uc18c\ub9ac(\ub538\uae4d·\uc785\uc18c\ub9ac)\ub97c \uc798\ub77c\ub0c5\ub2c8\ub2e4. \uc26c\ub294 \ud2c8\uc740 \ub0a8\uae41\ub2c8\ub2e4."],
+      breath: ["\uc228\uc18c\ub9ac", "\ud2c8 \uc548\uc758 \ubb49\ud22d\ud55c \uc18c\ub9ac\ub294 \ud074\ub9bd \uc74c\ub7c9\uc744 \ub0ae\ucda5\ub2c8\ub2e4. \uc790\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."],
       opener: ["\ub530\ub85c \uc120 ‘\uc790’", "\uc2dc\uc791 ‘\uc790’\uac00 \ub4b7\ub9d0\uacfc \ub5a8\uc5b4\uc838 \uc788\uc73c\uba74 \uc790\ub985\ub2c8\ub2e4."],
     },
     places: (n) => `${n}\uacf3`,
@@ -129,13 +129,20 @@ const STRINGS = {
     cutsVols: (c, v) => `\ucef7 ${c}\uacf3, \uc74c\ub7c9 \uc870\uc808 ${v}\uacf3`,
     found: "\ucc3e\uc740 \uacf3",
     copyName: "\uc0ac\ubcf8 \uc774\ub984",
-    suggest: (n) => `\ucd94\ucc9c ${n}\uacf3`,
-    suggestNote: "\ub35c \ud655\uc2e4\ud558\uac70\ub098, \ub0a8\uaca8\ub458 \uc218\ub3c4 \uc788\ub294 \ub538\uae4d\uc785\ub2c8\ub2e4. \ub4e4\uc5b4\ubcf4\uace0 \uace0\ub974\uc138\uc694.",
-    review: "\uc0b4\ud3b4\ubcf4\uae30",
-    addAll: "\ubaa8\ub450 \ud3ec\ud568",
-    removeAll: "\ubaa8\ub450 \ube7c\uae30",
-    tag: "\ucd94\ucc9c",
-    filter: { all: "\uc804\uccb4", maybe: "\ucd94\ucc9c", left: "\uadf8\ub300\ub85c \ub460" },
+    filter: { all: "\uc804\uccb4", left: "\uadf8\ub300\ub85c \ub460" },
+    rules: "\uc815\ub9ac \uae30\uc900",
+    rulesNote: "\uae30\uc900\uc744 \uc6c0\uc9c1\uc774\uba74 \uc544\ub798 \ubaa9\ub85d\uc774 \ubc14\ub85c \ub530\ub77c\uc635\ub2c8\ub2e4. \uadf8\ub9bc\uc740 \uae30\uc900\uc758 \ub73b\uc744 \ubcf4\uc5ec \uc90d\ub2c8\ub2e4. \ubd88\uc774 \ub4e4\uc5b4\uc628 \uc18c\ub9ac\uac00 \uc815\ub9ac\ub429\ub2c8\ub2e4.",
+    reset: "\uae30\ubcf8\uac12\uc73c\ub85c\u0020\ucd08\uae30\ud654",
+    noWords: "\uc774 \uc18c\uc2a4\uc5d0\ub294 \uc804\uc0ac\uac00 \uc5c6\uc5b4, \ub9d0\uc5d0 \ubd99\uc740 \uc18c\ub9ac\ub294 \uae38\uc774\ub9cc\uc73c\ub85c \ud310\ub2e8\ud569\ub2c8\ub2e4.",
+    frames: (n) => `${n}\ud504\ub808\uc784`,
+    word: "\ub2e8\uc5b4",
+    knob: {
+      loud: ["\ub9d0\uc5d0\uc11c \ub5a8\uc5b4\uc9c4 \uc18c\ub9ac: \uc774 \ud06c\uae30 \uc774\uc0c1\uc774\uba74 \uc815\ub9ac", "\ud2c8\uc758 \ubc14\ub2e5\ubcf4\ub2e4 \uc5bc\ub9c8\ub098 \ud280\ub294\uac00. \ub0ae\ucd94\uba74 \uc791\uc740 \uc18c\ub9ac\uae4c\uc9c0 \uc815\ub9ac\ud569\ub2c8\ub2e4."],
+      attached: ["\ub9d0\uc5d0 \ubd99\uc740 \uc18c\ub9ac: \uc774 \uae38\uc774 \uc774\uc0c1\uc774\uba74 \uc815\ub9ac", "\ub9d0 \ubc14\ub85c \uc606 \uc18c\ub9ac\ub294 \ub9d0\uaf2c\ub9ac\uc77c \uc218 \uc788\uc5b4 \uae38\uc774\ub85c \uac70\ub985\ub2c8\ub2e4. 1\ud504\ub808\uc784\uc740 1/30\ucd08\uc785\ub2c8\ub2e4."],
+      outside: ["\ub9d0\uc5d0 \ubd99\uc5c8\uc9c0\ub9cc \ub2e8\uc5b4 \ubc16\uc778 \uc18c\ub9ac: \uc774 \uae38\uc774 \uc774\uc0c1\uc774\uba74 \uc815\ub9ac", "\uc804\uc0ac\uc758 \ub2e8\uc5b4 \uad6c\uac04 \ubc16\uc774\uba74 \ub354 \uc9e7\uc544\ub3c4 \uc815\ub9ac\ud569\ub2c8\ub2e4. \uc704 \uae30\uc900\ubcf4\ub2e4 \uc791\uc9c0 \uc54a\uc73c\uba74 \ud6a8\uacfc\uac00 \uc5c6\uc2b5\ub2c8\ub2e4."],
+      margin: ["\ub2e8\uc5b4\uac00 \uc55e\ub4a4\ub85c \ucc28\uc9c0\ud558\ub294 \uc5ec\uc720", "\ub2e8\uc5b4\uc758 \uc2dc\uc791\uacfc \ub05d\uc5d0\uc11c \uc774\ub9cc\ud07c\uc740 \ub2e8\uc5b4\ub85c \ubd05\ub2c8\ub2e4. \ud0a4\uc6b0\uba74 \ub9d0\uaf2c\ub9ac\ub97c \ub354 \ubcf4\ud638\ud569\ub2c8\ub2e4."],
+      spiky: ["\uc0ad\uc81c\uc640 \uc74c\ub7c9 \ub0ae\ucda4\uc758 \uacbd\uacc4", "\ubfb0\uc871\ud55c \uc18c\ub9ac(\ub538\uae4d)\ub294 \uc798\ub77c\ub0b4\uace0 \ubb49\ud22d\ud55c \uc18c\ub9ac(\uc228)\ub294 \ub0ae\ucda5\ub2c8\ub2e4. \uc774 \uac12 \uc774\uc0c1\uc774\uba74 \uc798\ub77c\ub0c5\ub2c8\ub2e4."],
+    },
     show: "\ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \ubcf4\uae30",
     prev: "\uc774\uc804",
     next: "\ub2e4\uc74c",
@@ -173,17 +180,59 @@ const q = (v) => JSON.stringify(v);
 // A clip's length in seconds. Its frames are counted at the Draft's own rate, which READ turns into seconds.
 const secs = (c) => c.seconds ?? c.frames / FPS;
 
-// What each item becomes with the current settings. A cut the model is less sure of
-// than `cutLine` is turned into a volume change, so the picture is not cut there.
-function resolve(items, on, cutLine, lowerDb) {
+// Whether the settings clean a sound the analysis found. Away from speech it is judged by loudness; next to speech
+// by length, and a shorter one is cleaned too when no transcript word covers it (`edge`: the margin from which one does).
+const outsideWord = (it, k) => it.edge != null && !(k.margin > it.edge + 1e-6);
+const cleans = (it, k) => (it.gap > 1 ? it.loud >= k.loud : it.frames >= k.attached || (it.frames >= k.outside && outsideWord(it, k)));
+// What each item becomes with the current settings: a spiky sound is cut, a blunt one lowered.
+function resolve(items, on, k, lowerDb) {
   const out = [];
   for (const it of items) {
-    if (!on[it.rule]) continue;
-    let action = it.action;
-    if (action === "delete" && it.confidence < cutLine) action = it.frames <= 2 ? "mute" : "lower";
-    out.push({ ...it, action, lowerDb: action === "lower" ? lowerDb : null, softened: action !== it.action });
+    if (it.rule !== "sound") { if (on[it.rule]) out.push({ ...it, lowerDb: null }); continue; }
+    if (!cleans(it, k)) continue;
+    const action = it.spiky >= k.spiky ? "delete" : "lower", rule = action === "delete" ? "blemish" : "breath";
+    if (on[rule]) out.push({ ...it, action, rule, lowerDb: action === "lower" ? lowerDb : null });
   }
   return out;
+}
+// A drawn example for one setting, as a timeline draws a clip: speech, a pause, and sounds in it.
+// parts: [from, to, height 0-1, "speech" | "hump" | "spike"] in a 300-wide drawing.
+function sketchPoints(parts, h) {
+  const pts = [];
+  for (let x = 0; x <= 300; x += 2) {
+    let a = 0.03 + 0.012 * Math.sin(x * 2.3);
+    for (const [from, to, amp, kind] of parts) {
+      if (x < from || x > to) continue;
+      const u = (x - from) / Math.max(1, to - from);
+      a = Math.max(a, kind === "speech" ? amp * (0.5 + 0.5 * Math.abs(Math.sin(x * 0.9) * Math.sin(x * 0.23 + 1))) * Math.min(1, u * 8, (1 - u) * 5 + 0.25)
+        : kind === "spike" ? amp * Math.exp(-Math.pow((u - 0.3) * 5, 2)) : amp * Math.pow(Math.sin(Math.PI * u), 0.6));
+    }
+    pts.push(`${x},${(h - a * (h - 2)).toFixed(1)}`);
+  }
+  return `0,${h} ${pts.join(" ")} 300,${h}`;
+}
+// What each setting's drawing shows at value `v`: the parts, which sounds light up (`hits`: [from, to, label, cleaned]),
+// a level line (0-1) and word bars with the margin they reach to (`words`: [from, to, reach]).
+function sketch(key, k, text) {
+  const amp = (db) => Math.min(0.95, db / 44);
+  if (key === "loud") {
+    const ticks = [[92, 14], [150, 22], [208, 32]];
+    return { parts: [[0, 60, 0.9, "speech"], ...ticks.map(([x, db]) => [x - 5, x + 9, amp(db), "spike"]), [240, 300, 0.85, "speech"]],
+      hits: ticks.map(([x, db]) => [x - 7, x + 11, `${db} dB`, db >= k.loud]), line: amp(k.loud), words: [] };
+  }
+  if (key === "spiky") {
+    const s = [[70, 3, "hump"], [150, 6, "hump"], [230, 12, "spike"]];
+    return { parts: [[0, 30, 0.9, "speech"], ...s.map(([x, db, kind]) => [x - (kind === "hump" ? 22 - db : 6), x + (kind === "hump" ? 22 - db : 10), 0.5, kind]), [280, 300, 0.85, "speech"]],
+      hits: s.map(([x, db]) => [x - 22, x + 22, `${db} dB`, db >= k.spiky]), line: null, words: [], cut: true };
+  }
+  // One drawing for the three settings about sounds next to speech (4 px per frame): two sounds a word covers and two
+  // just past a word's end. Which light up is asked of the rule itself.
+  const px = 4, cases = [[3, true], [8, true], [1, false], [3, false]];
+  return {
+    parts: cases.flatMap(([n], i) => [[i * 75, i * 75 + 34, 0.9, "speech"], [i * 75 + 34, i * 75 + 34 + n * px, 0.42, "hump"]]),
+    hits: cases.map(([n, covered], i) => [i * 75 + 34, i * 75 + 34 + n * px, text.frames(n), cleans({ gap: 0, frames: n, edge: covered ? -0.02 : n / 30 }, k)]),
+    line: null, words: cases.map(([n, covered], i) => [i * 75, i * 75 + 34 + (covered ? n * px + 3 : 0), k.margin * 30 * px]),
+  };
 }
 
 // Reads what is to be cleaned: the timeline that is open, or one source file picked in the Panel (`pick`, its
@@ -197,7 +246,7 @@ const trees = "fileTree" in overview ? [overview.fileTree] : await Promise.all(
 const files = walk(trees.flat());
 const sources = files.filter((x) => x.path && x.resourceId && (x.type === "video" || x.type === "audio") && !/\\.(jpe?g|png|gif|webp|heic|bmp|tiff?)$/i.test(x.path)).map((x) => ({ resourceId: x.resourceId, name: x.name ?? x.path.split("/").pop(), seconds: x.durationSeconds ?? null }));
 const env = await selects.files.environment();
-if (!PICK && !OPEN) return { fps: ${FPS}, name: null, clips: [], skipped: 0, openers: [], isDraft: false, sources, env };
+if (!PICK && !OPEN) return { fps: ${FPS}, name: null, clips: [], skipped: 0, openers: [], words: [], isDraft: false, sources, env };
 const src = PICK ? p.resource(PICK) : null, d = PICK ? null : selects.draft(OPEN);
 const clips = [];
 let skipped = 0, fps, name;
@@ -221,6 +270,8 @@ if (src) {
 const openers = [];
 const ws = (src ? await src.words().catch(() => []) : d ? await d.words().catch(() => []) : []).filter((w) => !w.nonSpeech && (w.text ?? "").trim()); // pauses are rows too; neighbours here are spoken words
 const at = (frame) => { const c = clips.find((x) => frame >= x.startFrame && frame < x.startFrame + x.frames); return c ? { c, t: c.sourceStart + (frame - c.startFrame) / fps } : null; };
+// Every spoken word as [resource, start, end] in source seconds: a sound that a word covers may be part of the word.
+const words = ws.flatMap((w) => { const a = at(w.startFrame), b = at(w.endFrame - 1); return a && b?.c === a.c ? [[a.c.resourceId, a.t, b.t + 1 / fps]] : []; });
 ws.forEach((w, i) => {
   if (!/^\\uc790[.,!?~]*$/.test(w.text.trim())) return;
   const me = at(w.startFrame), nx = ws[i + 1] && at(ws[i + 1].startFrame), pv = ws[i - 1] && at(ws[i - 1].endFrame - 1);
@@ -229,7 +280,7 @@ ws.forEach((w, i) => {
 });
 // A copy is made by duplicating what is open, and only a project Draft can be duplicated; from anything else a new Draft is built.
 const isDraft = !PICK && ((await p.meta()).draftIds ?? []).includes(OPEN);
-return { fps, name, clips, skipped, openers, isDraft, sources, env };`;
+return { fps, name, clips, skipped, openers, words, isDraft, sources, env };`;
 
 // The stretches of source audio to analyze: each source's clips, joined when they sit within 10 s of each
 // other, so a Draft that uses two far-apart parts of a long recording does not decode what lies between.
@@ -332,20 +383,22 @@ return { done, draftId: ${targetDraftId ? q(targetDraftId) : "saved.createdDraft
 // The analysis program's own Python, made on first use in the plugin's data folder: a virtual environment with
 // engine/requirements.txt, built on the pinned CPython that runtime.sh fetches (a stock Mac has no Python).
 const DATA = "$HOME/.selects/plugin-data/talk-audio-cleanup", PKG = "$SELECTS_USER_SKILLS_ROOT/talk-audio-cleanup";
-const PY = `"${DATA}/venv/bin/python"`, IMPORTS = `-c "import numpy, scipy, sklearn, joblib"`;
-// The trained model ships with the package, next to the program that reads it.
-const MODEL = `${PKG}/engine/model.joblib`;
-const RUNTIME_CHECK = `if [ ! -s "${MODEL}" ]; then echo nomodel; elif ${PY} ${IMPORTS} 2>/dev/null; then echo ready; else echo missing; fi`;
+const PY = `"${DATA}/venv/bin/python"`, IMPORTS = `-c "import numpy, scipy"`;
+const RUNTIME_CHECK = `if ${PY} ${IMPORTS} 2>/dev/null; then echo ready; else echo missing; fi`;
 const shellQuote = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 const runtimeSetup = (python) => `set -e; mkdir -p "${DATA}"; ${shellQuote(python)} -m venv --clear "${DATA}/venv"; ${PY} -m pip install --quiet --disable-pip-version-check -r "${PKG}/engine/requirements.txt"; ${PY} ${IMPORTS}`;
 
-// What the Panel plays for one place: the engine's short mono clip, and the same clip as it will sound after the edit.
-const PREVIEW_RATE = 22050;
+// What the Panel plays for one place: its stretch of the decoded WAV (48 kHz stereo), and the same as it will sound after the edit.
+const PREVIEW_RATE = 48000;
 const PAGE = 40; // places listed at a time, so an hour of talk stays light
-function decodePcm(parts) {
+function decodePcm(parts, channels = 1) {
   const bytes = parts.flatMap((b64) => Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
-  const out = new Float32Array(bytes.length >> 1);
-  for (let i = 0; i < out.length; i++) { const v = bytes[2 * i] | (bytes[2 * i + 1] << 8); out[i] = (v >= 32768 ? v - 65536 : v) / 32768; }
+  const out = new Float32Array(Math.floor(bytes.length / (2 * channels)));
+  for (let i = 0; i < out.length; i++) {
+    let sum = 0;
+    for (let c = 0; c < channels; c++) { const j = 2 * (i * channels + c), v = bytes[j] | (bytes[j + 1] << 8); sum += (v >= 32768 ? v - 65536 : v) / 32768; }
+    out[i] = sum / channels;
+  }
   return out;
 }
 function cleaned(pcm, lo, hi, action, lowerDb) {
@@ -378,8 +431,8 @@ function wavePoints(shape, ref, from, to, h) {
   for (let i = from; i < to; i++) pts.push(`${i - from + 0.5},${(h - Math.sqrt(Math.min(1, shape[i] / ref)) * (h - 1)).toFixed(1)}`);
   return `0,${h} ${pts.join(" ")} ${to - from},${h}`;
 }
-// How sure a cut must be, how far a breath is lowered, and the closest the timeline zooms in (frames).
-const CUT_LINE = 0.3, LOWER_DB = 11, MIN_VIEW = 10 * FPS;
+// How far a breath is lowered, and the closest the timeline zooms in (frames).
+const LOWER_DB = 11, MIN_VIEW = 10 * FPS;
 // The timeline's window after a zoom about one point (0 to 1 across it), kept inside the Draft.
 function zoomView(view, total, factor, anchor) {
   const span = Math.max(Math.min(MIN_VIEW, total), Math.min(total, view.span * factor));
@@ -423,10 +476,14 @@ const STYLE = `
 .tac .tac-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--panel-button-radius); border: 0; background: var(--panel-muted); font-size: 12px; }
 .tac-chip i { font-style: normal; color: var(--panel-muted-fg); }
 .tac .tac-chip[aria-pressed="false"] { background: none; box-shadow: inset 0 0 0 1px var(--panel-border); color: var(--panel-muted-fg); text-decoration: line-through; }
-.tac-tip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; padding: 12px; background: var(--panel-muted); border-radius: var(--panel-radius); }
-.tac-tip b { font-weight: 500; }
-.tac-tip small { grid-column: 2; color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
-.tac-tip .tac-btns { grid-column: 2; margin-top: 6px; }
+.tac-knob { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--panel-muted); border-radius: var(--panel-radius); }
+.tac-live { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tac-knobhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.tac-knobhead b { font-weight: 500; }
+.tac-knobhead output { color: var(--key); white-space: nowrap; }
+.tac-knob small { color: var(--panel-muted-fg); font-size: 12px; line-height: 1.45; }
+.tac-sketch { display: block; width: 100%; height: auto; }
+.tac-range { width: 100%; margin: 0 0 6px; accent-color: var(--key); }
 .tac .tac-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: var(--panel-button-radius); border: 0; background: var(--panel-accent); font-size: 12px; white-space: nowrap; }
 .tac .tac-btn.quiet { background: none; color: var(--panel-muted-fg); }
 .tac .tac-btn:disabled { opacity: .35; cursor: default; }
@@ -453,7 +510,6 @@ const STYLE = `
 .tac .tac-act { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 68px; height: 26px; padding: 0 7px 0 9px; border-radius: var(--panel-button-radius); border: 0; background: var(--panel-accent); font-size: 12px; }
 .tac .tac-act::after { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); opacity: .7; }
 .tac .tac-act.leave { background: none; box-shadow: inset 0 0 0 1px var(--panel-border); color: var(--panel-muted-fg); }
-.tac .tac-act.rec { background: none; box-shadow: inset 0 0 0 1px var(--key); color: var(--key); }
 .tac-fixed { min-width: 68px; color: var(--panel-muted-fg); font-size: 12px; text-align: right; }
 .tac-detail { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--panel-border); }
 .tac-detail .tac-wave { height: 84px; border-radius: 4px; }
@@ -493,9 +549,10 @@ export default function Panel({ sdk, context, ui }) {
   const [stage0, setStage] = useState(0); // which step of the analysis is running
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null); // { name, done, rows } once the copy is saved
-  const [on, setOn] = useState({ blemish: true, breath: true, sniff: true, click: true, opener: true });
+  const [on, setOn] = useState({ blemish: true, breath: true, opener: true });
+  const [knobs, setKnobs] = useState(DEFAULTS); // the thresholds the rules use; they stay as set for the next analysis
   const [choice, setChoice] = useState(() => new Map()); // place id -> the treatment the user picked for it
-  const [filter, setFilter] = useState("all"); // "all" | "maybe" | "left"
+  const [filter, setFilter] = useState("all"); // "all" | "left"
   const [first, setFirst] = useState(0); // the list shows PAGE places from here
   const [name, setName] = useState(null); // the copy's name, once the user typed one
   const [view, setView] = useState(null); // the stretch of the Draft the timeline shows, in frames
@@ -566,7 +623,6 @@ export default function Panel({ sdk, context, ui }) {
     const check = await sdk.runShell({ summary: "Check the analysis program", command: RUNTIME_CHECK, timeoutMs: 60000 });
     const state = String(check.stdout || "").trim().split("\n").pop();
     if (state === "ready") return;
-    if (state === "nomodel") throw Error(t.noModel);
     setFirstRun(true);
     const py = await sdk.runShell({ summary: "Prepare Python (first run only)", command: `sh "${PKG}/runtime.sh" python`, timeoutMs: 290000 });
     const python = String(py.stdout || "").trim().split("\n").filter(Boolean).pop();
@@ -574,6 +630,18 @@ export default function Panel({ sdk, context, ui }) {
     const setup = await sdk.runShell({ summary: "Set up the analysis program", command: runtimeSetup(python), timeoutMs: 290000 });
     if (setup.isError || setup.exitCode !== 0) throw Error(t.setupFailed);
     setFirstRun(false);
+  }
+
+  // A stretch of a file as base64 pieces, one read per script run: the app returns nothing for a larger result.
+  async function readParts(path, from, end) {
+    const parts = [];
+    for (let o = from; o < end; ) {
+      const p = await run("Read a file", `return await selects.files.readRange({ path: ${q(path)}, offset: ${o}, length: ${Math.min(49152, end - o)} });`);
+      if (p.bytesRead > 0) parts.push(p.base64);
+      o += p.bytesRead;
+      if (p.bytesRead < 49152) break;
+    }
+    return parts;
   }
 
   async function analyze() {
@@ -590,7 +658,7 @@ export default function Panel({ sdk, context, ui }) {
       let n = 0;
       for (const s of segments(info.clips)) {
         n++;
-        const wav = `${work}/in-${n}.wav`, out = `${work}/edl-${n}.json`, clips = `${work}/clips-${n}.pcm`;
+        const wav = `${work}/in-${n}.wav`, out = `${work}/sounds-${n}.json`, wordsFile = `${work}/words-${n}.json`;
         setStage(1);
         const peek = await run("Read where the picture starts in the file", `const m = await selects.media.measureAudioPeaks({ path: ${q(s.path)}, startSeconds: 0, endSeconds: 1 }); return { status: m.status, videoStartSeconds: m.videoStartSeconds };`);
         if (peek?.status === "absent") { noSound.add(s.resourceId); continue; }
@@ -606,31 +674,30 @@ export default function Panel({ sdk, context, ui }) {
         }
         setStage(2);
         const lone = (info.openers ?? []).filter((o) => o.resourceId === s.resourceId && o.start >= s.t0 && o.next <= s.to).map((o) => [o.start, o.next, o.prevEnd]);
+        // The transcript's words inside this stretch, for the engine to tell a sound at a word's edge from one outside it.
+        const spoken = JSON.stringify((info.words ?? []).filter((w) => w[0] === s.resourceId && w[2] > s.t0 && w[1] < s.to + 5).map((w) => [+w[1].toFixed(4), +w[2].toFixed(4)]));
+        const hasWords = spoken.length > 2;
+        for (let o = 0; hasWords && o < spoken.length; o += 49152) await run("Hand the word times to the analysis", `await selects.files.writeChunk({ path: ${q(wordsFile)}, offset: ${o}, base64: ${q(btoa(spoken.slice(o, o + 49152)))} }); return true;`, true);
         const sh = await sdk.runShell({
           summary: "Find what to clean",
-          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --model "${MODEL}" --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))} --previews ${shellQuote(clips)}`,
+          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))}${hasWords ? ` --words ${shellQuote(wordsFile)}` : ""}`,
           cwd: work,
           timeoutMs: 300000,
         });
         if (sh.isError || sh.exitCode !== 0) throw Error(sh.stderr || sh.output || "analysis failed");
-        await run("Remove the decoded audio", `await selects.files.remove(${q(wav)}, { force: true }); return true;`, true).catch(() => {});
         if (!live()) return;
         setStage(3);
         let text = "";
         const decoder = new TextDecoder();
-        for (let offset = 0; ; offset += 49152) {
-          const part = await run("Read the result", `return await selects.files.readRange({ path: ${q(out)}, offset: ${offset}, length: 49152 });`);
-          const bytes = Uint8Array.from(atob(part.base64), (ch) => ch.charCodeAt(0));
-          text += decoder.decode(bytes, { stream: true });
-          if (part.bytesRead < 49152) break;
-        }
-        for (const it of JSON.parse(text).items) {
-          const item = { ...it, resourceId: s.resourceId, clips };
+        for (const b64 of await readParts(out, 0, Infinity)) text += decoder.decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)), { stream: true });
+        const found = JSON.parse(text);
+        for (const it of found.items) {
+          const item = { ...it, resourceId: s.resourceId, wav, dataOffset: found.dataOffset };
           if (inClips(item, info.clips)) all.push(item);
         }
       }
       if (!live()) return;
-      workRef.current = work; kept = true; // the preview clips stay until the next analysis or until the panel closes
+      workRef.current = work; kept = true; // the decoded audio stays, to listen to a place, until the next analysis or until the panel closes
       setSilent(noSound.size);
       setItems(all);
     } catch (e) {
@@ -641,27 +708,31 @@ export default function Panel({ sdk, context, ui }) {
     }
   }
 
-  // Every place of the kinds that are on, with the treatment it will get and where it sits in the Draft.
-  // What the model is sure of is cleaned as proposed; a suggestion is left as it is. The user can change either.
+  // Every sound the settings clean, of the kinds that are on, with the treatment it gets and where it sits in the Draft.
+  // The user can change the treatment of any of them, or leave it as it is.
   const rows = useMemo(() => {
     if (!items || !info) return [];
-    const sure = resolve(items.filter((i) => i.tier !== "maybe"), on, CUT_LINE, LOWER_DB);
-    const maybe = items.filter((i) => i.tier === "maybe" && on[i.rule]);
-    return [...sure, ...maybe]
+    return resolve(items, on, knobs, LOWER_DB)
       .map((it) => {
-        const id = `${it.resourceId}:${it.start}`, proposed = it.action, act = choice.get(id) ?? (it.tier === "maybe" ? "leave" : proposed);
+        const id = `${it.resourceId}:${it.start}`, proposed = it.action, act = choice.get(id) ?? proposed;
         return { ...it, id, proposed, act, action: act === "leave" ? proposed : act, lowerDb: act === "lower" ? LOWER_DB : null, frame: draftFrame(it, info.clips, info.fps), frames: Math.max(1, Math.round((it.end - it.start) * info.fps)) };
       })
       .filter((r) => r.frame != null)
       .sort((a, b) => a.frame - b.frame);
-  }, [items, info, on, choice]);
+  }, [items, info, on, knobs, choice]);
   const chosen = useMemo(() => rows.filter((r) => r.act !== "leave"), [rows]);
-  const hints = rows.filter((r) => r.tier === "maybe");
-  const leftOut = rows.filter((r) => r.tier !== "maybe" && r.act === "leave");
+  const leftOut = rows.filter((r) => r.act === "leave");
+  // How many places each kind has with the current settings, whether the kind is on or not.
+  const perKind = useMemo(() => {
+    const n = {};
+    for (const it of items ? resolve(items, { blemish: true, breath: true, opener: true }, knobs, LOWER_DB) : []) n[it.rule] = (n[it.rule] || 0) + 1;
+    return n;
+  }, [items, knobs]);
+  const hasWords = !!items && items.some((it) => it.edge != null);
   const cuts = chosen.filter((i) => i.action === "delete");
   const cutSeconds = cuts.reduce((s, i) => s + (i.end - i.start), 0);
   const copyName = name ?? `${info?.name || t.draft} (${t.copySuffix})`;
-  const anyOn = RULES.some((k) => on[k]);
+  const found0 = !!items && items.length > 0 && !result && busy !== "apply"; // the analysis is in and nothing is applied yet
   // One scale for every waveform, set by the loud speech around the places.
   const ref = useMemo(() => {
     const peaks = (items || []).map((i) => Math.max(...i.shape)).sort((a, b) => a - b);
@@ -670,7 +741,7 @@ export default function Panel({ sdk, context, ui }) {
 
   const at = (r) => (result ? r.copyFrame : r.frame);
   const base = result ? result.rows : rows;
-  const list = result || filter === "all" ? base : filter === "maybe" ? hints : leftOut;
+  const list = result || filter === "all" ? base : leftOut;
   const total = Math.max(1, ...base.map((r) => at(r) + r.frames), info ? Math.max(0, ...info.clips.map((c) => c.startFrame + c.frames)) : 1);
   const page = list.slice(first, first + PAGE);
   // The window the timeline shows: a minute to start with (two for a long Draft), always inside the Draft.
@@ -738,9 +809,8 @@ export default function Panel({ sdk, context, ui }) {
     try {
       let pcm = s.clips.get(row.id);
       if (!pcm) {
-        const [from, n] = row.snip, end = from + n * 2;
-        const parts = await run("Read the sound of one place", `const out = []; for (let o = ${from}; o < ${end}; o += 49152) out.push((await selects.files.readRange({ path: ${q(row.clips)}, offset: o, length: Math.min(49152, ${end} - o) })).base64); return out;`);
-        pcm = decodePcm(parts); s.clips.set(row.id, pcm);
+        const from = row.dataOffset + row.snip[0] * 4; // 16-bit stereo: four bytes a sample
+        pcm = decodePcm(await readParts(row.wav, from, from + row.snip[1] * 4), 2); s.clips.set(row.id, pcm);
       }
       const data = mode === "after" && row.act !== "leave" ? cleaned(pcm, row.snip[2], row.snip[3], row.action, row.lowerDb) : pcm;
       s.ctx = s.ctx || new AudioContext();
@@ -812,6 +882,55 @@ export default function Panel({ sdk, context, ui }) {
       </svg>
     );
   };
+  // One setting's drawing: the clip as the timeline draws it, the sounds the setting cleans lit up.
+  const drawing = (key) => {
+    const sk = sketch(key, knobs, t);
+    return (
+      <svg className="tac-sketch" viewBox="0 0 300 68" role="img" aria-label={t.knob[key === "speech" ? "attached" : key][0]}>
+        <rect width="300" height="52" rx="3" fill="var(--clip)" />
+        {sk.hits.map(([a, b, , hit]) => hit && <React.Fragment key={a}><rect x={a} y="0" width={b - a} height="52" fill="var(--key)" opacity="0.3" /><rect x={a} y="0" width={b - a} height="1.5" fill="var(--key)" /></React.Fragment>)}
+        <polygon points={sketchPoints(sk.parts, 52)} fill="var(--peak)" />
+        {sk.words.map(([a, b, reach]) => (
+          <React.Fragment key={a}>
+            <rect x={b} y="47" width={reach} height="5" fill="#fff" opacity="0.4" />
+            <rect x={a} y="47" width={b - a} height="5" fill="#fff" opacity="0.85" />
+            <text x={a + 3} y="44" fontSize="8" fill="#fff" opacity="0.85">{t.word}</text>
+          </React.Fragment>
+        ))}
+        {sk.line != null && <line x1="0" x2="300" y1={52 - sk.line * 50} y2={52 - sk.line * 50} stroke="var(--key)" strokeWidth="1" strokeDasharray="4 3" />}
+        {sk.hits.map(([a, b, text, hit]) => <text key={a} x={(a + b) / 2} y="64" textAnchor="middle" fontSize="9" fill={hit ? "var(--key)" : "var(--panel-muted-fg)"}>{text}{sk.cut ? ` · ${hit ? t.act.delete : t.act.lower(LOWER_DB)}` : ""}</text>)}
+      </svg>
+    );
+  };
+  const sec = (v) => `${v.toFixed(2)}${ko ? "\ucd08" : " s"}`;
+  const valueText = (key, v) => (key === "loud" || key === "spiky" ? `${v} dB` : key === "margin" ? sec(v) : `${t.frames(v)} · ${sec(v / FPS)}`);
+  const settings = found0 && (
+    <div className="tac">
+      <div className="tac-live">
+        <p className="tac-note">{t.rulesNote}</p>
+        <button type="button" className="tac-btn" disabled={KNOBS.every(([key]) => knobs[key] === DEFAULTS[key])} onClick={() => { hush(); setPicked(null); setMenu(null); setFirst(0); setKnobs(DEFAULTS); }}>{t.reset}</button>
+      </div>
+      {!hasWords && <p className="tac-note">{t.noWords}</p>}
+      {[["loud", ["loud"]], ["speech", ["attached", "outside", "margin"]], ["spiky", ["spiky"]]].map(([pic, keys]) => (
+        <div key={pic} className="tac-knob">
+          {drawing(pic)}
+          {KNOBS.filter(([key]) => keys.includes(key)).map(([key, min, max, step]) => (
+            <React.Fragment key={key}>
+              <div className="tac-knobhead"><b>{t.knob[key][0]}</b><output>{valueText(key, knobs[key])}</output></div>
+              <small>{t.knob[key][1]}</small>
+              <input type="range" className="tac-range" aria-label={t.knob[key][0]} min={min} max={max} step={step} value={knobs[key]}
+                onChange={(e) => { hush(); setPicked(null); setMenu(null); setFirst(0); setKnobs({ ...knobs, [key]: Number(e.target.value) }); }} />
+            </React.Fragment>
+          ))}
+        </div>
+      ))}
+      <div className="tac-kinds">
+        <button type="button" role="switch" aria-checked={on.opener} className="tac-kind" onClick={() => { setOn({ ...on, opener: !on.opener }); setFirst(0); }}>
+          <b>{t.kind.opener[0]}</b><span className="tac-sw" /><small>{t.kind.opener[1]}</small>
+        </button>
+      </div>
+    </div>
+  );
   const seg = (r) => (
     <div className="tac-seg">
       {["delete", "lower", "mute", "leave"].map((a) => (
@@ -839,7 +958,7 @@ export default function Panel({ sdk, context, ui }) {
             return (
               <React.Fragment key={r.id}>
                 {picked === r.id && <rect x={x - 3} y="14" width={w + 6} height="32" fill="var(--panel-fg)" />}
-                <rect x={x} y="18" width={w} height="24" fill={live ? "var(--key)" : "none"} stroke={live ? "none" : r.tier === "maybe" ? "var(--key)" : "var(--panel-muted-fg)"} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                <rect x={x} y="18" width={w} height="24" fill={live ? "var(--key)" : "none"} stroke={live ? "none" : "var(--panel-muted-fg)"} strokeWidth="1" vectorEffect="non-scaling-stroke" />
               </React.Fragment>
             );
           })}
@@ -854,7 +973,7 @@ export default function Panel({ sdk, context, ui }) {
       <div className="tac-list">
         {page.length === 0 && <p className="tac-note" style={{ padding: 12 }}>{t.empty}</p>}
         {page.map((r) => {
-          const open = picked === r.id, hint = !result && r.tier === "maybe" && r.act === "leave";
+          const open = picked === r.id;
           return (
             <React.Fragment key={r.id}>
               <div role="button" tabIndex={0} className={`tac-row${!result && r.act === "leave" ? " leave" : ""}`} aria-expanded={open} onClick={() => pick(r)}
@@ -862,8 +981,8 @@ export default function Panel({ sdk, context, ui }) {
                 <span className="tac-when"><span>{clock(at(r) / fps)}</span><small>{t.kind[r.rule][0]}</small></span>
                 {wave(r)}
                 {result ? <span className="tac-fixed">{label(r.action)}</span> : (
-                  <button type="button" className={`tac-act${hint ? " rec" : r.act === "leave" ? " leave" : ""}`} aria-label={t.change} aria-expanded={menu === r.id}
-                    onClick={(e) => { e.stopPropagation(); setMenu(menu === r.id ? null : r.id); }}>{hint ? t.tag : label(r.act)}</button>
+                  <button type="button" className={`tac-act${r.act === "leave" ? " leave" : ""}`} aria-label={t.change} aria-expanded={menu === r.id}
+                    onClick={(e) => { e.stopPropagation(); setMenu(menu === r.id ? null : r.id); }}>{label(r.act)}</button>
                 )}
               </div>
               {menu === r.id && !result && !open && <div className="tac-detail" style={{ padding: "8px 12px" }}>{seg(r)}</div>}
@@ -927,7 +1046,7 @@ export default function Panel({ sdk, context, ui }) {
   const start = info && !info.pending && !blocked && !waiting && !items && busy !== "analyze";
   const choosing = info && !items && busy !== "analyze" && busy !== "apply" && !result; // the source can be changed until the analysis starts
   const length = (seconds) => (seconds == null ? "" : `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`);
-  const found = items && items.length > 0 && !result && busy !== "apply";
+  const found = found0;
   return (
     <ui.Stack gap={16}>
       <style>{STYLE}</style>
@@ -937,6 +1056,7 @@ export default function Panel({ sdk, context, ui }) {
           {info && !info.pending && info.clips.length > 0 && <p className="tac-sub"><strong>{result ? result.name : info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
           {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
           {start && <p className="tac-note">{fresh ? t.introSource : t.intro}</p>}
+          {start && <p className="tac-note">{t.analyzeNote}</p>}
           {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
           {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage0} />}
         </div>
@@ -965,21 +1085,6 @@ export default function Panel({ sdk, context, ui }) {
         </ui.Section>
       )}
 
-      {start && (
-        <ui.Section title={t.pick}>
-          <div className="tac">
-            <div className="tac-kinds">
-              {RULES.map((k) => (
-                <button key={k} type="button" role="switch" aria-checked={on[k]} className="tac-kind" onClick={() => setOn({ ...on, [k]: !on[k] })}>
-                  <b>{t.kind[k][0]}</b><span className="tac-sw" /><small>{t.kind[k][1]}</small>
-                </button>
-              ))}
-            </div>
-            <p className="tac-note">{anyOn ? t.analyzeNote : t.pickOne}</p>
-          </div>
-        </ui.Section>
-      )}
-
       {items && items.length === 0 && (
         <ui.Section title={t.found}>
           <ui.Message>{t.nothing}</ui.Message>
@@ -998,29 +1103,16 @@ export default function Panel({ sdk, context, ui }) {
 
       {found && (
         <>
+          <ui.Section title={t.rules}>{settings}</ui.Section>
           <ui.Section title={t.found}>
             <div className="tac">
               <div className="tac-chips">
-                {RULES.filter((k) => items.some((i) => i.rule === k && i.tier !== "maybe")).map((k) => (
-                  <button key={k} type="button" className="tac-chip" aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
-                    {t.kind[k][0]}<i>{items.filter((i) => i.rule === k && i.tier !== "maybe").length}</i>
+                {RULES.filter((k) => k !== "opener" && perKind[k]).map((k) => (
+                  <button key={k} type="button" className="tac-chip" title={t.kind[k][1]} aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
+                    {t.kind[k][0]}<i>{perKind[k]}</i>
                   </button>
                 ))}
               </div>
-              {hints.length > 0 && (
-                <div className="tac-tip">
-                  <ui.Icon name="sparkles" size={14} /><b>{t.suggest(hints.length)}</b>
-                  <small>{t.suggestNote}</small>
-                  <div className="tac-btns">
-                    <button type="button" className="tac-btn" onClick={() => { hush(); setPicked(null); setMenu(null); setFilter("maybe"); setFirst(0); }}>{t.review}</button>
-                    <button type="button" className="tac-btn quiet" onClick={() => {
-                      const all = hints.every((r) => r.act !== "leave"), next = new Map(choice);
-                      for (const r of hints) next.set(r.id, all ? "leave" : r.proposed);
-                      setChoice(next);
-                    }}>{hints.every((r) => r.act !== "leave") ? t.removeAll : t.addAll}</button>
-                  </div>
-                </div>
-              )}
               {silent > 0 && <p className="tac-note">{t.skippedSilent(silent)}</p>}
             </div>
             <ui.TextField label={t.copyName} value={copyName} onChange={setName} />
@@ -1029,7 +1121,7 @@ export default function Panel({ sdk, context, ui }) {
             <div className="tac">
               {timeline}
               <div className="tac-tabs">
-                {[["all", rows.length], ["maybe", hints.length], ["left", leftOut.length]].map(([f, n]) => (
+                {[["all", rows.length], ["left", leftOut.length]].map(([f, n]) => (
                   <button key={f} type="button" className="tac-tab" aria-pressed={filter === f} onClick={() => { hush(); setPicked(null); setMenu(null); setFilter(f); setFirst(0); }}>{t.filter[f]} {n}</button>
                 ))}
               </div>
@@ -1056,7 +1148,7 @@ export default function Panel({ sdk, context, ui }) {
 
       {(start || found || result) && (
         <div className="tac tac-foot">
-          {start && <button type="button" className="tac-primary" disabled={!anyOn} onClick={analyze}>{t.analyze}</button>}
+          {start && <button type="button" className="tac-primary" onClick={analyze}>{t.analyze}</button>}
           {found && (
             <>
               <div className="tac-stat"><b>{t.toClean(chosen.length)}</b><span className="tac-sub">{t.shorter(span(cutSeconds, ko))} · {t.cutsVols(cuts.length, chosen.length - cuts.length)}</span></div>
