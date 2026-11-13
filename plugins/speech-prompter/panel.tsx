@@ -522,6 +522,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // ---- Edit view ----------------------------------------------------------------
   if (view === "edit") {
     return (
+      <div style={{maxWidth: 640, width: "100%", margin: "0 auto", padding: "8px 0 24px", boxSizing: "border-box", "--panel-field-max": "100%"} as React.CSSProperties}>
       <ui.Stack gap={16}>
         <ui.Section title={t.script}>
           <ui.TextField multiline value={script} onChange={setScript} placeholder={t.placeholder} disabled={!loaded} />
@@ -544,15 +545,17 @@ export default function Panel({ sdk, context, ui }: any) {
           {mode === "auto" ? (
             <>
               <ui.Select label={t.lang} value={lang} onChange={setLang} options={LANGS} />
-              <small>{t[engineState]}</small>
-              <label>OpenAI API key
-                <input type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." disabled={keyBusy} style={{width: "100%", boxSizing: "border-box"}} />
+              <div style={{display: "flex", flexDirection: "column", gap: 12, padding: 16, border: "1px solid var(--panel-border, #444)", borderRadius: 12, minWidth: 0, boxSizing: "border-box"}}>
+              <small style={{margin: 0, lineHeight: 1.5}} role="status">{t[engineState]}</small>
+              <label style={{display: "flex", flexDirection: "column", gap: 8, width: "100%", fontSize: 13, fontWeight: 500}}>OpenAI API key
+                <input type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." disabled={keyBusy} style={{width: "100%", maxWidth: "none", minWidth: 0, boxSizing: "border-box", height: 40, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--panel-border, #555)", background: "var(--panel-bg, #181818)", color: "inherit", fontSize: 14}} />
               </label>
-              <small>{t.keyHelp}</small>
-              <ui.Actions>
-                <ui.Button disabled={keyBusy || !bridge || !apiKey.trim()} onClick={() => saveKey()}>{t.saveKey}</ui.Button>
-                <ui.Button disabled={keyBusy || !bridge} onClick={() => saveKey(true)}>{t.removeKey}</ui.Button>
-              </ui.Actions>
+              <small style={{margin: 0, lineHeight: 1.6, color: "var(--panel-muted-fg, #aaa)"}}>{t.keyHelp}</small>
+              <div style={{display: "flex", flexWrap: "wrap", gap: 8}}>
+                <ui.Button variant="secondary" disabled={keyBusy || !bridge || !apiKey.trim()} onClick={() => saveKey()}>{t.saveKey}</ui.Button>
+                <ui.Button variant="ghost" disabled={keyBusy || !bridge} onClick={() => saveKey(true)}>{t.removeKey}</ui.Button>
+              </div>
+              </div>
             </>
           ) : (
             <ui.Slider label={t.pace} unit={t.paceUnit} min={2} max={14} step={0.5} value={pace} onChange={setPace} />
@@ -565,6 +568,7 @@ export default function Panel({ sdk, context, ui }: any) {
           {msg && <ui.Message tone={msg.tone}>{msg.text.replace(/OPENAI_API_KEY|gpt-live-transcribe|OpenAI/gi, context?.language === "ko" ? "\uc74c\uc131 \uc778\uc2dd" : "Speech recognition")}</ui.Message>}
         </ui.Section>
       </ui.Stack>
+      </div>
     );
   }
 
