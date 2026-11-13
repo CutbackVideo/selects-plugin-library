@@ -9,9 +9,8 @@ const { MODELS, ORT_VERSION } = require('./lib/runtime-assets.cjs');
 const { downloadAsset } = require('./lib/runtime-download.cjs');
 const { prepareEnvironment } = require('./lib/runtime-environment.cjs');
 const { writeJson } = require('./lib/files.cjs');
-const { collectTool } = require('./lib/process.cjs');
 const { ensureCacheDirectory } = require('./lib/runtime-cache.cjs');
-const { resolveRuntimeTool } = require('./lib/runtime-tools.cjs');
+const { resolveRuntimeTool, inspectRuntimeTool } = require('./lib/runtime-tools.cjs');
 const { createVerifiedModelSession, verifyModel } = require('./lib/models.cjs');
 
 function argument(name) {
@@ -58,7 +57,10 @@ async function main() {
   await session.release();
   controller.signal.throwIfAborted();
   const tools = { ffmpeg: await resolveRuntimeTool(argument('--ffmpeg')), ffprobe: await resolveRuntimeTool(argument('--ffprobe')) };
-  for (const executable of Object.values(tools)) await collectTool(executable, ['-version'], { signal: controller.signal, limit: 256 * 1024 });
+  const preparedTools = {};
+  for (const [name, executable] of Object.entries(tools)) {
+    preparedTools[name] = await inspectRuntimeTool(executable, { signal: controller.signal });
+  }
   let webgpu, webgpuPreparationFailure;
   if (task === 'person.matte' && process.platform === 'darwin' && process.arch === 'arm64') {
     try { webgpu = await require('./lib/webgpu-environment.cjs').prepareWebGpuEnvironment(cache, { signal: controller.signal, emit }); }
@@ -76,7 +78,7 @@ async function main() {
   }
   controller.signal.throwIfAborted();
   await writeJson(path.resolve(argument('--output')), {
-    ortModule, tools, models, provider: 'cpu', intraOpNumThreads: 4, timelineCache,
+    ortModule, tools, preparedTools, models, provider: 'cpu', intraOpNumThreads: 4, timelineCache,
     ...(webgpu ? { webgpu } : {}),
     ...(webgpuPreparationFailure ? { webgpuPreparationFailure } : {}),
   });
