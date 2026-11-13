@@ -19,8 +19,23 @@ function fixture(path = '/media/photo.png', imported = true) {
 }
 test('Main source bindings recurse and retain persistent ids', () => {
   const core = { owner: { projectId: 'p' }, sequenceJson: { id: 'd', tracks: { children: [{ kind: 'Main', children: [{ id: 2, children: [{ id: 3, mediaReferences: { defaultMedia: { id } } }] }] }, { kind: 'Audio', children: [{ id: 4, mediaReferences: { defaultMedia: { id: other } } }] }] } } };
-  assert.deepEqual([...canonicalResourceBindings(core, { projectId: 'p', draftId: 'd' })], [[3, id]]);
+  assert.deepEqual([...canonicalResourceBindings(core, { projectId: 'p', draftId: 'd' })], [[3, id], [4, other]]);
+  assert.deepEqual([...canonicalResourceBindings(core, { projectId: 'p', draftId: 'd', trackKinds: ['Main'] })], [[3, id]]);
   assert.throws(() => canonicalResourceBindings(core, { projectId: 'foreign' }), /another Project/);
+});
+test('Main-less panel views still bind J/L tails and unlinked pieces left on Video and Audio', () => {
+  // Shape of the Selects 2.1 panel view: an identical V1/A1 pair joins into Main (id 10), a J-cut
+  // picture tail stays on Video (id 11) and an unlinked sound piece stays on Audio (id 12).
+  // clips({trackScope:'main'}) reports all three ids as "main" rows.
+  const core = { owner: { projectId: 'p' }, sequenceJson: { id: 'd', tracks: { children: [
+    { kind: 'Main', children: [{ id: 10, mediaReferences: { defaultMedia: { id } } }] },
+    { kind: 'Video', children: [{ id: 11, mediaReferences: { defaultMedia: { id } } }] },
+    { kind: 'Audio', children: [{ id: 12, mediaReferences: { defaultMedia: { id: other } } }] },
+    { kind: 'Captions', children: [{ id: 13, mediaReferences: { defaultMedia: { id: other } } }] },
+  ] } } };
+  const bindings = canonicalResourceBindings(core, { projectId: 'p', draftId: 'd' });
+  for (const clipId of [10, 11, 12]) assert.ok(bindings.get(clipId), 'clip ' + clipId + ' is bound');
+  assert.equal(bindings.has(13), false);
 });
 test('alias joins validate persistent ordered Resources', async () => {
   const f = fixture(); assert.equal((await resolveSharedAiResources(f.sdk, 'p', ['r0'], f.run)).get('r0'), id);

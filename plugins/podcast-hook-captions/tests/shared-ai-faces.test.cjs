@@ -72,8 +72,12 @@ test('worst-case bounded valid float-face page stays below the Panel inline resu
 });
 test('raw Resource UUIDs come only from the current owning Draft, including grouped Main clips',()=>{
  const core={owner:{projectId:'project-a'},sequenceJson:{id:'draft',tracks:{children:[{kind:'Main',children:[{id:'group',children:[{id:7,mediaReferences:{defaultMedia:{id:'raw-video'}}}]}]},{kind:'Video',children:[{id:8,mediaReferences:{defaultMedia:{id:'overlay'}}}]}]}}};
- assert.deepEqual([...c.rawResources(core,'project-a','draft')],[[7,'raw-video']]);
+ assert.deepEqual([...c.rawResources(core,'project-a','draft')],[[7,'raw-video'],[8,'overlay']]);
  assert.throws(()=>c.rawResources(core,'project-b','draft'),/Project/);assert.throws(()=>c.rawResources(core,'project-a','other'),/Project/);
+});
+test('Main-less panel views keep J/L tails and unlinked pieces on Video/Audio bound',()=>{
+ const core={owner:{projectId:'project-a'},sequenceJson:{id:'draft',tracks:{children:[{kind:'Video',children:[{id:7,mediaReferences:{defaultMedia:{id:'raw-video'}}}]},{kind:'Audio',children:[{id:9,mediaReferences:{defaultMedia:{id:'raw-video'}}}]}]}}};
+ assert.deepEqual([...c.rawResources(core,'project-a','draft')],[[7,'raw-video'],[9,'raw-video']]);
 });
 test('recovery storage failure prevents submission',async()=>{
  let calls=0;await assert.rejects(c.runRecord({input:input()},api({save:async()=>{throw Error('disk full');},run:async()=>{calls++;}})),/disk full/);assert.equal(calls,0);

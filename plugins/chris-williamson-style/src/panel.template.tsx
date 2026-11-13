@@ -401,7 +401,8 @@ export async function readDraft(env: Env, projectId: string, sequenceId: string)
       if (Number.isSafeInteger(row.id) && typeof id === 'string' && !/^r\d+$/.test(id)) sources.set(row.id, id);
       if (Array.isArray(row.children)) visit(row.children);
     } };
-    for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === 'Main') visit(track.children);
+    // Main-less Drafts keep J/L tails and unlinked pieces on Video/Audio; they are still "main" rows.
+    for (const track of core.sequenceJson?.tracks?.children || []) if (['Main', 'Video', 'Audio'].includes(track.kind)) visit(track.children);
     return sources;
   };
   const sources = bindings(await env.readCore(sequenceId));
