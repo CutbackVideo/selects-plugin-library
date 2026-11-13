@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>local.selects.speech-prompter.openai</string><key>CFBundleName</key><string>Selects Speech Prompter</string><key>NSMicrophoneUsageDescription</key><string>&#54532;&#47212;&#54532;&#53552;&#44032; &#47568;&#54616;&#45716; &#50948;&#52824;&#50640; &#47582;&#52656; &#49828;&#53356;&#47204;&#54616;&#46020;&#47197; &#47560;&#51060;&#53356; &#51020;&#49457;&#51012; OpenAI&#50640; &#51204;&#49569;&#54633;&#45768;&#45796;.</string></dict></plist>

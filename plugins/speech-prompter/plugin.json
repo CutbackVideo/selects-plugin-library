@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "speech-prompter",
+  "version": "0.1.1",
+  "name": "Voice-Following Teleprompter",
+  "summary": "Follow a script with voice tracking or fixed-speed scrolling on macOS.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "install.sh",
+    "bridge.py",
+    "INSTALL.md",
+    "README.md",
+    "panel.tsx",
+    "RealtimeTranscriber.swift",
+    "Info.plist"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS 13+"
+    ],
+    "selects": "Requires custom panels and the panel shell interface."
+  }
+}
