@@ -924,6 +924,11 @@ export default function Panel({ sdk, context, ui }) {
           ))}
         </div>
       ))}
+      <div className="tac-kinds">
+        <button type="button" role="switch" aria-checked={on.opener} className="tac-kind" onClick={() => { setOn({ ...on, opener: !on.opener }); setFirst(0); }}>
+          <b>{t.kind.opener[0]} · {t.places(perKind.opener || 0)}</b><span className="tac-sw" /><small>{t.kind.opener[1]}</small>
+        </button>
+      </div>
     </div>
   );
   const seg = (r) => (
@@ -1102,7 +1107,7 @@ export default function Panel({ sdk, context, ui }) {
           <ui.Section title={t.found}>
             <div className="tac">
               <div className="tac-chips">
-                {RULES.filter((k) => perKind[k]).map((k) => (
+                {RULES.filter((k) => k !== "opener" && perKind[k]).map((k) => (
                   <button key={k} type="button" className="tac-chip" title={t.kind[k][1]} aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
                     {t.kind[k][0]}<i>{perKind[k]}</i>
                   </button>
