@@ -31,13 +31,11 @@ const STRINGS = {
     intro: "Finds the small noises between words and fixes them on a copy. This Draft is not changed.",
     introSource: "Finds the small noises between words and makes a new, cleaned Draft from this source. The source is not changed.",
     applyNew: "Make a cleaned Draft",
-    pick: "What to clean",
     target: "Source",
     open: "The open timeline",
     noTarget: "Pick a source to clean.",
     noSources: "This Project has no video or audio file on this computer. Add one or open a timeline, then read again.",
     reload: "Read again",
-    pickOne: "Turn on at least one.",
     analyze: "Find what to clean",
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
     firstRun: "First run: setting up the analysis program. This downloads Python and takes a few minutes, once.",
@@ -108,13 +106,11 @@ const STRINGS = {
     intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc774 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     introSource: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544, \uc774 \uc6d0\ubcf8\uc73c\ub85c \uc815\ub9ac\ub41c \uc0c8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc6d0\ubcf8\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     applyNew: "\uc815\ub9ac\ub41c Draft \ub9cc\ub4e4\uae30",
-    pick: "\uc815\ub9ac\ud560 \uac83",
     target: "\uc18c\uc2a4",
     open: "\uc5f4\ub824 \uc788\ub294 \ud0c0\uc784\ub77c\uc778",
     noTarget: "\uc815\ub9ac\ud560 \uc18c\uc2a4\ub97c \uace8\ub77c \uc8fc\uc138\uc694.",
     noSources: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc788\ub294 \uc601\uc0c1\uc774\ub098 \uc624\ub514\uc624 \ud30c\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud30c\uc77c\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud0c0\uc784\ub77c\uc778\uc744 \uc5f0 \ub4a4 \ub2e4\uc2dc \uc77d\uc5b4 \uc8fc\uc138\uc694.",
     reload: "\ub2e4\uc2dc \uc77d\uae30",
-    pickOne: "\ud558\ub098 \uc774\uc0c1 \ucf1c \uc8fc\uc138\uc694.",
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     firstRun: "\ucc98\uc74c \ud55c \ubc88: \ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud569\ub2c8\ub2e4. Python\uc744 \ub0b4\ub824\ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4.",
@@ -481,7 +477,7 @@ const STYLE = `
 .tac-chip i { font-style: normal; color: var(--panel-muted-fg); }
 .tac .tac-chip[aria-pressed="false"] { background: none; box-shadow: inset 0 0 0 1px var(--panel-border); color: var(--panel-muted-fg); text-decoration: line-through; }
 .tac-knob { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--panel-muted); border-radius: var(--panel-radius); }
-.tac-live { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; top: 0; z-index: 1; padding: 8px 0; background: var(--panel-bg, #171717); }
+.tac-live { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .tac-knobhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .tac-knobhead b { font-weight: 500; }
 .tac-knobhead output { color: var(--key); white-space: nowrap; }
@@ -737,7 +733,6 @@ export default function Panel({ sdk, context, ui }) {
   const cutSeconds = cuts.reduce((s, i) => s + (i.end - i.start), 0);
   const copyName = name ?? `${info?.name || t.draft} (${t.copySuffix})`;
   const found0 = !!items && items.length > 0 && !result && busy !== "apply"; // the analysis is in and nothing is applied yet
-  const anyOn = RULES.some((k) => on[k]);
   // One scale for every waveform, set by the loud speech around the places.
   const ref = useMemo(() => {
     const peaks = (items || []).map((i) => Math.max(...i.shape)).sort((a, b) => a - b);
@@ -912,10 +907,9 @@ export default function Panel({ sdk, context, ui }) {
   const settings = found0 && (
     <div className="tac">
       <div className="tac-live">
-        <div className="tac-stat"><b>{t.toClean(chosen.length)}</b><span className="tac-sub">{t.cutsVols(cuts.length, chosen.length - cuts.length)}</span></div>
+        <p className="tac-note">{t.rulesNote}</p>
         <button type="button" className="tac-btn" disabled={KNOBS.every(([key]) => knobs[key] === DEFAULTS[key])} onClick={() => { hush(); setPicked(null); setMenu(null); setFirst(0); setKnobs(DEFAULTS); }}>{t.reset}</button>
       </div>
-      <p className="tac-note">{t.rulesNote}</p>
       {!hasWords && <p className="tac-note">{t.noWords}</p>}
       {[["loud", ["loud"]], ["speech", ["attached", "outside", "margin"]], ["spiky", ["spiky"]]].map(([pic, keys]) => (
         <div key={pic} className="tac-knob">
@@ -1057,6 +1051,7 @@ export default function Panel({ sdk, context, ui }) {
           {info && !info.pending && info.clips.length > 0 && <p className="tac-sub"><strong>{result ? result.name : info.name || t.draft}</strong> · {t.duration(span(sourceSeconds, ko), info.clips.length)}{info.skipped ? ` · ${t.skippedSpeed(info.skipped)}` : ""}</p>}
           {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
           {start && <p className="tac-note">{fresh ? t.introSource : t.intro}</p>}
+          {start && <p className="tac-note">{t.analyzeNote}</p>}
           {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
           {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage0} />}
         </div>
@@ -1085,21 +1080,6 @@ export default function Panel({ sdk, context, ui }) {
         </ui.Section>
       )}
 
-      {start && (
-        <ui.Section title={t.pick}>
-          <div className="tac">
-            <div className="tac-kinds">
-              {RULES.map((k) => (
-                <button key={k} type="button" role="switch" aria-checked={on[k]} className="tac-kind" onClick={() => setOn({ ...on, [k]: !on[k] })}>
-                  <b>{t.kind[k][0]}</b><span className="tac-sw" /><small>{t.kind[k][1]}</small>
-                </button>
-              ))}
-            </div>
-            <p className="tac-note">{anyOn ? t.analyzeNote : t.pickOne}</p>
-          </div>
-        </ui.Section>
-      )}
-
       {items && items.length === 0 && (
         <ui.Section title={t.found}>
           <ui.Message>{t.nothing}</ui.Message>
@@ -1118,11 +1098,12 @@ export default function Panel({ sdk, context, ui }) {
 
       {found && (
         <>
+          <ui.Section title={t.rules}>{settings}</ui.Section>
           <ui.Section title={t.found}>
             <div className="tac">
               <div className="tac-chips">
                 {RULES.filter((k) => perKind[k]).map((k) => (
-                  <button key={k} type="button" className="tac-chip" aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
+                  <button key={k} type="button" className="tac-chip" title={t.kind[k][1]} aria-pressed={on[k]} onClick={() => { setOn({ ...on, [k]: !on[k] }); setFirst(0); }}>
                     {t.kind[k][0]}<i>{perKind[k]}</i>
                   </button>
                 ))}
@@ -1131,7 +1112,6 @@ export default function Panel({ sdk, context, ui }) {
             </div>
             <ui.TextField label={t.copyName} value={copyName} onChange={setName} />
           </ui.Section>
-          <ui.Section title={t.rules}>{settings}</ui.Section>
           <ui.Section title={t.places(rows.length)}>
             <div className="tac">
               {timeline}
@@ -1163,7 +1143,7 @@ export default function Panel({ sdk, context, ui }) {
 
       {(start || found || result) && (
         <div className="tac tac-foot">
-          {start && <button type="button" className="tac-primary" disabled={!anyOn} onClick={analyze}>{t.analyze}</button>}
+          {start && <button type="button" className="tac-primary" onClick={analyze}>{t.analyze}</button>}
           {found && (
             <>
               <div className="tac-stat"><b>{t.toClean(chosen.length)}</b><span className="tac-sub">{t.shorter(span(cutSeconds, ko))} · {t.cutsVols(cuts.length, chosen.length - cuts.length)}</span></div>
