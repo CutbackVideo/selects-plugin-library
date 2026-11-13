@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AppKit
 import Darwin
 
 // Microphone PCM stays in memory. Only the latest transcript/status is written locally.
@@ -77,6 +78,15 @@ final class Transcriber: @unchecked Sendable {
         case .authorized: granted=true
         case .notDetermined: granted=await AVCaptureDevice.requestAccess(for:.audio)
         default: granted=false
+        }
+        if !granted {
+            // A denied request cannot display the consent prompt again. Open the
+            // microphone pane only in response to the user's Start action.
+            await MainActor.run {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                    _ = NSWorkspace.shared.open(url)
+                }
+            }
         }
         guard granted else { throw NSError(domain:"Prompter",code:1,userInfo:[NSLocalizedDescriptionKey:"\u{b9c8}\u{c774}\u{d06c} \u{ad8c}\u{d55c}\u{c774} \u{c5c6}\u{c2b5}\u{b2c8}\u{b2e4}. \u{c2dc}\u{c2a4}\u{d15c} \u{c124}\u{c815} → \u{ac1c}\u{c778}\u{c815}\u{bcf4} \u{bcf4}\u{d638} \u{bc0f} \u{bcf4}\u{c548} → \u{b9c8}\u{c774}\u{d06c}\u{b97c} \u{d655}\u{c778}\u{d558}\u{c138}\u{c694}."]) }
         let node=engine.inputNode
