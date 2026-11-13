@@ -926,7 +926,7 @@ export default function Panel({ sdk, context, ui }) {
       ))}
       <div className="tac-kinds">
         <button type="button" role="switch" aria-checked={on.opener} className="tac-kind" onClick={() => { setOn({ ...on, opener: !on.opener }); setFirst(0); }}>
-          <b>{t.kind.opener[0]} · {t.places(perKind.opener || 0)}</b><span className="tac-sw" /><small>{t.kind.opener[1]}</small>
+          <b>{t.kind.opener[0]}</b><span className="tac-sw" /><small>{t.kind.opener[1]}</small>
         </button>
       </div>
     </div>
