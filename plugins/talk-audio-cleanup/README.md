@@ -25,10 +25,9 @@ It works on a copy of the open Draft. The original Draft is not changed.
    makes a cleaned copy; from a source file or a source timeline it makes a
    new, cleaned Draft, since source material cannot be copied.
 2. Pick what to clean (each kind has a switch) and press **Find what to
-   clean**. It decodes the Main clips' audio with the app's FFmpeg and runs
-   `engine/analyze.py` on this computer. Nothing is uploaded and no credits are
-   used. The first run sets up the Python it needs (a download of a few
-   minutes).
+   clean**. It decodes the Main clips' audio with the app's FFmpeg and measures
+   it in the Panel's own scripts, on this computer. Nothing is uploaded, no
+   credits are used and nothing is installed.
 3. The result opens with **What gets cleaned**: five settings, each with its
    name, what it means, and a drawing of a clip in which the sounds it cleans
    light up as you move it. The list of places below
@@ -48,7 +47,7 @@ export.
 
 ## What decides
 
-`engine/analyze.py` measures every 30 fps frame of the audio and reports every
+The Panel measures every 30 fps frame of the audio and reports every
 sound that sticks out of a pause: a stretch of frames under -40 dBFS whose
 band above 2 kHz peaks 12 dB or more over a tracked noise floor (stretches one
 or two quiet frames apart are one sound). The Panel then applies the settings:
@@ -66,11 +65,15 @@ the other: the pauses the rules pick are pauses the editor also touched 82% of
 the time, and the rules find about nine in ten of the editor's own sound
 clean-ups.
 
-`python3 engine/analyze.py --self-check` checks how sounds are found.
+`node --test tests/talk_audio_cleanup_panel.test.mjs` (from the library root)
+checks how sounds are found. The measures are the ones of the earlier Python
+engine: on two edited episodes the Panel reports the same places with the same
+measures (one spikiness value 0.1 dB apart).
 
 ## Limitations
 
-- macOS only: the analysis is a Python program run through the shell.
+- Not on the web: the audio is decoded on this computer. Windows runs the
+  same code as macOS but has not yet been run on a Windows PC.
 - The sound is measured in 1/30 s steps. A Draft at another frame rate is
   edited on its own frames, so an edge can land up to half a frame from where
   it was measured; this has been checked in tests, not yet by ear.

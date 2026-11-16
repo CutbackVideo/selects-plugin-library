@@ -26,7 +26,7 @@ const STRINGS = {
     skippedSilent: (n) => `${n} source file${n === 1 ? "" : "s"} without sound left out`,
     unsupported: {
       none: "No Main clip with its own source file was found in this Draft.",
-      web: "The analysis runs a local program, so it needs the desktop app.",
+      web: "The analysis decodes the audio on this computer, so it needs the desktop app.",
     },
     intro: "Finds the small noises between words and fixes them on a copy. This Draft is not changed.",
     introSource: "Finds the small noises between words and makes a new, cleaned Draft from this source. The source is not changed.",
@@ -38,9 +38,7 @@ const STRINGS = {
     reload: "Read again",
     analyze: "Find what to clean",
     analyzeNote: "Runs on this computer, usually in under a minute. Nothing is uploaded and no credits are used.",
-    firstRun: "First run: setting up the analysis program. This downloads Python and takes a few minutes, once.",
-    steps: { prepare: "Prepare", decode: "Decode the audio", detect: "Find what to clean", read: "Read the result" },
-    setupFailed: "Could not set up the analysis program. Check the internet connection, then try again.",
+    steps: { decode: "Decode the audio", detect: "Find what to clean" },
     previewFailed: "Could not load the sound of that place.",
     nothing: "Nothing to clean was found in this Draft.",
     partial: (name) => `It stopped partway: the copy “${name}” has only some of the edits. Delete it before trying again.`,
@@ -101,7 +99,7 @@ const STRINGS = {
     skippedSilent: (n) => `\uc18c\ub9ac \uc5c6\ub294 \uc6d0\ubcf8 ${n}\uac1c \uc81c\uc678`,
     unsupported: {
       none: "\uc774 Draft\uc758 Main\uc5d0\uc11c \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc788\ub294 \ud074\ub9bd\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
-      web: "\ubd84\uc11d\uc740 \uc774 \ucef4\ud4e8\ud130\uc758 \ud504\ub85c\uadf8\ub7a8\uc744 \uc2e4\ud589\ud558\ubbc0\ub85c \ub370\uc2a4\ud06c\ud1b1 \uc571\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+      web: "\ubd84\uc11d\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc624\ub514\uc624\ub97c \ud480\uc5b4\uc11c \ud558\ubbc0\ub85c \ub370\uc2a4\ud06c\ud1b1 \uc571\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
     },
     intro: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544 \uc0ac\ubcf8\uc5d0\uc11c \uace0\uce69\ub2c8\ub2e4. \uc774 Draft\ub294 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     introSource: "\ub9d0 \uc0ac\uc774\uc758 \uc791\uc740 \uc7a1\uc18c\ub9ac\ub97c \ucc3e\uc544, \uc774 \uc6d0\ubcf8\uc73c\ub85c \uc815\ub9ac\ub41c \uc0c8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc6d0\ubcf8\uc740 \ubc14\ub00c\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
@@ -113,9 +111,7 @@ const STRINGS = {
     reload: "\ub2e4\uc2dc \uc77d\uae30",
     analyze: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30",
     analyzeNote: "\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc2e4\ud589\ub418\uace0 \ubcf4\ud1b5 1\ubd84 \uc548\uc5d0 \ub05d\ub0a9\ub2c8\ub2e4. \uc5c5\ub85c\ub4dc\ud558\uc9c0 \uc54a\uace0 \ud06c\ub808\ub527\ub3c4 \uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
-    firstRun: "\ucc98\uc74c \ud55c \ubc88: \ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud569\ub2c8\ub2e4. Python\uc744 \ub0b4\ub824\ubc1b\ub290\ub77c \uba87 \ubd84 \uac78\ub9bd\ub2c8\ub2e4.",
-    steps: { prepare: "\uc900\ube44", decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30", read: "\uacb0\uacfc \uc77d\uae30" },
-    setupFailed: "\ubd84\uc11d \ud504\ub85c\uadf8\ub7a8\uc744 \uc900\ube44\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc778\ud130\ub137 \uc5f0\uacb0\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
+    steps: { decode: "\uc624\ub514\uc624 \ud480\uae30", detect: "\uc815\ub9ac\ud560 \uacf3 \ucc3e\uae30" },
     previewFailed: "\uadf8 \uc790\ub9ac\uc758 \uc18c\ub9ac\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     nothing: "\uc774 Draft\uc5d0\uc11c \uc815\ub9ac\ud560 \uacf3\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     partial: (name) => `\uc911\uac04\uc5d0 \uba48\ucdc4\uc2b5\ub2c8\ub2e4. “${name}” \uc0ac\ubcf8\uc5d0\ub294 \uc77c\ubd80\ub9cc \uc801\uc6a9\ub418\uc5b4 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uae30 \uc804\uc5d0 \uc9c0\uc6cc \uc8fc\uc138\uc694.`,
@@ -380,13 +376,187 @@ for (const v of vols) {
 const saved = await d.commitAll("Talk audio cleanup");
 return { done, draftId: ${targetDraftId ? q(targetDraftId) : "saved.createdDraftId"} };`;
 
-// The analysis program's own Python, made on first use in the plugin's data folder: a virtual environment with
-// engine/requirements.txt, built on the pinned CPython that runtime.sh fetches (a stock Mac has no Python).
-const DATA = "$HOME/.selects/plugin-data/talk-audio-cleanup", PKG = "$SELECTS_USER_SKILLS_ROOT/talk-audio-cleanup";
-const PY = `"${DATA}/venv/bin/python"`, IMPORTS = `-c "import numpy, scipy"`;
-const RUNTIME_CHECK = `if ${PY} ${IMPORTS} 2>/dev/null; then echo ready; else echo missing; fi`;
-const shellQuote = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
-const runtimeSetup = (python) => `set -e; mkdir -p "${DATA}"; ${shellQuote(python)} -m venv --clear "${DATA}/venv"; ${PY} -m pip install --quiet --disable-pip-version-check -r "${PKG}/engine/requirements.txt"; ${PY} ${IMPORTS}`;
+// The analysis, in the app itself: nothing to install, the same on Mac and Windows. The audio is decoded to 48 kHz stereo
+// 16-bit samples with no header; script runs measure it per 30 fps frame and the rules below find the sounds in it.
+// A sound is a stretch inside a pause (frames under PAUSE dBFS) whose >2 kHz peak stands AUDIBLE dB over the noise floor;
+// stretches one or two quiet frames apart are one sound. Each comes with what the settings read:
+//   gap    frames to the nearest speech, on the nearer side (0 or 1 = attached to speech)
+//   loud   dB over the floor at its loudest frame
+//   spiky  dB between the loudest and quietest 4 ms of that frame, >2 kHz (a tick is spiky, a breath is not)
+//   edge   seconds: it counts as inside a transcript word for any margin above this (null without words)
+const SR = 48000, FR = 1600; // samples a second, samples a frame
+const PAUSE = -40, AUDIBLE = 12;
+const STRETCH = 60 * FPS; // frames measured per script run, so one run stays well inside the script budget
+const PEAK = 80; // samples per peak of the curve that draws a place: under 2 ms, so a slice of the drawing barely reaches past its ends
+const PAD = 1; // seconds played and drawn either side of a place
+const OPENER_VALLEY = 0.05, OPENER_MAX_SEC = 0.25; // level after the word / loudest speech within 1.5 s; longest word that still counts as a lone opener
+
+// The app's script runtime has no atob or btoa, so the scripts below read the PCM file and hand numbers back as base64 themselves.
+const PCM_LIB = `
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", INV = new Int16Array(128);
+for (let i = 0; i < 64; i++) INV[B64.charCodeAt(i)] = i;
+// Sample frames [from, to) of a 16-bit stereo PCM file, interleaved; fewer at its end.
+async function readPcm(path, from, to) {
+  const bytes = new Uint8Array(Math.max(0, to - from) * 4);
+  let got = 0;
+  while (got < bytes.length) {
+    const want = Math.min(49152, bytes.length - got);
+    const r = await selects.files.readRange({ path, offset: from * 4 + got, length: want }), s = r.base64, end = got + r.bytesRead;
+    for (let i = 0, o = got; o < end; i += 4) {
+      const n = (INV[s.charCodeAt(i)] << 18) | (INV[s.charCodeAt(i + 1)] << 12) | (INV[s.charCodeAt(i + 2)] << 6) | INV[s.charCodeAt(i + 3)];
+      bytes[o++] = (n >> 16) & 255;
+      if (o < end) bytes[o++] = (n >> 8) & 255;
+      if (o < end) bytes[o++] = n & 255;
+    }
+    got = end;
+    if (r.bytesRead < want) break;
+  }
+  return new Int16Array(bytes.buffer, 0, (got >> 2) * 2);
+}
+// The two sides added, so a mono sample is half of it.
+function sums(s) { const x = new Float64Array(s.length >> 1); for (let i = 0; i < x.length; i++) x[i] = s[2 * i] + s[2 * i + 1]; return x; }
+function toBase64(view) {
+  const u = new Uint8Array(view.buffer, view.byteOffset, view.byteLength), out = [];
+  for (let i = 0; i < u.length; i += 3) {
+    const n = (u[i] << 16) | ((u[i + 1] ?? 0) << 8) | (u[i + 2] ?? 0);
+    out.push(B64[(n >> 18) & 63] + B64[(n >> 12) & 63] + (i + 1 < u.length ? B64[(n >> 6) & 63] : "=") + (i + 2 < u.length ? B64[n & 63] : "="));
+  }
+  return out.join("");
+}`;
+// Frames [first, first + count) of a PCM file: per frame its level (dBFS of the mean power) and the loudest and quietest
+// 4 ms of the >2 kHz band (dB), as float32; and the peak of every PEAK samples (both sides added), for drawing.
+// The band is scipy.signal.butter(4, 2000, "hp", fs=48000, output="sos"), run as sosfilt runs it, warmed up on the second before.
+const MEASURE = (path, first, count) => `${PCM_LIB}
+const F = ${FR}, P = ${PEAK}, first = ${first}, from = Math.max(0, first * F - ${SR});
+const s = sums(await readPcm(${q(path)}, from, (first + ${count}) * F)), x = s.map((v) => v / 65536), skip = first * F - from;
+const frames = Math.max(0, Math.floor((x.length - skip) / F));
+const SOS = [[0.7094894751253097, -1.4189789502506194, 0.7094894751253097, -1.5590543011416915, 0.6140517819378818], [1, -2, 1, -1.7577536094827262, 0.8197604429273134]];
+const hp = new Float64Array(x.length);
+hp.set(x);
+for (const [b0, b1, b2, a1, a2] of SOS) {
+  let z1 = 0, z2 = 0;
+  for (let i = 0; i < hp.length; i++) { const v = hp[i], y = b0 * v + z1; z1 = b1 * v - a1 * y + z2; z2 = b2 * v - a2 * y; hp[i] = y; }
+}
+const out = new Float32Array(frames * 3), peaks = new Uint16Array(frames * F / P);
+for (let f = 0; f < frames; f++) {
+  let full = 0, hi = -Infinity, lo = Infinity;
+  for (let b = 0; b < 8; b++) {
+    let e = 0, h = 0;
+    for (let i = skip + f * F + b * 200, end = i + 200; i < end; i++) { e += x[i] * x[i]; h += hp[i] * hp[i]; }
+    full += e / 200;
+    const d = 10 * Math.log10(h / 200 + 1e-12);
+    if (d > hi) hi = d;
+    if (d < lo) lo = d;
+  }
+  out[3 * f] = 10 * Math.log10(full / 8 + 1e-12); out[3 * f + 1] = hi; out[3 * f + 2] = lo;
+}
+for (let k = 0; k < peaks.length; k++) {
+  let m = 0;
+  for (let i = skip + k * P, end = i + P; i < end; i++) { const a = Math.abs(s[i]); if (a > m) m = a; }
+  peaks[k] = Math.min(65535, m);
+}
+return { frames, measures: toBase64(out), peaks: toBase64(peaks) };`;
+// The peak of every `step` samples (both sides added) in each [from, to) range of a PCM file, and how many samples the range has.
+const PEAKS = (path, ranges, step) => `${PCM_LIB}
+const out = [];
+for (const [a, b] of ${q(ranges)}) {
+  const x = sums(await readPcm(${q(path)}, a, b)), m = new Uint16Array(Math.floor(x.length / ${step}));
+  for (let k = 0; k < m.length; k++) { let v = 0; for (let i = k * ${step}; i < (k + 1) * ${step}; i++) { const s = Math.abs(x[i]); if (s > v) v = s; } m[k] = Math.min(65535, v); }
+  out.push({ samples: x.length, peaks: toBase64(m) });
+}
+return out;`;
+const bytesOf = (b64) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; };
+const float32 = (b64) => new Float32Array(bytesOf(b64)), uint16 = (b64) => new Uint16Array(bytesOf(b64));
+const r6 = (v) => Math.round(v * 1e6) / 1e6;
+
+// Every sound that sticks out of a pause, with the measures the settings read. level, high, low: per frame, dB.
+function sounds(level, high, low, words, sourceStart) {
+  const n = level.length, dirt = new Float32Array(n), win = new Float32Array(121);
+  for (let i = 0; i < n; i++) {
+    // the floor: the quietest tenth of the 4 s around (13th lowest of 121 frames' quietest 4 ms, the end frames repeated past the ends)
+    for (let j = 0; j < 121; j++) win[j] = low[Math.min(n - 1, Math.max(0, i + j - 60))];
+    win.sort(); dirt[i] = high[i] - win[12];
+  }
+  const quiet = Array.from(level, (v) => v < PAUSE), since = new Int32Array(n), until = new Int32Array(n);
+  for (let i = 0, last = -999; i < n; i++) { if (!quiet[i]) last = i; since[i] = i - last; } // frames since the last speech frame
+  for (let i = n - 1, next = n + 999; i >= 0; i--) { if (!quiet[i]) next = i; until[i] = next - i; } // frames to the next one
+  const ev = [];
+  for (let i = 0; i < n; i++) {
+    if (!(quiet[i] && dirt[i] >= AUDIBLE)) continue;
+    let e = i; while (e < n && quiet[e] && dirt[e] >= AUDIBLE) e++;
+    const last = ev[ev.length - 1];
+    if (last && i - last[1] <= 2 && quiet.slice(last[1], i).every(Boolean)) last[1] = e; else ev.push([i, e]);
+    i = e;
+  }
+  return ev.map(([s, e]) => {
+    let p = s; for (let i = s; i < e; i++) if (dirt[i] > dirt[p]) p = i;
+    const gl = s > 0 && quiet[s - 1] ? since[s - 1] : 0, gr = e < n && quiet[e] ? until[e] : 0, t0 = sourceStart + s / FPS, t1 = sourceStart + e / FPS;
+    let edge = null;
+    for (const [w0, w1] of words) edge = Math.min(edge ?? Infinity, Math.max(w0 - t0, t1 - w1));
+    return { start: r6(t0), end: r6(t1), frames: e - s, rule: "sound", gap: Math.min(gl, gr, 30), loud: Math.round(dirt[p] * 10) / 10, spiky: Math.round((high[p] - low[p]) * 10) / 10, edge: edge == null ? null : Math.round(edge * 1e5) / 1e5 };
+  });
+}
+// Where to read the waveform around a standalone opener word ([its start, the next word's start, the previous word's end],
+// source seconds), or null when the transcript already says it does not stand alone.
+const OPENER_K = 96; // samples per step of the opener's envelope: 2 ms
+const openerWindow = ([ts, tn, prevEnd], sourceStart) => (ts - prevEnd > 0 && tn - ts > 0 && tn - ts <= OPENER_MAX_SEC ? [Math.trunc(Math.max(0, ts - 1.5 - sourceStart) * SR), Math.trunc((tn + 1.5 - sourceStart) * SR)] : null);
+// The cut for one opener: the transcript says where to look; the hump, the valley after it and the frames come from the waveform.
+// a: the window's first sample; samples: how many it has; raw: its peak per OPENER_K samples (any scale).
+function openerCut([ts, tn], a, samples, raw, sourceStart) {
+  if (samples < OPENER_K * 100) return null;
+  const m = raw.length, env = Float64Array.from(raw, (v, i) => ((raw[i - 1] ?? 0) + v + (raw[i + 1] ?? 0)) / 3);
+  const at = (t) => Math.floor(Math.trunc((t - sourceStart) * SR - a) / OPENER_K), cap = (i) => Math.max(0, Math.min(m, i));
+  const pick = (from, to, better) => { let b = from; for (let i = from; i < to; i++) if (better(env[i], env[b])) b = i; return b; };
+  const lo = cap(at(ts - 0.06)), pk = pick(lo, cap(at(ts + 0.06)), (x, y) => x > y);
+  const v = pick(pk, cap(Math.max(at(tn) + 10, pk + 12)), (x, y) => x < y); // the valley between the word and the next one
+  const ref = env[pick(cap(at(ts - 1.5)), cap(at(ts + 1.5)), (x, y) => x > y)];
+  if (!(ref > 0) || env[v] / ref > OPENER_VALLEY) return null;
+  let s = pk;
+  while (s > 0 && env[s] > 0.25 * env[pk]) s--;
+  const f0 = Math.max(0, Math.floor(((a + s * OPENER_K) * FPS) / SR) - 2), f1 = Math.round(((a + v * OPENER_K) * FPS) / SR); // two frames of lead-in, ends at the valley
+  return f1 > f0 ? { start: r6(sourceStart + f0 / FPS), end: r6(sourceStart + f1 / FPS), frames: f1 - f0, action: "delete", rule: "opener", confidence: 1 } : null;
+}
+// What the Panel plays and draws for one place: `snip` = [first sample, samples, place start, place end] (the last two
+// counted from the first) and `shape` = 100 peaks over the snip, 0-1000 of full scale.
+function withShape(it, peaks, samples, sourceStart) {
+  const a = Math.max(0, Math.round((it.start - PAD - sourceStart) * SR)), b = Math.min(samples, Math.round((it.end + PAD - sourceStart) * SR)), lo = Math.round((it.start - sourceStart) * SR) - a;
+  const shape = [];
+  for (let k = 0; k < 100; k++) {
+    const i = a + Math.floor((k * (b - a)) / 100), j = a + Math.floor(((k + 1) * (b - a)) / 100);
+    let v = 0;
+    for (let p = Math.floor(i / PEAK); p < Math.ceil(j / PEAK) && p < peaks.length; p++) if (peaks[p] > v) v = peaks[p];
+    shape.push(j > i ? Math.round(Math.min(1000, v / 65.536)) : 0);
+  }
+  return { ...it, snip: [a, b - a, Math.max(0, lo), Math.min(b - a, lo + it.frames * FR)], shape };
+}
+// Everything to clean in one decoded stretch (`samples` sample frames of a PCM file whose sample 0 is `sourceStart`):
+// measured a script run at a time, then the rules. `lone`: [start, next word's start, previous word's end] of opener words.
+// Returns null once `live()` says the analysis was dropped.
+async function findInPcm(run, pcm, samples, sourceStart, words, lone, live = () => true) {
+  const total = Math.floor(samples / FR), level = new Float32Array(total), high = new Float32Array(total), low = new Float32Array(total), peaks = new Uint16Array((total * FR) / PEAK);
+  for (let f = 0; f < total; f += STRETCH) {
+    if (!live()) return null;
+    const r = await run("Measure the audio", MEASURE(pcm, f, Math.min(STRETCH, total - f)));
+    const m = float32(r.measures);
+    for (let i = 0; i < r.frames; i++) { level[f + i] = m[3 * i]; high[f + i] = m[3 * i + 1]; low[f + i] = m[3 * i + 2]; }
+    peaks.set(uint16(r.peaks), (f * FR) / PEAK);
+  }
+  const looked = lone.filter((o) => openerWindow(o, sourceStart)), cuts = [];
+  for (let i = 0; i < looked.length; i += 10) {
+    if (!live()) return null;
+    const part = looked.slice(i, i + 10), ranges = part.map((o) => openerWindow(o, sourceStart));
+    const got = await run("Look at the lone openers", PEAKS(pcm, ranges, OPENER_K));
+    part.forEach((o, j) => { const cut = openerCut(o, ranges[j][0], got[j].samples, uint16(got[j].peaks), sourceStart); if (cut) cuts.push(cut); });
+  }
+  return live() ? build(sounds(level, high, low, words, sourceStart), cuts).map((it) => withShape(it, peaks, samples, sourceStart)) : null;
+}
+// The sounds and opener cuts of one stretch, in time order; a sound under an opener cut is dropped.
+// ponytail: dropped here, so it stays out even when the user switches openers off
+function build(found, cuts) {
+  let items = found;
+  for (const op of cuts) items = [...items.filter((it) => it.end < op.start || it.start > op.end), op];
+  return items.sort((x, y) => x.start - y.start);
+}
 
 // What the Panel plays for one place: its stretch of the decoded WAV (48 kHz stereo), and the same as it will sound after the edit.
 const PREVIEW_RATE = 48000;
@@ -560,7 +730,6 @@ export default function Panel({ sdk, context, ui }) {
   const [finishing, setFinishing] = useState(false); // the show is over and the edits are still being written
   const order = useRef([]);
   const [silent, setSilent] = useState(0);
-  const [firstRun, setFirstRun] = useState(false);
   const [picked, setPicked] = useState(null); // the place whose detail is open
   const [menu, setMenu] = useState(null); // the place whose treatment choices are open in the list
   const [progress, setProgress] = useState(null); // { at, of } while the copy is being made
@@ -619,19 +788,6 @@ export default function Panel({ sdk, context, ui }) {
   const fresh = info && info.isDraft === false ? [...info.clips].sort((a, b) => a.startFrame - b.startFrame).map((c) => ({ resourceId: c.resourceId, start: c.sourceStart, end: c.sourceStart + secs(c) })) : null;
   const sourceSeconds = info ? info.clips.reduce((s, c) => s + secs(c), 0) : 0;
 
-  async function ensureRuntime() {
-    const check = await sdk.runShell({ summary: "Check the analysis program", command: RUNTIME_CHECK, timeoutMs: 60000 });
-    const state = String(check.stdout || "").trim().split("\n").pop();
-    if (state === "ready") return;
-    setFirstRun(true);
-    const py = await sdk.runShell({ summary: "Prepare Python (first run only)", command: `sh "${PKG}/runtime.sh" python`, timeoutMs: 290000 });
-    const python = String(py.stdout || "").trim().split("\n").filter(Boolean).pop();
-    if (py.isError || py.exitCode !== 0 || !/^\//.test(python || "")) throw Error(t.setupFailed);
-    const setup = await sdk.runShell({ summary: "Set up the analysis program", command: runtimeSetup(python), timeoutMs: 290000 });
-    if (setup.isError || setup.exitCode !== 0) throw Error(t.setupFailed);
-    setFirstRun(false);
-  }
-
   // A stretch of a file as base64 pieces, one read per script run: the app returns nothing for a larger result.
   async function readParts(path, from, end) {
     const parts = [];
@@ -650,21 +806,19 @@ export default function Panel({ sdk, context, ui }) {
     setBusy("analyze"); setError(null); setItems(null); setResult(null); setStage(0); setSilent(0); reset();
     let work = null, kept = false;
     try {
-      await ensureRuntime();
-      if (!live()) return;
       work = `${info.env.tempDirectory.replace(/[\\/]$/, "")}/${ID}-${Date.now()}`;
       await run("Make a work folder", `await selects.files.mkdir(${q(work)}); return true;`, true);
       const all = [], noSound = new Set();
       let n = 0;
       for (const s of segments(info.clips)) {
         n++;
-        const wav = `${work}/in-${n}.wav`, out = `${work}/sounds-${n}.json`, wordsFile = `${work}/words-${n}.json`;
-        setStage(1);
+        const pcm = `${work}/in-${n}.pcm`;
+        setStage(0);
         const peek = await run("Read where the picture starts in the file", `const m = await selects.media.measureAudioPeaks({ path: ${q(s.path)}, startSeconds: 0, endSeconds: 1 }); return { status: m.status, videoStartSeconds: m.videoStartSeconds };`);
         if (peek?.status === "absent") { noSound.add(s.resourceId); continue; }
         const videoStart = peek?.videoStartSeconds ?? 0; // source clock = file time minus this
-        // first_pts=0 fills the stretch before a late-starting audio stream with silence, so WAV sample 0 is t0
-        const job = await run("Decode the audio", `return await selects.media.startFFmpeg({ args: ${q(["-nostdin", "-v", "error", "-y", "-ss", String(s.t0 + videoStart), "-t", String(s.to - s.t0 + 5), "-i", s.path, "-vn", "-af", "aresample=async=1:first_pts=0", "-ac", "2", "-ar", "48000", "-c:a", "pcm_s16le", wav])} });`, true);
+        // first_pts=0 fills the stretch before a late-starting audio stream with silence, so sample 0 is t0
+        const job = await run("Decode the audio", `return await selects.media.startFFmpeg({ args: ${q(["-nostdin", "-v", "error", "-y", "-ss", String(s.t0 + videoStart), "-t", String(s.to - s.t0 + 5), "-i", s.path, "-vn", "-af", "aresample=async=1:first_pts=0", "-ac", "2", "-ar", String(SR), "-c:a", "pcm_s16le", "-f", "s16le", pcm])} });`, true);
         for (;;) {
           if (!live()) { await run("Stop the decode", `await selects.media.job(${q(job.jobId)}).cancel(); return true;`, true).catch(() => {}); return; }
           const st = await run("Wait for the decode", `return (await selects.media.job(${q(job.jobId)}).status({ cursor: 0 })).state;`);
@@ -672,27 +826,15 @@ export default function Panel({ sdk, context, ui }) {
           if (st !== "running") throw Error(`ffmpeg ${st}`);
           await new Promise((r) => setTimeout(r, 700));
         }
-        setStage(2);
+        setStage(1);
+        const samples = Math.floor(((await run("Read the decoded audio's size", `return (await selects.files.stat(${q(pcm)}))?.size ?? 0;`)) || 0) / 4);
+        // The transcript's words inside this stretch, to tell a sound at a word's edge from one outside it.
+        const spoken = (info.words ?? []).filter((w) => w[0] === s.resourceId && w[2] > s.t0 && w[1] < s.to + 5).map((w) => [+w[1].toFixed(4), +w[2].toFixed(4)]);
         const lone = (info.openers ?? []).filter((o) => o.resourceId === s.resourceId && o.start >= s.t0 && o.next <= s.to).map((o) => [o.start, o.next, o.prevEnd]);
-        // The transcript's words inside this stretch, for the engine to tell a sound at a word's edge from one outside it.
-        const spoken = JSON.stringify((info.words ?? []).filter((w) => w[0] === s.resourceId && w[2] > s.t0 && w[1] < s.to + 5).map((w) => [+w[1].toFixed(4), +w[2].toFixed(4)]));
-        const hasWords = spoken.length > 2;
-        for (let o = 0; hasWords && o < spoken.length; o += 49152) await run("Hand the word times to the analysis", `await selects.files.writeChunk({ path: ${q(wordsFile)}, offset: ${o}, base64: ${q(btoa(spoken.slice(o, o + 49152)))} }); return true;`, true);
-        const sh = await sdk.runShell({
-          summary: "Find what to clean",
-          command: `${PY} "${PKG}/engine/analyze.py" --wav ${shellQuote(wav)} --out ${shellQuote(out)} --source-start ${s.t0} --openers ${shellQuote(JSON.stringify(lone))}${hasWords ? ` --words ${shellQuote(wordsFile)}` : ""}`,
-          cwd: work,
-          timeoutMs: 300000,
-        });
-        if (sh.isError || sh.exitCode !== 0) throw Error(sh.stderr || sh.output || "analysis failed");
-        if (!live()) return;
-        setStage(3);
-        let text = "";
-        const decoder = new TextDecoder();
-        for (const b64 of await readParts(out, 0, Infinity)) text += decoder.decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)), { stream: true });
-        const found = JSON.parse(text);
-        for (const it of found.items) {
-          const item = { ...it, resourceId: s.resourceId, wav, dataOffset: found.dataOffset };
+        const found = await findInPcm(run, pcm, samples, s.t0, spoken, lone, live);
+        if (!found) return;
+        for (const it of found) {
+          const item = { ...it, resourceId: s.resourceId, wav: pcm, dataOffset: 0 };
           if (inClips(item, info.clips)) all.push(item);
         }
       }
@@ -1057,8 +1199,7 @@ export default function Panel({ sdk, context, ui }) {
           {blocked && <ui.Message tone="error">{blocked}</ui.Message>}
           {start && <p className="tac-note">{fresh ? t.introSource : t.intro}</p>}
           {start && <p className="tac-note">{t.analyzeNote}</p>}
-          {busy === "analyze" && firstRun && <ui.Message tone="muted">{t.firstRun}</ui.Message>}
-          {busy === "analyze" && <ui.Progress steps={["prepare", "decode", "detect", "read"].map((k) => t.steps[k])} current={stage0} />}
+          {busy === "analyze" && <ui.Progress steps={["decode", "detect"].map((k) => t.steps[k])} current={stage0} />}
         </div>
       </ui.Section>
 
