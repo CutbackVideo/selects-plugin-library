@@ -6,8 +6,8 @@ import test from 'node:test';
 const source = fs.readFileSync(new URL('../plugins/talk-audio-cleanup/panel.tsx', import.meta.url), 'utf8');
 // Everything between the imports and the component is plain JavaScript.
 const body = source.slice(source.indexOf('const ID ='), source.indexOf('export default function Panel'));
-const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep, cleans, sketch, sketchPoints, DEFAULTS, KNOBS } = await import(
-  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep, cleans, sketch, sketchPoints, DEFAULTS, KNOBS };')
+const { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep, cleans, sketch, sketchPoints, DEFAULTS, KNOBS, MEASURE, findInPcm, sounds, build, withShape, float32, FR, PEAK } = await import(
+  'data:text/javascript,' + encodeURIComponent(body + '\nexport { READ, APPLY, resolve, segments, inClips, batches, STRINGS, FPS, BATCH, decodePcm, cleaned, inCopy, draftFrame, PREVIEW_RATE, wavePoints, zoomView, gridStep, cleans, sketch, sketchPoints, DEFAULTS, KNOBS, MEASURE, findInPcm, sounds, build, withShape, float32, FR, PEAK };')
 );
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const script = (text, selects) => new AsyncFunction('selects', text)(selects);
@@ -357,4 +357,101 @@ test('the fade is a one-frame crossfade on the cut where the app can place one, 
   const old = fakeDraft();
   assert.equal((await script(APPLY('p', 'd', null, 'name', cuts, true), old.selects)).done.fades, 2);
   assert.deepEqual(old.log, ['cut 450-453', 'cut 210-213', 'fade 447', 'fade 210']);
+});
+
+// The analysis, on sound made here. A PCM file (48 kHz stereo 16-bit, no header) is held in memory and read the way the
+// app's readRange reads it: at most 49152 bytes a call, as base64.
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const noise = (seed, n, sd) => { const r = rng(seed); return Float64Array.from({ length: n }, () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r()) * sd); };
+const stereo = (mono) => { const s = new Int16Array(mono.length * 2); mono.forEach((v, i) => { s[2 * i] = s[2 * i + 1] = Math.max(-32768, Math.min(32767, Math.trunc(v))); }); return s; };
+const tone = (x, t0, t1, amp) => { for (let i = Math.trunc(t0 * 48000), j = 0; i < Math.trunc(t1 * 48000); i++, j++) x[i] += Math.trunc(Math.sin(j * 0.05) * amp); };
+const pcmFiles = (pcm) => {
+  const bytes = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  return { readRange: async ({ offset, length }) => { assert.ok(length <= 49152); const b = bytes.subarray(offset, offset + length); return { base64: b.toString('base64'), bytesRead: b.length }; } };
+};
+const analyzePcm = (pcm, sourceStart = 0, words = [], lone = []) => { const files = pcmFiles(pcm); return findInPcm((summary, text) => script(text, { files }), 'in.pcm', pcm.length / 2, sourceStart, words, lone); };
+const measure = async (pcm, first, count) => { const r = await script(MEASURE('in.pcm', first, count), { files: pcmFiles(pcm) }), m = float32(r.measures); return { frames: r.frames, level: m.filter((_, i) => i % 3 === 0), high: m.filter((_, i) => i % 3 === 1), low: m.filter((_, i) => i % 3 === 2) }; };
+// 4 s of quiet room noise with one sharp click in frame 60: loud for a pause, yet the frame stays under the pause line.
+const roomWithClick = () => { const x = noise(0, 4 * 48000, 20).map(Math.trunc); for (let i = 60 * 1600 + 800; i < 60 * 1600 + 830; i++) x[i] += 1500; return x; };
+
+test('the analysis runs no shell command and installs nothing, so it is the same on Mac and Windows', () => {
+  assert.doesNotMatch(source, /runShell|runtime\.sh|python/i);
+});
+
+test('the measures are one value per frame and see the click', async () => {
+  const m = await measure(stereo(roomWithClick()), 0, 200);
+  assert.equal(m.frames, 120); // a script asked for more frames than the file has gets what there is
+  assert.ok(Math.max(...m.level) < -40); // all of it is pause
+  assert.ok(m.high[60] - m.high[20] > 15); // it stands far over the room noise in the >2 kHz band
+  assert.ok(m.high[60] - m.low[60] > m.high[20] - m.low[20] + 10); // a click is far spikier inside its frame than room noise
+});
+
+test('measuring in stretches gives what measuring at once gives', async () => {
+  const pcm = stereo(roomWithClick()), whole = await measure(pcm, 0, 120), a = await measure(pcm, 0, 60), b = await measure(pcm, 60, 60);
+  for (const k of ['level', 'high', 'low']) [...a[k], ...b[k]].forEach((v, i) => assert.ok(Math.abs(v - whole[k][i]) < 0.01, `${k} ${i}`)); // the band is warmed up on the second before a stretch
+});
+
+test('a click in a pause is one sound, with its measures in source time', async () => {
+  const pcm = stereo(roomWithClick()), items = await analyzePcm(pcm, 10);
+  assert.deepEqual(items.map((i) => [i.rule, i.frames, i.edge]), [['sound', 1, null]]);
+  assert.ok(Math.abs(items[0].start - 12) < 1e-9);
+  assert.ok(items[0].loud > 15);
+  assert.ok(items[0].gap > 1); // nothing but pause around it
+  assert.ok((await analyzePcm(pcm, 10, [[11.9, 12.2]]))[0].edge < 0); // a word that covers it
+  assert.ok(Math.abs((await analyzePcm(pcm, 10, [[11.0, 11.9]]))[0].edge - (12 + 1 / 30 - 11.9)) < 1e-4);
+});
+
+test('a sound right after speech is attached, and a click inside speech is not a sound', async () => {
+  const x = roomWithClick(), hiss = noise(1, 6 * 1600, 150);
+  for (let j = 0; j < 20 * 1600; j++) x[10 * 1600 + j] += Math.trunc(Math.sin(j * 0.05) * 8000); // speech in frames 10-29
+  hiss.forEach((v, j) => { x[30 * 1600 + j] += Math.trunc(v); }); // a breath right after it
+  for (let i = 20 * 1600 + 800; i < 20 * 1600 + 830; i++) x[i] += 6000; // a click inside the speech
+  const items = await analyzePcm(stereo(x));
+  assert.deepEqual(items.map((i) => Math.round(i.start * 30)), [30, 60]);
+  assert.deepEqual([items[0].frames, items[0].gap], [6, 0]);
+  assert.ok(items[0].spiky < items[1].spiky); // the breath is blunter than the click
+});
+
+test('sounds: ticks two quiet frames apart are one sound, three apart are two; gap and edge', () => {
+  const n = 60, level = new Float32Array(n).fill(-60), high = new Float32Array(n), low = new Float32Array(n); // a floor of 0 dB, so high is how far a frame stands over it
+  level.fill(-20, 0, 10); level.fill(-20, 30, 40); // speech
+  high[20] = 25; high[22] = 14; high.fill(18, 40, 43); // two ticks in the first pause; a sound right after speech
+  const ev = sounds(level, high, low, [[0, 10 / 30], [1, 40 / 30]], 0);
+  assert.deepEqual(ev.map((e) => [Math.round(e.start * 30), e.frames, e.gap, e.loud]), [[20, 3, 7, 25], [40, 3, 0, 18]]);
+  assert.ok(Math.abs(ev[0].edge - 1 / 3) < 1e-4 && Math.abs(ev[1].edge - 0.1) < 1e-4); // a word must reach this far past its own ends to cover the whole sound
+  high[22] = 0; high[24] = 14;
+  assert.equal(sounds(level, high, low, [], 0).length, 3);
+});
+
+test('a lone opener is cut and one running into the next word is kept', async () => {
+  const x = noise(3, 48000 * 6, 8).map(Math.trunc);
+  tone(x, 1.0, 1.12, 6000); tone(x, 1.25, 2.2, 12000); // short word, 130 ms of quiet, then speech
+  tone(x, 4.0, 4.12, 6000); tone(x, 4.12, 5.0, 12000); // the same word running straight into speech
+  const pcm = stereo(x), cutsOf = async (p, lone, ss = 0) => (await analyzePcm(p, ss, [], lone)).filter((i) => i.rule === 'opener');
+  const cuts = await cutsOf(pcm, [[1.0, 1.25, 0.0], [4.0, 4.12, 3.0]]);
+  assert.equal(cuts.length, 1);
+  assert.ok(Math.abs(cuts[0].end * 30 - Math.round(cuts[0].end * 30)) < 1e-4); // on a frame boundary, so the Panel finds its clip
+  assert.ok(cuts[0].start <= 1.0 && cuts[0].end >= 1.12 && cuts[0].end <= 1.25);
+  const shifted = await cutsOf(pcm.subarray(48000), [[1.0, 1.25, 0.0]], 0.5); // source time, not file time
+  assert.deepEqual([shifted[0].start, shifted[0].end], [cuts[0].start, cuts[0].end]);
+  assert.deepEqual(await cutsOf(pcm, [[1.0, 1.25, 1.0]]), []); // glued to the previous word
+  assert.deepEqual(await cutsOf(pcm, [[1.0, 1.4, 0.0]]), []); // too long to be a lone opener
+});
+
+test('an opener cut replaces the sounds under it', () => {
+  const op = { start: 1.9, end: 2.1, frames: 6, action: 'delete', rule: 'opener', confidence: 1 };
+  assert.deepEqual(build([sound(2, 1, 5, 20, 9), sound(3, 1, 5, 20, 9)], [op]).map((i) => i.rule + i.start), ['opener1.9', 'sound3']);
+});
+
+test('each place says where its sound is in the file and how to draw it', () => {
+  const peaks = new Uint16Array((4 * 48000) / PEAK); peaks.fill(40000, (2 * 48000) / PEAK, (2.1 * 48000) / PEAK); // both sides at 20000 for a tenth of a second at 2.0 s
+  const first = withShape({ start: 12, end: 12.1, frames: 3 }, peaks, 4 * 48000, 10), second = withShape({ start: 10.2, end: 10.3, frames: 3 }, peaks, 4 * 48000, 10); // the file starts at 10 s
+  assert.deepEqual(first.snip, [48000, 48000 * 2 + 4800, 48000, 48000 + 4800]); // a second either side, in 48 kHz sample frames
+  assert.deepEqual(second.snip.slice(0, 3), [0, Math.round(1.3 * 48000), Math.round(0.2 * 48000)]); // near the start of the file the lead-in is shorter
+  assert.equal(first.shape.length, 100);
+  assert.ok(Math.max(...first.shape) >= 580 && Math.max(...first.shape) <= 680 && Math.min(...first.shape) === 0); // linear peaks, 1000 = full scale
+  assert.equal(FR / PEAK, Math.round(FR / PEAK)); // a frame holds whole peaks, so stretches line up
 });

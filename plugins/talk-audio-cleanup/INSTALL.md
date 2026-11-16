@@ -1,30 +1,19 @@
 # Install Talk Audio Cleanup
 
-Experimental: macOS, with a Selects build that has Panel support,
-`sdk.runShell` and bundled FFmpeg jobs.
+Experimental: macOS and Windows, with a Selects build that has Panel support and
+bundled FFmpeg jobs. Windows runs the same code as macOS; it has not yet been
+run on a Windows PC.
 
 1. Place this package in `talk-audio-cleanup` beneath
    `SELECTS_USER_SKILLS_ROOT`, and `panel.tsx` in `talk-audio-cleanup` beneath
    `SELECTS_USER_PANELS_ROOT`, as in the library's
    [installation layout](../../PUBLISHING.md#installation-layout).
-2. Nothing else to install by hand. On the first **Analyze** the Panel sets up
-   the analysis program's Python in
-   `$HOME/.selects/plugin-data/talk-audio-cleanup/venv`: a virtual environment
-   with `engine/requirements.txt`, built on a pinned CPython 3.11.13 that
-   `runtime.sh` downloads (through uv, checked by SHA-256) into
-   `~/.selects/plugin-data/_runtime/`, shared with other plugins. A system
-   `python3` is not used. It needs a network connection that once.
-3. To check the setup afterwards:
-
-   ```sh
-   "$HOME/.selects/plugin-data/talk-audio-cleanup/venv/bin/python" \
-     "$SELECTS_USER_SKILLS_ROOT/talk-audio-cleanup/engine/analyze.py" --self-check
-   ```
-
-   It prints `ok`.
+2. Nothing else to install. The analysis runs inside the app, in the Panel's
+   own scripts: no Python, no download, no shell command.
 
 ## Uninstall
 
-Delete the `talk-audio-cleanup` folders beneath the panels root, the skills
-root and `$HOME/.selects/plugin-data`. Cleaned copies of Drafts are ordinary
+Delete the `talk-audio-cleanup` folders beneath the panels root and the skills
+root. Earlier versions also left a `talk-audio-cleanup` folder in
+`$HOME/.selects/plugin-data`, which can be deleted. Cleaned copies of Drafts are ordinary
 Drafts and stay in their Projects.

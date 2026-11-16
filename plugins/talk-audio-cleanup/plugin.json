@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "talk-audio-cleanup",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Talk Audio Cleanup",
   "summary": "Clean the sound of a talking Draft the way a broadcast editing guide asks, by rules whose thresholds you set: cut clicks out of the pauses, lower breaths and fade every cut by one frame, on a copy of the Draft.",
   "status": "experimental",
@@ -10,17 +10,14 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx",
-    "runtime.sh",
-    "engine/analyze.py",
-    "engine/features.py",
-    "engine/requirements.txt"
+    "panel.tsx"
   ],
   "compatibility": {
     "platforms": [
-      "macOS development builds"
+      "macOS development builds",
+      "Windows x64 (not yet run on a Windows PC)"
     ],
-    "selects": "Requires Panel SDK runScript and runShell, selects.media.startFFmpeg and measureAudioPeaks, selects.files.readRange and writeChunk, Project createDraft and duplicateDraft, and Draft insertResource, remove, splitAt and setClipAudio. Where the app accepts a one-frame audio crossfade placed after a cut (applyTransitionPreset with placement), fades are placed as that transition; otherwise as the next clip's fade-in. The analysis is a Python program run through the shell, so Windows and web are not supported."
+    "selects": "Requires Panel SDK runScript, selects.media.startFFmpeg and measureAudioPeaks, selects.files.readRange and stat, Project createDraft and duplicateDraft, and Draft insertResource, remove, splitAt and setClipAudio. Where the app accepts a one-frame audio crossfade placed after a cut (applyTransitionPreset with placement), fades are placed as that transition; otherwise as the next clip's fade-in. The analysis runs in the Panel's own scripts (no shell, no Python), so it is the same on macOS and Windows; the web app cannot decode local audio and is not supported."
   },
   "localized": {
     "de": {
