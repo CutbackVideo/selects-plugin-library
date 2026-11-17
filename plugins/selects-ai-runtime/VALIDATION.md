@@ -222,11 +222,11 @@ Medians; other jobs shared the machine, so single runs varied by up to 30%.
 
 | Threads | speakers wall | speakers Light-ASD | faces wall | faces YuNet |
 |---|---|---|---|---|
-| 1 (not isolated) | 46.2 s | 35.0 s | 4.0 s | 2.2 s |
+| 1 (not isolated) | 47.3 s | 35.3 s | 4.3 s | 2.3 s |
 | 2 | 31.6 s | 21.0 s | 3.1 s | 1.3 s |
 | 4 | 23.2 s | 12.8 s | 2.8 s | 0.87 s |
 | 8 | 16.2 s | 6.6 s | 2.5 s | 0.60 s |
-| 12 | 13.4 s | 4.5 s | 2.5 s | 0.56 s |
+| 12 | 13.9 s | 4.7 s | 2.6 s | 0.54 s |
 
 Every threaded run wrote the same samples, faces, boxes and track IDs as the
 single-threaded run; Light-ASD scores differed by at most 6.4e-7. At 12 threads
@@ -238,12 +238,14 @@ decoded frames are copied out on the same Worker thread.
 adapter. Without isolation it took 20.7 s for speakers (Light-ASD 10.5 s) and
 2.6 s for faces (YuNet 1.2 s); with 12 threads also available, the times were
 the same, so on this Mac threaded WebAssembly is faster when the page is
-isolated. Its documents had the WebAssembly samples, faces and tracks, with
+isolated: a host should request `auto` only when `crossOriginIsolated` is false. Its documents had the WebAssembly samples, faces and tracks, with
 boxes within 0.0002 px, face scores within 5e-7 and speaker scores within
 2.3e-6.
 
 Isolation came from COOP `same-origin` with COEP `credentialless`, and
 separately from `Document-Isolation-Policy: isolate-and-credentialless`; both
-gave the same times. With the host's revoked import URL, a 4-thread session
+gave the same times (15.6 s median for speakers in a later back-to-back pair).
+With neither, the default provider wrote exactly the documents of the
+previously published runtime. With the host's revoked import URL, a 4-thread session
 never finished creating (no result in 150 s). Other browsers, operating systems
 and core counts were not measured.
