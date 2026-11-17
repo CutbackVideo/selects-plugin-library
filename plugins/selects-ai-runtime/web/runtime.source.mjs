@@ -121,11 +121,19 @@ async function importThreadedOrt(moduleBytes) {
   return import(url);
 }
 
-/** ONNX Runtime Web plus a YuNet session; both tasks detect faces with it. */
-async function createSession(context) {
+/**
+ * ONNX Runtime Web plus a YuNet session; both tasks detect faces with it.
+ * Provider `cpu` runs the WebAssembly build. Provider `auto` runs the WebGPU
+ * build when the browser offers a hardware adapter, and `cpu` otherwise; the
+ * choice is made before any frame and never changes during a job.
+ */
+async function createSession(context, requestedProvider) {
+  const adapterInfo = requestedProvider === 'auto' ? await hardwareAdapterInfo() : null;
+  const provider = adapterInfo ? 'webgpu' : 'cpu';
+  const executionProviders = adapterInfo ? ['webgpu', 'wasm'] : ['wasm'];
   const [moduleBytes, wasmBytes, modelBytes] = await Promise.all([
-    context.download(assets.ortModule),
-    context.download(assets.ortWasm),
+    context.download(adapterInfo ? assets.ortWebGpuModule : assets.ortModule),
+    context.download(adapterInfo ? assets.ortWebGpuWasm : assets.ortWasm),
     context.download(assets.yunet),
   ]);
   throwIfAborted(context.signal);
@@ -137,10 +145,17 @@ async function createSession(context) {
   ort.env.wasm.wasmBinary = wasmBytes;
   ort.env.wasm.numThreads = threads;
   ort.env.wasm.proxy = false;
+  if (adapterInfo) ort.env.webgpu.powerPreference = 'high-performance';
   const session = await ort.InferenceSession.create(modelBytes, {
-    executionProviders: ['wasm'], graphOptimizationLevel: 'all',
+    executionProviders, graphOptimizationLevel: 'all',
   });
-  return { ort, session, threads };
+  const diagnostics = {
+    provider, requestedProvider,
+    backend: adapterInfo ? 'onnxruntime-web-webgpu' : 'onnxruntime-web-wasm',
+    ortVersion: runtimeAssets.ORT_VERSION, wasmThreads: threads,
+    ...(adapterInfo ? { webgpu: { adapter: adapterInfo } } : {}),
+  };
+  return { ort, session, executionProviders, diagnostics };
 }
 
 function checkedFrames(source) {
@@ -164,14 +179,13 @@ export async function run(context) {
     return runMatte(context);
   }
   const provider = request.input.provider ?? 'cpu';
-  if (provider !== 'cpu') throw new Error('Face and speaker detection support the CPU provider only');
+  if (provider !== 'cpu' && provider !== 'auto') throw new Error('Face and speaker detection on web support the cpu and auto providers only');
   return request.task === 'speakers.detect' ? runSpeakers(context) : runFaces(context);
 }
 
 async function runFaces(context) {
   const { request, source, emitProgress, signal } = context;
   const parameters = faceParameters(request);
-  const provider = 'cpu';
   const isImage = request.input.source?.kind === 'image';
   const { width, height, frameTimes } = checkedFrames(source);
   const select = sampleSelector(parameters);
@@ -181,7 +195,7 @@ async function runFaces(context) {
 
   const started = now();
   await emitProgress({ step: 'loading-model', completed: 0, total: 1 });
-  const { ort, session, threads } = await createSession(context);
+  const { ort, session, diagnostics } = await createSession(context, request.input.provider ?? 'cpu');
   const samples = [];
   let inferenceMilliseconds = 0;
   let discardedPaddingFaces = 0;
@@ -247,7 +261,7 @@ async function runFaces(context) {
         inferenceMilliseconds, elapsedMilliseconds: now() - started,
       },
       diagnostics: {
-        provider, backend: 'onnxruntime-web-wasm', ortVersion: runtimeAssets.ORT_VERSION, wasmThreads: threads,
+        ...diagnostics,
         modelSha256: assets.yunet.sha256, preprocessing: preprocessingInfo, discardedPaddingFaces, tracking: false,
       },
     };
@@ -276,12 +290,12 @@ async function runSpeakers(context) {
   const started = now();
   const { width, height } = speakerAnalysisSize(video);
   await emitProgress({ step: 'loading-model', completed: 0, total: 1 });
-  const { ort, session: yunet, threads } = await createSession(context);
+  const { ort, session: yunet, executionProviders, diagnostics } = await createSession(context, request.input.provider ?? 'cpu');
   let model;
   const all = [], state = newSpeakerState();
   let decodeMilliseconds = 0;
   try {
-    model = await ort.InferenceSession.create(await context.readPackageFile(assets.lightAsd), { executionProviders: ['wasm'] });
+    model = await ort.InferenceSession.create(await context.readPackageFile(assets.lightAsd), { executionProviders });
     for (const { start, duration } of speakerWindows(range)) {
       throwIfAborted(signal);
       const progress = { completed: start - range.startSeconds, total: range.endSeconds - range.startSeconds };
@@ -305,7 +319,7 @@ async function runSpeakers(context) {
     return {
       files: { detections: { name: 'speakers.json', mediaType: 'application/json', json: output.document } },
       metrics: output.metrics,
-      diagnostics: { ...output.diagnostics, backend: 'onnxruntime-web-wasm', ortVersion: runtimeAssets.ORT_VERSION, wasmThreads: threads },
+      diagnostics: { ...output.diagnostics, ...diagnostics },
     };
   } finally {
     await model?.release?.();
@@ -356,16 +370,24 @@ function verifiedClock(timeline, frameTimes) {
   return { sourceFrameRate: rate, sourceRange: { startSeconds: firstIndex / fps, endSeconds: (firstIndex + frameTimes.length) / fps } };
 }
 
-async function requestHardwareDevice() {
-  const gpu = globalThis.navigator?.gpu;
-  if (!gpu) throw new Error('Person matte on web requires WebGPU, which this browser does not provide');
-  const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
-  const info = adapter?.info ?? {};
+/** The high-performance adapter and its description, or null when it is a fallback or software adapter. */
+async function hardwareAdapter() {
+  const adapter = await globalThis.navigator?.gpu?.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
+  if (!adapter) return null;
+  const info = adapter.info ?? {};
   const adapterInfo = Object.fromEntries(['vendor', 'architecture', 'device', 'description'].map((key) => [key, info[key]]));
-  adapterInfo.isFallbackAdapter = info.isFallbackAdapter ?? adapter?.isFallbackAdapter ?? false;
-  if (!adapter || adapterInfo.isFallbackAdapter || SOFTWARE_ADAPTER.test(Object.values(adapterInfo).join(' '))) {
-    throw new Error('Person matte on web requires a hardware WebGPU adapter; this browser offers only a software adapter');
-  }
+  adapterInfo.isFallbackAdapter = info.isFallbackAdapter ?? adapter.isFallbackAdapter ?? false;
+  if (adapterInfo.isFallbackAdapter || SOFTWARE_ADAPTER.test(Object.values(adapterInfo).join(' '))) return null;
+  return { adapter, adapterInfo };
+}
+
+const hardwareAdapterInfo = async () => (await hardwareAdapter())?.adapterInfo ?? null;
+
+async function requestHardwareDevice() {
+  if (!globalThis.navigator?.gpu) throw new Error('Person matte on web requires WebGPU, which this browser does not provide');
+  const found = await hardwareAdapter();
+  if (!found) throw new Error('Person matte on web requires a hardware WebGPU adapter; this browser offers only a software adapter');
+  const { adapter, adapterInfo } = found;
   const device = await adapter.requestDevice({ requiredLimits: {
     maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, maxBufferSize: adapter.limits.maxBufferSize,
     maxTextureDimension2D: adapter.limits.maxTextureDimension2D,

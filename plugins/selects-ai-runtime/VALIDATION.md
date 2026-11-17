@@ -234,6 +234,14 @@ WebCodecs window decoding (about 5.4 s) costs more than Light-ASD. Starting the
 next window's decode during scoring made threaded runs slower, because the
 decoded frames are copied out on the same Worker thread.
 
+`provider: "auto"` on the same machine selected the Apple (metal-3) WebGPU
+adapter. Without isolation it took 20.7 s for speakers (Light-ASD 10.5 s) and
+2.6 s for faces (YuNet 1.2 s); with 12 threads also available, the times were
+the same, so on this Mac threaded WebAssembly is faster when the page is
+isolated. Its documents had the WebAssembly samples, faces and tracks, with
+boxes within 0.0002 px, face scores within 5e-7 and speaker scores within
+2.3e-6.
+
 Isolation came from COOP `same-origin` with COEP `credentialless`, and
 separately from `Document-Isolation-Policy: isolate-and-credentialless`; both
 gave the same times. With the host's revoked import URL, a 4-thread session
