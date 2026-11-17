@@ -32,6 +32,7 @@
     "lib/outputs.cjs",
     "lib/png.cjs",
     "lib/process.cjs",
+    "lib/speaker-video-decode.cjs",
     "lib/request.cjs",
     "lib/runtime-assets.cjs",
     "lib/runtime-cache.cjs",
@@ -120,7 +121,15 @@
     "lib/stage-timings.cjs",
     "tests/stage-timings.test.cjs",
     "lib/tool-timings.cjs",
-    "tests/tool-timings.test.cjs"
+    "tests/tool-timings.test.cjs",
+    "lib/speaker-face-crop.cjs",
+    "tests/speaker-face-crop.test.cjs",
+    "tests/fixtures/speaker-face-crop-before.cjs",
+    "lib/speaker-inference.cjs",
+    "tests/speaker-inference.test.cjs",
+    "tests/fixtures/speaker-inference-before.cjs",
+    "lib/speaker-cpu-threads.cjs",
+    "tests/speaker-cpu-threads.test.cjs"
   ],
   "runtime": "runtime.json",
   "webRuntime": "web/runtime.mjs"

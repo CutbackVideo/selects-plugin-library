@@ -254,6 +254,114 @@ function mfcc(pcm) {
 }
 module.exports={mfcc};
   },
+  // --- lib/speaker-inference.cjs (embedded verbatim) ---
+  "lib/speaker-inference.cjs": function (module, exports, require) {
+'use strict';
+
+// Windows of 1, 2 and 3 seconds can have identical trailing spans. Reuse
+// only exactly identical tensor slices within this track/model invocation.
+// Preserve all three contributions and their original floating-point order.
+async function scoreSpeakerTrack({ort,model,visual,audioFeatures,n,signal,timed}) {
+  const scores = new Float64Array(n), spans = new Map();
+  for (const seconds of [1,2,3]) for (let offset=0; offset<n; offset+=seconds*25) {
+    signal.throwIfAborted();
+    const end = Math.min(n,offset+seconds*25), count = end-offset;
+    const key = `${offset}:${end}`;
+    let values = spans.get(key);
+    if (!values) {
+      const {at,vt} = timed.measure('speakerInput',()=>({
+        at:new ort.Tensor('float32',audioFeatures.slice(offset*4*13,end*4*13),[1,count*4,13]),
+        vt:new ort.Tensor('float32',visual.slice(offset*112*112,end*112*112),[1,count,112,112]),
+      }));
+      let out;
+      try {
+        out = await timed.measureAsync('speakerInference',()=>model.run({audio:at,video:vt}));
+        values = timed.measure('speakerOutput',()=>{
+          if (out.scores.data.length!==count) throw new Error('Speaker model output length mismatch');
+          // Native output memory belongs to the tensor and is disposed below.
+          const copy = Float64Array.from(out.scores.data);
+          for (const value of copy) if (!Number.isFinite(value)) throw new Error('Non-finite speaker score');
+          return copy;
+        });
+        spans.set(key,values);
+      } finally {
+        at.dispose(); vt.dispose();
+        if (out) for (const tensor of Object.values(out)) tensor.dispose();
+      }
+    } else {
+      timed.measure('speakerReuse',()=>{});
+    }
+    timed.measure('speakerOutput',()=>{
+      for (let i=0; i<count; i++) scores[offset+i]+=values[i]/3;
+    });
+  }
+  return scores;
+}
+
+module.exports = {scoreSpeakerTrack};
+  },
+  // --- lib/speaker-face-crop.cjs (embedded verbatim) ---
+  "lib/speaker-face-crop.cjs": function (module, exports, require) {
+'use strict';
+
+// Keep the previous bilinear operation order and per-channel rounding exactly.
+// A negative index denotes the OpenCV demo's constant gray padding.
+function channel(rgb, a, b, c, d, fx, fy, component) {
+  return Math.round(
+    ((a < 0 ? 110 : rgb[a + component]) * (1 - fx) +
+      (b < 0 ? 110 : rgb[b + component]) * fx) * (1 - fy) +
+    ((c < 0 ? 110 : rgb[c + component]) * (1 - fx) +
+      (d < 0 ? 110 : rgb[d + component]) * fx) * fy
+  );
+}
+
+// Match expanded crop -> 224 square -> middle 112 grayscale. Horizontal
+// coordinates are shared by all rows; padding checks are shared by RGB.
+function facePixels(rgb, width, height, geometry) {
+  const [x, y, s] = geometry;
+  const left = Math.trunc(x - s * 1.4), top = Math.trunc(y - s);
+  const cw = Math.max(1, Math.trunc(x + s * 1.4) - left);
+  const ch = Math.max(1, Math.trunc(y + s * 1.8) - top);
+  const out = new Float32Array(112 * 112);
+  const x0 = new Float64Array(112), x1 = new Float64Array(112);
+  const weights = new Float64Array(112);
+  for (let i = 0; i < 112; i++) {
+    const sx = (i + 56 + .5) * cw / 224 - .5;
+    const floor = Math.floor(sx), xx = left + floor;
+    weights[i] = sx - floor;
+    x0[i] = xx < 0 || xx >= width ? -1 : xx * 3;
+    x1[i] = xx + 1 < 0 || xx + 1 >= width ? -1 : (xx + 1) * 3;
+  }
+  for (let j = 0; j < 112; j++) {
+    const sy = (j + 56 + .5) * ch / 224 - .5;
+    const floor = Math.floor(sy), yy = top + floor, fy = sy - floor;
+    const row0 = yy < 0 || yy >= height ? -1 : yy * width * 3;
+    const row1 = yy + 1 < 0 || yy + 1 >= height ? -1 : (yy + 1) * width * 3;
+    for (let i = 0; i < 112; i++) {
+      const a = row0 < 0 || x0[i] < 0 ? -1 : row0 + x0[i];
+      const b = row0 < 0 || x1[i] < 0 ? -1 : row0 + x1[i];
+      const c = row1 < 0 || x0[i] < 0 ? -1 : row1 + x0[i];
+      const d = row1 < 0 || x1[i] < 0 ? -1 : row1 + x1[i];
+      const fx = weights[i];
+      let r,g,blue;
+      // Interior pixels share one bounds check across all three channels.
+      if (a>=0 && b>=0 && c>=0 && d>=0) {
+        r=Math.round((rgb[a]*(1-fx)+rgb[b]*fx)*(1-fy)+(rgb[c]*(1-fx)+rgb[d]*fx)*fy);
+        g=Math.round((rgb[a+1]*(1-fx)+rgb[b+1]*fx)*(1-fy)+(rgb[c+1]*(1-fx)+rgb[d+1]*fx)*fy);
+        blue=Math.round((rgb[a+2]*(1-fx)+rgb[b+2]*fx)*(1-fy)+(rgb[c+2]*(1-fx)+rgb[d+2]*fx)*fy);
+      } else {
+        r=channel(rgb,a,b,c,d,fx,fy,0);
+        g=channel(rgb,a,b,c,d,fx,fy,1);
+        blue=channel(rgb,a,b,c,d,fx,fy,2);
+      }
+      out[j * 112 + i] = Math.round(.299 * r + .587 * g + .114 * blue);
+    }
+  }
+  return out;
+}
+
+module.exports = {facePixels};
+  },
   // --- lib/speaker-tracks.cjs (embedded verbatim) ---
   "lib/speaker-tracks.cjs": function (module, exports, require) {
 'use strict';
@@ -300,18 +408,7 @@ function interpolateTrack(track) {
   }
   return out;
 }
-// Match OpenCV demo's expanded crop -> 224 square -> middle112 grayscale.
-function facePixels(rgb,width,height,geometry) {
-  const [x,y,s]=geometry,left=Math.trunc(x-s*1.4),top=Math.trunc(y-s),right=Math.trunc(x+s*1.4),bottom=Math.trunc(y+s*1.8);
-  const cw=Math.max(1,right-left),ch=Math.max(1,bottom-top),out=new Float32Array(112*112);
-  const pixel=(xx,yy,c)=>xx<0||yy<0||xx>=width||yy>=height?110:rgb[(yy*width+xx)*3+c];
-  for(let j=0;j<112;j++)for(let i=0;i<112;i++) {
-    const sx=(i+56+.5)*cw/224-.5,sy=(j+56+.5)*ch/224-.5,x0=Math.floor(sx),y0=Math.floor(sy),fx=sx-x0,fy=sy-y0;
-    const channels=[0,1,2].map(c=>Math.round((pixel(left+x0,top+y0,c)*(1-fx)+pixel(left+x0+1,top+y0,c)*fx)*(1-fy)+(pixel(left+x0,top+y0+1,c)*(1-fx)+pixel(left+x0+1,top+y0+1,c)*fx)*fy));
-    out[j*112+i]=Math.round(.299*channels[0]+.587*channels[1]+.114*channels[2]);
-  }
-  return out;
-}
+const {facePixels}=require('./speaker-face-crop.cjs');
 module.exports={iou,trackFaces,interpolateTrack,smoothBoxes,facePixels};
   },
   // --- lib/frame-change.cjs (embedded verbatim) ---
@@ -381,6 +478,7 @@ module.exports = {
 // signed 16-bit samples, both starting at the window's source time.
 const {rgbToLetterboxBlob,decodeYuNet,mapFaceToDisplay}=require('./yunet-decode.cjs');
 const {mfcc}=require('./speaker-audio.cjs');
+const {scoreSpeakerTrack}=require('./speaker-inference.cjs');
 const {trackFaces,interpolateTrack,smoothBoxes,facePixels}=require('./speaker-tracks.cjs');
 const {detectFrameChanges}=require('./frame-change.cjs');
 const {MICROSECONDS_PER_SECOND,SPEAKER_WINDOW_MICROSECONDS,speakerDurationMicroseconds}=require('./speaker-time.cjs');
@@ -447,17 +545,8 @@ async function scoreSpeakerWindow({ort,yunet,model,video,width,height,rgb,pcm,st
       for(const between of interpolateTrack(track)){samples[between.i].faces.push(between.face);track.push(between);}
       return {track,id,visual};
     });
-    const scores=new Float64Array(n);const began=performance.now();
-    for(const seconds of [1,2,3])for(let offset=0;offset<n;offset+=seconds*25) {
-      signal.throwIfAborted();const end=Math.min(n,offset+seconds*25),count=end-offset;
-      const {at,vt}=timed.measure('speakerInput',()=>({
-        at:new ort.Tensor('float32',audioFeatures.slice(offset*4*13,end*4*13),[1,count*4,13]),
-        vt:new ort.Tensor('float32',visual.slice(offset*112*112,end*112*112),[1,count,112,112]),
-      }));
-      const out=await timed.measureAsync('speakerInference',()=>model.run({audio:at,video:vt}));
-      try {timed.measure('speakerOutput',()=>{if(out.scores.data.length!==count)throw new Error('Speaker model output length mismatch');for(let i=0;i<count;i++){const score=out.scores.data[i];if(!Number.isFinite(score))throw new Error('Non-finite speaker score');scores[offset+i]+=score/3;}});}
-      finally{at.dispose();vt.dispose();for(const v of Object.values(out))v.dispose();}
-    }
+    const began=performance.now();
+    const scores=await scoreSpeakerTrack({ort,model,visual,audioFeatures,n,signal,timed});
     state.inferenceMilliseconds+=performance.now()-began;
     // No face is extrapolated beyond a track's detections. IDs belong to
     // this short window only; callers cannot treat them as person IDs.

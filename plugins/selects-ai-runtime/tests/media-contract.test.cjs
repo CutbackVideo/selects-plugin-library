@@ -258,3 +258,130 @@ test('sparse face decoding preserves exact RGB, indices and times across B-frame
     }
   }
 });
+
+test('speaker video streaming preserves each independently sought RGB window', { skip: !configPath }, async () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const { speakerWindows } = require('../tasks/speakers-detect.cjs');
+  const source = path.join(directory, 'speaker-stream.mp4');
+  const variable = path.join(directory, 'speaker-stream-vfr.mp4');
+  const shifted = path.join(directory, 'speaker-stream-offset.mp4');
+  const rotated = path.join(directory, 'speaker-stream-rotated.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=64x32:r=30000/1001:d=10', '-c:v', 'libx264', '-g', '80', '-bf', '3', source]);
+  await ffmpeg(['-i', source, '-vf', 'select=not(eq(mod(n\\,7)\\,0))', '-fps_mode', 'vfr', '-c:v', 'libx264', variable]);
+  await ffmpeg(['-i', source, '-c', 'copy', '-output_ts_offset', '5', shifted]);
+  await ffmpeg(['-display_rotation', '90', '-i', source, '-c', 'copy', rotated]);
+  for (const filename of [source, variable, shifted, rotated]) {
+    const input = { ...request(filename, 0, 9), task: 'speakers.detect' };
+    const signal = new AbortController().signal;
+    const video = await probeVideo(config, input, signal);
+    assert.equal(video.singleMp4Video, true);
+    const seek = start => start + video.timestampOriginSeconds - video.formatStartTime;
+    const windows = speakerWindows(input.input.sourceRange);
+    const stream = startSpeakerVideo({ executable: config.tools.ffmpeg, source: filename, windows, seek, timeBase: video.timeBase, width: 64, height: 32, signal });
+    try {
+      for (const { start, duration } of windows) {
+        const { stdout } = await ffmpeg(['-ss', String(seek(start)), '-i', filename, '-t', String(duration), '-an',
+          '-vf', 'fps=25:start_time=0,scale=64:32', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1']);
+        assert.deepEqual(await stream.read(duration), stdout, filename);
+      }
+      await stream.finish();
+    } finally {
+      await stream.close();
+    }
+  }
+});
+
+test('speaker video stream aborts a live decoder between windows', { skip: !configPath }, async () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const source = path.join(directory, 'speaker-stream-abort.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=128x72:r=25:d=7', '-c:v', 'libx264', source]);
+  const controller = new AbortController();
+  const windows = [{ start: 0, duration: 3 }, { start: 3, duration: 3 }];
+  const stream = startSpeakerVideo({ executable: config.tools.ffmpeg, source, windows,
+    seek: start => start, timeBase: '1/12800', width: 128, height: 72, signal: controller.signal });
+  try {
+    await stream.read(3);
+    controller.abort();
+    await assert.rejects(stream.read(3), { name: 'AbortError' });
+  } finally {
+    await stream.close();
+  }
+});
+
+
+test('speaker decoder rejects clocks and windows without exact integer-second shifts', () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const base = { windows: [{ start: 0, duration: 3 }, { start: 3, duration: 3 }],
+    seek: x => x, timeBase: '1/24000' };
+  for (const patch of [
+    { timeBase: undefined }, { timeBase: '1001/24000' },
+    { seek: x => x + .041708 }, { seek: x => x - 1 },
+    { windows: [{ start: 0, duration: 2.841475 }] },
+  ]) assert.equal(startSpeakerVideo({ ...base, ...patch }), null);
+});
+
+test('fractional speaker seeks fall back before timestamp rounding can change an analyzed frame', { skip: !configPath }, async () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const { speakerWindows } = require('../lib/speaker-window.cjs');
+  const source = path.join(directory, 'speaker-fractional-23976.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=96x64:r=24000/1001:d=12',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=12',
+    '-c:v', 'libx264', '-g', '72', '-bf', '3', '-c:a', 'aac', source]);
+  const input = { ...request(source, .466242, 6.149192), task: 'speakers.detect' };
+  const signal = new AbortController().signal;
+  const video = await probeVideo(config, input, signal);
+  const windows = speakerWindows(input.input.sourceRange);
+  const seek = start => start + video.timestampOriginSeconds - video.formatStartTime;
+  const options = { executable: config.tools.ffmpeg, source, windows, seek,
+    timeBase: video.timeBase, width: 96, height: 64, signal };
+  // This is the exact result consumed by runSpeakers to select its unchanged
+  // independently sought decoder. No partially streamed frames may escape.
+  assert.equal(startSpeakerVideo(options), null);
+  const window = windows[1];
+  assert.equal(window.start, 3.307717);
+  assert.equal(window.duration, 2.841475);
+  const { stdout: pcm } = await ffmpeg(['-ss', String(seek(window.start)), '-i', source,
+    '-t', String(window.duration), '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', 'pipe:1']);
+  const count = Math.floor((1 + Math.ceil(Math.max(0, pcm.length / 2 - 400) / 160)) / 4);
+  assert.equal(count, 70, 'the previously changed frame 68 is consumed by ASD');
+  // The same fractional-rate media remains eligible on exact integer seeks.
+  const integer = startSpeakerVideo({ ...options,
+    windows: speakerWindows({ startSeconds: 0, endSeconds: 9 }) });
+  assert.ok(integer);
+  try {
+    for (const w of speakerWindows({ startSeconds: 0, endSeconds: 9 })) {
+      const { stdout } = await ffmpeg(['-ss', String(seek(w.start)), '-i', source,
+        '-t', String(w.duration), '-an', '-vf', 'fps=25:start_time=0,scale=96:64',
+        '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1']);
+      assert.deepEqual(await integer.read(w.duration), stdout);
+    }
+    await integer.finish();
+  } finally { await integer.close(); }
+});
+
+test('integer speaker shifts subtract source ticks without floating-point TB division', { skip: !configPath }, async () => {
+  const { startSpeakerVideo } = require('../lib/speaker-video-decode.cjs');
+  const { speakerWindows } = require('../lib/speaker-window.cjs');
+  const source = path.join(directory, 'speaker-clock-161.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=96x64:r=24000/1001:d=9',
+    '-c:v', 'libx264', '-threads', '1', '-g', '72', '-bf', '3',
+    '-video_track_timescale', '161', source]);
+  const input = { ...request(source, 0, 9), task: 'speakers.detect' };
+  const signal = new AbortController().signal;
+  const video = await probeVideo(config, input, signal);
+  assert.equal(video.timeBase, '1/161');
+  const windows = speakerWindows(input.input.sourceRange);
+  const seek = start => start + video.timestampOriginSeconds - video.formatStartTime;
+  const stream = startSpeakerVideo({ executable: config.tools.ffmpeg, source,
+    windows, seek, timeBase: video.timeBase, width: 96, height: 64, signal });
+  assert.ok(stream);
+  try {
+    for (const window of windows) {
+      const { stdout } = await ffmpeg(['-ss', String(seek(window.start)), '-i', source,
+        '-t', String(window.duration), '-an', '-vf', 'fps=25:start_time=0,scale=96:64',
+        '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1']);
+      assert.deepEqual(await stream.read(window.duration), stdout);
+    }
+    await stream.finish();
+  } finally { await stream.close(); }
+});
