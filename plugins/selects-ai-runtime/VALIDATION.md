@@ -249,3 +249,23 @@ With neither, the default provider wrote exactly the documents of the
 previously published runtime. With the host's revoked import URL, a 4-thread session
 never finished creating (no result in 150 s). Other browsers, operating systems
 and core counts were not measured.
+
+## Speaker latency preservation (2026-11-17)
+
+Speaker preprocessing now precomputes invariant FFT/DCT coefficients and resize
+columns, and avoids allocating a channel array for each ASD crop pixel. Full
+preprocessing tensor hashes cover padded/subpixel crops, changing letterbox sizes,
+and audio tails/silence. The independent MFCC reference remains unchanged.
+
+The 1/2/3-second ASD ensemble reuses an identical `(offset, end)` segment within
+one track only. All three contributions retain their original addition order and
+weight. A normal 74-frame window runs five distinct segments instead of six;
+windows below one second run one instead of three. Sampling, models, tracking,
+window boundaries and decoder arguments are unchanged. Desktop and generated web
+runtime use the same implementation.
+
+Native CPU A/B on macOS arm64 / ORT 1.30.0 used before/after/after/before order.
+Both real speech inputs produced exactly equal complete `speakers.json` documents
+in all four runs: a 30-second interview (740 samples) and a 12-second multi-person
+segment. The 30-second case averaged 8.54s before and 7.96s after; results are local
+measurements, not a prediction for Windows or end-to-end Shortform generation.

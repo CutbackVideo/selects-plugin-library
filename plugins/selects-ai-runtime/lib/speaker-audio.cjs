@@ -1,12 +1,24 @@
 'use strict';
 // python_speech_features defaults: rectangular 25ms windows, 10ms hop,
 // pre-emphasis .97, 26 mel filters, orthonormal DCT, lifter22, log-energy c0.
+// Fixed 512-point FFT and 26-filter DCT coefficients do not depend on audio.
+// Preserve the original arithmetic/order so the model sees identical features.
+const fftCoefficients=Array.from({length:9},(_,level)=>{
+  const len=2**(level+1);
+  return Array.from({length:len/2},(_,j)=>{
+    const angle=-2*Math.PI*j/len;
+    return [Math.cos(angle),Math.sin(angle)];
+  });
+});
+const dctCoefficients=Array.from({length:13},(_,c)=>
+  Array.from({length:26},(_,m)=>Math.cos(Math.PI*c*(2*m+1)/52)));
+const lifters=Array.from({length:13},(_,c)=>1+11*Math.sin(Math.PI*c/22));
 function fftPower(input) {
   const re = new Float64Array(512), im = new Float64Array(512);
   re.set(input);
   for (let i=1,j=0;i<512;i++) {let bit=256;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j)[re[i],re[j]]=[re[j],re[i]];}
-  for(let len=2;len<=512;len*=2)for(let base=0;base<512;base+=len)for(let j=0;j<len/2;j++) {
-    const angle=-2*Math.PI*j/len,c=Math.cos(angle),s=Math.sin(angle),k=base+j,l=k+len/2;
+  for(let len=2,level=0;len<=512;len*=2,level++)for(let base=0;base<512;base+=len)for(let j=0;j<len/2;j++) {
+    const [c,s]=fftCoefficients[level][j],k=base+j,l=k+len/2;
     const tr=re[l]*c-im[l]*s,ti=re[l]*s+im[l]*c;re[l]=re[k]-tr;im[l]=im[k]-ti;re[k]+=tr;im[k]+=ti;
   }
   return Array.from({length:257},(_,i)=>(re[i]*re[i]+im[i]*im[i])/512);
@@ -22,8 +34,8 @@ function mfcc(pcm) {
     const power=fftPower(input),energy=Math.max(Number.EPSILON,power.reduce((a,b)=>a+b,0));
     const filters=Array.from({length:26},(_,m)=>{let sum=0;for(let k=bins[m];k<bins[m+1];k++)sum+=power[k]*(k-bins[m])/(bins[m+1]-bins[m]);for(let k=bins[m+1];k<bins[m+2];k++)sum+=power[k]*(bins[m+2]-k)/(bins[m+2]-bins[m+1]);return Math.log(Math.max(Number.EPSILON,sum));});
     for(let c=0;c<13;c++) {
-      let sum=0;for(let m=0;m<26;m++)sum+=filters[m]*Math.cos(Math.PI*c*(2*m+1)/52);
-      out[frame*13+c]=c===0?Math.log(energy):sum*Math.sqrt(2/26)*(1+11*Math.sin(Math.PI*c/22));
+      let sum=0;for(let m=0;m<26;m++)sum+=filters[m]*dctCoefficients[c][m];
+      out[frame*13+c]=c===0?Math.log(energy):sum*Math.sqrt(2/26)*lifters[c];
     }
   }
   return out;

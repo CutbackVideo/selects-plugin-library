@@ -37,12 +37,16 @@ function rgbToLetterboxBlob(rgb, width, height, out) {
   data.fill(0);
   const scaleX = width / contentWidth;
   const scaleY = height / contentHeight;
+  const columns = Array.from({ length: contentWidth }, (_, x) => {
+    const sx = Math.max(0, Math.min(width - 1, (x + 0.5) * scaleX - 0.5));
+    const x0 = Math.floor(sx);
+    return { x0, x1: Math.min(width - 1, x0 + 1), fx: sx - x0 };
+  });
   for (let y = 0; y < contentHeight; y += 1) {
     const sy = Math.max(0, Math.min(height - 1, (y + 0.5) * scaleY - 0.5));
     const y0 = Math.floor(sy), y1 = Math.min(height - 1, y0 + 1), fy = sy - y0;
     for (let x = 0; x < contentWidth; x += 1) {
-      const sx = Math.max(0, Math.min(width - 1, (x + 0.5) * scaleX - 0.5));
-      const x0 = Math.floor(sx), x1 = Math.min(width - 1, x0 + 1), fx = sx - x0;
+      const { x0, x1, fx } = columns[x];
       const p00 = (y0 * width + x0) * 3, p01 = (y0 * width + x1) * 3;
       const p10 = (y1 * width + x0) * 3, p11 = (y1 * width + x1) * 3;
       const target = y * size + x;
@@ -225,12 +229,24 @@ module.exports = { ASSETS, MODELS, NATIVE_FILES, ORT_VERSION };
 'use strict';
 // python_speech_features defaults: rectangular 25ms windows, 10ms hop,
 // pre-emphasis .97, 26 mel filters, orthonormal DCT, lifter22, log-energy c0.
+// Fixed 512-point FFT and 26-filter DCT coefficients do not depend on audio.
+// Preserve the original arithmetic/order so the model sees identical features.
+const fftCoefficients=Array.from({length:9},(_,level)=>{
+  const len=2**(level+1);
+  return Array.from({length:len/2},(_,j)=>{
+    const angle=-2*Math.PI*j/len;
+    return [Math.cos(angle),Math.sin(angle)];
+  });
+});
+const dctCoefficients=Array.from({length:13},(_,c)=>
+  Array.from({length:26},(_,m)=>Math.cos(Math.PI*c*(2*m+1)/52)));
+const lifters=Array.from({length:13},(_,c)=>1+11*Math.sin(Math.PI*c/22));
 function fftPower(input) {
   const re = new Float64Array(512), im = new Float64Array(512);
   re.set(input);
   for (let i=1,j=0;i<512;i++) {let bit=256;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j)[re[i],re[j]]=[re[j],re[i]];}
-  for(let len=2;len<=512;len*=2)for(let base=0;base<512;base+=len)for(let j=0;j<len/2;j++) {
-    const angle=-2*Math.PI*j/len,c=Math.cos(angle),s=Math.sin(angle),k=base+j,l=k+len/2;
+  for(let len=2,level=0;len<=512;len*=2,level++)for(let base=0;base<512;base+=len)for(let j=0;j<len/2;j++) {
+    const [c,s]=fftCoefficients[level][j],k=base+j,l=k+len/2;
     const tr=re[l]*c-im[l]*s,ti=re[l]*s+im[l]*c;re[l]=re[k]-tr;im[l]=im[k]-ti;re[k]+=tr;im[k]+=ti;
   }
   return Array.from({length:257},(_,i)=>(re[i]*re[i]+im[i]*im[i])/512);
@@ -246,13 +262,49 @@ function mfcc(pcm) {
     const power=fftPower(input),energy=Math.max(Number.EPSILON,power.reduce((a,b)=>a+b,0));
     const filters=Array.from({length:26},(_,m)=>{let sum=0;for(let k=bins[m];k<bins[m+1];k++)sum+=power[k]*(k-bins[m])/(bins[m+1]-bins[m]);for(let k=bins[m+1];k<bins[m+2];k++)sum+=power[k]*(bins[m+2]-k)/(bins[m+2]-bins[m+1]);return Math.log(Math.max(Number.EPSILON,sum));});
     for(let c=0;c<13;c++) {
-      let sum=0;for(let m=0;m<26;m++)sum+=filters[m]*Math.cos(Math.PI*c*(2*m+1)/52);
-      out[frame*13+c]=c===0?Math.log(energy):sum*Math.sqrt(2/26)*(1+11*Math.sin(Math.PI*c/22));
+      let sum=0;for(let m=0;m<26;m++)sum+=filters[m]*dctCoefficients[c][m];
+      out[frame*13+c]=c===0?Math.log(energy):sum*Math.sqrt(2/26)*lifters[c];
     }
   }
   return out;
 }
 module.exports={mfcc};
+  },
+  // --- lib/speaker-score.cjs (embedded verbatim) ---
+  "lib/speaker-score.cjs": function (module, exports, require) {
+'use strict';
+// Light-ASD's 1/2/3-second ensemble can repeat an identical tail segment.
+// Reuse only within this track/window: different faces must never share logits.
+async function scoreSpeakerTrack({ort,model,audioFeatures,visual,n,signal,timed}) {
+  const scores=new Float64Array(n),segments=new Map();
+  for(const seconds of [1,2,3])for(let offset=0;offset<n;offset+=seconds*25) {
+    signal.throwIfAborted();
+    const end=Math.min(n,offset+seconds*25),count=end-offset,key=`${offset}:${end}`;
+    let values=segments.get(key);
+    if(!values) {
+      const {at,vt}=timed.measure('speakerInput',()=>({
+        at:new ort.Tensor('float32',audioFeatures.slice(offset*4*13,end*4*13),[1,count*4,13]),
+        vt:new ort.Tensor('float32',visual.slice(offset*112*112,end*112*112),[1,count,112,112]),
+      }));
+      let out;
+      try {
+        out=await timed.measureAsync('speakerInference',()=>model.run({audio:at,video:vt}));
+        values=timed.measure('speakerOutput',()=>{
+          if(out.scores.data.length!==count)throw new Error('Speaker model output length mismatch');
+          const copy=Float64Array.from(out.scores.data);
+          if(!copy.every(Number.isFinite))throw new Error('Non-finite speaker score');
+          return copy;
+        });
+        segments.set(key,values);
+      } finally {at.dispose();vt.dispose();if(out)for(const v of Object.values(out))v.dispose();}
+    }
+    // Keep all three ensemble contributions in their original addition order.
+    // Dropping a repeated tail would change its weight, even with equal logits.
+    for(let i=0;i<count;i++)scores[offset+i]+=values[i]/3;
+  }
+  return scores;
+}
+module.exports={scoreSpeakerTrack};
   },
   // --- lib/speaker-tracks.cjs (embedded verbatim) ---
   "lib/speaker-tracks.cjs": function (module, exports, require) {
@@ -305,10 +357,22 @@ function facePixels(rgb,width,height,geometry) {
   const [x,y,s]=geometry,left=Math.trunc(x-s*1.4),top=Math.trunc(y-s),right=Math.trunc(x+s*1.4),bottom=Math.trunc(y+s*1.8);
   const cw=Math.max(1,right-left),ch=Math.max(1,bottom-top),out=new Float32Array(112*112);
   const pixel=(xx,yy,c)=>xx<0||yy<0||xx>=width||yy>=height?110:rgb[(yy*width+xx)*3+c];
-  for(let j=0;j<112;j++)for(let i=0;i<112;i++) {
-    const sx=(i+56+.5)*cw/224-.5,sy=(j+56+.5)*ch/224-.5,x0=Math.floor(sx),y0=Math.floor(sy),fx=sx-x0,fy=sy-y0;
-    const channels=[0,1,2].map(c=>Math.round((pixel(left+x0,top+y0,c)*(1-fx)+pixel(left+x0+1,top+y0,c)*fx)*(1-fy)+(pixel(left+x0,top+y0+1,c)*(1-fx)+pixel(left+x0+1,top+y0+1,c)*fx)*fy));
-    out[j*112+i]=Math.round(.299*channels[0]+.587*channels[1]+.114*channels[2]);
+  // Crop coordinates are separable: calculate each column once, not once
+  // per row/channel. Keep interpolation and uint8 rounding in the same order.
+  const columns=Array.from({length:112},(_,i)=>{
+    const sx=(i+56+.5)*cw/224-.5,x0=Math.floor(sx);
+    return {x0:left+x0,fx:sx-x0};
+  });
+  for(let j=0;j<112;j++) {
+    const sy=(j+56+.5)*ch/224-.5,y0=Math.floor(sy),fy=sy-y0;
+    const yy=top+y0;
+    for(let i=0;i<112;i++) {
+      const {x0,fx}=columns[i];
+      // Avoid allocating a three-element array and callback for every pixel.
+      const channel=c=>Math.round((pixel(x0,yy,c)*(1-fx)+pixel(x0+1,yy,c)*fx)*(1-fy)+(pixel(x0,yy+1,c)*(1-fx)+pixel(x0+1,yy+1,c)*fx)*fy);
+      const r=channel(0),g=channel(1),b=channel(2);
+      out[j*112+i]=Math.round(.299*r+.587*g+.114*b);
+    }
   }
   return out;
 }
@@ -381,6 +445,7 @@ module.exports = {
 // signed 16-bit samples, both starting at the window's source time.
 const {rgbToLetterboxBlob,decodeYuNet,mapFaceToDisplay}=require('./yunet-decode.cjs');
 const {mfcc}=require('./speaker-audio.cjs');
+const {scoreSpeakerTrack}=require('./speaker-score.cjs');
 const {trackFaces,interpolateTrack,smoothBoxes,facePixels}=require('./speaker-tracks.cjs');
 const {detectFrameChanges}=require('./frame-change.cjs');
 const {MICROSECONDS_PER_SECOND,SPEAKER_WINDOW_MICROSECONDS,speakerDurationMicroseconds}=require('./speaker-time.cjs');
@@ -447,17 +512,8 @@ async function scoreSpeakerWindow({ort,yunet,model,video,width,height,rgb,pcm,st
       for(const between of interpolateTrack(track)){samples[between.i].faces.push(between.face);track.push(between);}
       return {track,id,visual};
     });
-    const scores=new Float64Array(n);const began=performance.now();
-    for(const seconds of [1,2,3])for(let offset=0;offset<n;offset+=seconds*25) {
-      signal.throwIfAborted();const end=Math.min(n,offset+seconds*25),count=end-offset;
-      const {at,vt}=timed.measure('speakerInput',()=>({
-        at:new ort.Tensor('float32',audioFeatures.slice(offset*4*13,end*4*13),[1,count*4,13]),
-        vt:new ort.Tensor('float32',visual.slice(offset*112*112,end*112*112),[1,count,112,112]),
-      }));
-      const out=await timed.measureAsync('speakerInference',()=>model.run({audio:at,video:vt}));
-      try {timed.measure('speakerOutput',()=>{if(out.scores.data.length!==count)throw new Error('Speaker model output length mismatch');for(let i=0;i<count;i++){const score=out.scores.data[i];if(!Number.isFinite(score))throw new Error('Non-finite speaker score');scores[offset+i]+=score/3;}});}
-      finally{at.dispose();vt.dispose();for(const v of Object.values(out))v.dispose();}
-    }
+    const began=performance.now();
+    const scores=await scoreSpeakerTrack({ort,model,audioFeatures,visual,n,signal,timed});
     state.inferenceMilliseconds+=performance.now()-began;
     // No face is extrapolated beyond a track's detections. IDs belong to
     // this short window only; callers cannot treat them as person IDs.

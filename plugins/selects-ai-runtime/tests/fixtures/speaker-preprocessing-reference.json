@@ -1,0 +1,109 @@
+{
+  "crops": [
+    {
+      "width": 960,
+      "height": 540,
+      "geometry": [
+        450.3,
+        220.9,
+        132.7
+      ],
+      "sha256": "3b1971e67239d0d207a9d2da9211bf5b2ead4bcf28de163f80f5e05519982495"
+    },
+    {
+      "width": 960,
+      "height": 540,
+      "geometry": [
+        -5.2,
+        3.9,
+        70
+      ],
+      "sha256": "02484f90d9025dc2e8942c83fcec37000f0a2edd8f4bea002a0df894a66f13d2"
+    },
+    {
+      "width": 960,
+      "height": 540,
+      "geometry": [
+        950,
+        530,
+        55
+      ],
+      "sha256": "d4dc02b3f982c2390cabfcb8091cc5aec96cec78fd3b10aa8da2a7bd40dc6dbb"
+    },
+    {
+      "width": 960,
+      "height": 540,
+      "geometry": [
+        50,
+        50,
+        0
+      ],
+      "sha256": "9553c2d954416a70f09606a71d2ca26fc2cf561d8f37dc64ea45320819a7594c"
+    },
+    {
+      "width": 960,
+      "height": 540,
+      "geometry": [
+        1000,
+        -100,
+        8
+      ],
+      "sha256": "8ee4242cb3544c2dd0674c88dea0fd95c261d1a1cd9dc8b7b9326da8f5d6cb85"
+    }
+  ],
+  "letterbox": [
+    {
+      "width": 960,
+      "height": 540,
+      "sha256": "8c27a1fab737cb30fc8c6e85890f34cf2aa93501aefcf2108883fd34e8b2831c"
+    },
+    {
+      "width": 540,
+      "height": 960,
+      "sha256": "b0fcb036b4ac5a7cc86f1cf6a0e9cd9d13290da07cfd41cd0d7b3b6c5078ff35"
+    },
+    {
+      "width": 3,
+      "height": 2,
+      "sha256": "02c9beb396a72666909262d5439c7c789a244a72235a84befc1f5ef4846644ec"
+    },
+    {
+      "width": 641,
+      "height": 479,
+      "sha256": "a3453987349465763e92c9839884fa5f1219b0d564f09a71164921bff30ff44f"
+    },
+    {
+      "width": 640,
+      "height": 640,
+      "sha256": "588b23d8e6475507d0dbe8fde94b8378fa9f3f0270ce2c6bc9eb46a37ebcb380"
+    },
+    {
+      "width": 1,
+      "height": 1,
+      "sha256": "bd4d09189da1080997041eb7bb1f09685e3bed1e38a2cbdb4c6059a967e1d122"
+    }
+  ],
+  "audio": [
+    {
+      "length": 1,
+      "sha256": "17195b55c48731a3d40eb3fb316fe516d01cf31a5e02add7c51b09e46052d499"
+    },
+    {
+      "length": 400,
+      "sha256": "7a3e25e193e2b233f4143c97481cb90213040a3e8495c419130a5370cae7c3a7"
+    },
+    {
+      "length": 16000,
+      "sha256": "33656342168b3fdfc76f0cd986af8079a4f079de2428620041f5f09c1aa1fa70"
+    },
+    {
+      "length": 48000,
+      "sha256": "547cd7be42cb767fb80340aaed0e374448420092a598aec42ec21b56cb067879"
+    },
+    {
+      "length": 16000,
+      "silence": true,
+      "sha256": "b833b45b88a540a29f14906b6f40d32ec304ba1474df879ba81c3532f5322706"
+    }
+  ]
+}

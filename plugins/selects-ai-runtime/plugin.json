@@ -110,6 +110,7 @@
     "web/runtime.source.mjs",
     "scripts/build-web-runtime.cjs",
     "tests/web-runtime.test.cjs",
+    "lib/speaker-score.cjs",
     "lib/speaker-window.cjs",
     "lib/speaker-time.cjs",
     "lib/onnx-wire.cjs",
@@ -120,7 +121,10 @@
     "lib/stage-timings.cjs",
     "tests/stage-timings.test.cjs",
     "lib/tool-timings.cjs",
-    "tests/tool-timings.test.cjs"
+    "tests/tool-timings.test.cjs",
+    "tests/speaker-score.test.cjs",
+    "tests/speaker-preprocessing.test.cjs",
+    "tests/fixtures/speaker-preprocessing-reference.json"
   ],
   "runtime": "runtime.json",
   "webRuntime": "web/runtime.mjs"

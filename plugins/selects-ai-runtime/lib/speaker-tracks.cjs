@@ -47,10 +47,22 @@ function facePixels(rgb,width,height,geometry) {
   const [x,y,s]=geometry,left=Math.trunc(x-s*1.4),top=Math.trunc(y-s),right=Math.trunc(x+s*1.4),bottom=Math.trunc(y+s*1.8);
   const cw=Math.max(1,right-left),ch=Math.max(1,bottom-top),out=new Float32Array(112*112);
   const pixel=(xx,yy,c)=>xx<0||yy<0||xx>=width||yy>=height?110:rgb[(yy*width+xx)*3+c];
-  for(let j=0;j<112;j++)for(let i=0;i<112;i++) {
-    const sx=(i+56+.5)*cw/224-.5,sy=(j+56+.5)*ch/224-.5,x0=Math.floor(sx),y0=Math.floor(sy),fx=sx-x0,fy=sy-y0;
-    const channels=[0,1,2].map(c=>Math.round((pixel(left+x0,top+y0,c)*(1-fx)+pixel(left+x0+1,top+y0,c)*fx)*(1-fy)+(pixel(left+x0,top+y0+1,c)*(1-fx)+pixel(left+x0+1,top+y0+1,c)*fx)*fy));
-    out[j*112+i]=Math.round(.299*channels[0]+.587*channels[1]+.114*channels[2]);
+  // Crop coordinates are separable: calculate each column once, not once
+  // per row/channel. Keep interpolation and uint8 rounding in the same order.
+  const columns=Array.from({length:112},(_,i)=>{
+    const sx=(i+56+.5)*cw/224-.5,x0=Math.floor(sx);
+    return {x0:left+x0,fx:sx-x0};
+  });
+  for(let j=0;j<112;j++) {
+    const sy=(j+56+.5)*ch/224-.5,y0=Math.floor(sy),fy=sy-y0;
+    const yy=top+y0;
+    for(let i=0;i<112;i++) {
+      const {x0,fx}=columns[i];
+      // Avoid allocating a three-element array and callback for every pixel.
+      const channel=c=>Math.round((pixel(x0,yy,c)*(1-fx)+pixel(x0+1,yy,c)*fx)*(1-fy)+(pixel(x0,yy+1,c)*(1-fx)+pixel(x0+1,yy+1,c)*fx)*fy);
+      const r=channel(0),g=channel(1),b=channel(2);
+      out[j*112+i]=Math.round(.299*r+.587*g+.114*b);
+    }
   }
   return out;
 }
