@@ -212,3 +212,40 @@ placement; this is not a blanket visual-quality pass. Each AI variant ran once,
 so differences in plan segmentation cannot be attributed solely to detection.
 Videos, images, full observations and editable draft links remain in the local
 test report, not in this repository.
+
+### Web threads (2026-11-18, headless Chrome 157, macOS arm64, 15 logical cores)
+
+The real Selects web host (`BrowserAiRuntimeService`, its Worker and WebCodecs
+decoding) ran this module on a 60-second 1080p interview clip, `speakers.detect`
+over 0-60 s and `faces.detect` every 0.5 s over 0-60 s, three runs per row.
+Medians; other jobs shared the machine, so single runs varied by up to 30%.
+
+| Threads | speakers wall | speakers Light-ASD | faces wall | faces YuNet |
+|---|---|---|---|---|
+| 1 (not isolated) | 47.3 s | 35.3 s | 4.3 s | 2.3 s |
+| 2 | 31.6 s | 21.0 s | 3.1 s | 1.3 s |
+| 4 | 23.2 s | 12.8 s | 2.8 s | 0.87 s |
+| 8 | 16.2 s | 6.6 s | 2.5 s | 0.60 s |
+| 12 | 13.9 s | 4.7 s | 2.6 s | 0.54 s |
+
+Every threaded run wrote the same samples, faces, boxes and track IDs as the
+single-threaded run; Light-ASD scores differed by at most 6.4e-7. At 12 threads
+WebCodecs window decoding (about 5.4 s) costs more than Light-ASD. Starting the
+next window's decode during scoring made threaded runs slower, because the
+decoded frames are copied out on the same Worker thread.
+
+`provider: "auto"` on the same machine selected the Apple (metal-3) WebGPU
+adapter. Without isolation it took 20.7 s for speakers (Light-ASD 10.5 s) and
+2.6 s for faces (YuNet 1.2 s); with 12 threads also available, the times were
+the same, so on this Mac threaded WebAssembly is faster when the page is
+isolated: a host should request `auto` only when `crossOriginIsolated` is false. Its documents had the WebAssembly samples, faces and tracks, with
+boxes within 0.0002 px, face scores within 5e-7 and speaker scores within
+2.3e-6.
+
+Isolation came from COOP `same-origin` with COEP `credentialless`, and
+separately from `Document-Isolation-Policy: isolate-and-credentialless`; both
+gave the same times (15.6 s median for speakers in a later back-to-back pair).
+With neither, the default provider wrote exactly the documents of the
+previously published runtime. With the host's revoked import URL, a 4-thread session
+never finished creating (no result in 150 s). Other browsers, operating systems
+and core counts were not measured.

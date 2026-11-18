@@ -163,7 +163,7 @@ test('web runtime rejects unsupported tasks, providers and frame orders before c
   }).value), /does not support person\.segment/);
   await assert.rejects(runtime.run(context(runtime, {
     request: videoRequest({ provider: 'dml' }), frameTimes,
-  }).value), /CPU provider only/);
+  }).value), /cpu and auto providers only/);
   await assert.rejects(runtime.run(context(runtime, {
     request: videoRequest(), frameTimes: [1.55, 1.04],
   }).value), /not ordered/);
@@ -533,4 +533,58 @@ test('speaker measurements preserve detections and count both model calls', asyn
   assert.equal(stages.faceInput.calls,4);
   assert.equal(stages.speakerInference.calls,3);
   assert.equal(stages.faceCrops.calls,1);
+});
+
+test('ONNX Runtime Web uses threads only on a cross-origin isolated page', async () => {
+  const { wasmThreadCount, MAX_WASM_THREADS } = await loadWebRuntime();
+  const scope = (crossOriginIsolated, hardwareConcurrency, SharedArrayBuffer = globalThis.SharedArrayBuffer) => ({
+    crossOriginIsolated, SharedArrayBuffer, navigator: { hardwareConcurrency },
+  });
+  assert.equal(wasmThreadCount(scope(false, 16)), 1);
+  assert.equal(wasmThreadCount(scope(true, 16, null)), 1);
+  assert.equal(wasmThreadCount(scope(true, 1)), 1);
+  assert.equal(wasmThreadCount(scope(true, 2)), 1);
+  assert.equal(wasmThreadCount(scope(true, 4)), 2);
+  assert.equal(wasmThreadCount(scope(true, 8)), 4);
+  assert.equal(wasmThreadCount(scope(true, 12)), 8);
+  assert.equal(wasmThreadCount(scope(true, 16)), 12);
+  assert.equal(wasmThreadCount(scope(true, 64)), MAX_WASM_THREADS);
+  assert.equal(wasmThreadCount(scope(true, undefined)), 1);
+});
+
+test('provider auto detects faces on a hardware WebGPU adapter and on WebAssembly without one', async () => {
+  const runtime = await loadWebRuntime();
+  const frameTimes = [1.04, 1.55];
+  const runWith = async (adapter) => {
+    const run = context(runtime, { request: videoRequest({ provider: 'auto' }), frameTimes });
+    run.value.importModule = async () => { run.ort.env.webgpu = {}; return run.ort; };
+    if (adapter !== undefined) {
+      Object.defineProperty(globalThis.navigator, 'gpu', { value: { requestAdapter: async () => adapter }, configurable: true });
+    }
+    try {
+      return { run, result: await runtime.run(run.value) };
+    } finally {
+      delete globalThis.navigator.gpu;
+    }
+  };
+  const hardware = { info: { vendor: 'apple', architecture: 'metal-3', device: '', description: '' } };
+  const gpu = await runWith(hardware);
+  assert.deepEqual(gpu.run.state.created.options.executionProviders, ['webgpu', 'wasm']);
+  assert.ok(gpu.run.downloads.includes(runtime.assets.ortWebGpuModule) && gpu.run.downloads.includes(runtime.assets.ortWebGpuWasm));
+  assert.equal(gpu.run.ort.env.wasm.wasmBinary, gpu.run.bytes.get('ortWebGpuWasm'));
+  assert.equal(gpu.result.diagnostics.provider, 'webgpu');
+  assert.equal(gpu.result.diagnostics.requestedProvider, 'auto');
+  assert.equal(gpu.result.diagnostics.backend, 'onnxruntime-web-webgpu');
+  assert.equal(gpu.result.diagnostics.webgpu.adapter.vendor, 'apple');
+  assert.ok(gpu.run.ort.env.webgpu.adapter, 'the vetted adapter is handed to ONNX Runtime');
+
+  for (const adapter of [undefined, null, { info: { description: 'SwiftShader' } }, { info: { isFallbackAdapter: true } }]) {
+    const cpu = await runWith(adapter);
+    assert.deepEqual(cpu.run.state.created.options.executionProviders, ['wasm']);
+    assert.ok(cpu.run.downloads.includes(runtime.assets.ortModule));
+    assert.equal(cpu.result.diagnostics.provider, 'cpu');
+    assert.equal(cpu.result.diagnostics.requestedProvider, 'auto');
+    assert.equal(cpu.result.diagnostics.backend, 'onnxruntime-web-wasm');
+    assert.equal(cpu.result.diagnostics.webgpu, undefined);
+  }
 });
