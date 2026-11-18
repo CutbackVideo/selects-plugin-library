@@ -101,13 +101,17 @@ const throwIfAborted = (signal) => {
 // ONNX Runtime Web runs its operators on a pthread pool when the page is
 // cross-origin isolated (SharedArrayBuffer is available). Without isolation a
 // browser offers no shared memory, so the runtime stays single-threaded.
-// One logical core is left for the host's decoding. YuNet and Light-ASD kept
-// scaling up to 12 threads on a 15-core Mac (VALIDATION.md, web threads).
+// The page keeps working while a job runs (decoding, drafts, the editor), so
+// threads leave it room: half the cores up to 8, all but four above that. On
+// a 4-core PC, 3 threads made the page's own work stall up to 9.9 s where one
+// thread stalled 3.8 s. YuNet and Light-ASD kept scaling up to 12 threads on a
+// 15-core Mac (VALIDATION.md, web threads).
 export const MAX_WASM_THREADS = 12;
 export function wasmThreadCount(scope = globalThis) {
   if (!scope.crossOriginIsolated || typeof scope.SharedArrayBuffer !== 'function') return 1;
   const cores = Number.isSafeInteger(scope.navigator?.hardwareConcurrency) ? scope.navigator.hardwareConcurrency : 1;
-  return Math.max(1, Math.min(MAX_WASM_THREADS, cores - 1));
+  const threads = cores <= 8 ? Math.floor(cores / 2) : cores - 4;
+  return Math.max(1, Math.min(MAX_WASM_THREADS, threads));
 }
 
 // ORT starts each pthread Worker from the module's own URL (import.meta.url).
@@ -128,7 +132,8 @@ async function importThreadedOrt(moduleBytes) {
  * choice is made before any frame and never changes during a job.
  */
 async function createSession(context, requestedProvider) {
-  const adapterInfo = requestedProvider === 'auto' ? await hardwareAdapterInfo() : null;
+  const hardware = requestedProvider === 'auto' ? await hardwareAdapter() : null;
+  const adapterInfo = hardware?.adapterInfo ?? null;
   const provider = adapterInfo ? 'webgpu' : 'cpu';
   const executionProviders = adapterInfo ? ['webgpu', 'wasm'] : ['wasm'];
   const [moduleBytes, wasmBytes, modelBytes] = await Promise.all([
@@ -145,7 +150,9 @@ async function createSession(context, requestedProvider) {
   ort.env.wasm.wasmBinary = wasmBytes;
   ort.env.wasm.numThreads = threads;
   ort.env.wasm.proxy = false;
-  if (adapterInfo) ort.env.webgpu.powerPreference = 'high-performance';
+  // ORT would otherwise request an adapter of its own, and without one it
+  // silently runs on WebAssembly while diagnostics still say webgpu.
+  if (hardware) ort.env.webgpu.adapter = hardware.adapter;
   const session = await ort.InferenceSession.create(modelBytes, {
     executionProviders, graphOptimizationLevel: 'all',
   });
@@ -381,7 +388,6 @@ async function hardwareAdapter() {
   return { adapter, adapterInfo };
 }
 
-const hardwareAdapterInfo = async () => (await hardwareAdapter())?.adapterInfo ?? null;
 
 async function requestHardwareDevice() {
   if (!globalThis.navigator?.gpu) throw new Error('Person matte on web requires WebGPU, which this browser does not provide');

@@ -543,7 +543,11 @@ test('ONNX Runtime Web uses threads only on a cross-origin isolated page', async
   assert.equal(wasmThreadCount(scope(false, 16)), 1);
   assert.equal(wasmThreadCount(scope(true, 16, null)), 1);
   assert.equal(wasmThreadCount(scope(true, 1)), 1);
-  assert.equal(wasmThreadCount(scope(true, 4)), 3);
+  assert.equal(wasmThreadCount(scope(true, 2)), 1);
+  assert.equal(wasmThreadCount(scope(true, 4)), 2);
+  assert.equal(wasmThreadCount(scope(true, 8)), 4);
+  assert.equal(wasmThreadCount(scope(true, 12)), 8);
+  assert.equal(wasmThreadCount(scope(true, 16)), 12);
   assert.equal(wasmThreadCount(scope(true, 64)), MAX_WASM_THREADS);
   assert.equal(wasmThreadCount(scope(true, undefined)), 1);
 });
@@ -572,6 +576,7 @@ test('provider auto detects faces on a hardware WebGPU adapter and on WebAssembl
   assert.equal(gpu.result.diagnostics.requestedProvider, 'auto');
   assert.equal(gpu.result.diagnostics.backend, 'onnxruntime-web-webgpu');
   assert.equal(gpu.result.diagnostics.webgpu.adapter.vendor, 'apple');
+  assert.ok(gpu.run.ort.env.webgpu.adapter, 'the vetted adapter is handed to ONNX Runtime');
 
   for (const adapter of [undefined, null, { info: { description: 'SwiftShader' } }, { info: { isFallbackAdapter: true } }]) {
     const cpu = await runWith(adapter);
