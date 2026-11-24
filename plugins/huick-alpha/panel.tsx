@@ -215,7 +215,7 @@ export default function Panel({ sdk, context, ui }) {
 const ids = [...new Set(clips.filter((c) => c.resourceId && (c.trackKind === "main" || c.trackKind === "video")).map((c) => c.resourceId))];
 if (!ids.length) return [];
 const rows = await selects.project(${JSON.stringify(context.projectId)}).resources({ resourceIds: ids });
-return rows.filter((r) => r.type === "video").map((r) => r.name);`;
+return rows.filter((r) => String(r.type).toLowerCase() === "video").map((r) => r.name);`;
     sdk.runScript({ summary: "List the recordings in the open Draft", script, allowCommit: false })
       .then((r) => { if (alive && !r.isError) setRecordings(r.result ?? []); })
       .catch(() => {});
