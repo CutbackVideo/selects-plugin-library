@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "huick-alpha",
+  "version": "0.1.0",
+  "name": "Huick Alpha",
+  "summary": "Plan a short episode the way the team writes its Docs (concept, cast and recordings, cutouts, materials, scene-by-scene dialogue, screen direction and article excerpts) and have Clipper make the Draft with your template.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Needs a Selects build whose run_script SDK has selects.clipper.startRun (Clipper production-plan hotfix, November 2026) and the Clipper template the plan targets imported. Uses only the Panel SDK: runScript. Windows and released-version compatibility are unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "Huick Alpha",
+      "summary": "Plane eine kurze Folge wie im Team-Dokument (Konzept, Besetzung und Aufnahmen, Freisteller, Material, Dialog, Bildregie und Artikelzitate je Szene) und lass Clipper den Draft mit deiner Vorlage erstellen."
+    },
+    "en": {
+      "name": "Huick Alpha",
+      "summary": "Plan a short episode the way the team writes its Docs (concept, cast and recordings, cutouts, materials, scene-by-scene dialogue, screen direction and article excerpts) and have Clipper make the Draft with your template."
+    },
+    "es": {
+      "name": "Huick Alpha",
+      "summary": "Planifica un episodio corto como en el documento del equipo (concepto, reparto y grabaciones, recortes, materiales, di\u00e1logo, direcci\u00f3n en pantalla y citas por escena) y deja que Clipper cree el Draft con tu plantilla."
+    },
+    "fr": {
+      "name": "Huick Alpha",
+      "summary": "Planifiez un court \u00e9pisode comme dans le document de l'\u00e9quipe (concept, distribution et enregistrements, d\u00e9tourages, m\u00e9dias, dialogues, mise en sc\u00e8ne et extraits d'articles par sc\u00e8ne) et laissez Clipper cr\u00e9er le Draft avec votre mod\u00e8le."
+    },
+    "it": {
+      "name": "Huick Alpha",
+      "summary": "Pianifica un breve episodio come nel documento del team (concept, cast e registrazioni, scontorni, materiali, dialoghi, regia e citazioni per scena) e lascia che Clipper crei il Draft con il tuo modello."
+    },
+    "ja": {
+      "name": "Huick Alpha",
+      "summary": "\u30c1\u30fc\u30e0\u306e\u4f01\u753b\u66f8\u3068\u540c\u3058\u5f62\uff08\u30b3\u30f3\u30bb\u30d7\u30c8\u3001\u30ad\u30e3\u30b9\u30c8\u3068\u9332\u753b\u3001\u5207\u308a\u629c\u304d\u3001\u7d20\u6750\u3001\u30b7\u30fc\u30f3\u3054\u3068\u306e\u53f0\u8a5e\u30fb\u753b\u9762\u6307\u793a\u30fb\u8a18\u4e8b\u5f15\u7528\uff09\u3067\u77ed\u3044\u56de\u3092\u4f01\u753b\u3057\u3001Clipper\u304c\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u3067Draft\u3092\u4f5c\u308a\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\ud719\uc54c\ud30c",
+      "summary": "\ud300\uc774 Docs\uc5d0 \uc4f0\ub294 \ubc29\uc2dd(\ucee8\uc149, \uce90\ub9ad\ud130\uc640 \ub179\ud654, \ub204\ub07c, \uc790\ub8cc, \uc52c\ubcc4 \ub300\uc0ac\u00b7\ud654\uba74 \uc9c0\uc2dc\u00b7\uae30\uc0ac \uc6d0\ubb38)\uc73c\ub85c \uc9e7\uc740 \ud68c\ucc28\ub97c \uae30\ud68d\ud558\uba74 Clipper\uac00 \ud15c\ud50c\ub9bf\uc73c\ub85c Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Huick Alpha",
+      "summary": "Planeje um epis\u00f3dio curto como no documento da equipe (conceito, elenco e grava\u00e7\u00f5es, recortes, materiais, di\u00e1logo, dire\u00e7\u00e3o de tela e trechos de artigos por cena) e deixe o Clipper criar o Draft com seu modelo."
+    },
+    "tr": {
+      "name": "Huick Alpha",
+      "summary": "K\u0131sa bir b\u00f6l\u00fcm\u00fc ekibin dok\u00fcman\u0131ndaki gibi planla (konsept, oyuncular ve kay\u0131tlar, dekupe, malzemeler, sahne baz\u0131nda diyalog, ekran y\u00f6nlendirmesi ve makale al\u0131nt\u0131lar\u0131) ve Clipper Draft'\u0131 \u015fablonunla olu\u015ftursun."
+    },
+    "zh": {
+      "name": "Huick Alpha",
+      "summary": "\u6309\u56e2\u961f\u7b56\u5212\u6587\u6863\u7684\u65b9\u5f0f\uff08\u6982\u5ff5\u3001\u89d2\u8272\u4e0e\u5f55\u50cf\u3001\u62a0\u50cf\u3001\u7d20\u6750\u3001\u6bcf\u573a\u7684\u53f0\u8bcd\u3001\u753b\u9762\u6307\u793a\u548c\u6587\u7ae0\u6458\u5f55\uff09\u7b56\u5212\u4e00\u96c6\u77ed\u7247\uff0c\u7531 Clipper \u7528\u4f60\u7684\u6a21\u677f\u751f\u6210 Draft\u3002"
+    }
+  }
+}
