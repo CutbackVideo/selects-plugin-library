@@ -30,15 +30,14 @@ def inspect(name, data):
     if name == 'plugins/selects-ai-runtime/models/light-asd-ava.onnx':
         valid = len(data) == 4106136 and hashlib.sha256(data).hexdigest() == 'dfc69dc7c138cdd67ad1ee9b107808b17c142a21d641e2fa06260012d294fa63'
         return [] if valid else ['Unrecognized bundled speaker model']
-    # Only canonical, bounded gallery assets are permitted as public binaries:
-    # the plugin's own, or one variant's (`preview-<id>.mp4`, `poster-<id>.webp`).
+    # Gallery media and list icons use canonical, bounded asset files.
     slug = r'[a-z0-9]+(?:-[a-z0-9]+)*'
-    if re.fullmatch(rf'plugins/{slug}/(?:preview(?:-{slug})?\.mp4|poster(?:-{slug})?\.webp)', name):
+    if re.fullmatch(rf'plugins/{slug}/(?:preview(?:-{slug})?\.mp4|poster(?:-{slug})?\.webp|icon\.webp)', name):
         if name.endswith('.mp4'):
             valid = 12 <= len(data) <= 8 * 1024 * 1024 and data[4:8] == b'ftyp'
         else:
             valid = 12 <= len(data) <= 512 * 1024 and data[:4] == b'RIFF' and data[8:12] == b'WEBP'
-        return [] if valid else ['Invalid or oversized preview asset']
+        return [] if valid else ['Invalid or oversized gallery asset']
     # Audio a plugin ships (music, sound effects) is allowed when the file
     # really is audio and stays a reasonable size for the Git history.
     if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/.+\.(?:m4a|wav|mp3)', name) and not BLOCKED & set(Path(name).parts):
