@@ -50,7 +50,7 @@ const STRINGS = {
     removeLine: "Remove line",
     screenHint: "Start with the scene length (e.g. about 3.5 s), then what appears where and when.",
     excerpt: "Article excerpt and source (verbatim)",
-    create: "Create Draft with Clipper",
+    create: "Generate",
     creating: "Sending to Clipper\u2026",
     sent: "Clipper is making the Draft. Follow it in Clipper.",
     needUpdate: "This Selects version cannot start Clipper runs from apps. Update Selects.",
@@ -90,7 +90,7 @@ const STRINGS = {
     removeLine: "\ub300\uc0ac \uc0ad\uc81c",
     screenHint: "\ub9e8 \uc55e\uc5d0 \uc52c \uae38\uc774(\uc608: \uc57d 3.5\ucd08), \uadf8\ub2e4\uc74c \uba87 \ucd08\uc5d0 \ubb34\uc5c7\uc774 \uc5b4\ub514\uc5d0 \ub728\ub294\uc9c0.",
     excerpt: "\uae30\uc0ac \uc6d0\ubb38\uacfc \ucd9c\ucc98 (\uadf8\ub300\ub85c)",
-    create: "Clipper\ub85c \ucd08\uc548 \ub9cc\ub4e4\uae30",
+    create: "\uc0dd\uc131\ud558\uae30",
     creating: "Clipper\uc5d0 \ubcf4\ub0b4\ub294 \uc911\u2026",
     sent: "Clipper\uac00 Draft\ub97c \ub9cc\ub4e4\uace0 \uc788\uc5b4\uc694. Clipper\uc5d0\uc11c \ud655\uc778\ud558\uc138\uc694.",
     needUpdate: "\uc774 Selects \ubc84\uc804\uc740 \uc571\uc5d0\uc11c Clipper \uc0dd\uc131\uc744 \uc2dc\uc791\ud560 \uc218 \uc5c6\uc5b4\uc694. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uc138\uc694.",
@@ -99,7 +99,13 @@ const STRINGS = {
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const runId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
 const planKey = (projectId) => "huick-alpha:plan:" + projectId;
+const episodeTitle = (plan) => plan.concept.split("\n")[0].trim();
+function speakingVideos(plan) {
+  const speakers = new Set(plan.scenes.flatMap((scene) => scene.lines.map((line) => line.characterId)));
+  return new Set(plan.characters.filter((character) => speakers.has(character.id)).map((character) => character.recording));
+}
 const newCharacter = () => ({ id: uid(), name: "", recording: "", direction: "" });
 const newLine = (characterId) => ({ id: uid(), characterId, text: "" });
 const newScene = (characterId) => ({ id: uid(), title: "", lines: [newLine(characterId)], screen: "", excerpt: "" });
@@ -260,11 +266,17 @@ const SOURCE_COPY = {
     chooseSpeaker: "Choose character", article: "Article and source",
     directionPrompt: "Direction prompt", insertAsset: "Reference asset",
     sceneNumber: (n) => "Scene " + n, dialogueHint: "Write what the speaker says",
-    openWindow: "Open in a window",
-    connectRecording: "Connect video", removeBackground: "Remove background",
+    chooseRecording: "Choose video", removeBackground: "Remove background",
     noBackgroundVideos: "Add a video in Files to set up background removal.",
     addRecording: "Connect footage to the characters.", assignSpeakers: "Choose the character for each line.",
     createSource: "Preparing the footage…", storage: "The plan could not be saved.",
+    production: "Production", history: "Run history", emptyHistory: "No saved runs yet.",
+    sceneCount: (n) => n + (n === 1 ? " scene" : " scenes"),
+    retryHistory: "Try again", loadPlan: "Load plan", openResult: "View result",
+    resultUnavailable: "Clipper result links are unavailable in this version of Selects.",
+    confirmLoad: "Load this run’s plan into the current editor?", cancel: "Cancel", checkRun: "Check in Clipper",
+    historyError: "Could not read Clipper’s run status.", untitled: "Untitled episode",
+    runStates: { running: "Creating", completed: "Complete", failed: "Failed", cancelled: "Cancelled", interrupted: "Interrupted" },
   },
   ko: {
     files: "\ud30c\uc77c", video: "\uc6d0\ubcf8 \uc601\uc0c1", noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uace0 \ud68c\ucc28\ub97c \ub9cc\ub4e4\uc5b4 \uc8fc\uc138\uc694.",
@@ -275,11 +287,17 @@ const SOURCE_COPY = {
     chooseSpeaker: "\uce90\ub9ad\ud130 \uc120\ud0dd", article: "\uae30\uc0ac \uc6d0\ubb38\uacfc \ucd9c\ucc98",
     directionPrompt: "\uc5f0\ucd9c \ud504\ub86c\ud504\ud2b8", insertAsset: "\uc5d0\uc14b \ucc38\uc870",
     sceneNumber: (n) => "\uc52c " + n, dialogueHint: "\uce90\ub9ad\ud130\uac00 \ub9d0\ud558\ub294 \ub0b4\uc6a9\uc744 \uc785\ub825",
-    openWindow: "\ubcc4\ub3c4 \ucc3d\uc5d0\uc11c \uc5f4\uae30",
-    connectRecording: "\uc601\uc0c1 \uc5f0\uacb0", removeBackground: "\ubc30\uacbd \uc81c\uac70",
+    chooseRecording: "\uc601\uc0c1 \uc120\ud0dd", removeBackground: "\ubc30\uacbd \uc81c\uac70",
     noBackgroundVideos: "\ud30c\uc77c\uc5d0 \uc601\uc0c1\uc744 \ucd94\uac00\ud558\uba74 \uc5ec\uae30\uc11c \ubc30\uacbd \uc81c\uac70\ub97c \uc124\uc815\ud560 \uc218 \uc788\uc5b4\uc694.",
     addRecording: "\uce90\ub9ad\ud130\uc5d0 \uc601\uc0c1\uc744 \uc5f0\uacb0\ud574 \uc8fc\uc138\uc694.", assignSpeakers: "\uac01 \ub300\uc0ac\uc758 \uce90\ub9ad\ud130\ub97c \uc9c0\uc815\ud574 \uc8fc\uc138\uc694.",
     createSource: "\uc6d0\ubcf8 \uc601\uc0c1\uc744 \uc900\ube44\ud558\ub294 \uc911…", storage: "\uae30\ud68d\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+    production: "\uc81c\uc791", history: "\uc791\uc5c5 \ub0b4\uc5ed", emptyHistory: "\uc544\uc9c1 \uc800\uc7a5\ub41c \uc791\uc5c5\uc774 \uc5c6\uc5b4\uc694.",
+    sceneCount: (n) => n + "\uc52c",
+    retryHistory: "\ub2e4\uc2dc \uc2dc\ub3c4", loadPlan: "\uae30\ud68d \ubd88\ub7ec\uc624\uae30", openResult: "\uacb0\uacfc \ubcf4\uae30",
+    resultUnavailable: "\uc774 Selects \ubc84\uc804\uc5d0\uc11c\ub294 Clipper \uacb0\uacfc\ub85c \ubc14\ub85c \uc774\ub3d9\ud560 \uc218 \uc5c6\uc5b4\uc694.",
+    confirmLoad: "\uc9c0\uae08 \ud3b8\uc9d1 \uc911\uc778 \ub0b4\uc6a9\uc744 \uc774 \uae30\ud68d\uc73c\ub85c \ubc14\uafc0\uae4c\uc694?", cancel: "\ucde8\uc18c", checkRun: "Clipper\uc5d0\uc11c \ud655\uc778",
+    historyError: "Clipper \uc0dd\uc131 \uc0c1\ud0dc\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694.", untitled: "\uc81c\ubaa9 \uc5c6\ub294 \uae30\ud68d",
+    runStates: { running: "\uc0dd\uc131 \uc911", completed: "\uc644\ub8cc", failed: "\uc2e4\ud328", cancelled: "\ucde8\uc18c\ub428", interrupted: "\uc911\ub2e8\ub428" },
   },
 };
 
@@ -328,6 +346,16 @@ const SCRIPT_STYLES = `
   .huick-asset-picker { width: max-content; max-width: 100%; }
   .huick-asset-picker select { border-color: var(--panel-border); field-sizing: fixed; max-width: 155px; }
   .huick-file-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--panel-border); border-radius: var(--panel-radius, 6px); max-height: 252px; overflow: auto; container: huick-files / inline-size; }
+  .huick-panel-tabs { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 2px; padding-bottom: 6px; border-bottom: 1px solid var(--panel-border); background: var(--background); }
+  .huick-panel-tab { width: auto; height: 28px; border: 0; border-radius: var(--panel-radius, 6px); padding: 0 10px; background: transparent; color: var(--panel-muted-fg); font: inherit; font-weight: 600; cursor: pointer; }
+  .huick-panel-tab:hover:not(:disabled), .huick-panel-tab[aria-pressed="true"] { background: var(--panel-muted); color: var(--panel-fg); }
+  .huick-history-list { list-style: none; margin: 0; padding: 0; }
+  .huick-history-row { border-bottom: 1px solid var(--panel-border); }
+  .huick-history-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; width: 100%; height: auto; align-items: center; gap: 8px; padding: 8px; border: 0; border-radius: var(--panel-radius, 6px); background: transparent; color: var(--panel-fg); font: inherit; text-align: start; cursor: pointer; }
+  .huick-history-entry:hover:not(:disabled), .huick-history-entry[aria-expanded="true"] { background: var(--panel-muted); }
+  .huick-panel-tab:focus-visible, .huick-history-entry:focus-visible { outline: 1px solid var(--panel-muted-fg); outline-offset: -1px; }
+  .huick-history-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+  .huick-history-details { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; padding: 6px 8px 8px; overflow-wrap: anywhere; }
   .huick-file-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; }
   .huick-file-row + .huick-file-row { border-top: 1px solid var(--panel-border); }
   .huick-file-name { font-size: 12px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -588,6 +616,13 @@ function ProjectPanel({ sdk, context, ui }) {
   const { projectId } = context;
   const key = planKey(projectId);
   const [plan, setPlan] = useState(newPlan);
+  const [history, setHistory] = useState([]);
+  const [view, setView] = useState("production");
+  const [selectedRunId, setSelectedRunId] = useState(null);
+  const [historyRevision, setHistoryRevision] = useState(0);
+  const [runResults, setRunResults] = useState(null);
+  const [historyError, setHistoryError] = useState(false);
+  const [restoreId, setRestoreId] = useState(null);
   const [ready, setReady] = useState(false);
   const [sceneId, setSceneId] = useState(null);
   const [canOpenTemplate, setCanOpenTemplate] = useState(false);
@@ -603,13 +638,30 @@ function ProjectPanel({ sdk, context, ui }) {
   const [saveError, setSaveError] = useState(false);
   const active = useRef(false);
   const canSave = useRef(false);
+  const historyRef = useRef([]);
+  const latestPlan = useRef(plan);
+  const writes = useRef(Promise.resolve());
+  latestPlan.current = plan;
   const promptField = useRef(null);
   const promptSelection = useRef(null);
-  const filesSection = useRef(null);
-  const charactersSection = useRef(null);
   const library = mediaLibrary(plan);
   const videos = characterVideos(library);
   const previewPathsKey = js(library.filter((file) => file.path && !file.url && file.kind !== "audio").map((file) => file.path));
+
+  const savePlan = (nextPlan, changeHistory) => {
+    const write = writes.current.catch(() => {}).then(async () => {
+      const previous = historyRef.current;
+      const entries = changeHistory ? changeHistory(previous) : previous;
+      await sdk.storage.setItem(key, js({ ...(nextPlan ?? latestPlan.current), runHistory: entries }));
+      if (entries !== previous) {
+        historyRef.current = entries;
+        setHistory(entries);
+      }
+      setSaveError(false);
+    });
+    writes.current = write;
+    return write;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -640,7 +692,12 @@ function ProjectPanel({ sdk, context, ui }) {
         }
         if (alive) {
           canSave.current = true;
-          if (saved) setPlan((initial) => ({ ...initial, ...saved }));
+          if (saved) {
+            const { runHistory, ...savedPlan } = saved;
+            historyRef.current = Array.isArray(runHistory) ? runHistory : [];
+            setHistory(historyRef.current);
+            setPlan((initial) => ({ ...initial, ...savedPlan }));
+          }
         }
       } catch {
         if (alive) setSaveError(true);
@@ -653,8 +710,47 @@ function ProjectPanel({ sdk, context, ui }) {
   }, [sdk, key, projectId]);
 
   useEffect(() => {
-    if (ready && canSave.current) void sdk.storage.setItem(key, JSON.stringify(plan)).catch(() => setSaveError(true));
+    if (ready && canSave.current) void savePlan().catch(() => setSaveError(true));
   }, [sdk, key, ready, plan]);
+  useEffect(() => {
+    if (!history.length) return;
+    let alive = true;
+    let timer;
+    setHistoryError(false);
+    const refresh = async (pending) => {
+      const ids = new Set(pending.map((entry) => entry.id));
+      try {
+        const results = await run(sdk, "Read the results of saved Huick Alpha plans", `
+          if (!("appRuns" in selects.clipper)) return null;
+          const clipper = selects.clipper as typeof selects.clipper & {
+            appRuns(input: { projectId: string; appRunIds: string[] }): Promise<unknown[]>;
+          };
+          const ids: string[] = ${js([...ids])};
+          const results: unknown[] = [];
+          for (let i = 0; i < ids.length; i += 50) {
+            results.push(...await clipper.appRuns({ projectId: ${js(projectId)}, appRunIds: ids.slice(i, i + 50) }));
+          }
+          return results;
+        `);
+        if (!alive) return;
+        if (!Array.isArray(results)) {
+          setRunResults(null);
+          return;
+        }
+        setRunResults((previous) => [...(previous ?? []).filter((row) => !ids.has(row.appRunId)), ...results]);
+        const states = new Map(results.map((row) => [row.appRunId, row.state]));
+        const active = pending.filter((entry) => {
+          const state = states.get(entry.id);
+          return state === "running" || (!state && Date.now() - Date.parse(entry.createdAt) < 120_000);
+        });
+        if (active.length) timer = setTimeout(() => void refresh(active), 3000);
+      } catch {
+        if (alive) setHistoryError(true);
+      }
+    };
+    void refresh(history);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [sdk, projectId, history, historyRevision]);
   useEffect(() => {
     let alive = true;
     if (previewPathsKey !== "[]") {
@@ -667,11 +763,6 @@ function ProjectPanel({ sdk, context, ui }) {
   }, [sdk, previewPathsKey]);
 
   const showError = (cause) => setError(String(cause?.message || cause));
-  const showFileError = (cause) => {
-    setShowNoticeByFiles(true);
-    setStatus("");
-    showError(cause);
-  };
   const act = async (label, task) => {
     if (active.current) return;
     active.current = true;
@@ -766,18 +857,46 @@ function ProjectPanel({ sdk, context, ui }) {
   });
 
   const create = () => act(S.createSource, async () => {
-    if (!complete(plan, videos)) return;
-    const title = plan.concept.split("\n")[0].trim().slice(0, 80);
-    const speaking = new Set(plan.scenes.flatMap((scene) => scene.lines.map((line) => line.characterId)));
-    const names = new Set(plan.characters.filter((character) => speaking.has(character.id)).map((character) => character.recording));
+    if (!canSave.current || !complete(plan, videos)) return;
+    const title = episodeTitle(plan).slice(0, 80);
+    const names = speakingVideos(plan);
     const sources = videos.filter((video) => names.has(video.name));
     const source = await prepareSource(sdk, projectId, sources, plan.sourceDraft, title + " · " + S.video);
     if (!source) throw new Error(T.needUpdate);
+    const id = runId();
+    const snapshot = { ...plan, sourceDraft: source };
     patch({ sourceDraft: source });
+    try {
+      await savePlan(undefined, (entries) => [{ id, createdAt: new Date().toISOString(), plan: snapshot }, ...entries]);
+    } catch {
+      throw new Error(S.storage);
+    }
+    setView("history");
+    setSelectedRunId(null);
     setBusy(T.creating);
-    const request = buildRequest(plan, projectId, source.id);
+    const request = buildRequest(snapshot, projectId, source.id);
+    request.additionalContent.appRunId = id;
     await run(sdk, "Start the production plan in Clipper", "return await selects.clipper.startRun(" + js(request) + ");", true);
     setStatus(T.sent);
+  });
+  const restorePlan = (entry) => act(S.loadPlan, async () => {
+    await savePlan(entry.plan);
+    latestPlan.current = entry.plan;
+    setPlan(entry.plan);
+    setSceneId(null);
+    setNotesSceneId(null);
+    setRestoreId(null);
+    setView("production");
+  });
+  const openResult = (draftId) => act(S.openResult, async () => {
+    const result = await run(sdk, "Open the clip result made from this plan", `
+      const editor = selects.editor as typeof selects.editor & {
+        openClipperResult?: (input: { projectId: string; draftId: string }) => Promise<unknown>;
+      };
+      if (typeof editor.openClipperResult !== "function") return null;
+      return await editor.openClipperResult(${js({ projectId, draftId })});
+    `);
+    if (!result) throw new Error(S.resultUnavailable);
   });
   const openTemplate = async () => {
     setTemplateOpenError("");
@@ -816,12 +935,8 @@ function ProjectPanel({ sdk, context, ui }) {
   </>;
 
   const files = (
-    <section ref={filesSection} tabIndex={-1} aria-label={S.files} style={{ ...column, gap: 12 }}>
-      <div className="huick-script-bar" style={{ marginBottom: 0 }}>
-        <h3 className="huick-section-heading">{S.files}</h3>
-        {!context.inWindow &&
-          <ui.IconButton icon="external-link" label={S.openWindow} onClick={() => { void sdk.openInWindow().catch(showFileError); }} />}
-      </div>
+    <section aria-label={S.files} style={{ ...column, gap: 12 }}>
+      <h3 className="huick-section-heading">{S.files}</h3>
       <ui.Stack>
         <div style={{ ...mediaCard, borderStyle: "dashed", padding: 12,
           borderColor: dragging ? "var(--panel-fg)" : "var(--panel-border)", background: dragging ? "var(--panel-accent)" : undefined }}
@@ -914,7 +1029,7 @@ function ProjectPanel({ sdk, context, ui }) {
   );
 
   const characters = (
-    <section ref={charactersSection} tabIndex={-1} aria-label={T.cast} style={{ borderBlock: "1px solid var(--panel-border)", paddingBlock: 8 }}>
+    <section aria-label={T.cast} style={{ borderBlock: "1px solid var(--panel-border)", paddingBlock: 8 }}>
       <div className="huick-script-bar" style={{ marginBottom: visibleCharacters.length ? 6 : 0 }}>
         <h3 className="huick-section-heading">{T.cast}</h3>
         <ui.Button variant="ghost" icon="plus" onClick={() => addCharacter()}>{T.addCharacter}</ui.Button>
@@ -923,7 +1038,7 @@ function ProjectPanel({ sdk, context, ui }) {
         {visibleCharacters.map((character) => (
           <div style={mediaCard} key={character.id}>
             <ui.TextField label={T.name} value={character.name} onChange={(value) => setCharacter(character.id, { name: value })} />
-            {recordingOptions.length > 0 && <ui.Select label={T.recording} placeholder={S.connectRecording}
+            {recordingOptions.length > 0 && <ui.Select label={T.recording} placeholder={S.chooseRecording}
               value={recorded.has(character.recording) ? character.recording : null} options={recordingOptions}
               onChange={(value) => setCharacter(character.id, { recording: value })} />}
             <ui.TextField label={T.direction} multiline value={character.direction} onChange={(value) => setCharacter(character.id, { direction: value })} />
@@ -1051,30 +1166,75 @@ function ProjectPanel({ sdk, context, ui }) {
   );
 
   if (!ready) return <ui.Progress label={S.loading} />;
-  const canCreate = complete(plan, videos);
+  const canCreate = canSave.current && complete(plan, videos);
+  const resultsByRun = new Map((runResults ?? []).map((result) => [result.appRunId, result]));
+  const runDate = (entry) => new Date(entry.createdAt).toLocaleString(context.language, { dateStyle: "short", timeStyle: "short" });
   return (
     <div style={{ ...column, ...scriptColumn, boxSizing: "border-box", padding: "10px clamp(8px, 2.5vw, 16px)", gap: 16, "--panel-field-max": "none" }}>
       <style>{SCRIPT_STYLES}</style>
+      <nav className="huick-panel-tabs">
+        <button type="button" className="huick-panel-tab" aria-pressed={view === "production"} onClick={() => setView("production")}>{S.production}</button>
+        <button type="button" className="huick-panel-tab" aria-pressed={view === "history"} onClick={() => setView("history")}>{S.history}</button>
+      </nav>
       {saveError && <ui.Message tone="warning">{S.storage}</ui.Message>}
-      {files}
-      {backgroundRemoval}
-      {characters}
-      {script}
-      <footer style={{ ...column, borderTop: "1px solid var(--panel-border)", paddingBlock: 8 }}>
-        {!showNoticeByFiles && notices}
-        <div style={{ ...actions, gap: 8 }}>
-          {!canCreate && missingInput && <span style={{ ...quiet, flex: "1 1 110px" }}>{missingInput}</span>}
-          {needsRecording && (
-            <ui.Button variant="ghost" onClick={() => (videos.length ? charactersSection : filesSection).current?.focus()}>
-              {S.connectRecording}
-            </ui.Button>
-          )}
-          <div style={{ marginInlineStart: "auto" }}>
-            <ui.Button variant="primary" disabled={!canCreate || !!busy} busy={busy === S.createSource || busy === T.creating}
-              busyLabel={busy} onClick={create}>{T.create}</ui.Button>
+      {view === "history" ? <section aria-label={S.history} style={{ ...column, gap: 8 }}>
+        {error && <ui.Message tone="error">{error}</ui.Message>}
+        {history.length ? <>
+          {historyError && <div style={actions}>
+            <ui.Message tone="warning">{S.historyError}</ui.Message>
+            <ui.Button variant="ghost" onClick={() => setHistoryRevision((value) => value + 1)}>{S.retryHistory}</ui.Button>
+          </div>}
+          <ul className="huick-history-list">
+            {history.map((entry) => {
+              const result = resultsByRun.get(entry.id);
+              const selected = selectedRunId === entry.id;
+              const drafts = result?.drafts ?? [];
+              return <li key={entry.id} className="huick-history-row">
+                <button type="button" className="huick-history-entry" aria-expanded={selected} onClick={() => {
+                  setSelectedRunId(selected ? null : entry.id);
+                  setRestoreId(null);
+                }}>
+                  <span className="huick-history-title">
+                    <strong>{episodeTitle(entry.plan) || S.untitled}</strong>
+                    <span style={quiet}>{runDate(entry)} · {S.sceneCount(entry.plan.scenes.length)}</span>
+                  </span>
+                  <span style={quiet}>{S.runStates[result?.state] ?? S.checkRun}</span>
+                  <ui.Icon name={selected ? "chevron-down" : "chevron-right"} size={14} />
+                </button>
+                {selected && <div className="huick-history-details">
+                  {drafts.length > 0 && <div style={actions}>
+                    {drafts.map((draft) => <ui.Button key={draft.id} variant="secondary"
+                      icon="external-link" disabled={!!busy} onClick={() => openResult(draft.id)}>
+                      {drafts.length > 1 && draft.title ? draft.title : S.openResult}
+                    </ui.Button>)}
+                  </div>}
+                  <div style={{ ...actions, marginInlineStart: "auto" }}>
+                    <ui.Button variant={restoreId === entry.id ? "secondary" : "ghost"} disabled={!!busy}
+                      onClick={() => restoreId === entry.id ? restorePlan(entry) : setRestoreId(entry.id)}>{S.loadPlan}</ui.Button>
+                    {restoreId === entry.id && <ui.Button variant="ghost" onClick={() => setRestoreId(null)}>{S.cancel}</ui.Button>}
+                  </div>
+                  {restoreId === entry.id && <span style={{ ...quiet, flexBasis: "100%", textAlign: "end" }}>{S.confirmLoad}</span>}
+                </div>}
+              </li>;
+            })}
+          </ul>
+        </> : <span style={quiet}>{S.emptyHistory}</span>}
+      </section> : <>
+        {files}
+        {backgroundRemoval}
+        {characters}
+        {script}
+        <footer style={{ ...column, borderTop: "1px solid var(--panel-border)", paddingBlock: 8 }}>
+          {!showNoticeByFiles && notices}
+          <div style={{ ...actions, gap: 8 }}>
+            {!canCreate && missingInput && <span style={{ ...quiet, flex: "1 1 110px" }}>{missingInput}</span>}
+            <div style={{ marginInlineStart: "auto" }}>
+              <ui.Button variant="primary" disabled={!canCreate || !!busy} busy={busy === S.createSource || busy === T.creating}
+                busyLabel={busy} onClick={create}>{T.create}</ui.Button>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </>}
     </div>
   );
 }
