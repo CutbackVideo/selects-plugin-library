@@ -271,8 +271,8 @@ const SOURCE_COPY = {
     addRecording: "Connect footage to the characters.", assignSpeakers: "Choose the character for each line.",
     createSource: "Preparing the footage…", storage: "The plan could not be saved.",
     production: "Production", history: "Run history", emptyHistory: "No saved runs yet.",
-    sceneCount: (n) => n + (n === 1 ? " scene" : " scenes"),
     retryHistory: "Try again", loadPlan: "Load plan", openResult: "View result",
+    historyOptions: "Run options", untitledResult: (n) => "Clip " + n,
     resultUnavailable: "Clipper result links are unavailable in this version of Selects.",
     confirmLoad: "Load this run’s plan into the current editor?", cancel: "Cancel", checkRun: "Check in Clipper",
     historyError: "Could not read Clipper’s run status.", untitled: "Untitled episode",
@@ -292,8 +292,8 @@ const SOURCE_COPY = {
     addRecording: "\uce90\ub9ad\ud130\uc5d0 \uc601\uc0c1\uc744 \uc5f0\uacb0\ud574 \uc8fc\uc138\uc694.", assignSpeakers: "\uac01 \ub300\uc0ac\uc758 \uce90\ub9ad\ud130\ub97c \uc9c0\uc815\ud574 \uc8fc\uc138\uc694.",
     createSource: "\uc6d0\ubcf8 \uc601\uc0c1\uc744 \uc900\ube44\ud558\ub294 \uc911…", storage: "\uae30\ud68d\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     production: "\uc81c\uc791", history: "\uc791\uc5c5 \ub0b4\uc5ed", emptyHistory: "\uc544\uc9c1 \uc800\uc7a5\ub41c \uc791\uc5c5\uc774 \uc5c6\uc5b4\uc694.",
-    sceneCount: (n) => n + "\uc52c",
     retryHistory: "\ub2e4\uc2dc \uc2dc\ub3c4", loadPlan: "\uae30\ud68d \ubd88\ub7ec\uc624\uae30", openResult: "\uacb0\uacfc \ubcf4\uae30",
+    historyOptions: "\uc791\uc5c5 \uc635\uc158", untitledResult: (n) => "\ud074\ub9bd " + n,
     resultUnavailable: "\uc774 Selects \ubc84\uc804\uc5d0\uc11c\ub294 Clipper \uacb0\uacfc\ub85c \ubc14\ub85c \uc774\ub3d9\ud560 \uc218 \uc5c6\uc5b4\uc694.",
     confirmLoad: "\uc9c0\uae08 \ud3b8\uc9d1 \uc911\uc778 \ub0b4\uc6a9\uc744 \uc774 \uae30\ud68d\uc73c\ub85c \ubc14\uafc0\uae4c\uc694?", cancel: "\ucde8\uc18c", checkRun: "Clipper\uc5d0\uc11c \ud655\uc778",
     historyError: "Clipper \uc0dd\uc131 \uc0c1\ud0dc\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694.", untitled: "\uc81c\ubaa9 \uc5c6\ub294 \uae30\ud68d",
@@ -351,11 +351,15 @@ const SCRIPT_STYLES = `
   .huick-panel-tab:hover:not(:disabled), .huick-panel-tab[aria-pressed="true"] { background: var(--panel-muted); color: var(--panel-fg); }
   .huick-history-list { list-style: none; margin: 0; padding: 0; }
   .huick-history-row { border-bottom: 1px solid var(--panel-border); }
-  .huick-history-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; width: 100%; height: auto; align-items: center; gap: 8px; padding: 8px; border: 0; border-radius: var(--panel-radius, 6px); background: transparent; color: var(--panel-fg); font: inherit; text-align: start; cursor: pointer; }
-  .huick-history-entry:hover:not(:disabled), .huick-history-entry[aria-expanded="true"] { background: var(--panel-muted); }
+  .huick-history-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; align-items: center; padding-inline-end: 4px; }
+  .huick-history-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; width: 100%; height: auto; align-items: center; gap: 8px; padding: 8px; border: 0; border-radius: var(--panel-radius, 6px); background: transparent; color: var(--panel-fg); font: inherit; text-align: start; }
+  button.huick-history-entry { cursor: pointer; }
+  button.huick-history-entry:hover:not(:disabled), .huick-history-entry[aria-expanded="true"] { background: var(--panel-muted); }
   .huick-panel-tab:focus-visible, .huick-history-entry:focus-visible { outline: 1px solid var(--panel-muted-fg); outline-offset: -1px; }
   .huick-history-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-  .huick-history-details { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; padding: 6px 8px 8px; overflow-wrap: anywhere; }
+  .huick-history-results { list-style: none; margin: 2px 6px 6px 16px; padding: 0 0 0 6px; border-inline-start: 1px solid var(--panel-border); }
+  .huick-history-result { grid-template-columns: minmax(0, 1fr) auto; min-height: 30px; padding-block: 5px; overflow-wrap: anywhere; }
+  .huick-history-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 8px 8px; }
   .huick-file-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; }
   .huick-file-row + .huick-file-row { border-top: 1px solid var(--panel-border); }
   .huick-file-name { font-size: 12px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -1187,33 +1191,50 @@ function ProjectPanel({ sdk, context, ui }) {
           <ul className="huick-history-list">
             {history.map((entry) => {
               const result = resultsByRun.get(entry.id);
-              const selected = selectedRunId === entry.id;
               const drafts = result?.drafts ?? [];
+              const hasChoices = drafts.length > 1;
+              const expanded = hasChoices && selectedRunId === entry.id;
+              const confirming = restoreId === entry.id;
+              const askToRestore = () => {
+                setSelectedRunId(null);
+                setRestoreId(entry.id);
+              };
+              const summary = <>
+                <span className="huick-history-title">
+                  <strong>{episodeTitle(entry.plan) || S.untitled}</strong>
+                  <span style={quiet}>{runDate(entry)}</span>
+                </span>
+                <span style={quiet}>{S.runStates[result?.state] ?? S.checkRun}</span>
+                {drafts.length > 0 && <ui.Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} />}
+              </>;
               return <li key={entry.id} className="huick-history-row">
-                <button type="button" className="huick-history-entry" aria-expanded={selected} onClick={() => {
-                  setSelectedRunId(selected ? null : entry.id);
-                  setRestoreId(null);
-                }}>
-                  <span className="huick-history-title">
-                    <strong>{episodeTitle(entry.plan) || S.untitled}</strong>
-                    <span style={quiet}>{runDate(entry)} · {S.sceneCount(entry.plan.scenes.length)}</span>
-                  </span>
-                  <span style={quiet}>{S.runStates[result?.state] ?? S.checkRun}</span>
-                  <ui.Icon name={selected ? "chevron-down" : "chevron-right"} size={14} />
-                </button>
-                {selected && <div className="huick-history-details">
-                  {drafts.length > 0 && <div style={actions}>
-                    {drafts.map((draft) => <ui.Button key={draft.id} variant="secondary"
-                      icon="external-link" disabled={!!busy} onClick={() => openResult(draft.id)}>
-                      {drafts.length > 1 && draft.title ? draft.title : S.openResult}
-                    </ui.Button>)}
-                  </div>}
-                  <div style={{ ...actions, marginInlineStart: "auto" }}>
-                    <ui.Button variant={restoreId === entry.id ? "secondary" : "ghost"} disabled={!!busy}
-                      onClick={() => restoreId === entry.id ? restorePlan(entry) : setRestoreId(entry.id)}>{S.loadPlan}</ui.Button>
-                    {restoreId === entry.id && <ui.Button variant="ghost" onClick={() => setRestoreId(null)}>{S.cancel}</ui.Button>}
+                <div className="huick-history-main">
+                  {drafts.length > 0 ? <button type="button" className="huick-history-entry" disabled={!!busy}
+                    aria-expanded={hasChoices ? expanded : undefined}
+                    onClick={() => {
+                      setRestoreId(null);
+                      setSelectedRunId(hasChoices && !expanded ? entry.id : null);
+                      if (!hasChoices) void openResult(drafts[0].id);
+                    }}>{summary}</button> : <div className="huick-history-entry">{summary}</div>}
+                  {ui.version >= 4 ? <ui.Menu label={S.historyOptions} disabled={!!busy}
+                    items={[{ label: S.loadPlan, onSelect: askToRestore }]} />
+                    : <ui.Button variant="ghost" disabled={!!busy} onClick={askToRestore}>{S.loadPlan}</ui.Button>}
+                </div>
+                {expanded && <ul className="huick-history-results">
+                  {drafts.map((draft, index) => <li key={draft.id}>
+                    <button type="button" className="huick-history-entry huick-history-result" disabled={!!busy}
+                      onClick={() => openResult(draft.id)}>
+                      <span>{draft.title || S.untitledResult(index + 1)}</span>
+                      <ui.Icon name="chevron-right" size={14} />
+                    </button>
+                  </li>)}
+                </ul>}
+                {confirming && <div className="huick-history-confirm">
+                  <span style={quiet}>{S.confirmLoad}</span>
+                  <div style={actions}>
+                    <ui.Button variant="secondary" disabled={!!busy} onClick={() => restorePlan(entry)}>{S.loadPlan}</ui.Button>
+                    <ui.Button variant="ghost" onClick={() => setRestoreId(null)}>{S.cancel}</ui.Button>
                   </div>
-                  {restoreId === entry.id && <span style={{ ...quiet, flexBasis: "100%", textAlign: "end" }}>{S.confirmLoad}</span>}
                 </div>}
               </li>;
             })}

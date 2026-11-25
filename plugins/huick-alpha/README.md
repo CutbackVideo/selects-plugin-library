@@ -43,9 +43,9 @@ places the graphics.
 
 The **Production** tab saves the current plan on this device per project.
 **Run history** lists past requests and updates their status automatically on
-hosts that expose Clipper's saved run results. Expand a row and choose **View
-result**, or choose a title when the run made multiple clips. The result opens
-in Clipper's **Clips** tab. **Load plan** brings a previous plan back for editing.
+hosts that expose Clipper's saved run results. Select a row to open the result
+in Clipper's **Clips** tab. Runs with multiple clips expand so you can choose
+a result. **Load plan** in the row menu brings a previous plan back for editing.
 
 ## Notes
 
