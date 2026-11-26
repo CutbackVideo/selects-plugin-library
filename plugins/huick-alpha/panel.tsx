@@ -217,6 +217,7 @@ export function buildRequest(plan, projectId, sourceDraftId) {
   // left for Clipper to choose (chroma key or AI mask) from what it says.
   const keyed = cut.filter((name) => !cutNote(name)).map((name) => name.normalize("NFC"));
   const requested = cut.filter((name) => cutNote(name)).map((name) => name.normalize("NFC"));
+  const isCut = (name) => cut.some((n) => n.normalize("NFC") === name.normalize("NFC"));
   for (const name of cut) notes.push(quoted("Cutout request for " + JSON.stringify(name), cutNote(name)));
   const assets = mediaLibrary(plan).filter((file) => file.path).map(({ assetId, name, kind, path }) => ({
     id: assetId, name, kind, path: path.startsWith("\\\\") ? path.replace(/\\/g, "/") : path,
@@ -243,6 +244,14 @@ export function buildRequest(plan, projectId, sourceDraftId) {
       productionCredits: plan.credits,
       chromaKeyVideoNames: keyed,
       cutoutVideoNames: requested,
+      // Selects builds before the cutouts list read cutout requests from here.
+      sceneCompositions: plan.scenes.map((scene) => ({
+        title: scene.title,
+        dialogue: scene.lines.map((line) => {
+          const c = cast.get(line.characterId);
+          return { text: line.text, actor: { name: c.name, recordings: [c.recording], cutout: isCut(c.recording) } };
+        }),
+      })),
     },
   };
 }
