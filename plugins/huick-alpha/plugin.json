@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "huick-alpha",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Huick Alpha",
   "icon": "icon.webp",
   "summary": "Plan a short episode the way the team writes its Docs (concept, cast and recordings, cutouts, materials, scene-by-scene dialogue, screen direction and article excerpts) and have Clipper make the Draft with your template.",
