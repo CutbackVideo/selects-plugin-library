@@ -216,13 +216,20 @@ export function buildRequest(plan, projectId, sourceDraftId) {
   // A checked recording with no request is chroma keyed; one with a request is
   // left for Clipper to choose (chroma key or AI mask) from what it says.
   const keyed = cut.filter((name) => !cutNote(name)).map((name) => name.normalize("NFC"));
-  const isCut = (name) => cut.some((n) => n.normalize("NFC") === name.normalize("NFC"));
+  const requested = cut.filter((name) => cutNote(name)).map((name) => name.normalize("NFC"));
   for (const name of cut) notes.push(quoted("Cutout request for " + JSON.stringify(name), cutNote(name)));
   const assets = mediaLibrary(plan).filter((file) => file.path).map(({ assetId, name, kind, path }) => ({
     id: assetId, name, kind, path: path.startsWith("\\\\") ? path.replace(/\\/g, "/") : path,
   }));
-  const sourceNames = new Set([...used.values()].map((character) => character.recording));
-  const directions = [plan.concept, ...plan.scenes.map((scene) => scene.screen)].join("\n").normalize("NFC");
+  // Recordings are also insert material, for a frame that shows someone who is
+  // not speaking (a two-shot or a reaction).
+  const overlays = [...used.values()].flatMap((c) => {
+    const asset = assets.find(({ name, kind }) => kind === "video" && name.normalize("NFC") === c.recording.normalize("NFC"));
+    return asset ? [{
+      assetId: asset.id, mode: "ai",
+      instructions: "Cast recording of " + c.name + ". Its dialogue is already on the timeline. Use it as an insert only when the plan shows " + c.name + " on screen while someone else speaks (a two-shot or a reaction), at a moment where " + c.name + " is not speaking.",
+    }] : [];
+  });
   return {
     projectId,
     template: DEFAULT_TEMPLATE,
@@ -231,17 +238,11 @@ export function buildRequest(plan, projectId, sourceDraftId) {
     documents: [{ name: SCRIPT_DOCUMENT, purpose: "script", text: script.join("\n\n") }],
     additionalContent: {
       assets,
-      materialAssetIds: assets.filter(({ name, kind }) => kind !== "video" || !sourceNames.has(name) || directions.includes(name.normalize("NFC")))
-        .map(({ id }) => id),
+      overlays,
+      materialAssetIds: assets.map(({ id }) => id),
       productionCredits: plan.credits,
       chromaKeyVideoNames: keyed,
-      sceneCompositions: plan.scenes.map((scene) => ({
-        title: scene.title,
-        dialogue: scene.lines.map((line) => {
-          const c = cast.get(line.characterId);
-          return { text: line.text, actor: { name: c.name, recordings: [c.recording], cutout: isCut(c.recording) } };
-        }),
-      })),
+      cutoutVideoNames: requested,
     },
   };
 }
