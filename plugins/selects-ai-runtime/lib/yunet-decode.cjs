@@ -33,12 +33,16 @@ function rgbToLetterboxBlob(rgb, width, height, out) {
   data.fill(0);
   const scaleX = width / contentWidth;
   const scaleY = height / contentHeight;
+  const columns = Array.from({ length: contentWidth }, (_, x) => {
+    const sx = Math.max(0, Math.min(width - 1, (x + 0.5) * scaleX - 0.5));
+    const x0 = Math.floor(sx);
+    return { x0, x1: Math.min(width - 1, x0 + 1), fx: sx - x0 };
+  });
   for (let y = 0; y < contentHeight; y += 1) {
     const sy = Math.max(0, Math.min(height - 1, (y + 0.5) * scaleY - 0.5));
     const y0 = Math.floor(sy), y1 = Math.min(height - 1, y0 + 1), fy = sy - y0;
     for (let x = 0; x < contentWidth; x += 1) {
-      const sx = Math.max(0, Math.min(width - 1, (x + 0.5) * scaleX - 0.5));
-      const x0 = Math.floor(sx), x1 = Math.min(width - 1, x0 + 1), fx = sx - x0;
+      const { x0, x1, fx } = columns[x];
       const p00 = (y0 * width + x0) * 3, p01 = (y0 * width + x1) * 3;
       const p10 = (y1 * width + x0) * 3, p11 = (y1 * width + x1) * 3;
       const target = y * size + x;

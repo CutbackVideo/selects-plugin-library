@@ -531,7 +531,7 @@ test('speaker measurements preserve detections and count both model calls', asyn
   const stages = timings.summary().stages;
   assert.equal(stages.faceInference.calls,4);
   assert.equal(stages.faceInput.calls,4);
-  assert.equal(stages.speakerInference.calls,3);
+  assert.equal(stages.speakerInference.calls,1); // All ensemble segments are identical below one second.
   assert.equal(stages.faceCrops.calls,1);
 });
 
