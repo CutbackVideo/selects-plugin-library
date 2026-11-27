@@ -36,12 +36,16 @@ places the graphics.
    - **Scenes**: enter the title and lines as spoken. In the direction prompt,
      describe the scene length and when and how to use each asset. Add the article
      excerpt and source in the separate article field.
-4. Press **Create Draft with Clipper** below the script. Huick Alpha prepares
+4. Press **Generate** below the script. Huick Alpha prepares
    the videos linked to speaking characters, then Clipper opens on the project and makes the
    Draft; follow it there. A run takes several minutes. If a recording marked
    for cutout still shows green screen, Clipper stops without saving a Draft.
 
-The plan is saved per project in this panel, so it reopens where you left it.
+The **Production** tab saves the current plan on this device per project.
+**Run history** lists past requests and updates their status automatically on
+hosts that expose Clipper's saved run results. Select a row to open the result
+in Clipper's **Clips** tab. Runs with multiple clips expand so you can choose
+a result. **Load plan** in the row menu brings a previous plan back for editing.
 
 ## Notes
 
